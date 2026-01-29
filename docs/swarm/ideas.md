@@ -51,4 +51,18 @@ The root idea of the SWARM:
 - we track parent-child in the runs
 
 
+There are following components of the system
+- the run-agent.sh script to start agents, which is now managed by the system
+- the start-task.sh that asks for a task and starts it with the system
+- the monitoring tool, which uses the disk layout and message-bus only (web-ui)
+
+Assumptions:
+- message bus MCP is added to all agents
+- all agents CLI are configured to run out of the box, tokens provided
+- it runs on the same machine as a whole
+- monitoring web UI is discussed above
+
+
+
+
 
