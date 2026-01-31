@@ -193,3 +193,6 @@ The ~/run-agent/config.json is used to configure the tool
   - the deployment ssh key for the repository
   - all other sensible parameters, also per-project
   - the list of supported agents
+
+When the root agent is over, we can start compaction of message bus, fact propagation,
+and other activities before the next iteration.
