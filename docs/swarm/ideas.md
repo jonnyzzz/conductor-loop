@@ -63,6 +63,57 @@ Assumptions:
 - monitoring web UI is discussed above
 
 
+NOTES:
+- MESSAGE-BUS files need to be per-task and project to avoid them mixed
+- use MESSAGE-BUS as the way to interfact with an agents
+- We need to post user comments to message bus
+- Agent may quit before whole work is done, this is where we use Ralph like restarts
+
+
+The implementation plan:
+- make run-agent.sh keep project and task.
+- make it store state in the ~/run-agent folder
+- we need to have easy to read layout there
+
+Layout:
+  ~/run-agent
+    \ project                        the name of the project, keep it short
+        - PROJECT-MESSAGE-BUS.md       the project-related knowledge
+        - FACT-<date-time>-<name>.md   we prompt agent to write facts-per-file
+        \ task-<date-time>-<name>
+            - TASK-MESSAGE-BUS.md
+            - TASK FACT FILES-<date-time>.md
+            - TASK_STATE.md          the file where the agent maintains the state
+            - runs                   to keep all agent runs there
+              -- follow run-agent layout --
+              \ <runId>-<date-time>
+                - parent-run-id      the file to mark parent run id
+                - prompt.md
+                - output.md
+                - agent-type
+                - cwd
+
+post-message.sh -- the tool to post message to the message bus
+  - includes type, message, task, project
+
+poll-message.sh -- blocks and waits to read for new meesage (file grows)
+  - allow --wait 
+  - integrates project and task level messages
+
+The root command is `run-task`. This command is started to 
+  - read the TASK.md file with the task description (our use console input)
+  - asks a coding agent to create the name of the task
+  - asks a coding agent to lookup the project (or make it parameter)
+  - this script is responsible to restart the root agent
+  - we prompt agent to
+  - maintains MESSAGE-BUS processing agents: project and task-level. 
+    - Starts agent on each message.
+    - Notifies sub agents to deal with it.
+
+There is graphic tool that
+ - renders that layout (see above) 
+ - shows prompt and output files for each agent
+ - allows post messages to *-MESSAGE-BUS files
 
 
 
