@@ -81,17 +81,18 @@ The implementation plan:
 
 Layout:
   ~/run-agent
-    \ project                        the name of the project, keep it short
+    \ project                          the name of the project, keep it short
         - PROJECT-MESSAGE-BUS.md       the project-related knowledge
         - FACT-<date-time>-<name>.md   we prompt agent to write facts-per-file
+        - home-folders.md              we keep the infomration of the project source code folders and additional useful folders
         \ task-<date-time>-<name>
             - TASK-MESSAGE-BUS.md
             - TASK FACT FILES-<date-time>.md
-            - TASK_STATE.md          the file where the agent maintains the state
-            - runs                   to keep all agent runs there
+            - TASK_STATE.md            the file where the agent maintains the state
+            - runs                     to keep all agent runs there
               -- follow run-agent layout --
               \ <runId>-<date-time>
-                - parent-run-id      the file to mark parent run id
+                - parent-run-id        the file to mark parent run id
                 - prompt.md
                 - output.md
                 - agent-type
