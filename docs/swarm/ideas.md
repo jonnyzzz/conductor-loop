@@ -179,3 +179,17 @@ We need to introduce a limit of 16 agents to the deep.
 MAIN2: Let agent's to split the work by subsystems too. Start one to dig a selected
 project module/folder is really a good approach, so the work is consolidated and
 the context is much less wasted.
+
+
+IDEA -- we merge all tools into one docker binary, os it providers
+-- `run-agent serve` to start web ui for management (later console mode too)
+-- `run-agent task` to start a task
+-- `run-agent job` to run agentic job
+-- `run-agent bus` to deal with message bus
+All commands still prefer user home location for the data storage.
+The location is heavily recommended to be under local git (and if so it commit/push often) + GitHub Deploy key is recommeded
+The ~/run-agent/config.json is used to configure the tool
+  - the projects folder location (default under the ~/run-agent/)
+  - the deployment ssh key for the repository
+  - all other sensible parameters, also per-project
+  - the list of supported agents
