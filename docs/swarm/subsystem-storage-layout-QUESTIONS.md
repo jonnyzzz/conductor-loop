@@ -18,8 +18,12 @@
 
 - Q: What is the canonical naming scheme for rotated message bus files?
   Proposed default: Keep active TASK-MESSAGE-BUS.md and rotate to TASK-MESSAGE-BUS-<N>.md (N increments).
-  A: Use TASK-MESSAGE-BUS.md as the active file; when rotating, move it to TASK-MESSAGE-BUS-<N>.md and continue writing to TASK-MESSAGE-BUS.md. The largest N is the most recent archive.
+  A: Use TASK-MESSAGE-BUS-N.md as the active file; when rotating, increase N. Always write to the maximal N. 
+  A++: Since we manage it with the go binary, it's much more easy to support and propose more options.
+- A+++: Consider a format where each message bus message is clearly separated from the other messages. I do still prefer text output to the agent. And keep the file hunam readable.
+- A++++: MESSAGE-BUS is now a folder, each message is message-<date>-<pid>.md, use --- --- with YAML as header. 
 
 - Q: The run metadata file is named "cwd" in the spec. Should this be renamed to run-info/run-meta?
   Proposed default: Rename to run-info.env (optionally keep cwd.txt for backward compatibility).
-  A: TBD
+  A: It makes sense to put many parameters to a run-info.json/yaml file. We need to keep parent/child run id, task id, project id, work-dir of agent, task folder, and so on
+  A++: The layout is designed to allow post-run reviews

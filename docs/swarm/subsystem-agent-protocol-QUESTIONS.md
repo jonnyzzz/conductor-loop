@@ -18,12 +18,12 @@
 
 - Q: What standard JRUN_* environment variables must be injected into every agent run?
   Proposed default: JRUN_PROJECT_ID, JRUN_TASK_ID, JRUN_ID, JRUN_PARENT_ID, JRUN_ROOT.
-  A: TBD
+  A: In this document we name it run_id, let's use RUN_ID not JOB. JRUN_ROOT is unknown, the CWD is just a parameter. Tasks can have various CWDs, it's advised and necessary
 
 - Q: Who is responsible for restarting the root agent when it exits?
   Proposed default: An external supervisor (run-task) handles restarts; agents do not loop.
-  A: TBD
+  A: run-task aka supervisor should do that. It follows the Ralph Wignim approach (start agent to research details and get summary)
 
 - Q: What is the naming convention for FACT files?
   Proposed default: FACT-<YYYYMMDD-HHMMSS>-<topic>.md.
-  A: TBD
+  A: Agreed
