@@ -27,3 +27,47 @@
   Proposed default: Rename to run-info.env (optionally keep cwd.txt for backward compatibility).
   A: It makes sense to put many parameters to a run-info.json/yaml file. We need to keep parent/child run id, task id, project id, work-dir of agent, task folder, and so on
   A++: The layout is designed to allow post-run reviews
+
+- Q: Should the task state file be named TASK_STATE.md (spec) or STATE.md (ideas)?
+  Proposed default: Use TASK_STATE.md as canonical; omit STATE.md unless backward-compat is required.
+  A: Use TASK_STATE.md.
+
+- Q: What is the canonical task-level facts filename (TASK-FACTS-<timestamp>.md vs TASK FACT FILES-<date-time>.md)?
+  Proposed default: Standardize on TASK-FACTS-<timestamp>.md.
+  A: Use TASK-FACTS-<timestamp>.md.
+
+- Q: What is the intended split between output.md and agent-stdout.txt/agent-stderr.txt?
+  Proposed default: output.md is the final agent response; stdout/stderr are raw logs and optional.
+  A: TBD.
+
+- Q: Should run metadata include PROJECT_ID and TASK_ID fields (in addition to RUN_ID)?
+  Proposed default: Yes, include PROJECT_ID and TASK_ID in run metadata.
+  A: Yes, include project/task IDs.
+
+- Q: What timestamp format should be used for <timestamp>/<date-time> in names?
+  Proposed default: YYYYMMDD-HHMMSS (zero-padded) for lexical sort.
+  A: TBD.
+
+- Q: ideas.md mentions a start/stop log from run-agent.sh; where should that live in the layout?
+  Proposed default: Global ~/run-agent/run-agent.log (optionally per-project logs).
+  A: TBD.
+
+- Q: In run-info (cwd) metadata, are PROMPT/STDOUT/STDERR fields paths or inline content?
+  Proposed default: Store relative file paths to avoid duplication.
+  A: TBD.
+
+- Q: Is MESSAGE-BUS stored as a single file or a folder of per-message files?
+  Proposed default: Single file for MVP; folder-based only if tooling requires it.
+  A: TBD.
+
+- Q: Rotation semantics conflict: is TASK-MESSAGE-BUS.md always active, or do we write to TASK-MESSAGE-BUS-N.md?
+  Proposed default: TASK-MESSAGE-BUS.md is active; TASK-MESSAGE-BUS-<N>.md are archives.
+  A: TBD.
+
+- Q: What is the canonical format for run metadata (run-info): .env, JSON, or YAML?
+  Proposed default: .env-style key/value for simplicity; consider JSON for richer metadata.
+  A: TBD.
+
+- Q: If MESSAGE-BUS format changes (single file vs folder), what is the migration path for existing runs?
+  Proposed default: Keep backward-compatible readers and migrate on demand.
+  A: TBD.

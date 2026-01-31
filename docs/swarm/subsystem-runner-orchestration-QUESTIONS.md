@@ -44,3 +44,39 @@
 - Q: Should run-task validate TASK.md is non-empty before starting an agent?
   Proposed default: Yes, require a minimum prompt length and fail fast otherwise.
   A: yes, it must validate that. 
+
+- Q: Should runner/orchestrator enforce a maximum delegation depth for sub-agents?
+  Proposed default: Max depth = 16 (configurable).
+  A: Max depth 16.
+
+- Q: What is the canonical task state filename (STATE.md vs TASK_STATE.md)?
+  Proposed default: TASK_STATE.md.
+  A: TASK_STATE.md.
+
+- Q: When project/task IDs are missing, should run-task use an agent to propose names or purely prompt the user?
+  Proposed default: Use a naming agent to propose IDs; user confirms or overrides.
+  A: Use a naming agent to propose IDs when missing; allow user override.
+
+- Q: Which component owns start/stop event logging (run-agent.sh, run-task, or both)?
+  Proposed default: run-agent writes per-run start/stop; run-task writes orchestration-level log referencing run IDs.
+  A: TBD.
+
+- Q: Do message-bus pollers merely monitor, or should they dispatch a new agent per incoming message?
+  Proposed default: Pollers spawn a handler agent per new message (task/project), linking parent/child.
+  A: Spawn agent per message.
+
+- Q: Should the root prompt contract include message-bus compaction, full-path references, and message-bus.sh usage?
+  Proposed default: Yes, require bus compaction, full-path references, and message-bus.sh usage.
+  A: Yes.
+
+- Q: Should run metadata include agent PID and full command line?
+  Proposed default: Record pid + commandline in run directory.
+  A: Yes.
+
+- Q: Where is the runner data root located and how is it configured?
+  Proposed default: Default to ~/run-agent, configurable via ~/run-agent/config.json.
+  A: Default ~/run-agent, configurable.
+
+- Q: How should run-task handle idle-timeout if the root agent is idle but sub-agents are still running?
+  Proposed default: Do not restart root while sub-agents are active; surface status in UI/logs.
+  A: TBD.

@@ -31,3 +31,32 @@
 - Q: How do CLI args (--project/--task) interact with JRUN_* environment variables?
   Proposed default: CLI args override env vars; if both missing, fail with error.
   A: project/task/runid are internals of the run-agent command. Environment variables must be set, error messages must never contain hints for agent to set variables. run-task must set all variables, since variables are inherited it will work.
+  A++: CLI args are for human tooling only; agent runs rely on JRUN_* env vars.
+
+- Q: The spec defines post-message.sh/poll-message.sh, but ideas.md and questions mention a Go binary. Should the spec switch to run-agent bus subcommands?
+  Proposed default: Yes, define run-agent bus post/poll and keep .sh as wrappers if needed.
+  A: TBD.
+
+- Q: Message types are inconsistent (info/decision/error vs FACT/QUESTION/ANSWER/USER). Which set is canonical?
+  Proposed default: Use FACT/QUESTION/ANSWER/USER (add ERROR/INFO if needed).
+  A: FACT/QUESTION/ANSWER/USER is canonical (add ERROR/INFO if needed).
+
+- Q: ideas.md mentions cleanup/compaction of MESSAGE-BUS. Should tooling provide a compact/rotate command?
+  Proposed default: Yes, run-agent bus compact to archive old entries.
+  A: TBD.
+
+- Q: Should message bus tooling manage FACT files, or only reference them?
+  Proposed default: Only reference; fact management is separate tooling.
+  A: TBD.
+
+- Q: Given the monitoring UI, should poll expose a structured stream mode (NDJSON) even if default is text?
+  Proposed default: Optional --json/--ndjson mode for UI integration; default remains text.
+  A: TBD.
+
+- Q: What is the error handling strategy when JRUN_* environment variables are missing or invalid?
+  Proposed default: Fail fast with a clear error for human operators; never hint that agents should set variables.
+  A: TBD.
+
+- Q: If message bus format changes (single file vs folder of messages), what is the migration/compat strategy?
+  Proposed default: Provide a migration command and keep backward-compatible readers for N versions.
+  A: TBD.

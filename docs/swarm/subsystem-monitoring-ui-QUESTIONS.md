@@ -23,3 +23,99 @@
 - Q: ideas.md mentions D3/graph visualization but spec says Tree view. Which is MVP?
   Proposed default: Standard tree view for MVP; D3 graph as later enhancement.
   A: Agree. Let's start with the most straitforward react app. 
+
+- Q: What is the polling interval for filesystem updates (tree, message bus, output)?
+  Proposed default: 2s for active run output, 5s for tree/message bus.
+  A: TBD.
+
+- Q: Should the UI auto-refresh continuously or pause when the user is reading a long output?
+  Proposed default: Auto-refresh with a per-pane "Pause updates" toggle.
+  A: TBD.
+
+- Q: How does the UI detect a new task created externally (outside this UI instance)?
+  Proposed default: Periodic scan or file watcher on project/task directories.
+  A: Yes, the directory tree is watched and UI refreshes on changes.
+
+- Q: Should the message bus view show all entries or allow filtering by type?
+  Proposed default: Show all, with optional filter dropdown.
+  A: TBD.
+
+- Q: ideas.md says "left 1/5 screen for message bus view," while spec says tree 1/3 width. Which layout wins?
+  Proposed default: Tree 1/3 left, message bus 1/5 left (stacked or side-by-side), agent output bottom.
+  A: TBD.
+
+- Q: Should task-level and project-level message buses be merged or shown separately?
+  Proposed default: Separate tabs/sections (Project Bus / Task Bus).
+  A: TBD.
+
+- Q: How are FACT-<date-time>-<name>.md files displayed in the UI?
+  Proposed default: Expandable list under project/task node, click to view markdown.
+  A: TBD.
+
+- Q: Should the UI support editing FACT files or are they read-only?
+  Proposed default: Read-only for MVP; editing via external editor.
+  A: TBD.
+
+- Q: When a task has multiple runs, which TASK_STATE.md is shown?
+  Proposed default: Show the single task-level TASK_STATE.md (latest state).
+  A: We have only one TASK_STATE.md per task; show and allow edits in task view.
+
+- Q: "Start again" action: does it create a new run or resume the last run?
+  Proposed default: Create a new run with the same TASK.md prompt; inherit existing state.
+  A: Agree; this is a manual restart of a task run.
+
+- Q: Is there a visual indicator when the root agent is running vs stopped?
+  Proposed default: Status dot/badge on task node (green=running, red=stopped).
+  A: TBD.
+
+- Q: ideas.md mentions a max depth of 16 agents. Should the UI warn when depth exceeds 16?
+  Proposed default: Show depth in run metadata; highlight >16 in red.
+  A: TBD.
+
+- Q: When creating a new project, should the UI ask for the project source code folder path?
+  Proposed default: Prompt for "Project source code folder" if new project name is entered.
+  A: TBD.
+
+- Q: Should the prompt editor in "Start new Task" support markdown preview?
+  Proposed default: Plain text for MVP; markdown preview as enhancement.
+  A: TBD.
+
+- Q: Is the local storage autosave for prompt text per-project or global?
+  Proposed default: Per-project key to avoid mixing prompts.
+  A: TBD.
+
+- Q: ideas.md says "agent output colored per agent." How are colors assigned?
+  Proposed default: Hash agent/run ID to generate stable colors.
+  A: TBD.
+
+- Q: Should stderr be visually distinguished from stdout in the agent output pane?
+  Proposed default: Stderr in red, stdout default.
+  A: TBD.
+
+- Q: What API endpoints does the Go backend expose (list projects, read logs, post message, start task, kill agent)?
+  Proposed default: REST endpoints for /projects, /tasks, /runs, /message-bus, /start-task, /kill-agent.
+  A: TBD.
+
+- Q: Should the backend watch filesystem changes and push updates via WebSocket, or should the UI poll REST endpoints?
+  Proposed default: WebSocket for realtime updates; REST for tree metadata.
+  A: TBD.
+
+- Q: Should the Go backend bind to localhost only or allow LAN access?
+  Proposed default: Localhost only for MVP; config option for LAN.
+  A: TBD.
+
+- Q: Should the UI require authentication or assume single local user?
+  Proposed default: No auth for MVP (single local user).
+  A: Agree; local standalone tool.
+
+- Q: If run-task fails to start (missing env vars, permissions), how does the UI notify the user?
+  Proposed default: Toast notification + error log in task view.
+  A: TBD.
+
+- Q: If a run crashes or is killed externally, how is that reflected in the UI?
+  Proposed default: Mark run as FAILED/KILLED with exit code in metadata.
+  A: TBD.
+
+- Q: If MESSAGE-BUS format switches to folder-based messages, how should the UI read and display it?
+  Proposed default: Support both formats; prefer folder-based if present.
+  A: TBD.
