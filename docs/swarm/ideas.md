@@ -96,6 +96,7 @@ Layout:
                 - output.md
                 - agent-type
                 - cwd
+                - agent process pid and commandline
 
 post-message.sh -- the tool to post message to the message bus
   - includes type, message, task, project
@@ -167,4 +168,4 @@ The application web ui looks as follows:
   - on the task node in the tree -- we have multiple nodes -- message-bus, facts, output
   - UPDATE: the tree starts from PROJECTS, not just tasks
   - on the project level you can see message-bus, facts, and tasks
-
+  - there is an action to "start again" on the tasks
