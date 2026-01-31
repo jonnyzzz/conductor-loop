@@ -196,3 +196,8 @@ The ~/run-agent/config.json is used to configure the tool
 
 When the root agent is over, we can start compaction of message bus, fact propagation,
 and other activities before the next iteration.
+
+
+Management and configuration of started agents. Think if we need to adjust or inject more MCP servers
+
+Amazing how we can debug clion via steroid!
