@@ -1,0 +1,8 @@
+RUN_ID=run_20260131-205240-35472
+CWD=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm
+AGENT=codex
+CMD=codex exec --dangerously-bypass-approvals-and-sandbox -C "/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm" - < "/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm/runs2/run_20260131-205240-35472/prompt.md"
+PROMPT=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm/runs2/run_20260131-205240-35472/prompt.md
+STDOUT=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm/runs2/run_20260131-205240-35472/agent-stdout.txt
+STDERR=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm/runs2/run_20260131-205240-35472/agent-stderr.txt
+PID=35532
