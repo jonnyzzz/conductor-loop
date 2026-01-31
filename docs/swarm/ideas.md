@@ -74,6 +74,10 @@ The implementation plan:
 - make run-agent.sh keep project and task.
 - make it store state in the ~/run-agent folder
 - we need to have easy to read layout there
+- run-agent.sh
+  - asserts it has JRUN_TASK_ID JRUN_PROJECT_ID JRUN_ID environment vars set
+  - tracks parent-child relation between runs (so we create the tree)
+  - allows specify agent and allows to specify "i'm lucky" mode
 
 Layout:
   ~/run-agent
@@ -116,4 +120,51 @@ There is graphic tool that
  - allows post messages to *-MESSAGE-BUS files
 
 
+
+We need to build application, we start from the graphical application,
+it has to be done with react and the best app to draw schemas (e.g. d3 or newer)
+we prefer JetBrains mono font. 
+
+The application web ui looks as follows:
+- on the left (or on the top) there is a tree view
+- Tree roots are the tasks that started by a human
+- There is an action "Start new Task"
+  - it opens new page
+  - it relates to the layout above
+  - you select project or type the new one
+  - you create task id (or pick existing one)
+  - we need to double check if that will be the existing task or a new one
+  - there is big window to write/edit prompt of the task
+  - you store the text in the local storage to make sure it is never lost
+  - when OK is pressed (assiming new task scenario)
+    - we specify the project folder to work on  
+    - we create the project and task folders (see above)
+    - we crate TASK.md file with the user input
+    - we start the task with run-task.sh and pass there all we have
+    - preference to pick the root agent and rotate
+    - the essence of run-tash.sh is while true, basically ralph
+    - the main prompt is <<""""
+        -   you are going to manage the swarm of agents to achieve the goal.
+        -   the goal is explained in the TASK file
+        -   during the work you must follow the THE_PROMPT_v5.md approach. 
+        -   regularly check MESSAGE-BUS.md for updates,
+        -   user interaction is only possible via the MESSAGE-BUS.md
+        -   create facts in .md files near MESSAGE-BUS
+        -   persist your currect state very short in the STATE file, review that file first
+        -   run agent process to cleanup and compact the MESSAGE-BUS, update facts
+        -   promote common facts to the project level.
+        -   read project level facts.
+        -   use message-bus.sh to manage it (you must inline the file)
+        -   use full paths for all references
+        -   use run-agents.sh to start agents under you in the project folders
+        <<""""
+    - the task puts the information to the user home folder.
+  - the system is resilient, and we regularly check the if the root agent is running,
+  - and we start it again if needed.
+  - we use the UI with the tree of run-ids to observe what is happening
+  - we can send the message to the message bus to update agents with information
+  - when an agent is selected we see the output from it
+  - on the task node in the tree -- we have multiple nodes -- message-bus, facts, output
+  - UPDATE: the tree starts from PROJECTS, not just tasks
+  - on the project level you can see message-bus, facts, and tasks
 
