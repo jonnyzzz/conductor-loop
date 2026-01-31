@@ -170,3 +170,12 @@ The application web ui looks as follows:
   - UPDATE: the tree starts from PROJECTS, not just tasks
   - on the project level you can see message-bus, facts, and tasks
   - there is an action to "start again" on the tasks
+
+
+MAIN: Prompts are done recursively. So any run-agent agent must be able to 
+review and decide if it just works or executes deep. 
+We need to introduce a limit of 16 agents to the deep.
+
+MAIN2: Let agent's to split the work by subsystems too. Start one to dig a selected
+project module/folder is really a good approach, so the work is consolidated and
+the context is much less wasted.
