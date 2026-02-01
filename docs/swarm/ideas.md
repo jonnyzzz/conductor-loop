@@ -201,3 +201,9 @@ and other activities before the next iteration.
 Management and configuration of started agents. Think if we need to adjust or inject more MCP servers
 
 Amazing how we can debug clion via steroid!
+
+
+Allow message dependencies, introduce type issue for the message bus. Allow issues to relate
+to each other. Research https://github.com/steveyegge/beads approach.
+
+
