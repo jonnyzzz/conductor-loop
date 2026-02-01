@@ -35,11 +35,11 @@
 
 - Q: The spec defines post-message.sh/poll-message.sh, but ideas.md and questions mention a Go binary. Should the spec switch to run-agent bus subcommands?
   Proposed default: Yes, define run-agent bus post/poll and keep .sh as wrappers if needed.
-  A: TBD.
+  A: We use go binary, and make the binary resolve all the problems.
 
 - Q: Message types are inconsistent (info/decision/error vs FACT/QUESTION/ANSWER/USER). Which set is canonical?
   Proposed default: Use FACT/QUESTION/ANSWER/USER (add ERROR/INFO if needed).
-  A: FACT/QUESTION/ANSWER/USER is canonical (add ERROR/INFO if needed).
+  A: FACT/QUESTION/ANSWER/USER is canonical (add ERROR/INFO if needed). + START/STOP of sub agents.
 
 - Q: ideas.md mentions cleanup/compaction of MESSAGE-BUS. Should tooling provide a compact/rotate command?
   Proposed default: Yes, run-agent bus compact to archive old entries.

@@ -30,11 +30,11 @@
 
 - Q: What is the maximum delegation depth to prevent infinite recursion?
   Proposed default: 16 levels (from ideas.md).
-  A: 16 levels.
+  A: 16 levels. Configurable in the user-home config
 
 - Q: Should agents prefer message-bus tooling (post-message.sh/poll-message.sh) or raw file appends?
   Proposed default: Use message-bus tooling when available; fallback to file appends.
-  A: TBD.
+  A: We create 1 go binary to serve all usages, this is the only tool we are going to use.
 
 - Q: How should agents choose between TASK-MESSAGE-BUS.md and PROJECT-MESSAGE-BUS.md?
   Proposed default: Task-scoped updates/questions go to TASK-MESSAGE-BUS; cross-task facts go to PROJECT-MESSAGE-BUS.
@@ -42,39 +42,39 @@
 
 - Q: What is the mechanism for rotating agent types across restarts?
   Proposed default: Supervisor picks next agent from config.json list (round-robin or random).
-  A: TBD.
+  A: The tool maintain available agents. There is "I'm luck" option supported to pick a tool at random. In that case our tooling should pick an agent while maintaining uniform use of all agents. Weights can be configured under user home.
 
 - Q: When should an agent promote a FACT file from task level to project level?
   Proposed default: When a fact is reusable across multiple tasks (architecture, module structure).
-  A: TBD.
+  A: It is up to agent and prompting. In general, I would add a phase for the root agent to promote facts above. An task-local agent can propose promotion for the root agent review. It can start a dedicated agent(s) to conduct the request review
 
 - Q: Should TASK_STATE.md follow a standard schema (status/next_steps/blockers)?
   Proposed default: Minimal schema with Status/Next Steps/Blockers sections.
-  A: TBD.
+  A: Free text written and maintained by the root agent, it is based in the THE_PLAN_v5.md (or newer) and adjusted by the root agent with cross-agent review.
 
 - Q: What happens if MESSAGE-BUS is missing or corrupted during a run?
   Proposed default: Recreate file, log warning to ISSUES.md, post recovery notice.
-  A: Create it and retry; corruption handling TBD.
+  A: Since we are using our binary to manage message bus (never reading the raw file by an agent), we make sure it's always available or empty
 
 - Q: Should agents invoke run-agent.sh directly to spawn sub-agents, or delegate via MESSAGE-BUS?
   Proposed default: Agents invoke run-agent.sh directly for sub-tasks; MESSAGE-BUS for coordination.
-  A: Agents invoke run-agent.sh directly.
+  A: Agents invoke run-agent.sh directly. Our tool should be promoted and available in PATH.
 
 - Q: How should agents handle CWD (task folder vs project folder)?
   Proposed default: Root agent runs in task folder; code-change sub-agents run in project folder.
-  A: Root agent runs in task folder; code-change sub-agents run in project folder.
+  A: Root agent runs in task folder; code-change sub-agents run in project folder. Some task agents may start in the task folder, that is accepted and fully defined by the root agent plan. We aks the root agent to generate necessary shell scripts to manage the tasks run. There is a chance root agent exists before all the work is done, so we restart it once again and ask to catch up. Potentially only after all sub agents are completed.
 
 - Q: What is the canonical message-bus entry format?
   Proposed default: Markdown with timestamp, run_id, type, and message body (per bus tooling spec).
-  A: TBD.
+  A: STATE -- 2026-02-01 -- We create each message bus entry as a file/folder disk layout. It will be managed by our go-written tool, so it should be fine. Propose alternative options to me, if you have such.
 
 - Q: How often should agents poll for new MESSAGE-BUS entries?
   Proposed default: Every 30-60s during long operations (or as often as possible).
-  A: Poll as often as possible; monitor only new content.
+  A: Poll as often as possible; monitor only new content. Use the binary to access the bus.
 
 - Q: Is there a standard exit code convention for agent runs?
   Proposed default: 0=done, 1=blocked, 2=error, 3=delegated.
-  A: TBD.
+  A: No, we need to define the convension. 0 -- completed, 1 failed. Erorr message written as text to the callee as stderr/stdout. Suspend or wait queue is logged in the stdout/stderr too. Also messagebus is updated. No need for agent codes. Basic idea is that agent run process is blocking and runs as long as an agent running, but terminating the agent process does not kill the agent, use --kill command to kill the real agent when needed. We need that to make sure sub agents are running if parent agent decides to exit (we restart is later)
 
 - Q: Are agents allowed to modify files outside the project folder?
   Proposed default: Only task artifacts (TASK_STATE, FACT, MESSAGE-BUS, ISSUES) within task folder.
@@ -82,20 +82,20 @@
 
 - Q: How should agents handle concurrent MESSAGE-BUS appends?
   Proposed default: Use file locking or message-bus tooling with retry.
-  A: TBD.
+  A: No. That is handled by the go binary we create, it will take care of correctness.
 
 - Q: Should agents log tool invocations to a TRACE.md file?
   Proposed default: Optional, enabled via config flag.
-  A: TBD.
+  A: No. We post that to message bus under specific event types.
 
 - Q: What should agents do if TASK_STATE.md is stale (no updates for 24h)?
   Proposed default: Post warning to MESSAGE-BUS and ask supervisor whether to restart.
-  A: TBD.
+  A: The root agent is tasked to use the file, if the file it empty it's up to the root agent to decide next steps based on the root prompt and task. We restart agent and ask it to catch up the work. And ask it to validate all state are completed. The message bus should be helpful for that
 
 - Q: Should agents validate JRUN_* environment variables on startup, and what happens if validation fails?
   Proposed default: Validate and exit with a clear error; post to MESSAGE-BUS if possible.
-  A: TBD.
+  A: No, agents must not know about environment variables at all. These are our go binary implementation details. Error messages must never leak any hints about environment variables in use to avoid agents manipulating them.
 
 - Q: JRUN_* vs RUN_* naming is inconsistent across docs. Which prefix is canonical?
   Proposed default: Standardize on JRUN_* for all agent runs.
-  A: TBD.
+  A: Use JRUN_ prefix for all variables. We need consistent specifications.
