@@ -207,3 +207,6 @@ Allow message dependencies, introduce type issue for the message bus. Allow issu
 to each other. Research https://github.com/steveyegge/beads approach.
 
 Each folder is ownder by it's own agent, you always delegate, never touch
+
+Detach agent process from the parent agent terminal (the run-agent binary is still syncroniously running)
+to allow the sub agents be more stable to keep running if parent agent is dead. Introduce explicit stop command.
