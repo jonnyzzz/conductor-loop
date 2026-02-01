@@ -210,3 +210,6 @@ Each folder is ownder by it's own agent, you always delegate, never touch
 
 Detach agent process from the parent agent terminal (the run-agent binary is still syncroniously running)
 to allow the sub agents be more stable to keep running if parent agent is dead. Introduce explicit stop command.
+
+
+Update the message box to include start/stop of agentic processes with all paths to pid, output, prompt.
