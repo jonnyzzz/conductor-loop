@@ -213,3 +213,9 @@ to allow the sub agents be more stable to keep running if parent agent is dead. 
 
 
 Update the message box to include start/stop of agentic processes with all paths to pid, output, prompt.
+
+
+The user-home configuration file should include the tokens, or files with tokens (e.g. @ to link to file, or text directly)
+The run-agent binary should validate and know which agents are available. 
+
+The web ui should be ready to maintain multiple backends/hosts
