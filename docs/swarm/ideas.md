@@ -206,4 +206,4 @@ Amazing how we can debug clion via steroid!
 Allow message dependencies, introduce type issue for the message bus. Allow issues to relate
 to each other. Research https://github.com/steveyegge/beads approach.
 
-
+Each folder is ownder by it's own agent, you always delegate, never touch
