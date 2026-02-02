@@ -38,7 +38,7 @@
 
 - Q: What is the intended split between output.md and agent-stdout.txt/agent-stderr.txt?
   Proposed default: output.md is the final agent response; stdout/stderr are raw logs and optional.
-  A: TBD.
+  A: That is great. We need to prompt each agent to make it write the final outpout to the output.md file. So the UI should be able to show all files under the run folder. 
 
 - Q: Should run metadata include PROJECT_ID and TASK_ID fields (in addition to RUN_ID)?
   Proposed default: Yes, include PROJECT_ID and TASK_ID in run metadata.
@@ -46,28 +46,27 @@
 
 - Q: What timestamp format should be used for <timestamp>/<date-time> in names?
   Proposed default: YYYYMMDD-HHMMSS (zero-padded) for lexical sort.
-  A: TBD.
+  A: There must be only 1 timestamp format for all components. 20060102-150405 is the only acceptable format.
 
 - Q: ideas.md mentions a start/stop log from run-agent.sh; where should that live in the layout?
   Proposed default: Global ~/run-agent/run-agent.log (optionally per-project logs).
-  A: TBD.
+  A: The start/stop log should be in the message bus inder the dedicated flag. We should also maintain the parent-child structure since we allow an agent to start sub-agents at any level (up to the configurable limit)
 
 - Q: In run-info (cwd) metadata, are PROMPT/STDOUT/STDERR fields paths or inline content?
-  Proposed default: Store relative file paths to avoid duplication.
-  A: TBD.
+  A: Store relative file paths to avoid duplication if these are in the same folder.
 
 - Q: Is MESSAGE-BUS stored as a single file or a folder of per-message files?
   Proposed default: Single file for MVP; folder-based only if tooling requires it.
-  A: TBD.
+  A: Single file is OK. We are using it like that. We manage it with the go binary, so it should be easy to change later.
 
 - Q: Rotation semantics conflict: is TASK-MESSAGE-BUS.md always active, or do we write to TASK-MESSAGE-BUS-N.md?
   Proposed default: TASK-MESSAGE-BUS.md is active; TASK-MESSAGE-BUS-<N>.md are archives.
-  A: TBD.
+  A: Keep one file, make it simple. We are using the go binary to manage it, so it should be easy to change later.
 
 - Q: What is the canonical format for run metadata (run-info): .env, JSON, or YAML?
   Proposed default: .env-style key/value for simplicity; consider JSON for richer metadata.
-  A: TBD.
+  A: YAML. Use human readable format and machine-readable format.
 
 - Q: If MESSAGE-BUS format changes (single file vs folder), what is the migration path for existing runs?
   Proposed default: Keep backward-compatible readers and migrate on demand.
-  A: TBD.
+  A: Keep it simple for now, make the go binary do the management and offer the stable API for agent.

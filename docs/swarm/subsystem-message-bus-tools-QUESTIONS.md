@@ -43,20 +43,20 @@
 
 - Q: ideas.md mentions cleanup/compaction of MESSAGE-BUS. Should tooling provide a compact/rotate command?
   Proposed default: Yes, run-agent bus compact to archive old entries.
-  A: TBD.
+  A: I think I covered that above -- the message compaction and fact extraction and promotions should be started by the root agent or our tools time after time. Since run-agent binary is used, we are much easier to manage that and much less suffer from overflow. The run-agent bus command should manage offset to allow all requestors access it easier
 
 - Q: Should message bus tooling manage FACT files, or only reference them?
   Proposed default: Only reference; fact management is separate tooling.
-  A: TBD.
+  A: Agree, fact is just a file, let it be on disk. We keep the room for the next iteration to support it. Issues are handled the same way.
 
 - Q: Given the monitoring UI, should poll expose a structured stream mode (NDJSON) even if default is text?
   Proposed default: Optional --json/--ndjson mode for UI integration; default remains text.
-  A: TBD.
+  A: I would to the following -- open an HTTP Stream to read all the logs, use browser Streaming API to fetch them as text flows.
 
 - Q: What is the error handling strategy when JRUN_* environment variables are missing or invalid?
   Proposed default: Fail fast with a clear error for human operators; never hint that agents should set variables.
-  A: TBD.
+  A: First of -- we provide fail fast with error message. The error message should never contain hints for agent to set variables.
 
 - Q: If message bus format changes (single file vs folder of messages), what is the migration/compat strategy?
   Proposed default: Provide a migration command and keep backward-compatible readers for N versions.
-  A: TBD.
+  A: We use run-agent bus command to manage with message bus. The format should be hidden from agents.

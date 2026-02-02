@@ -15,11 +15,11 @@
 
 - Q: Where must the "COMPLETED" signal be emitted (stdout, TASK_STATE.md, MESSAGE-BUS)?
   Proposed default: Root agent writes "COMPLETED" to TASK-MESSAGE-BUS.md and updates TASK_STATE.md.
-  A: AGREED
+  A: AGREED. Agent can write that message whent it can not proceed further too. For example where something does not work, or it is not possible to proceed further without user interaction. User interaction is done via the message bus and ui/cli.
 
 - Q: How does run-agent.sh ensure JRUN_ID uniqueness if a run directory already exists?
   Proposed default: Generate run id with timestamp+pid and retry with random suffix on collision.
-  A: run-agent and run-task sub commands manage JRUN_ID, it is never set by an agent itself. Just use how it's done today -- use date time + PID.
+  A: run-agent and run-task sub commands manage JRUN_ID, it is never set by an agent itself. Just use how it's done today -- use date time + PID. It must pick the folder it created, it must never touch a folder it has not created.
 
 - Q: What happens if run-task is invoked without --project or --task?
   Proposed default: Interactive prompt to select existing project/task or create new.
@@ -47,7 +47,7 @@
 
 - Q: Should runner/orchestrator enforce a maximum delegation depth for sub-agents?
   Proposed default: Max depth = 16 (configurable).
-  A: Max depth 16.
+  A: Max depth 16. Configurable.
 
 - Q: What is the canonical task state filename (STATE.md vs TASK_STATE.md)?
   Proposed default: TASK_STATE.md.
@@ -59,7 +59,7 @@
 
 - Q: Which component owns start/stop event logging (run-agent.sh, run-task, or both)?
   Proposed default: run-agent writes per-run start/stop; run-task writes orchestration-level log referencing run IDs.
-  A: TBD.
+  A: Correct. We start small processes following UNIX philosophy, so each component should do its part well. 
 
 - Q: Do message-bus pollers merely monitor, or should they dispatch a new agent per incoming message?
   Proposed default: Pollers spawn a handler agent per new message (task/project), linking parent/child.
@@ -73,10 +73,9 @@
   Proposed default: Record pid + commandline in run directory.
   A: Yes.
 
-- Q: Where is the runner data root located and how is it configured?
-  Proposed default: Default to ~/run-agent, configurable via ~/run-agent/config.json.
-  A: Default ~/run-agent, configurable.
+- Q: Where is the runner data root located and how is it configured? 
+  A: Configurable via ~/run-agent/config.json file. Data is configurable too, the default location is ~/run-agent/runs. Write a nice config.json with all defaults to the disc, allow // comments in JSON and add documentation there. Default values of older version are changed to new default values automations (we need that infrastructure). Minimize distructuve changes to the JSON. Consider Terraform HCL format instead!
 
 - Q: How should run-task handle idle-timeout if the root agent is idle but sub-agents are still running?
   Proposed default: Do not restart root while sub-agents are active; surface status in UI/logs.
-  A: TBD.
+  A: We have configuration option for timeout. Idle time means the time agent process does not write anything to stdout/stderr. Is so, we kill the process and mark the message bus with the information in what happened. Parent agents should catch up. We restart the root agent to handle that too.
