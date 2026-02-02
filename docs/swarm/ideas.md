@@ -219,3 +219,6 @@ The user-home configuration file should include the tokens, or files with tokens
 The run-agent binary should validate and know which agents are available. 
 
 The web ui should be ready to maintain multiple backends/hosts
+
+
+run-agent go binary must put itself to the PATH for it's sub processes, put to the front. Make sure it's not already included like that from the parent process
