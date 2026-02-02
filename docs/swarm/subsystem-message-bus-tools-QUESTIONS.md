@@ -1,62 +1,47 @@
 # Message Bus Tooling - Questions
 
-- Q: Should message bus entries include a unique message id?
-  Proposed default: Yes, add msg_id=<ulid> to each entry.
-  A: Yes, and projectId, taskId, runId too. Read (and assert these) from environment variables.
+- Q: What is the canonical message entry format for multi-line bodies (header + delimiter)?
+  Proposed default: YAML front-matter delimited by `---` with required fields, followed by body until next `---` or EOF.
+  A: Accepted. We use run-agent binary to manage it anyways.
 
-- Q: Should poll-message.sh support JSON output for easier parsing?
-  Proposed default: Provide --json flag that wraps each entry as JSON.
-  A: No. Just text answers and clear separators between items.
+- Q: What is the canonical set of message types (including START/STOP, ERROR, ISSUE)?
+  Proposed default: FACT, QUESTION, ANSWER, USER, START, STOP, ERROR, ISSUE, INFO, WARNING.
+  A: Add OBSERVATION. Looks good. Conduct additional research online to look for basic approaches of Agentic Memory. Check if there are any other types of messages we are missing.
 
-- Q: How are user responses distinguished from agent messages?
-  Proposed default: Add author=<user|agent> field in the header line.
-  A: There is type field, use FACT, QUESTION, ANSWER, USER. Explain the meaning in the prompts.
+- Q: Should the bus support issue/dependency relations (beads-style), and how are they encoded?
+  Proposed default: For ISSUE entries, add issue_id and depends_on[] fields in the header.
+  A: Yes, it should. We need message-answer like support too for other messages. Yes, parents[] should be enough. For new related message, the run-agent should be able to show the whole thread. All messages from the top to the current new related comment/update.
 
-- Q: Where do post-message.sh and poll-message.sh resolve the message bus root path?
-  Proposed default: Use ~/run-agent by default, override with JRUN_ROOT.
-  A: Nice, yes, use JRUN_ROOT to resolve sub folders
+- Q: How should ANSWER/USER entries reference the QUESTION they respond to?
+  Proposed default: Add reply_to=<msg_id> (and optional thread_id=<msg_id>); tooling enforces for type=ANSWER.
+  A: Yes, the same way as above, via parents[] field. There can be multiple parents, it's acceptable.
 
-- Q: What is the locking strategy for concurrent writes to the same MESSAGE-BUS file?
-  Proposed default: Use flock around appends with retry/backoff.
-  A: Agree. Since we use the same go binary, it allows more flexibility and encapsulation. I assume the idea is to use file-system-baed locking
+- Q: Are user responses append-only, or may they edit prior entries?
+  Proposed default: Append-only; users add new USER/ANSWER entries with reply_to.
+  A: Append only.
 
-- Q: How does poll-message.sh --wait detect new messages?
-  Proposed default: Simple polling on file size/mtime every 1-2 seconds.
-  A: We move to go binary, so use any technique to detect that, poling can do, hopefuly there are more effective ways. Mind we support all OS-es.
+- Q: Are post-message.sh/poll-message.sh still first-class interfaces, or should they be thin wrappers around run-agent bus?
+  Proposed default: run-agent bus is canonical; .sh scripts are optional wrappers for compatibility.
+  A: All goes to run-agent command and sub commands. There must be no other scripts or commands.
 
-- Q: What is the canonical header format for a message entry?
-  Proposed default: [ISO8601] id=<ulid> type=<type> project=<id> task=<id> run_id=<id>
-  A: ACCEPTED: [ISO8601] id=<ulid> type=<FACT|QUESTION|ANSWER|USER> project=<id> task=<id> run_id=<id>. All IDs read from JRUN_PROJECT_ID, JRUN_TASK_ID, JRUN_ID environment variables.
+- Q: Should polling use a cursor/offset (msg_id or byte offset) in addition to timestamps?
+  A: Add --cursor/--since-id and keep --since for human troubleshooting.
 
-- Q: How do CLI args (--project/--task) interact with JRUN_* environment variables?
-  Proposed default: CLI args override env vars; if both missing, fail with error.
-  A: project/task/runid are internals of the run-agent command. Environment variables must be set, error messages must never contain hints for agent to set variables. run-task must set all variables, since variables are inherited it will work.
-  A++: CLI args are for human tooling only; agent runs rely on JRUN_* env vars.
+- Q: What is the compaction/archival policy (what to archive vs delete)?
+  Proposed default: Archive entries older than N days (configurable), retain FACT/DECISION/ISSUE; delete only on explicit command.
+  A: Only explicit. Can be postponed to backlog. With run-agent binary, we can manage it. Intoduce filters for message types to allow skipping some messages.
 
-- Q: The spec defines post-message.sh/poll-message.sh, but ideas.md and questions mention a Go binary. Should the spec switch to run-agent bus subcommands?
-  Proposed default: Yes, define run-agent bus post/poll and keep .sh as wrappers if needed.
-  A: We use go binary, and make the binary resolve all the problems.
+- Q: How should HTTP streaming map to run-agent bus (endpoint + auth)?
+  Proposed default: GET /api/bus/stream?project=<id>&task=<id> with token auth; returns text/event-stream.
+  A: Looks good. We do not implement any authentication right now. The REST should have the same set of parameters as the console app.
 
-- Q: Message types are inconsistent (info/decision/error vs FACT/QUESTION/ANSWER/USER). Which set is canonical?
-  Proposed default: Use FACT/QUESTION/ANSWER/USER (add ERROR/INFO if needed).
-  A: FACT/QUESTION/ANSWER/USER is canonical (add ERROR/INFO if needed). + START/STOP of sub agents.
+- Q: What ordering guarantees should bus readers assume when multiple agents append concurrently?
+  A: Timestamp ordering only; we include timestamp and pid into msg_id, use that for ordering. No need for complexity, so it's ok at low probabilities to get an incorrect order.
 
-- Q: ideas.md mentions cleanup/compaction of MESSAGE-BUS. Should tooling provide a compact/rotate command?
-  Proposed default: Yes, run-agent bus compact to archive old entries.
-  A: I think I covered that above -- the message compaction and fact extraction and promotions should be started by the root agent or our tools time after time. Since run-agent binary is used, we are much easier to manage that and much less suffer from overflow. The run-agent bus command should manage offset to allow all requestors access it easier
+- Q: Should poll support server-side filters (type, run_id, issue_id)?
+  Proposed default: Yes; add --type/--run-id/--issue-id filters.
+  A: Just use the same setup as for the CLI
 
-- Q: Should message bus tooling manage FACT files, or only reference them?
-  Proposed default: Only reference; fact management is separate tooling.
-  A: Agree, fact is just a file, let it be on disk. We keep the room for the next iteration to support it. Issues are handled the same way.
-
-- Q: Given the monitoring UI, should poll expose a structured stream mode (NDJSON) even if default is text?
-  Proposed default: Optional --json/--ndjson mode for UI integration; default remains text.
-  A: I would to the following -- open an HTTP Stream to read all the logs, use browser Streaming API to fetch them as text flows.
-
-- Q: What is the error handling strategy when JRUN_* environment variables are missing or invalid?
-  Proposed default: Fail fast with a clear error for human operators; never hint that agents should set variables.
-  A: First of -- we provide fail fast with error message. The error message should never contain hints for agent to set variables.
-
-- Q: If message bus format changes (single file vs folder of messages), what is the migration/compat strategy?
-  Proposed default: Provide a migration command and keep backward-compatible readers for N versions.
-  A: We use run-agent bus command to manage with message bus. The format should be hidden from agents.
+- Q: How should run-agent bus handle partial writes or corrupted entries?
+  Proposed default: Detect and skip malformed entries; log to ISSUES.md and continue.
+  A: It should recover. It should use the atomic way of writing to disk (write temp file, assert size, swap). We should not let agents touch these files directly.
