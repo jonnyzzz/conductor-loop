@@ -1,81 +1,58 @@
 # Runner & Orchestration - Questions
 
-- Q: What is the exact completion signal in TASK_STATE.md that ends the "ralph" restart loop?
-  Proposed default: A line "status: done" or "done: true" at the top of TASK_STATE.md.
-  A: We prompt the root agent to return "COMPLETED" message when the job is done. It is possible to restart the agent and let it move on further. Sometimes agent can complete the work (stop), but the work is not complete, to handle that we by default start the root agent again until it returns the clear message. It can be different agent each run.
+- Q: What is the authoritative completion signal and status taxonomy for a task (TASK_STATE.md vs MESSAGE-BUS vs exit code)?
+  Proposed default: TASK_STATE.md is authoritative with status: completed|blocked|failed; MESSAGE-BUS mirrors status; exit code only influences backoff.
+  A: We ask the root agent in the prompt to create the DONE file, as the marker of completion. The file is removed if the user wants it to restart once again.
 
-- Q: How should "lucky" agent selection work (round-robin, random, weighted)?
-  Proposed default: Round-robin across codex/claude/gemini per root restart.
-  A: Round-robin + handling of errors and re-runs
+- Q: Should run-task perform compaction/fact propagation between root-agent iterations (Ralph loop)?
+  Proposed default: Optional compaction between iterations, enabled by default and configurable in settings.
+  A: We have git repositories and message bus as propagation. Research if more approaches are needed.
 
-- Q: Should run-task enforce a maximum number of restarts or time budget?
-  Proposed default: Max restarts = 20, or max wall time = 8 hours.
-  A: Yes, do that. Feature to control run-agent.sh behaviour too (e.g. park and say "Waiting for other agents to complete" instead of direct run)
-  AA: Should be configured in the app settings under user home
+- Q: When the root agent marks COMPLETED but sub-agents are still running, should run-task wait, detach, or terminate them?
+  Proposed default: Leave sub-agents running by default; allow config to wait or terminate; always log the decision to MESSAGE-BUS.
+  A: Yes, root task wait for all sub-tree to complete (it can be that some agents stuck). If the root agent exits sooner, we need to restart it to catch up and potentially update the outcomes.
 
-- Q: Where must the "COMPLETED" signal be emitted (stdout, TASK_STATE.md, MESSAGE-BUS)?
-  Proposed default: Root agent writes "COMPLETED" to TASK-MESSAGE-BUS.md and updates TASK_STATE.md.
-  A: AGREED. Agent can write that message whent it can not proceed further too. For example where something does not work, or it is not possible to proceed further without user interaction. User interaction is done via the message bus and ui/cli.
+- Q: Should run-agent detach agent processes from the parent terminal so they survive parent exit?
+  Proposed default: Yes; run-agent tracks detached PIDs and exposes a stop command.
+  A: Yes, run-agent tool should start all agent processes detached from itself, so they survive parent exit, and they survive agent kills.
 
-- Q: How does run-agent.sh ensure JRUN_ID uniqueness if a run directory already exists?
-  Proposed default: Generate run id with timestamp+pid and retry with random suffix on collision.
-  A: run-agent and run-task sub commands manage JRUN_ID, it is never set by an agent itself. Just use how it's done today -- use date time + PID. It must pick the folder it created, it must never touch a folder it has not created.
+- Q: What is the canonical stop/kill sequence for an agent run, and where is it recorded?
+  Proposed default: Graceful stop (SIGTERM) -> wait N seconds -> SIGKILL; record in run metadata and MESSAGE-BUS.
+  A: there is agent-run stop command with runid parameter. Agent can call it to clearly stop the run. Killing the run-agent process should not be enough.
 
-- Q: What happens if run-task is invoked without --project or --task?
-  Proposed default: Interactive prompt to select existing project/task or create new.
-  A: It fails. This feature must not be visible if started under run-task (where environment variables are set)
+- Q: How should idle-timeout detect true inactivity vs waiting on sub-agents?
+  A: a run idle only if no stdout/stderr AND no active child runs for N seconds.
 
-- Q: Should run-agent.sh enforce a per-run timeout (separate from run-task global budget)?
-  Proposed default: No timeout by default; allow JRUN_AGENT_TIMEOUT to opt-in.
-  A: No timeout for now. But it should track if an agent is fully idle for long time. Create an option for idle-timeout in the settings, set it to 1 minute as default.
+- Q: What is the policy when run-task is invoked for a task that already has an active root run?
+  A: Use a per-task lock; second invocation exits with a clear message (optional attach/read-only mode).
 
-- Q: How should "lucky" agent selection handle failures (rate limits/auth errors)?
-  Proposed default: Mark failed agent as degraded for N minutes, log to message bus, and try next agent.
-  A: AGREED. Also we need to detect codex and any other agent sandbox which can break it and want.
+- Q: Should runner enforce max-concurrent agents and support "park and wait" instead of failing immediately?
+  Proposed default: 
+  A: Yes; park and poll for free slots when limit is reached. It can still yield to starvation if all agents are waiting. We can fix that later.
 
-- Q: What extra run metadata should be captured for observability (duration, exit code, etc.)?
-  Proposed default: Persist start/end time, duration, exit code, agent type, cwd, command line.
-  A: Agree.
+- Q: What safety mechanism prevents infinite restart loops on repeated fast failures?
+  A: Exponential backoff plus a circuit breaker after N quick failures (<2 min each). Raise WARN message to the message bus.
 
-- Q: How should message-bus poller crashes be handled?
-  Proposed default: Exponential backoff restarts with a max retry window, and alert in monitoring UI.
-  A: Just crash, show the error in output, let agent handle it.
+- Q: Should run-agent post START/STOP events to MESSAGE-BUS in addition to run metadata?
+  Proposed default: Yes; include run_id, parent_run_id, pid, prompt/output paths, and exit_code on STOP.
+  A: We keep run metadata in the message bus for audit purposes. So just put that message onces. We need that task graph for UI, so it should be cheap to build.
 
-- Q: Should run-task validate TASK.md is non-empty before starting an agent?
-  Proposed default: Yes, require a minimum prompt length and fail fast otherwise.
-  A: yes, it must validate that. 
+- Q: Where should sandbox detection/agent health marking live (run-agent.sh vs runner binary)?
+  Proposed default: Runner binary detects sandbox issues and marks an agent backend as degraded before spawning.
+  A: We move that as closer to agent process as possible. So each run-agent process should take care of it's agent. It should work wihtout consolidation or orchestration.
 
-- Q: Should runner/orchestrator enforce a maximum delegation depth for sub-agents?
-  Proposed default: Max depth = 16 (configurable).
-  A: Max depth 16. Configurable.
+- Q: What is the canonical config format and migration strategy for ~/run-agent/config.json?
+  Proposed default: JSON with // comments (JSON5-style) and a version field; load merges defaults, logs deprecated keys, and never deletes user values.
+  A: We use HCL format from hashicorp/hcl. Each setting comes with optional value and included default value and comment. We update default values as part of the migrations, when new values are implemented. For now, just use HCP and create a stub file if there is no file under the user home.
 
-- Q: What is the canonical task state filename (STATE.md vs TASK_STATE.md)?
-  Proposed default: TASK_STATE.md.
-  A: TASK_STATE.md.
+- Q: Where are backend tokens stored and how are they injected into agent processes without leaking to logs?
+  Proposed default: Store in config.json via @file references or OS keychain; pass via env vars and redact from logs.
+  A: Agent tokens are loaded and set as environment variables. We do not care if they are leaked to logs.
 
-- Q: When project/task IDs are missing, should run-task use an agent to propose names or purely prompt the user?
-  Proposed default: Use a naming agent to propose IDs; user confirms or overrides.
-  A: Use a naming agent to propose IDs when missing; allow user override.
+- Q: How is multi-backend selection configured per project/task (priority, fallback, health checks)?
+  Proposed default: Global agents.order in config.json with per-project overrides; failures mark backend degraded temporarily.
+  A: Non goal for now. Let's assume there is 1 machine and all processes are local.
 
-- Q: Which component owns start/stop event logging (run-agent.sh, run-task, or both)?
-  Proposed default: run-agent writes per-run start/stop; run-task writes orchestration-level log referencing run IDs.
-  A: Correct. We start small processes following UNIX philosophy, so each component should do its part well. 
-
-- Q: Do message-bus pollers merely monitor, or should they dispatch a new agent per incoming message?
-  Proposed default: Pollers spawn a handler agent per new message (task/project), linking parent/child.
-  A: Spawn agent per message.
-
-- Q: Should the root prompt contract include message-bus compaction, full-path references, and message-bus.sh usage?
-  Proposed default: Yes, require bus compaction, full-path references, and message-bus.sh usage.
-  A: Yes.
-
-- Q: Should run metadata include agent PID and full command line?
-  Proposed default: Record pid + commandline in run directory.
-  A: Yes.
-
-- Q: Where is the runner data root located and how is it configured? 
-  A: Configurable via ~/run-agent/config.json file. Data is configurable too, the default location is ~/run-agent/runs. Write a nice config.json with all defaults to the disc, allow // comments in JSON and add documentation there. Default values of older version are changed to new default values automations (we need that infrastructure). Minimize distructuve changes to the JSON. Consider Terraform HCL format instead!
-
-- Q: How should run-task handle idle-timeout if the root agent is idle but sub-agents are still running?
-  Proposed default: Do not restart root while sub-agents are active; surface status in UI/logs.
-  A: We have configuration option for timeout. Idle time means the time agent process does not write anything to stdout/stderr. Is so, we kill the process and mark the message bus with the information in what happened. Parent agents should catch up. We restart the root agent to handle that too.
+- Q: Should run-agent enforce CPU/memory limits per agent process?
+  Proposed default: Optional ulimit/cgroup constraints configured in config.json.
+  A: No, let's just start processes as is and let the OS do its job.
