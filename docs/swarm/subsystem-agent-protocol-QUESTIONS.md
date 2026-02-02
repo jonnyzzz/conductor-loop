@@ -1,101 +1,41 @@
 # Agent Protocol & Governance - Questions
 
-- Q: How strict should agent exit timing be (max runtime)?
-  Proposed default: Soft limit 15 minutes per run; require delegation after that.
-  A: No time limit right now, nice feature for UI to restart an agent, since we persist prompt and commandline and cwd. And it must be logged to the message bus. Plus each agent should be instructed to re-read message bus as often as possible (monitor only new content).
+- Q: Do we need an explicit git allowlist per task (e.g., TASK_GIT_ALLOWLIST.md)?
+  Proposed default: Optional allowlist; if present, agents must restrict writes to those paths.
+  A: No allow list. We need to allow agent to use git. There must be git repository for the tasks and metedata files (configured globally for run-agent), there are multiple project repositories there angets are working. We ask the agent to start agent processes in the projec folders (or subfolders) to localize the context and the work.
 
-- Q: Should the protocol enforce a standard format for FACT files (YAML/Markdown template)?
-  Proposed default: Markdown with a short header: date, author, scope.
-  A: Markdown should be used.
+- Q: Should the protocol enforce folder ownership (each folder owned by its agent; others must delegate)?
+  Proposed default: Yes; agents should delegate rather than edit folders they do not own.
+  A: Yes, that is great idea, we need to enforce that on prompt basis. Agent should prefer to delegate rather than edit folders it does not own, expecially if it's not running in the project folder and the task is to change the project folder. Same applied for bigger subsystems.
 
-- Q: Do we need an explicit "git allowlist" per task?
-  Proposed default: Optional file TASK_GIT_ALLOWLIST.md listing writable paths.
-  A: Need more information to cover that question. Normally the project folder != the root agent run folder. The root agent must start sub agent processes in the target project folder. This information is persisted in the project directory for project. See home-folders.md.
+- Q: Are agents allowed to read files outside the project/task folders, and what are the read boundaries?
+  Proposed default: Reads limited to project root + task folder + explicit allowlist in config.
+  A: No boundaries at all. Just recommendations to delegate. There is a chance that some folders can be on the other host with no direct access at all. Running agent process will still work correctly.
 
-- Q: Should we strictly separate PROJECT-MESSAGE-BUS.md and TASK-MESSAGE-BUS.md instead of a single MESSAGE-BUS.md?
-  Proposed default: Yes, keep distinct project vs task scopes.
-  A: Yes, keep distinct project vs task scopes (already in ideas.md layout).
+- Q: Should agents have read-only vs read-write permissions for project vs task folders?
+  Proposed default: Read-write for task artifacts and project code; read-only for project FACT files.
+  A: Give agents all possible permissions, at this stage we do not deal with any restrictions or permissions. Place that to backlog.
 
-- Q: What standard JRUN_* environment variables must be injected into every agent run?
-  Proposed default: JRUN_PROJECT_ID, JRUN_TASK_ID, JRUN_ID, JRUN_PARENT_ID, JRUN_ROOT.
-  A: In this document we name it run_id, let's use RUN_ID not JOB. JRUN_ROOT is unknown, the CWD is just a parameter. Tasks can have various CWDs, it's advised and necessary
+- Q: Who owns conflict resolution when sub-agents touch the same files?
+  Proposed default: Root agent resolves conflicts; sub-agents report conflicts via MESSAGE-BUS and stop.
+  A: Agreed.
 
-- Q: Who is responsible for restarting the root agent when it exits?
-  Proposed default: An external supervisor (run-task) handles restarts; agents do not loop.
-  A: run-task aka supervisor should do that. It follows the Ralph Wignim approach (start agent to research details and get summary)
+- Q: Should agents be prohibited from destructive commands (rm -rf, git clean -fdx) unless explicitly approved?
+  Proposed default: Disallow by default; require explicit user approval via MESSAGE-BUS.
+  A: Right now we just give agents all permissions, we can add more restrictions later.
 
-- Q: What is the naming convention for FACT files?
-  Proposed default: FACT-<YYYYMMDD-HHMMSS>-<topic>.md.
-  A: Agreed
+- Q: Should agents check for STOP/CANCEL requests in MESSAGE-BUS, and how should they acknowledge and exit?
+  Proposed default: Check at start and before long operations; post cancellation status, update TASK_STATE.md, then exit.
+  A: Yes, we prompt agent to check for STOP/CANCEL requests, it will unlikely work, we can try.
 
-- Q: What is the maximum delegation depth to prevent infinite recursion?
-  Proposed default: 16 levels (from ideas.md).
-  A: 16 levels. Configurable in the user-home config
+- Q: Should agents emit periodic heartbeat/progress entries when no stdout/stderr is produced?
+  Proposed default: Emit STATUS heartbeat after N minutes of inactivity; N configurable.
+  A: It would be great to make an agent verbosely report its progress, say to stderr, and write the final results to output.md.
 
-- Q: Should agents prefer message-bus tooling (post-message.sh/poll-message.sh) or raw file appends?
-  Proposed default: Use message-bus tooling when available; fallback to file appends.
-  A: We create 1 go binary to serve all usages, this is the only tool we are going to use.
+- Q: Should agents be allowed to read sibling task MESSAGE-BUS files?
+  Proposed default: No; only own TASK-MESSAGE-BUS and PROJECT-MESSAGE-BUS.
+  A: Agent can read parent and sibling tasks via the binary, but the agent has to write access to these files. All is managed via the run-agent binary. Moreover, we track tree-like relationships between message bus messages of all types.
 
-- Q: How should agents choose between TASK-MESSAGE-BUS.md and PROJECT-MESSAGE-BUS.md?
-  Proposed default: Task-scoped updates/questions go to TASK-MESSAGE-BUS; cross-task facts go to PROJECT-MESSAGE-BUS.
-  A: Use TASK-MESSAGE-BUS for task updates; PROJECT-MESSAGE-BUS for cross-task facts.
-
-- Q: What is the mechanism for rotating agent types across restarts?
-  Proposed default: Supervisor picks next agent from config.json list (round-robin or random).
-  A: The tool maintain available agents. There is "I'm luck" option supported to pick a tool at random. In that case our tooling should pick an agent while maintaining uniform use of all agents. Weights can be configured under user home.
-
-- Q: When should an agent promote a FACT file from task level to project level?
-  Proposed default: When a fact is reusable across multiple tasks (architecture, module structure).
-  A: It is up to agent and prompting. In general, I would add a phase for the root agent to promote facts above. An task-local agent can propose promotion for the root agent review. It can start a dedicated agent(s) to conduct the request review
-
-- Q: Should TASK_STATE.md follow a standard schema (status/next_steps/blockers)?
-  Proposed default: Minimal schema with Status/Next Steps/Blockers sections.
-  A: Free text written and maintained by the root agent, it is based in the THE_PLAN_v5.md (or newer) and adjusted by the root agent with cross-agent review.
-
-- Q: What happens if MESSAGE-BUS is missing or corrupted during a run?
-  Proposed default: Recreate file, log warning to ISSUES.md, post recovery notice.
-  A: Since we are using our binary to manage message bus (never reading the raw file by an agent), we make sure it's always available or empty
-
-- Q: Should agents invoke run-agent.sh directly to spawn sub-agents, or delegate via MESSAGE-BUS?
-  Proposed default: Agents invoke run-agent.sh directly for sub-tasks; MESSAGE-BUS for coordination.
-  A: Agents invoke run-agent.sh directly. Our tool should be promoted and available in PATH.
-
-- Q: How should agents handle CWD (task folder vs project folder)?
-  Proposed default: Root agent runs in task folder; code-change sub-agents run in project folder.
-  A: Root agent runs in task folder; code-change sub-agents run in project folder. Some task agents may start in the task folder, that is accepted and fully defined by the root agent plan. We aks the root agent to generate necessary shell scripts to manage the tasks run. There is a chance root agent exists before all the work is done, so we restart it once again and ask to catch up. Potentially only after all sub agents are completed.
-
-- Q: What is the canonical message-bus entry format?
-  Proposed default: Markdown with timestamp, run_id, type, and message body (per bus tooling spec).
-  A: STATE -- 2026-02-01 -- We create each message bus entry as a file/folder disk layout. It will be managed by our go-written tool, so it should be fine. Propose alternative options to me, if you have such.
-
-- Q: How often should agents poll for new MESSAGE-BUS entries?
-  Proposed default: Every 30-60s during long operations (or as often as possible).
-  A: Poll as often as possible; monitor only new content. Use the binary to access the bus.
-
-- Q: Is there a standard exit code convention for agent runs?
-  Proposed default: 0=done, 1=blocked, 2=error, 3=delegated.
-  A: No, we need to define the convension. 0 -- completed, 1 failed. Erorr message written as text to the callee as stderr/stdout. Suspend or wait queue is logged in the stdout/stderr too. Also messagebus is updated. No need for agent codes. Basic idea is that agent run process is blocking and runs as long as an agent running, but terminating the agent process does not kill the agent, use --kill command to kill the real agent when needed. We need that to make sure sub agents are running if parent agent decides to exit (we restart is later)
-
-- Q: Are agents allowed to modify files outside the project folder?
-  Proposed default: Only task artifacts (TASK_STATE, FACT, MESSAGE-BUS, ISSUES) within task folder.
-  A: Yes, only task artifacts within their task folder.
-
-- Q: How should agents handle concurrent MESSAGE-BUS appends?
-  Proposed default: Use file locking or message-bus tooling with retry.
-  A: No. That is handled by the go binary we create, it will take care of correctness.
-
-- Q: Should agents log tool invocations to a TRACE.md file?
-  Proposed default: Optional, enabled via config flag.
-  A: No. We post that to message bus under specific event types.
-
-- Q: What should agents do if TASK_STATE.md is stale (no updates for 24h)?
-  Proposed default: Post warning to MESSAGE-BUS and ask supervisor whether to restart.
-  A: The root agent is tasked to use the file, if the file it empty it's up to the root agent to decide next steps based on the root prompt and task. We restart agent and ask it to catch up the work. And ask it to validate all state are completed. The message bus should be helpful for that
-
-- Q: Should agents validate JRUN_* environment variables on startup, and what happens if validation fails?
-  Proposed default: Validate and exit with a clear error; post to MESSAGE-BUS if possible.
-  A: No, agents must not know about environment variables at all. These are our go binary implementation details. Error messages must never leak any hints about environment variables in use to avoid agents manipulating them.
-
-- Q: JRUN_* vs RUN_* naming is inconsistent across docs. Which prefix is canonical?
-  Proposed default: Standardize on JRUN_* for all agent runs.
-  A: Use JRUN_ prefix for all variables. We need consistent specifications.
+- Q: Should agents be prohibited from referencing JRUN_* environment variables in prompts/logs?
+  Proposed default: Yes; env vars are implementation details and must not be surfaced to agents.
+  A: No special setup is needed, on the onthe hand we must make sure these variables are not used by agents directly.
