@@ -1,104 +1,101 @@
 # Runner & Orchestration Subsystem
 
 ## Overview
-This subsystem owns how agents are started, restarted, and coordinated. It defines the CLI tools and runtime contract for spawning agents (run-agent.sh) and for running a task end-to-end (run-task/start-task flow).
+This subsystem owns how agents are started, restarted, and coordinated. It defines the `run-agent` binary (and `run-task` subcommand) responsible for spawning agent runs, tracking lineage, and enforcing the root "Ralph" restart loop until completion.
 
 ## Goals
-- Start agents with a consistent run layout and metadata.
-- Track parent-child relationships between runs.
-- Keep the root orchestrator running until the task is complete ("ralph" restart loop).
-- Provide a stable CLI interface for starting tasks and agents.
-- Rotate or auto-select agent types to avoid stalling on one model.
+- Start agents with a consistent run layout and metadata (see Storage & Data Layout).
+- Track parent-child relationships and restart chains (previous_run_id).
+- Keep the root orchestrator running until the task is done (DONE marker).
+- Provide a stable CLI for starting tasks and agents.
+- Rotate or auto-select agent types to avoid stalling.
 
 ## Non-Goals
-- Implementing the message bus itself (handled by Message Bus subsystem).
-- Implementing the monitoring UI (handled by Monitoring UI subsystem).
-- Writing the actual prompt content for every task (handled by task authoring/UI).
+- Implementing the message bus itself (handled by Message Bus Tooling).
+- Implementing the monitoring UI (handled by Monitoring UI).
+- Enforcing strict sandboxing or resource limits (not required yet).
 
 ## Responsibilities
-- Validate required environment variables for run tracking.
-- Create run directories and log metadata for each agent run.
-- Launch agents with a provided prompt file.
-- Restart the root agent on exit until the task is done.
-- Spawn and manage message-bus polling agents.
+- Validate required environment variables for run tracking (internal to runner).
+- Create run directories and record run metadata.
+- Launch agents detached from the parent process.
+- Manage the Ralph restart loop for the root agent.
+- Spawn message-bus handling agents per incoming message (task/project level).
+- Record START/STOP/CRASH events for auditability.
 
 ## Components
-### run-agent.sh
-- Single responsibility: start one agent run and block until it finishes.
-- Required environment:
-  - JRUN_TASK_ID: task identifier.
-  - JRUN_PROJECT_ID: project identifier.
-  - JRUN_ID: unique run identifier for this invocation.
-  - JRUN_PARENT_ID: optional parent run id (empty for root).
-- Records run metadata and links parent-child relations.
-- Supports explicit agent selection (codex/claude/gemini) or a "lucky" mode.
+### run-agent (binary)
+- Starts one agent run and blocks until completion.
+- Detaches from the controlling terminal (so the agent survives parent exit) but still waits on the agent PID for exit status.
+- Maintains process group ID for stop/kill.
+- Generates run_id (timestamp + PID) and creates the run folder.
+- Writes run metadata (run-info.yaml) and output files.
+- Posts run START/STOP events to message bus.
 
-### run-task (start-task) flow
-- Reads the task prompt from TASK.md or user input.
-- Resolves or generates:
-  - Project id
-  - Task id
-- Creates the task folder and initial files.
-- Starts the root agent with a canonical root prompt.
-- Implements the restart loop (restarts root agent if it exits before task completion).
-- Starts background pollers for project and task message buses.
+### run-task (subcommand)
+- Creates/locates project and task folders.
+- Validates TASK.md is non-empty.
+- Starts root agent and enforces the Ralph restart loop.
+- Task is complete only when DONE exists AND all child runs have exited.
+- If DONE exists but children are still running, wait and restart root to catch up.
+- If children are done but DONE is absent, restart root.
 
-## Interfaces / CLI
-### run-agent.sh
-- Usage: run-agent.sh [agent] [cwd] [prompt_file]
-- Writes run metadata files (see Storage subsystem).
-- Exit code: pass-through from agent process.
+### run-agent stop (subcommand)
+- Stops a run by run_id.
+- Sends SIGTERM to the agent process group, then SIGKILL after a grace period.
+- Records STOP event in run metadata + message bus.
 
-### run-task
-- Usage: run-task --project <id> --task <id> [--prompt <file>]
-- If missing, prompts to generate project/task id.
-- Creates TASK.md if not present.
+## Configuration
+- Config file format: HCL (Hashicorp).
+- Stored under user home (global config only). Per-project/task config is not required yet.
+- Precedence (when/if per-project/task config is added): CLI > env vars > task config > project config > global config.
+- Configurable items:
+  - max restarts / time budget for Ralph loop
+  - idle/stuck thresholds
+  - agent selection weights and ordering
+  - delegation depth (max 16 by default)
+
+## Run ID / Timestamp Rules
+- Canonical timestamp format: UTC `YYYYMMDD-HHMMSSMMMM-PID` (lexically sortable).
+- run_id is generated by run-agent using the same format.
+- Each Ralph restart creates a new run; run-info records previous_run_id to form a chain.
+
+## Agent Selection
+- Default: round-robin across available agent types.
+- "I'm lucky" mode: random selection with uniform weighting (weights configurable).
+- On failure, mark the backend as degraded temporarily and try the next agent.
+
+## Idle / Stuck / Waiting Detection
+- Use last stdout/stderr timestamp + message bus activity.
+- Idle: no stdout/stderr AND all children idle for N seconds (default 5m).
+- Stuck: no stdout/stderr for a longer threshold (default 15m).
+- Waiting: last message bus entry is QUESTION.
+- On idle timeout: kill the process, log to message bus, and let parent recover.
 
 ## Root Orchestrator Prompt Contract
-The root agent prompt must include these requirements:
+The root agent prompt must include:
 - Read TASK_STATE.md and TASK-MESSAGE-BUS.md on start.
-- Only communicate via message bus.
-- Create facts in FACT-*.md files.
-- Update TASK_STATE.md with short, current state.
-- Delegate sub-tasks by starting sub agents (run-agent.sh).
-- Promote stable facts to project-level FACT files.
-- Restart-safe behavior (idempotent read/decide).
-
-## Workflows
-### Start New Task (happy path)
-1. User creates task via UI or CLI.
-2. run-task creates project/task folder and TASK.md.
-3. run-task starts root agent (run-agent.sh).
-4. Root agent processes task and spawns sub agents.
-5. run-task restarts root agent until done condition is satisfied.
-
-### Root Agent Restart ("ralph")
-1. Root agent exits (success or failure).
-2. run-task checks TASK_STATE.md for completion flag.
-3. If incomplete, re-run root agent with same prompt and context.
-
-## Data / State Touched
-- TASK.md (input prompt)
-- TASK_STATE.md (short state)
-- TASK-MESSAGE-BUS.md and PROJECT-MESSAGE-BUS.md
-- FACT-*.md files (task and project)
-- runs/<runId> metadata (prompt, output, parent-run-id, agent-type, cwd)
+- Use message bus only for communication.
+- Write facts as FACT-*.md (YAML front matter required).
+- Update TASK_STATE.md with a short free-text status.
+- Write final results to output.md in the run folder.
+- Create DONE file when the task is complete (and post COMPLETED to message bus).
+- Delegate sub-tasks by starting sub agents via run-agent.
 
 ## Error Handling
-- If required env vars are missing, run-agent exits with error.
-- If prompt file is missing, run-agent exits with error.
-- If root agent fails repeatedly, run-task should backoff and log error.
-- If message bus pollers crash, restart them in the background.
+- Missing env vars -> fail fast (error messages must not instruct agents to set env).
+- Transient backend errors -> exponential backoff (1s, 2s, 4s; max 3 tries).
+- Auth/quota errors -> fail fast.
+- Poller crashes -> log and let root agent decide recovery.
 
 ## Observability
-- run-agent.sh writes:
-  - agent stdout/stderr
-  - prompt.md
-  - cwd.txt (run metadata)
-  - parent-run-id
-- run-task writes a run log for start/stop events.
+- run-info.yaml contains:
+  - run_id, project_id, task_id, parent_run_id, previous_run_id
+  - agent type, pid/pgid, start/end time, exit code
+  - paths to prompt/output/stdout/stderr
+- START/STOP/CRASH events are posted to message bus for UI reconstruction.
 
 ## Security / Permissions
-- Only the run-task user can write to the project/task directory.
-- Avoid passing secrets in prompts; store them in SECRETS.md or env vars.
-- Agents should not touch unrelated files outside the task scope.
+- Tokens are read from config and injected via environment variables.
+- No credential validation/refresh required yet.
+- No sandboxing or resource limits enforced yet.

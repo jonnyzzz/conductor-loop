@@ -188,10 +188,10 @@ IDEA -- we merge all tools into one docker binary, os it providers
 -- `run-agent bus` to deal with message bus
 All commands still prefer user home location for the data storage.
 The location is heavily recommended to be under local git (and if so it commit/push often) + GitHub Deploy key is recommeded
-The ~/run-agent/config.json is used to configure the tool
+The ~/run-agent/config.hcl (HCL) is used to configure the tool
   - the projects folder location (default under the ~/run-agent/)
   - the deployment ssh key for the repository
-  - all other sensible parameters, also per-project
+  - all other sensible parameters (per-project overrides are optional future work)
   - the list of supported agents
 
 When the root agent is over, we can start compaction of message bus, fact propagation,

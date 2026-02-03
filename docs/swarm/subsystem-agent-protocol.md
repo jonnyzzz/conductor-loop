@@ -1,48 +1,77 @@
 # Agent Protocol & Governance Subsystem
 
 ## Overview
-Defines behavioral rules for all agents in the swarm, including delegation, communication, state/fact updates, and git safety.
+Defines behavioral rules for all agents in the swarm, including delegation, communication, state/fact updates, and git safety. Enforcement is primarily via prompts and runner tooling, not sandboxing.
 
 ## Goals
 - Ensure small, focused agent runs that exit on completion.
-- Force all communication through message bus files.
+- Force all communication through message bus tooling.
 - Maintain a reliable state/facts trail for handoff.
-- Prevent accidental git changes outside the task scope.
+- Reduce cross-agent conflicts via delegation.
 
 ## Non-Goals
-- Enforcing model-specific behaviors.
-- Replacing human oversight for high-risk changes.
+- Hard sandbox enforcement or resource limits.
+- Strict path boundaries across projects.
 
 ## Behavioral Rules
 - Agents MUST work on a scoped task and exit when done.
-- Agents MUST delegate if a task is too large.
-- Agents MUST read TASK_STATE.md and MESSAGE-BUS on start.
-- Agents MUST write updates to TASK_STATE.md each cycle.
-- Agents MUST log durable facts into FACT-*.md files.
-- Agents MUST NOT communicate directly with other agents; use message bus.
-- Agents SHOULD rotate agent type across restarts to reduce bias/stalls.
+- Agents MUST delegate if a task is too large or outside their folder context.
+- Agents MUST read TASK_STATE.md and message bus on start.
+- Agents MUST write updates to TASK_STATE.md each cycle (root only).
+- Agents MUST write final results to output.md in their run folder.
+- Agents MUST use run-agent bus tooling; direct file appends are disallowed.
+- Agents SHOULD log progress to stderr during long operations.
 
-## Required Artifacts
-- TASK_STATE.md: current status and next steps.
-- FACT-*.md: durable knowledge.
-- MESSAGE-BUS.md: questions, decisions, user replies.
+## Run Folder Ownership
+- No OWNERSHIP.md file.
+- run-agent injects a RUN_FOLDER path into sub-agent prompts.
+- Agents write prompts/outputs/temporary files only inside RUN_FOLDER.
+- Ownership is conceptual (prompt-guided), not enforced by files.
 
-## Git Safety Requirements
-- Agents SHOULD stage only the files they modify.
-- Agents MUST NOT revert unrelated changes.
-- Agents SHOULD avoid destructive commands (reset --hard, checkout --).
-- Agents SHOULD provide a clear list of touched files.
+## Message Bus Protocol
+- Agents do not emit START/STOP (runner-only).
+- Use TASK-MESSAGE-BUS for task-scoped updates/questions.
+- Use PROJECT-MESSAGE-BUS for cross-task facts (typically via root agent).
+- Thread replies and corrections with parents[].
+- Poll for new messages as often as possible; read only new content.
 
-## Delegation Rules
-- If task cannot be completed within a single run, delegate sub-tasks.
-- Sub agents inherit the same communication and state rules.
-- Parent agent records delegation decisions in TASK_STATE.md.
+## Task State
+- TASK_STATE.md is free text written by root agent.
+- No strict schema; keep it short and current.
 
-## Exit Conditions
-- Task completed (status: done in TASK_STATE.md).
-- Task blocked (status: blocked + reason).
-- Required inputs missing (post question to MESSAGE-BUS and exit).
+## Facts
+- FACT files are Markdown with YAML front matter.
+- Naming: FACT-<timestamp>-<name>.md (project), TASK-FACTS-<timestamp>.md (task).
+- Promotion to project-level facts is decided by the root agent; task agents can propose via message bus.
 
-## Error Handling
-- On error, write to ISSUES.md and update TASK_STATE.md.
-- If message bus is unavailable, create it and retry.
+## Delegation & Depth
+- Max delegation depth: 16 (configurable in global settings).
+- run-task should fail new spawn attempts beyond the limit.
+
+## CWD Guidance
+- Root agent runs in task folder.
+- Code-change sub-agents (Implementation/Test/Debug) run in project source root.
+- Research/Review sub-agents default to the task folder unless the parent overrides.
+- CWD is recorded in run-info.yaml for audit.
+
+## Permissions & Safety
+- No enforced read/write boundaries yet; recommend delegation for non-local paths.
+- Agents may execute repository scripts (no restrictions yet).
+- No resource limits enforced.
+
+## Git Safety (Guidance)
+- Stage only modified files.
+- Avoid destructive commands unless explicitly required.
+- Provide a clear list of touched files in the final response.
+
+## Cancellation Protocol
+- Runner sends SIGTERM to agent pgid, waits 30s, then SIGKILL.
+- Agent should flush message bus + TASK_STATE on SIGTERM when possible.
+
+## Environment Variables
+- JRUN_* variables are implementation details (agents should not reference them).
+- Error messages must not instruct agents to set env vars.
+
+## Exit Codes
+- 0 = completed, 1 = failed.
+- Other statuses are conveyed via stdout/stderr and message bus.

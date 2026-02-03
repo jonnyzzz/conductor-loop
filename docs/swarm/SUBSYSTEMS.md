@@ -3,21 +3,21 @@
 This list is derived from ideas.md and the subsystem specs (and their QUESTIONS) in this folder.
 
 1. Runner & Orchestration
-   - Scope: run-agent/run-task lifecycle, agent selection/rotation, restart/backoff/idle handling, process control (detach/stop), concurrency/locks, config-driven behavior.
+   - Scope: run-agent binary + run-task flow, Ralph restart loop, run linking, idle/stuck handling, agent selection/rotation, stop/kill, run metadata, poller/handler agents.
    - Spec: subsystem-runner-orchestration.md
 
 2. Storage & Data Layout
-   - Scope: on-disk layout under ~/run-agent (projects, tasks, runs, state, facts), run metadata (run-info), message bus storage/rotation/offsets, archival/indexing.
+   - Scope: ~/run-agent layout, run-info.yaml, TASK_STATE/DONE, FACT files, timestamp/run_id format, home-folders.md, retention.
    - Spec: subsystem-storage-layout.md
 
 3. Message Bus Tooling
-   - Scope: run-agent bus CLI/REST, message format/types, compaction/archival, streaming/polling, issue/dependency metadata.
+   - Scope: run-agent bus CLI/REST, YAML front-matter message format, message types/threading, atomic appends, streaming/polling.
    - Spec: subsystem-message-bus-tools.md
 
 4. Monitoring & Control UI
-   - Scope: React UI + Go backend, project/task/run tree, message bus view, output streaming, task creation, multi-backend support, start/stop controls.
+   - Scope: React UI served by run-agent backend, project/task/run tree, threaded message bus view, live output streaming, task creation UI.
    - Spec: subsystem-monitoring-ui.md
 
 5. Agent Protocol & Governance
-   - Scope: agent behavior rules, delegation depth/ownership, state/fact updates, git-safety requirements, folder boundaries.
+   - Scope: agent behavior rules, run folder usage, delegation depth, message bus-only comms, git safety guidance, no sandbox.
    - Spec: subsystem-agent-protocol.md

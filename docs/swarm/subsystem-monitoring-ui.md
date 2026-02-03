@@ -1,7 +1,7 @@
 # Monitoring & Control UI Subsystem
 
 ## Overview
-A React web UI for observing the agent swarm. It renders project/task/run trees, shows message bus activity, and provides a "Start new Task" flow.
+A React web UI for observing the agent swarm. It is served by the run-agent Go binary (run-agent serve; embedded static assets) and uses the same backend to read the filesystem layout and message bus streams.
 
 ## Goals
 - Visualize projects, tasks, and run hierarchies from disk layout.
@@ -10,57 +10,76 @@ A React web UI for observing the agent swarm. It renders project/task/run trees,
 - Provide a guided task creation UI.
 
 ## Non-Goals
-- Full-featured IDE or editor.
-- Remote multi-user access (local machine only for MVP).
+- Remote multi-user access or authentication (localhost only for MVP).
+- Editing task files directly in the UI.
+- Full IDE features.
 
 ## UX Requirements
 - Use JetBrains Mono for all text.
 - Default layout:
-  - Tree view: 1/3 screen width.
-  - Message bus view: left 1/5 of screen (or stacked on small screens).
-  - Agent output pane: bottom section under main area.
+  - Tree view: ~1/3 screen width.
+  - Message bus view: ~1/5 screen width.
+  - Agent output pane: bottom section.
 - Responsive layout for small screens (stacked panels).
 
 ## Screens / Views
 ### 1) Dashboard (Projects)
 - Root nodes are projects.
 - Each project expands to:
-  - Message bus
+  - Project message bus
   - Facts
   - Tasks
+- Ordered by last activity (most recent first).
 
 ### 2) Task View
-- Shows task metadata and TASK_STATE.md.
-- Shows task-level message bus.
+- Shows TASK_STATE.md (read-only).
+- Shows task-level message bus (threaded view).
 - Lists runs sorted by time.
+- Shows FACT files (read-only).
 
 ### 3) Run Detail
-- Prompt, stdout, stderr, and metadata.
-- Link to parent run (if any).
+- Prompt, output.md, stdout, stderr, metadata.
+- Link to parent run.
+- Output is merged chronologically with per-run color coding.
 
 ### 4) Start New Task
 - Select existing project or type a new one.
+- If new project, prompt for source code folder (presets from config; expand ~ and env vars).
 - Create task id or pick existing.
-- Prompt editor with autosave to local storage.
+- Prompt editor with autosave (per-editor history).
 - On submit:
   - Create project/task directories.
   - Write TASK.md.
-  - Invoke run-task.
+  - Invoke `run-agent task` (no shell scripts).
 
 ## Data Sources
 - Filesystem layout under ~/run-agent (see Storage subsystem).
-- Message bus files only; no external DB.
+- Message bus streams from run-agent backend (SSE/WS).
 
-## Interactions
-- Tree nodes expand/collapse.
-- Clicking a message bus entry highlights related task or run.
-- "Start new Task" action triggers run-task and navigates to task view.
+## Message Bus UI
+- Show most recent entries as header-only; click to expand.
+- Threaded view using parents[] links.
+- Post USER/ANSWER entries via run-agent bus.
+
+## Output & Logs
+- Live streaming via WebSocket/SSE; 2s polling fallback.
+- Default tail size: last 1MB or 5k lines; "Load more" fetches older chunks.
+- stdout/stderr separated; stderr uses red-ish bold styling.
+
+## Status & Indicators
+- Semaphore-style status badges for each run.
+- Stuck detection:
+  - warn after N/2 minutes of silence
+  - mark/kick after N minutes (N = stuck threshold from runner config; default 15m)
 
 ## Error States
 - Missing project or task folders: show warning and refresh option.
 - Permission errors: show blocking banner.
-- Task creation failure: show error with logs.
 
 ## Performance
-- Use file watchers or periodic polling (1-5s) for updates.
-- Avoid re-reading entire output logs on each refresh (tail only).
+- Prefer filesystem watchers; fall back to polling.
+- Avoid re-reading entire logs on each refresh (tail only).
+
+## Notes
+- UI should be read-only for run controls in MVP; stop/kill actions can be added later.
+- Web UI assumes backend runs on the same host (localhost only).
