@@ -7,18 +7,21 @@ This list captures the current planning topics derived from ideas.md, the subsys
      - Format: append-only YAML front-matter entries separated by `---` (no legacy single-line compatibility).
      - Required headers: msg_id, ts (ISO-8601 UTC; distinct from compact filename timestamps), type, project; optional task/run_id/parents/attachment_path.
      - Types: FACT, QUESTION, ANSWER, USER, START, STOP, ERROR, INFO, WARNING, OBSERVATION, ISSUE.
-     - Threading: parents[] links; append-only corrections/updates; parents[] supports string shorthand or structured objects with relationship kind.
+     - Threading: parents[] links; append-only corrections/updates; parents[] supports string shorthand (implicit reply) or structured objects with explicit relationship kind.
+     - Relationship kind values are free-form strings; tooling is permissive in MVP (see subsystem-message-bus-object-model.md).
+     - CLI --parents accepts string msg_id lists only; structured parents objects are posted via REST.
      - Atomic writes via run-agent bus (temp + swap); direct writes disallowed.
      - Routing: separate PROJECT-MESSAGE-BUS.md and TASK-MESSAGE-BUS.md; task messages stay in task scope, project messages are project-wide; UI aggregates at read time.
      - Size: soft 64KB body limit; larger payloads stored as attachments in the task folder with timestamp + short description naming and attachment_path metadata.
      - Reader behavior: sequential scan with optional filter/regex; no cursor file.
    - Open questions (see subsystem-message-bus-object-model-QUESTIONS.md, subsystem-message-bus-tools-QUESTIONS.md):
-     - parents[] object schema: required fields, allowed relationship kinds, and compatibility with string shorthand.
-     - Whether to support message bus compaction/cleanup beyond append-only.
+     - Whether cross-scope parents are allowed (task messages referencing project messages) and how UI resolves them.
+     - Whether run-agent bus post should return msg_id for chaining.
    - Related: ideas.md, subsystem-message-bus-tools.md, subsystem-agent-protocol.md, subsystem-monitoring-ui.md
 
 2. Run Lifecycle & Restart (Ralph)
    - Decisions:
+     - Implementation: run-agent is a Go binary.
      - Completion = DONE file exists AND all child runs have exited.
      - Ralph loop restarts root agent when DONE is absent; waits/monitors (and may restart root to catch up) when DONE exists but children are still running.
      - Run chain tracked via previous_run_id on each restart.
@@ -41,7 +44,8 @@ This list captures the current planning topics derived from ideas.md, the subsys
      - Message bus stored as single append-only file per scope; no rotation/cleanup yet.
      - No symlinks/hardlinks; no host_id segmentation; no size limits enforced.
    - Open questions (see subsystem-storage-layout-QUESTIONS.md):
-     - Task slug rules and collision strategy.
+     - UTF-8 enforcement for text files.
+     - Metadata schema versioning for run-info.yaml.
    - Related: ideas.md, subsystem-storage-layout.md, subsystem-runner-orchestration.md
 
 4. Agent Governance & Delegation
@@ -56,7 +60,8 @@ This list captures the current planning topics derived from ideas.md, the subsys
      - No protocol version negotiation; assume backward compatibility.
      - Git safety is guidance only (touch only selected files); “Git Pro” behavior is expected.
    - Open questions (see subsystem-agent-protocol-QUESTIONS.md):
-     - How “Git Pro” skills are defined and injected into agent prompts/tooling.
+     - Parent blocking vs. exit behavior after delegation.
+     - When to introduce a dedicated message-bus poller (post-MVP).
    - Related: ideas.md, subsystem-agent-protocol.md, subsystem-runner-orchestration.md
 
 5. Configuration & Backend Selection
@@ -65,24 +70,25 @@ This list captures the current planning topics derived from ideas.md, the subsys
      - Tokens read from config and injected as env vars into agent processes.
      - Agent selection: round-robin by default; "I'm lucky" random with weights; selection may consult message bus history.
      - Backend failures: transient errors use exponential backoff (1s, 2s, 4s; max 3 tries); auth/quota fail fast; no proactive credential validation.
-     - Supported backends/providers list is defined in config; Perplexity is a native REST-backed agent type; xAI integration is pending research.
+     - Supported backends/providers list is defined in config; Perplexity is a native REST-backed agent type; xAI integration is deferred post-MVP.
    - Open questions (see subsystem-runner-orchestration-QUESTIONS.md):
-     - xAI integration strategy and model selection.
-     - Dedicated design documents per agent type (codex, claude, gemini, perplexity, xAI).
+     - run-agent binary update/versioning strategy.
+     - config.hcl schema/versioning and validation location.
    - Related: ideas.md, subsystem-runner-orchestration.md, subsystem-message-bus-tools.md
 
 6. Monitoring UI & Streaming UX
    - Decisions:
-     - run-agent serve hosts UI + API; React SPA with JetBrains Mono.
+     - run-agent serve hosts UI + API; TypeScript + React SPA using JetBrains Ring UI and JetBrains Mono.
      - Layout: tree ~1/3, message bus ~1/5, output pane bottom; projects are roots; order by last activity.
      - Threaded message bus view; plain text rendering in MVP.
      - Output: merged stdout/stderr with stream tags and filter toggle; output.md is the default view.
      - Streaming via SSE (WS optional) with 2s polling fallback; default tail size 1MB or 5k lines.
      - Task creation UI: existing task id prompts attach/restart vs new with timestamp suffix; prompt editor autosaves to local storage; uses run-agent task.
-    - Status badges based on idle/stuck thresholds (2s refresh from run metadata + bus events).
-    - Read-only for MVP; localhost only; no global search in MVP.
+     - Status badges based on idle/stuck thresholds (2s refresh from run metadata + bus events).
+     - Read-only for MVP; localhost only; no global search in MVP.
    - Open questions (see subsystem-monitoring-ui-QUESTIONS.md):
-     - None at this time.
+     - UI build tooling and embedding workflow.
+     - API contract and TypeScript type generation.
    - Related: ideas.md, subsystem-monitoring-ui.md, subsystem-message-bus-tools.md
 
 7. Environment Variable & Invocation Contract
@@ -92,5 +98,32 @@ This list captures the current planning topics derived from ideas.md, the subsys
      - Error messages must not instruct agents to set env vars; agents should not manipulate JRUN_*.
      - run-agent prepends its binary location to PATH for child processes.
    - Open questions (see subsystem-env-contract-QUESTIONS.md):
-     - None at this time.
+     - Path normalization, env inheritance, signal handling, date injection.
    - Related: ideas.md, subsystem-agent-protocol.md, subsystem-runner-orchestration.md
+
+8. Agent Backend Integrations
+   - Decisions:
+     - Each backend has a dedicated spec (codex, claude, gemini, perplexity, xAI).
+     - All backends run with full tool access; no sandboxing enforced in MVP.
+     - Perplexity is native REST-backed; xAI is deferred post-MVP with OpenCode planned.
+   - Open questions (see subsystem-agent-backend-*-QUESTIONS.md):
+     - Backend-specific env var mappings and streaming behavior.
+   - Related: subsystem-agent-backend-*.md, subsystem-runner-orchestration.md
+
+9. Implementation Stack & Build Pipeline
+   - Decisions:
+     - Backend/utility implementation language is Go (single binary distribution).
+     - Monitoring UI is TypeScript + React; built via npm/package.json + webpack; assets embedded in Go binary for MVP (go:embed).
+   - Open questions:
+     - Webpack dev workflow details (dev server + proxy vs embedded only).
+   - Related: subsystem-runner-orchestration.md, subsystem-monitoring-ui.md
+
+10. Frontend-Backend API Contract
+   - Decisions:
+     - API is REST/JSON with SSE for streaming; localhost-only in MVP.
+     - API must support listing projects/tasks, reading run/task files, starting tasks, and posting/streaming message bus entries.
+   - Open questions:
+     - Endpoint schemas, versioning, and generated TypeScript types.
+     - Log streaming endpoint design (per-run SSE vs polling output.md).
+     - File read endpoint security (path traversal/jail rules).
+   - Related: subsystem-monitoring-ui.md, subsystem-message-bus-tools.md

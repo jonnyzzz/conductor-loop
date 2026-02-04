@@ -72,6 +72,7 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 - Provide a clear list of touched files in the final response.
 - Do not touch unrelated files; commit only selected files when asked.
 - Use "Git Pro" behavior: precise staging and no incidental file changes.
+- Git Pro guidance is provided via THE_PROMPT_v5.md; extend that prompt with small-logical-commit instructions.
 
 ## Cancellation Protocol
 - Runner sends SIGTERM to agent pgid, waits 30s, then SIGKILL.

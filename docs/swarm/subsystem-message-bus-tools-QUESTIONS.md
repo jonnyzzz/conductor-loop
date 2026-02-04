@@ -1,5 +1,3 @@
 # Message Bus Tooling - Questions
 
-- Q: Should message bus compaction/cleanup be supported (rewrite/compact) or remain strictly append-only in MVP? 
-  Proposed default: Keep append-only in MVP; add an explicit compaction command later with atomic rewrite.
-  A: No cleanup is needed. Atomic writes to the file. 
+- Q: Should `run-agent bus post` return the generated msg_id to stdout/JSON for chaining? | Proposed default: Print msg_id to stdout on success. | A: TBD.

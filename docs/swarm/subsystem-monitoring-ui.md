@@ -1,7 +1,7 @@
 # Monitoring & Control UI Subsystem
 
 ## Overview
-A React web UI for observing the agent swarm. It is served by the run-agent Go binary (run-agent serve; embedded static assets) and uses the same backend to read the filesystem layout and message bus streams.
+A TypeScript + React web UI for observing the agent swarm. It is served by the run-agent Go binary (run-agent serve; embedded static assets) and uses the same backend to read the filesystem layout and message bus streams.
 
 ## Goals
 - Visualize projects, tasks, and run hierarchies from disk layout.
@@ -17,6 +17,7 @@ A React web UI for observing the agent swarm. It is served by the run-agent Go b
 - Cross-project full-text search across messages and outputs.
 
 ## UX Requirements
+- Use JetBrains Ring UI as the base UX framework.
 - Use JetBrains Mono for all text.
 - Default layout:
   - Tree view: ~1/3 screen width.
@@ -40,10 +41,11 @@ A React web UI for observing the agent swarm. It is served by the run-agent Go b
 - Shows FACT files (read-only).
 
 ### 3) Run Detail
-- Prompt, output.md, stdout, stderr, metadata.
+- Default view shows output.md; raw stdout/stderr are available via toggle.
+- Prompt, stdout, stderr, metadata are accessible from the same view.
 - Link to parent run.
 - Show restart chain via previous_run_id (Ralph loop history).
-- Output is merged chronologically with per-run color coding.
+- Raw stdout/stderr are merged chronologically with per-run color coding.
 
 ### 4) Start New Task
 - Select existing project or type a new one.
@@ -60,6 +62,16 @@ A React web UI for observing the agent swarm. It is served by the run-agent Go b
 - Filesystem layout under ~/run-agent (see Storage subsystem).
 - Message bus streams from run-agent backend (SSE preferred; WS optional).
 
+## Build & Delivery
+- UI is built via npm/package.json with webpack tooling.
+- Production assets are embedded into the Go binary using go:embed.
+
+## Backend API Expectations (MVP)
+- run-agent serve exposes REST endpoints for listing projects/tasks and reading files.
+- run-agent serve exposes message bus endpoints (POST + SSE stream).
+- run-agent serve exposes a task-start endpoint that mirrors `run-agent task`.
+- Exact endpoint paths and schemas are defined in Topic 10 (Frontend-Backend API Contract).
+
 ## Message Bus UI
 - Show most recent entries as header-only; click to expand.
 - Threaded view using parents[] links.
@@ -71,6 +83,7 @@ A React web UI for observing the agent swarm. It is served by the run-agent Go b
 - Live streaming via SSE/WS; 2s polling fallback.
 - Default tail size: last 1MB or 5k lines; "Load more" fetches older chunks.
 - stdout/stderr merged chronologically with stream tags and color coding; quick filter toggle to isolate stderr.
+- output.md is the default render target; raw logs are secondary.
 
 ## Status & Indicators
 - Semaphore-style status badges for each run.

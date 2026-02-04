@@ -77,3 +77,9 @@ Message: Updated subsystem specs (runner/storage/message-bus/monitoring/agent pr
 
 [2026-02-04T15:00:00Z] type=info project=swarm task=planning
 Message: Consolidated latest ideas.md + Q/A (including history) and ran per-subsystem and per-topic reviews (claude + gemini + codex where applicable). Updated subsystem specs (runner, storage, message-bus, monitoring UI, agent protocol, env contract), added message-bus object model doc and per-agent backend specs (codex/claude/gemini/perplexity/xAI), refreshed SUBSYSTEMS.md and TIPICS.md, and regenerated *-QUESTIONS.md to keep only open TBDs. Noted Perplexity MCP 401 errors in ISSUES.md.
+
+[2026-02-04T16:38:34Z] type=info project=swarm task=planning
+Message: Round 4: ran claude + gemini reviews for all subsystems/topics via ../run-agent.sh (runs5). Updated ideas.md for run-agent/bus naming, refined message-bus object model/tooling, clarified monitoring UI output defaults and API expectations, added new open questions (backend env var mapping, message bus msg_id return, cross-scope parents, log streaming and file path safety), and expanded TIPICS Topic 1/10 decisions. Perplexity MCP 401 persisted (logged in ISSUES.md).
+
+[2026-02-04T16:53:57Z] type=info project=swarm task=planning
+Message: Round 5: re-ran claude + gemini + codex reviews via ../run-agent.sh (runs6). Gemini completed with notes; Claude returned API 500; Codex hung and was terminated (logged in ISSUES.md). Updated monitoring UI stack decisions (webpack/npm + Ring UI + go:embed), aligned ideas.md to native Perplexity REST, and refreshed open questions and TIPICS topics accordingly.

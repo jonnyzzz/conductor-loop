@@ -1,7 +1,7 @@
 # Agent Backend: Codex
 
 ## Overview
-Defines how run-agent invokes the Codex CLI for a single agent run.
+Defines how the Go `run-agent` binary invokes the Codex CLI for a single agent run.
 
 ## Goals
 - Provide a stable invocation contract for Codex-based runs.
@@ -12,7 +12,7 @@ Defines how run-agent invokes the Codex CLI for a single agent run.
 - Managing Codex account setup or billing.
 
 ## Invocation (CLI)
-- Command (current run-agent.sh):
+- Command (used by run-agent):
   - `codex exec --dangerously-bypass-approvals-and-sandbox -C <cwd> - < <prompt.md>`
 - Prompt input is provided via stdin from the run folder prompt file.
 - Working directory is set by run-agent based on task/sub-agent context.
@@ -25,7 +25,8 @@ Defines how run-agent invokes the Codex CLI for a single agent run.
 ## Environment / Config
 - Requires Codex CLI available on PATH.
 - Tokens/credentials are injected by run-agent from config (backend-specific names).
-- No sandboxing enforced; full tool access is allowed by default.
+- No sandboxing enforced; full tool access is required (keep `--dangerously-bypass-approvals-and-sandbox`).
+- run-agent does not override model/reasoning settings; host CLI defaults apply.
 
 ## Related Files
 - subsystem-runner-orchestration.md

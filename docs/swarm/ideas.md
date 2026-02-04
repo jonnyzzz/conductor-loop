@@ -11,27 +11,27 @@ In this project we approach it from the different angle, here is the agent swarm
 - on each level an agent must decide if it can work on the task or it should delegate the smaller task down to the hierarchy
 - we have monitoring tool and see the actual delegation tree
 - for communication, we include the [message-bus](../message-bus-mcp) as the solution
-- we include a dedicated polling service for the message bus, so that we can monitor and process all requests as sub agents
+- we may include a dedicated polling service for the message bus post-MVP; in MVP the root agent polls
 - message bus helps to track the progress, together with the git history and other artifacts
 - agents seem to be quite clumsy with Git, and it means we need to offer Git Pro skills, so it can commit only selected files, without touching other files. Hope it can be done in the upper promts
-- we designed the basic schema with ../THE_PROMPT_v5.md and ../run-agent.sh
+- we designed the basic schema with ../THE_PROMPT_v5.md and the run-agent binary
 - there should be no direct communication with agents, instead, one can only write to message bus
 - we need monitoring tool, so we track all agent runs for all projects
 - run different agents types each time to keep up the work
 - we bet on the fact that agent can do small work and exit, every time.
 - message bus MCP supports CLI tooling, so we can build piling 
 - message bus MCP supports usual REST
-- monitoring app should be react/web based to see the tree 
+- monitoring app should be react/web based (JetBrains Ring UI) to see the tree 
   - 1/3 screen show the tree progress
   - left 1/5 of the screen is message bus messages view
   - down below all agents output, colored per agent
   - all done JetBrains Mono
-- the run-agent.sh collects the events of agent start/stop to a dedicated log
+- the run-agent binary collects the events of agent start/stop to a dedicated log
 - agent start-stop has environment variable parameters to track it
   - the project
   - the task
   - the parent agent id
-- the current state of the task is persisted by the agent in the STATE.md file in the task folder so each new started agent is starting from there
+- the current state of the task is persisted by the agent in the TASK_STATE.md file in the task folder so each new started agent is starting from there
 
 The system now looks the following:
 INPUTS:
@@ -52,7 +52,7 @@ The root idea of the SWARM:
 
 
 There are following components of the system
-- the run-agent.sh script to start agents, which is now managed by the system
+- the run-agent binary to start agents, which is now managed by the system
 - the start-task.sh that asks for a task and starts it with the system
 - the monitoring tool, which uses the disk layout and message-bus only (web-ui)
 
@@ -71,10 +71,10 @@ NOTES:
 
 
 The implementation plan:
-- make run-agent.sh keep project and task.
+- make run-agent keep project and task.
 - make it store state in the ~/run-agent folder
 - we need to have easy to read layout there
-- run-agent.sh
+- run-agent
   - asserts it has JRUN_TASK_ID JRUN_PROJECT_ID JRUN_ID environment vars set
   - tracks parent-child relation between runs (so we create the tree)
   - allows specify agent and allows to specify "i'm lucky" mode
@@ -99,14 +99,14 @@ Layout:
                 - cwd
                 - agent process pid and commandline
 
-post-message.sh -- the tool to post message to the message bus
+run-agent bus post -- the tool to post message to the message bus
   - includes type, message, task, project
 
-poll-message.sh -- blocks and waits to read for new meesage (file grows)
-  - allow --wait 
+run-agent bus poll -- blocks and waits to read for new message (file grows)
+  - allow --wait
   - integrates project and task level messages
 
-The root command is `run-task`. This command is started to 
+The root command is `run-agent task`. This command is started to 
   - read the TASK.md file with the task description (our use console input)
   - asks a coding agent to create the name of the task
   - asks a coding agent to lookup the project (or make it parameter)
@@ -142,7 +142,7 @@ The application web ui looks as follows:
     - we specify the project folder to work on  
     - we create the project and task folders (see above)
     - we crate TASK.md file with the user input
-    - we start the task with run-task.sh and pass there all we have
+    - we start the task with run-agent task and pass there all we have
     - preference to pick the root agent and rotate
     - the essence of run-tash.sh is while true, basically ralph
     - the main prompt is <<""""
@@ -181,7 +181,7 @@ project module/folder is really a good approach, so the work is consolidated and
 the context is much less wasted.
 
 
-IDEA -- we merge all tools into one docker binary, os it providers
+IDEA -- we merge all tools into one Go binary (optional Docker packaging later)
 -- `run-agent serve` to start web ui for management (later console mode too)
 -- `run-agent task` to start a task
 -- `run-agent job` to run agentic job
@@ -224,7 +224,7 @@ The web ui should be ready to maintain multiple backends/hosts
 run-agent go binary must put itself to the PATH for it's sub processes, put to the front. Make sure it's not already included like that from the parent process
 
 
-Add support for Perplexity as CLI agent, so given prompt it should run the Perpplexity agent request and return the result. We need to implement the Perplexity CLI based on their API. It should work given the Perplexity Token. 
+Add support for Perplexity as a native REST-backed agent in run-agent. It should work given the Perplexity token.
 
 Support xAI. We need to research the best coding agent for that.
 

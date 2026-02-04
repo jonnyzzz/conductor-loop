@@ -1,7 +1,7 @@
 # Agent Backend: Gemini
 
 ## Overview
-Defines how run-agent invokes the Gemini CLI for a single agent run.
+Defines how the Go `run-agent` binary invokes the Gemini CLI for a single agent run.
 
 ## Goals
 - Provide a stable invocation contract for Gemini-based runs.
@@ -12,7 +12,7 @@ Defines how run-agent invokes the Gemini CLI for a single agent run.
 - Managing Gemini account setup or billing.
 
 ## Invocation (CLI)
-- Command (current run-agent.sh):
+- Command (used by run-agent):
   - `gemini --screen-reader true --approval-mode yolo < <prompt.md>`
 - Prompt input is provided via stdin from the run folder prompt file.
 - Working directory is set by run-agent based on task/sub-agent context.
@@ -26,6 +26,7 @@ Defines how run-agent invokes the Gemini CLI for a single agent run.
 - Requires Gemini CLI available on PATH.
 - Tokens/credentials are injected by run-agent from config (backend-specific names).
 - Approval mode is set to yolo in current runner scripts (full access).
+- run-agent does not set a model; host CLI defaults/config are used.
 
 ## Related Files
 - subsystem-runner-orchestration.md

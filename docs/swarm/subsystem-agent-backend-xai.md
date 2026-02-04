@@ -1,17 +1,18 @@
 # Agent Backend: xAI
 
 ## Overview
-Defines the placeholder for xAI backend integration. The specific coding agent/model and invocation method are pending research.
+Defines the placeholder for xAI backend integration. This work is deferred post-MVP.
 
 ## Goals
 - Capture the intended integration surface for xAI.
-- Track open questions required before implementation.
+- Document the intended future integration path (OpenCode + xAI).
 
 ## Non-Goals
-- Implementing the xAI adapter before research is complete.
+- Implementing the xAI adapter before post-MVP work begins.
 
-## Invocation (TBD)
-- Research required to decide API vs CLI integration and model selection.
+## Invocation (Planned)
+- Use OpenCode agent configured to target xAI models (only if xAI token is provided).
+- Default to the best available xAI model when enabled.
 
 ## I/O Contract
 - Input: prompt text (from prompt.md).
@@ -19,7 +20,7 @@ Defines the placeholder for xAI backend integration. The specific coding agent/m
 - Errors: logged to agent-stderr.txt; non-zero exit code for failures.
 
 ## Environment / Config
-- API key storage and injection is TBD; expected to follow the same config.hcl pattern as other backends.
+- API key storage follows the same config.hcl pattern as other backends (token required to enable xAI).
 
 ## Related Files
 - subsystem-runner-orchestration.md

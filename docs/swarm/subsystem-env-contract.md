@@ -1,7 +1,7 @@
 # Environment & Invocation Contract Subsystem
 
 ## Overview
-Defines the invocation contract between run-agent (including `task`/`job`) and spawned agents. This includes internal environment variables used for run tracking, plus the prompt/context injection that agents use to discover paths (task/run folders) without relying on env vars.
+Defines the invocation contract between run-agent (Go binary; including `task`/`job`) and spawned agents. This includes internal environment variables used for run tracking, plus the prompt/context injection that agents use to discover paths (task/run folders) without relying on env vars.
 
 ## Goals
 - Document internal JRUN_* variables for run tracking.

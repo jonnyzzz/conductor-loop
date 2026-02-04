@@ -1,7 +1,7 @@
 # Message Bus Tooling Subsystem
 
 ## Overview
-Provides the run-agent bus CLI and REST conventions for writing to and reading from project/task message buses. Agents must communicate only through the message bus tooling; direct file writes are disallowed.
+Provides the run-agent bus CLI and REST conventions for writing to and reading from project/task message buses. The tooling is implemented in the Go `run-agent` binary. Agents must communicate only through the message bus tooling; direct file writes are disallowed.
 
 ## Goals
 - Provide a consistent append-only message format.
@@ -25,8 +25,9 @@ Provides the run-agent bus CLI and REST conventions for writing to and reading f
   - --task <id> (optional)
   - --type <FACT|QUESTION|ANSWER|USER|START|STOP|ERROR|INFO|WARNING|OBSERVATION|ISSUE>
   - --message <text> (body)
-  - --parents <msg_id,...> (optional; structured relationships are supported via REST or future CLI extensions)
+  - --parents <msg_id,...> (optional; string msg_id list only)
 - Agents rely on JRUN_* env vars; error messages must not hint to agents to set env vars.
+- Structured parents objects are posted via REST until CLI support is added.
 
 ### run-agent bus poll
 - Purpose: read new messages.
@@ -50,6 +51,7 @@ Provides the run-agent bus CLI and REST conventions for writing to and reading f
 - REST endpoint for message submission:
   - POST /api/bus
 - Body fields mirror CLI: project, task, type, message, parents, attachment_path.
+- parents accepts string arrays or object arrays (structured relationships).
 
 ## Message Format
 Append-only YAML front-matter entries separated by `---`:
@@ -118,7 +120,7 @@ Canonical types:
 - attachment_path is relative to the task folder.
 
 ## Compaction / Archival
-- No compaction/rotation strategy yet; files can grow.
+- No compaction/cleanup in MVP; files can grow (append-only).
 
 ## Routing
 - Task messages stay in TASK-MESSAGE-BUS.md.

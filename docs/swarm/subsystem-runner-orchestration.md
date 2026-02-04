@@ -1,7 +1,7 @@
 # Runner & Orchestration Subsystem
 
 ## Overview
-This subsystem owns how agents are started, restarted, and coordinated. It defines the `run-agent` binary (including the `task` and `job` subcommands) responsible for spawning agent runs, tracking lineage, and enforcing the root "Ralph" restart loop until completion.
+This subsystem owns how agents are started, restarted, and coordinated. It defines the `run-agent` binary (implemented in Go, including the `task` and `job` subcommands) responsible for spawning agent runs, tracking lineage, and enforcing the root "Ralph" restart loop until completion.
 
 ## Goals
 - Start agents with a consistent run layout and metadata (see Storage & Data Layout).
@@ -45,7 +45,7 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
 - `run-task`/`run-task.sh` are thin wrappers (if present) that call `run-agent task`.
 
 ### run-agent serve (subcommand)
-- Serves the Monitoring UI and message bus API endpoints (REST + SSE).
+- Serves the Monitoring UI (TypeScript + React, embedded static assets) and message bus API endpoints (REST + SSE).
 
 ### run-agent bus (subcommand)
 - Provides CLI access for posting, polling, and streaming message bus entries.
@@ -67,7 +67,8 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
   - supported agent backends/providers list
   - projects_root (override for ~/run-agent)
   - deploy_ssh_key (optional; used when backing storage with a git repo)
-  - token values may be provided inline or via @/path/to/token file references
+- token values may be provided inline or via @/path/to/token file references
+- @file references are resolved at config load; missing files are treated as configuration errors.
 
 ## Run ID / Timestamp Rules
 - Canonical timestamp format: UTC `YYYYMMDD-HHMMSSMMMM-PID` (lexically sortable).
@@ -83,7 +84,7 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
 
 ## Agent Backends
 - Native agent types include: codex, claude, gemini, perplexity.
-- xAI integration is pending research to select the best coding agent and interface.
+- xAI integration is deferred post-MVP (see subsystem-agent-backend-xai.md).
 - Each agent type has a dedicated design document (see subsystem-agent-backend-*.md).
 
 ## Idle / Stuck / Waiting Detection
