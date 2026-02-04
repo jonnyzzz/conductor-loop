@@ -603,6 +603,328 @@ Log to MESSAGE-BUS.md:
 EOF
 }
 
+create_prompt_agent_protocol() {
+    cat > "$PROMPTS_DIR/agent-protocol.md" <<'EOF'
+# Task: Implement Agent Protocol Interface
+
+**Task ID**: agent-protocol
+**Phase**: Agent System
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+
+## Objective
+Implement the common agent protocol interface that all agent backends will implement.
+
+## Specifications
+Read: docs/specifications/subsystem-agent-protocol.md
+
+## Required Implementation
+
+### 1. Package Structure
+Location: `internal/agent/`
+Files:
+- agent.go - Agent interface and context types
+- executor.go - Execution helper functions
+- stdio.go - Stdout/stderr capture utilities
+
+### 2. Agent Interface
+```go
+type Agent interface {
+    // Execute runs the agent with the given context
+    Execute(ctx context.Context, runCtx *RunContext) error
+
+    // Type returns the agent type (claude, codex, etc.)
+    Type() string
+}
+
+type RunContext struct {
+    RunID       string
+    ProjectID   string
+    TaskID      string
+    Prompt      string
+    WorkingDir  string
+    StdoutPath  string
+    StderrPath  string
+    Environment map[string]string
+}
+```
+
+### 3. Executor Functions
+- SpawnProcess(cmd, args, stdin, stdout, stderr) - Process spawning with setsid
+- CaptureOutput(stdout, stderr, files) - Stdio redirection
+- CreateOutputMD(runDir, fallback) - Runner fallback for output.md
+
+### 4. Tests Required
+Location: `test/unit/agent_test.go`
+- TestAgentInterface
+- TestRunContext
+- TestSpawnProcess
+- TestCaptureOutput
+
+## Success Criteria
+- All tests pass
+- Interface documented
+- IntelliJ MCP review: no warnings
+
+## References
+- docs/specifications/subsystem-agent-protocol.md
+- docs/decisions/problem-5-DECISION.md (output.md responsibility)
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Agent protocol interface implemented
+- FACT: N unit tests passing
+EOF
+}
+
+create_prompt_agent_claude() {
+    cat > "$PROMPTS_DIR/agent-claude.md" <<'EOF'
+# Task: Implement Claude Agent Backend
+
+**Task ID**: agent-claude
+**Phase**: Agent System
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: agent-protocol
+
+## Objective
+Implement Claude agent backend adapter.
+
+## Specifications
+Read: docs/specifications/subsystem-agent-backend-claude.md
+
+## Required Implementation
+
+### 1. Package Structure
+Location: `internal/agent/claude/`
+Files:
+- claude.go - Claude agent implementation
+
+### 2. Claude Agent
+```go
+type ClaudeAgent struct {
+    token string
+    model string
+}
+
+func (a *ClaudeAgent) Execute(ctx context.Context, runCtx *agent.RunContext) error {
+    // Execute claude CLI with prompt
+    // Redirect stdio to files
+    // Return on completion
+}
+
+func (a *ClaudeAgent) Type() string {
+    return "claude"
+}
+```
+
+### 3. CLI Integration
+- Use `claude` CLI binary
+- Pass prompt via stdin
+- Set working directory with `-C` flag
+- Capture stdout/stderr to files
+
+### 4. Tests Required
+Location: `test/integration/agent_claude_test.go`
+- TestClaudeExecution (requires claude CLI)
+- TestClaudeStdioCapture
+
+## Success Criteria
+- All tests pass
+- Claude CLI integration working
+- Stdio properly captured
+
+## References
+- docs/specifications/subsystem-agent-backend-claude.md
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Claude agent backend implemented
+- FACT: Integration tests passing
+EOF
+}
+
+create_prompt_agent_codex() {
+    cat > "$PROMPTS_DIR/agent-codex.md" <<'EOF'
+# Task: Implement Codex Agent Backend
+
+**Task ID**: agent-codex
+**Phase**: Agent System
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: agent-protocol
+
+## Objective
+Implement Codex (IntelliJ MCP) agent backend adapter.
+
+## Specifications
+Read: docs/specifications/subsystem-agent-backend-codex.md
+
+## Required Implementation
+
+### 1. Package Structure
+Location: `internal/agent/codex/`
+Files:
+- codex.go - Codex agent implementation
+
+### 2. Codex Agent
+Similar to Claude but using `codex exec` CLI.
+
+### 3. CLI Integration
+- Use `codex exec` CLI binary
+- Pass prompt via stdin
+- Dangerously bypass approvals for automation
+- Set working directory with `-C` flag
+
+### 4. Tests Required
+Location: `test/integration/agent_codex_test.go`
+- TestCodexExecution
+
+## Success Criteria
+- All tests pass
+- Codex CLI integration working
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Codex agent backend implemented
+EOF
+}
+
+create_prompt_agent_gemini() {
+    cat > "$PROMPTS_DIR/agent-gemini.md" <<'EOF'
+# Task: Implement Gemini Agent Backend
+
+**Task ID**: agent-gemini
+**Phase**: Agent System
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: agent-protocol
+
+## Objective
+Implement Gemini agent backend adapter.
+
+## Specifications
+Read: docs/specifications/subsystem-agent-backend-gemini.md
+
+## Required Implementation
+
+### 1. Package Structure
+Location: `internal/agent/gemini/`
+Files:
+- gemini.go - Gemini agent implementation
+
+### 2. Gemini Agent
+REST API integration for Gemini.
+
+### 3. API Integration
+- Use Google Gemini REST API
+- Handle authentication via token
+- Stream response to stdout
+
+### 4. Tests Required
+Location: `test/integration/agent_gemini_test.go`
+- TestGeminiExecution
+
+## Success Criteria
+- All tests pass
+- API integration working
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Gemini agent backend implemented
+EOF
+}
+
+create_prompt_agent_perplexity() {
+    cat > "$PROMPTS_DIR/agent-perplexity.md" <<'EOF'
+# Task: Implement Perplexity Agent Backend
+
+**Task ID**: agent-perplexity
+**Phase**: Agent System
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: agent-protocol
+
+## Objective
+Implement Perplexity agent backend adapter.
+
+## Specifications
+Read: docs/specifications/subsystem-agent-backend-perplexity.md
+
+## Required Implementation
+
+### 1. Package Structure
+Location: `internal/agent/perplexity/`
+Files:
+- perplexity.go - Perplexity agent implementation
+
+### 2. Perplexity Agent
+REST API + SSE integration.
+
+### 3. API Integration
+- Use Perplexity REST API
+- Handle SSE streaming
+- Unified stdout-only output (per Problem #6)
+
+### 4. Tests Required
+Location: `test/integration/agent_perplexity_test.go`
+- TestPerplexityExecution
+
+## Success Criteria
+- All tests pass
+- SSE streaming working
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Perplexity agent backend implemented
+EOF
+}
+
+create_prompt_agent_xai() {
+    cat > "$PROMPTS_DIR/agent-xai.md" <<'EOF'
+# Task: Implement xAI Agent Backend
+
+**Task ID**: agent-xai
+**Phase**: Agent System
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: agent-protocol
+
+## Objective
+Implement xAI agent backend adapter.
+
+## Specifications
+Read: docs/specifications/subsystem-agent-backend-xai.md
+
+## Required Implementation
+
+### 1. Package Structure
+Location: `internal/agent/xai/`
+Files:
+- xai.go - xAI agent implementation
+
+### 2. xAI Agent
+REST API integration for xAI.
+
+### 3. API Integration
+- Use xAI REST API
+- Handle authentication
+- Stream response to stdout
+
+### 4. Tests Required
+Location: `test/integration/agent_xai_test.go`
+- TestXAIExecution
+
+## Success Criteria
+- All tests pass
+- API integration working
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: xAI agent backend implemented
+EOF
+}
+
 #############################################################################
 # CREATE ALL PROMPTS
 #############################################################################
@@ -621,9 +943,15 @@ create_all_prompts() {
     create_prompt_infra_config
     create_prompt_infra_messagebus
 
+    # Agent system prompts
+    create_prompt_agent_protocol
+    create_prompt_agent_claude
+    create_prompt_agent_codex
+    create_prompt_agent_gemini
+    create_prompt_agent_perplexity
+    create_prompt_agent_xai
+
     # TODO: Add remaining prompts for:
-    # - infra-config
-    # - All agent backends (6 prompts)
     # - Runner components (3 prompts)
     # - API components (3 prompts)
     # - Test suites (5 prompts)
@@ -769,6 +1097,42 @@ run_stage_1_infrastructure() {
     log_success "STAGE 1 COMPLETE: Core infrastructure implemented"
 }
 
+run_stage_2_agents() {
+    log "=========================================="
+    log "STAGE 2: AGENT SYSTEM"
+    log "=========================================="
+
+    # First: agent-protocol (must complete before backends)
+    log "Phase 2a: Agent Protocol Interface"
+    run_agent_task "agent-protocol" "codex" "$PROMPTS_DIR/agent-protocol.md"
+    wait_for_tasks "agent-protocol"
+
+    if ! check_task_success "agent-protocol"; then
+        log_error "Stage 2 failed: agent-protocol"
+        return 1
+    fi
+
+    # Then: All 5 agent backends in parallel
+    log "Phase 2b: Agent Backend Implementations (5 parallel)"
+    run_agent_task "agent-claude" "codex" "$PROMPTS_DIR/agent-claude.md"
+    run_agent_task "agent-codex" "codex" "$PROMPTS_DIR/agent-codex.md"
+    run_agent_task "agent-gemini" "codex" "$PROMPTS_DIR/agent-gemini.md"
+    run_agent_task "agent-perplexity" "codex" "$PROMPTS_DIR/agent-perplexity.md"
+    run_agent_task "agent-xai" "codex" "$PROMPTS_DIR/agent-xai.md"
+
+    wait_for_tasks "agent-claude" "agent-codex" "agent-gemini" "agent-perplexity" "agent-xai"
+
+    # Check all backends succeeded
+    for task in agent-claude agent-codex agent-gemini agent-perplexity agent-xai; do
+        if ! check_task_success "$task"; then
+            log_error "Stage 2 failed at task $task"
+            return 1
+        fi
+    done
+
+    log_success "STAGE 2 COMPLETE: Agent system implemented"
+}
+
 #############################################################################
 # MAIN EXECUTION
 #############################################################################
@@ -796,8 +1160,12 @@ main() {
         exit 1
     fi
 
+    if ! run_stage_2_agents; then
+        log_error "FATAL: Stage 2 (Agent System) failed"
+        exit 1
+    fi
+
     # TODO: Add remaining stages:
-    # run_stage_2_agents
     # run_stage_3_runner
     # run_stage_4_api
     # run_stage_5_testing
