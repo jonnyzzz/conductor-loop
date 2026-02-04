@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  conductor:
+    build:
+      context: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - conductor-data:/data
+    environment:
+      - CONDUCTOR_DATA_DIR=/data
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["db"]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: conductor
+      POSTGRES_PASSWORD: conductor
+      POSTGRES_DB: conductor
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  nginx:
+    image: nginx:1.27-alpine
+    profiles: ["frontend"]
+    ports:
+      - "80:80"
+    depends_on:
+      - conductor
+
+volumes:
+  conductor-data:
+  postgres-data:
