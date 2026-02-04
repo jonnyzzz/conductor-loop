@@ -31,6 +31,7 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
 - Maintains process group ID for stop/kill.
 - Generates run_id (timestamp + PID) and creates the run folder.
 - Writes run metadata (run-info.yaml) and output files.
+- **Output Logic**: If `output.md` does not exist after the agent process terminates, creates `output.md` using the content of `agent-stdout.txt`.
 - Posts run START/STOP events to message bus.
 - Prepends its own binary location to PATH for child processes.
 
@@ -39,9 +40,21 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
 - Validates TASK.md is non-empty.
 - Starts root agent and enforces the Ralph restart loop.
 - Task is complete only when DONE exists AND all child runs have exited.
-- If DONE exists but children are still running, wait and restart root to catch up.
-- If children are done but DONE is absent, restart root.
-- Between Ralph iterations, the supervisor may run compaction/fact propagation steps before restarting.
+- **Ralph Loop Termination Logic**:
+  - Check for DONE marker BEFORE starting/restarting root agent.
+  - If **DONE exists**:
+    - Enumerate all active children (runs with empty end_time and non-empty parent_run_id).
+    - If **No Active Children**: Task is complete. Exit successfully.
+    - If **Active Children Running**:
+      - Log "Waiting for N children to complete: [run_ids...]"
+      - Post INFO message to message bus with child run IDs.
+      - Poll children every 1s using `kill(-pgid, 0)` checks.
+      - Timeout after 300s (configurable via config.child_wait_timeout).
+      - On timeout: Log WARNING to message bus, proceed to completion (orphan children).
+      - Once all children exit: Task is complete. Exit successfully.
+      - **Do NOT restart root agent** (root already declared completion via DONE).
+  - If **DONE missing**: Start/restart Root Agent (subject to max_restarts).
+  - Between restart attempts, pause 1s to avoid tight loops.
 - `run-task`/`run-task.sh` are thin wrappers (if present) that call `run-agent task`.
 
 ### run-agent serve (subcommand)
@@ -61,6 +74,8 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
 - Precedence (when/if per-project/task config is added): CLI > env vars > task config > project config > global config.
 - Configurable items:
   - max restarts / time budget for Ralph loop
+  - child_wait_timeout (default 300s, used when DONE exists but children running)
+  - child_poll_interval (default 1s, used when waiting for children)
   - idle/stuck thresholds
   - agent selection weights and ordering
   - delegation depth (max 16 by default)
@@ -106,8 +121,11 @@ The root agent prompt must include:
 - Regularly poll message bus for new messages.
 - Write facts as FACT-*.md (YAML front matter required).
 - Update TASK_STATE.md with a short free-text status.
+- **IMPORTANT**: If delegating work to children, wait for children to complete and post results BEFORE writing DONE.
+- Monitor message bus for CHILD_DONE or result messages from children if aggregation is needed.
 - Write final results to output.md in the run folder.
-- Create DONE file when the task is complete (and post an INFO/OBSERVATION message to the bus).
+- Create DONE file ONLY when the task is complete (all work finished, including children if applicable).
+- Post an INFO/OBSERVATION message to the bus when writing DONE.
 - Delegate sub-tasks by starting sub agents via run-agent.
 
 ## Error Handling
@@ -128,6 +146,41 @@ The root agent prompt must include:
   - paths to prompt/output/stdout/stderr
   - commandline (optional; full command used to start the agent)
 - START/STOP/CRASH events are posted to message bus for UI reconstruction.
+
+## Agent Design Patterns
+
+Root agents should follow one of these patterns when delegating work to child agents:
+
+### Pattern A: Parallel Delegation with Aggregation (Recommended)
+```
+Root: Spawn N children for parallel subtasks
+Root: Monitor message bus for CHILD_DONE messages
+Root: Wait for all children to report completion
+Root: Aggregate results from children's outputs
+Root: Write final output.md
+Root: Write DONE
+Root: Exit
+```
+
+**Key principle:** Root writes DONE only after children complete and results are aggregated.
+
+### Pattern B: Fire-and-Forget Delegation
+```
+Root: Spawn N children for independent subtasks
+Root: Write DONE immediately (root's work is done)
+Root: Exit (children continue independently)
+```
+
+**Key principle:** Root does not need children's results. Ralph loop will wait for children to exit before completing task.
+
+### Anti-pattern (DO NOT USE)
+```
+Root: Spawn children
+Root: Write DONE immediately
+Root: Expect to be restarted to aggregate results
+```
+
+This is incorrect - the Ralph loop will NOT restart root after DONE is written. If root needs to aggregate results, it must wait for children BEFORE writing DONE (use Pattern A).
 
 ## Security / Permissions
 - Tokens are read from config and injected via environment variables.

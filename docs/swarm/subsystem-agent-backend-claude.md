@@ -18,7 +18,7 @@ Defines how the Go `run-agent` binary invokes the Claude CLI for a single agent 
 - Working directory is set by run-agent based on task/sub-agent context.
 
 ## I/O Contract
-- stdout: final response (captured to agent-stdout.txt; runner may create output.md).
+- stdout: final response (captured to agent-stdout.txt; runner creates output.md from this if missing).
 - stderr: progress/logs (captured to agent-stderr.txt).
 - exit code: 0 success, non-zero failure.
 - Streaming behavior: CLI output assumed to stream progressively (standard CLI behavior, similar to verified Gemini behavior).

@@ -156,3 +156,18 @@ Status: **8/8 subsystems FULLY RESOLVED (100%)**. All agent backends verified an
 
 [2026-02-04T18:02:52Z] type=info project=swarm task=review
 Message: Final spec review found blockers: config key mismatch (backend specs/TOPICS vs config.hcl schema token/env_var), and output.md ownership ambiguity (agent protocol vs backend specs vs run-agent.sh). Also noted consistency gaps: TOPICS still lists resolved questions, ROUND-7-SUMMARY says Gemini streaming pending though specs/QUESTIONS resolved, and minor stale text in QUESTIONS files.
+---
+msg_id: MSG-20260204-210547-codex-review
+ts: 2026-02-04T21:05:47Z
+type: OBSERVATION
+project: swarm
+task: planning
+---
+Completed execution modeling across all 8 subsystems. Critical blockers: message-bus write strategy loses concurrent writes (needs locking/append strategy), bus REST endpoint path mismatch with frontend API contract, and task creation flow mismatch (runner expects existing TASK.md vs API/UI sending prompt). Medium gaps: output.md ownership/fallback, attachments retrieval endpoint, log streaming paging/endpoint mismatches, home-folders.md ownership, JRUN_PARENT_ID semantics, front-matter delimiter ambiguity, Perplexity SSE scanner limits, run-agent detach/pgid details. See response for full list and questions.
+---
+
+[2026-02-04T21:08:11Z] type=issue project=swarm task=planning
+Message: Spec review found implementation blockers: (1) run-agent job/task CLI contract is undefined (required args like project/task/agent/cwd/prompt/run folder), so root/UI cannot spawn agents deterministically; (2) message bus REST endpoints conflict between subsystem-message-bus-tools.md (/api/bus) and subsystem-frontend-backend-api.md (/api/projects/:project_id[/tasks/:task_id]/bus); (3) message bus write strategy uses temp+rename without locking, risking lost messages under concurrent writers. Also noted medium gaps: log stream chronological merge without per-line timestamps, attachment download endpoint missing, token @file vs token_file mismatch.
+
+[2026-02-04T21:09:53Z] type=info project=swarm task=planning
+Message: Spec review pass completed. Noted blockers/gaps: missing run-agent job/task CLI contract (flags for project/task/agent/cwd/parent/run lineage), message-bus concurrent writes can lose messages due to temp+swap w/o locking, log SSE 'since' cannot be honored without per-line timestamps/offsets, run_id/msg_id format inconsistencies across storage/API examples, and project-level attachment storage not defined. Logged medium gaps around Ralph loop termination logic, status enum/derivation, and REST adapter process/pid semantics for Perplexity.

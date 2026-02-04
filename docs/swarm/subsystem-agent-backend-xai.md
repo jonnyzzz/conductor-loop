@@ -16,7 +16,7 @@ Defines the placeholder for xAI backend integration. This work is deferred post-
 
 ## I/O Contract
 - Input: prompt text (from prompt.md).
-- Output: plain text response captured into output.md.
+- Output: plain text response (captured to agent-stdout.txt; runner creates output.md from this if missing).
 - Errors: logged to agent-stderr.txt; non-zero exit code for failures.
 
 ## Environment / Config

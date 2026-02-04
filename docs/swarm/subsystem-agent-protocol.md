@@ -20,7 +20,7 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 - Agents MUST read TASK_STATE.md and message bus on start.
 - Root agents SHOULD read PROJECT-MESSAGE-BUS.md and project FACT files on start.
 - Agents MUST write updates to TASK_STATE.md each cycle (root only).
-- Agents SHOULD write final results to output.md in their run folder (best-effort; runner captures stdout/stderr independently).
+- Agents SHOULD write final results to output.md in their run folder (best-effort; runner creates output.md from stdout if missing).
 - Agents MUST use run-agent bus tooling; direct file appends are disallowed.
 - Agents SHOULD log progress to stderr during long operations.
 
@@ -28,25 +28,24 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 - No OWNERSHIP.md file.
 - run-agent injects a RUN_FOLDER path into sub-agent prompts (prompt text, not an env var).
 - Prompt preamble includes full path instruction: `Write output.md to /full/path/to/<run_id>/output.md`
-- This is a best-effort instruction; agents should attempt to create output.md but runner captures stdout/stderr independently as fallback.
+- This is a best-effort instruction; agents should attempt to create output.md, but if missing, the runner creates it from stdout.
 - Agents write prompts/outputs/temporary files only inside RUN_FOLDER.
 - Ownership is conceptual (prompt-guided), not enforced by files.
 - Parents may read child output/TASK_STATE for monitoring; policy does not restrict this.
 
 ## Output Files & I/O Capture
-- **output.md**: Best-effort agent-generated result file
+- **output.md**: The final result file
   - Runner prepends instruction to agent prompt: `Write output.md to /full/path/to/<run_id>/output.md`
   - Agent should attempt to write final results to this file
-  - No guarantee the agent will create or complete this file
+  - **Unified Rule**: If `output.md` does not exist after the agent exits, the runner MUST create it using the content of `agent-stdout.txt`
 - **agent-stdout.txt**: Runner-captured stdout stream (always created)
   - Contains all stdout output from the agent process
   - Captured independently of agent behavior
-  - Used as fallback when output.md is missing or incomplete
+  - Source for `output.md` creation if the agent fails to write the file
 - **agent-stderr.txt**: Runner-captured stderr stream (always created)
   - Contains progress logs, debugging info, errors
   - Captured independently of agent behavior
-- Parent agents can read any of these files to understand sub-agent results
-- Runner tooling should check output.md first, fall back to agent-stdout.txt if needed
+- Parent agents can always rely on `output.md` existing (either written by agent or created by runner from stdout)
 
 ## Message Bus Protocol
 - Agents do not emit START/STOP (runner-only).

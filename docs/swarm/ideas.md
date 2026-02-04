@@ -229,3 +229,6 @@ Add support for Perplexity as a native REST-backed agent in run-agent. It should
 Support xAI. We need to research the best coding agent for that.
 
 We need a dedicated document to have specifications for the environment variables between all tool calls.
+
+
+When the task is restarted, prepend to the prompt "Continue working on the following:"

@@ -18,7 +18,7 @@ Defines how the Go `run-agent` binary invokes the Gemini CLI for a single agent 
 - Working directory is set by run-agent based on task/sub-agent context.
 
 ## I/O Contract
-- stdout: final response (captured into output.md); streams progressively in chunks (~1s intervals).
+- stdout: final response (captured to agent-stdout.txt; runner creates output.md from this if missing); streams progressively in chunks (~1s intervals).
 - stderr: progress/logs (captured into agent-stderr.txt).
 - exit code: 0 success, non-zero failure.
 - Streaming behavior: Gemini CLI streams output to stdout progressively (line/block buffered), suitable for real-time UI display.

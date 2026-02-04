@@ -17,6 +17,7 @@ This document defines the schema for `run-info.yaml`, the canonical metadata fil
 - Encoding: UTF-8 without BOM (strict enforcement)
 - Key naming: lowercase with underscores (snake_case)
 - Generation: Written by `run-agent job` at run start; updated at run end
+- Update Mechanism: MUST use atomic replacement (write to temp file + `fsync` + atomic `rename`) to ensure readers never observe partial writes.
 
 ## Schema Version 1
 

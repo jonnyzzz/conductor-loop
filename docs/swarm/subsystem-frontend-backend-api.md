@@ -284,7 +284,7 @@ data: {"run_id": "20260204-173042-12345", "exit_code": 0, "end_time": "2026-02-0
 
 **Behavior**:
 - Streams from all runs in chronological order
-- New runs automatically included
+- New runs automatically included (discovery polling interval: 1s)
 - Each log line tagged with run_id and stream (stdout/stderr)
 - Client-side filtering by run_id or stream
 

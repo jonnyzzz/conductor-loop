@@ -23,7 +23,8 @@ This list captures the current planning topics derived from ideas.md, the subsys
    - Decisions:
      - Implementation: run-agent is a Go binary.
      - Completion = DONE file exists AND all child runs have exited.
-     - Ralph loop restarts root agent when DONE is absent; waits/monitors (and may restart root to catch up) when DONE exists but children are still running.
+     - Ralph loop restarts root agent when DONE is absent.
+     - **Ralph Loop Termination**: When DONE exists but children are running, Ralph waits for children (using PGID tracking + 300s timeout), then restarts the root agent one final time to allow result aggregation.
      - Run chain tracked via previous_run_id on each restart.
      - No lockfile coordination; uniqueness is ensured by timestamp+PID and retry on collision.
      - Idle/stuck detection uses stdout/stderr + message bus activity (idle default 5m, stuck 15m; idle means all children idle; waiting if last entry is QUESTION).
