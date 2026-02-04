@@ -1,0 +1,27 @@
+I will read the relevant files and check the git history to perform the review.
+I have reviewed the files and git history. `subsystem-env-contract.md` is well-aligned with `ideas.md` and `TIPICS.md`. I will propose resolving the pending "TBD" questions in `subsystem-env-contract-QUESTIONS.md` by adopting their proposed defaults, as they represent standard MVP practices.
+
+1) **External facts check**
+   - I verified that Go's `os/exec` (implementation language for `run-agent`) does not forward signals to child processes by default. The spec must explicitly require `run-agent` to handle and forward signals (e.g., SIGTERM) to agent process groups to ensure graceful shutdown.
+
+2) **Spec updates**
+   - **`subsystem-env-contract.md`**
+     - Add **Environment Inheritance**: "Agents inherit the full environment of the `run-agent` process (MVP). No filtering is applied."
+     - Add **Signal Handling**: "SIGTERM sent to `run-agent` is forwarded to the active agent process group. `run-agent` waits up to 30s for the agent to exit before sending SIGKILL."
+     - Add **Path Normalization**: "Paths injected into the prompt preamble (e.g., `RUN_FOLDER`) are OS-native (using Go `filepath.Clean`)."
+     - Add **Date/Time Injection**: "The current UTC timestamp (ISO-8601) is included in the prompt preamble to provide temporal context."
+
+3) **Questions to remove/resolve**
+   - **`subsystem-env-contract-QUESTIONS.md`**
+     - Q: How are paths normalized in the prompt preamble? -> **Resolve**: OS-native.
+     - Q: Does the agent process inherit the full parent environment? -> **Resolve**: Yes, full inheritance (MVP).
+     - Q: What is the signal handling contract? -> **Resolve**: Forward SIGTERM + 30s grace period.
+     - Q: Should the current date/time be injected? -> **Resolve**: Yes, ISO-8601 UTC.
+
+4) **New open questions**
+   - **`subsystem-env-contract-QUESTIONS.md`**
+     - Q: How should `run-agent` handle `JRUN_*` variables if they are already present in the host environment? | Proposed default: `run-agent` forcefully overwrites them to ensure run integrity. | A: TBD.
+     - Q: Should specific sensitive environment variables (e.g., `AWS_SECRET_ACCESS_KEY`) be redacted from agent logs/output even if inherited? | Proposed default: No automatic redaction in MVP; agents are trusted with the environment. | A: TBD.
+
+5) **New docs/topics suggested**
+   - None. The scope is well-covered by the existing document.

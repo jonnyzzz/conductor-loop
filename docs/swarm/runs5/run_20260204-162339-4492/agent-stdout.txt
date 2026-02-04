@@ -1,0 +1,25 @@
+I will read the necessary design documents and history to analyze the current state of "Storage Layout & Metadata".
+Here is the review of Topic 3: Storage Layout & Metadata.
+
+### 1) External facts check
+*   No external facts require verification. "Java Identifier" and "HCL" are standard industry terms.
+
+### 2) TIPICS updates
+*   **Topic 3**: Add decision: "Attachment naming convention: `ATTACH-<timestamp>-<name>.<ext>` stored in the task folder."
+*   **Topic 3**: Add decision: "`TASK_STATE.md` is the canonical status file; agents should treat references to `STATE.md` in prompts as `TASK_STATE.md`."
+*   **Topic 3**: Add decision: "Run metadata is consolidated in `run-info.yaml`; legacy loose files (`pid`, `cwd`, `parent-run-id`) are deprecated/removed."
+*   **Topic 3**: Add decision: "Text files (TASK.md, TASK_STATE.md, logs) must be UTF-8 (no BOM)."
+*   **Topic 3**: Add decision: "`run-info.yaml` includes `version: 1` to support future schema evolution."
+
+### 3) Spec updates
+*   **subsystem-storage-layout.md** -> Update "File Formats > run-info.yaml" to explicitly state it supersedes legacy loose metadata files (pid, cwd, etc.).
+*   **subsystem-storage-layout.md** -> Add `version: 1` field to the required fields list in `run-info.yaml`.
+*   **subsystem-storage-layout.md** -> Update "Constraints" to explicitly mandate UTF-8 encoding for all text files.
+
+### 4) Questions to remove/resolve
+*   **subsystem-storage-layout-QUESTIONS.md** -> "Is UTF-8 encoding strictly enforced...?" -> **Resolve**: Yes, strictly enforced.
+*   **subsystem-storage-layout-QUESTIONS.md** -> "Do we need a schema/version field in run-info.yaml...?" -> **Resolve**: Yes, add `version: 1`.
+
+### 5) New open questions
+*   **subsystem-storage-layout-QUESTIONS.md** -> Q: Should `home-folders.md` be automatically updated by the runner if source folders change, or is it purely agent/user managed? | Proposed default: Agent/User managed (runner only reads). | A: TBD.
+*   **subsystem-storage-layout-QUESTIONS.md** -> Q: How should the runner handle `ATTACH-` file collisions if the timestamp/name is identical (unlikely but possible)? | Proposed default: Append incrementing counter or random suffix. | A: TBD.

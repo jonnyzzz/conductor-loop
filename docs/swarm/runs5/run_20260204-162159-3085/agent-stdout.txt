@@ -1,0 +1,33 @@
+I will read the relevant design documents and check the git history to analyze the current state of the "Message Bus Tooling" subsystem.
+Here is the review of the Message Bus Tooling subsystem.
+
+1. External facts check
+   - I am not Claude and cannot verify external facts via Perplexity.
+   - No controversial external claims detected in the reviewed documents; the design is primarily internal.
+
+2. Spec updates
+   - **ideas.md**
+     - Remove references to `post-message.sh` and `poll-message.sh`. Replace with `run-agent bus post` and `run-agent bus poll` to align with `subsystem-message-bus-tools.md`.
+     - Update "Message bus MCP supports CLI tooling" to clarify that the `run-agent` binary *is* the canonical tooling and MCP implementation usage.
+   - **subsystem-message-bus-tools.md**
+     - Clarify if `run-agent bus post` performs any validation on `parents` msg_ids (e.g., do they exist?). Proposed: No validation in MVP (eventual consistency).
+     - Explicitly state that `attachment_path` is relative to the task folder (already in text, but ensure it's in the "Message Format" field description for clarity).
+
+3. Questions to remove/resolve
+   - **subsystem-message-bus-tools-QUESTIONS.md**
+     - *Q: How do agents pass structured parents[] objects via CLI `run-agent bus post` (JSON flag vs file input)?*
+       - **Resolution:** Use REST (`run-agent bus post` HTTP endpoint) for structured parents in MVP. CLI is primarily for simple string-based parents or human debugging. If CLI support is strictly required, add `--parents-json`.
+       - **Action:** Update answer to "Use REST for structured parents. CLI supports string-only parents (shorthand) for MVP." and close.
+     - *(Note: Questions regarding compaction and dependency semantics found in git history appear resolved and removed from the current file version on disk, which is consistent with the spec.)*
+
+4. New open questions
+   - **subsystem-message-bus-tools-QUESTIONS.md**
+     - Q: Does `run-agent bus poll` need a specific `--thread <msg_id>` mode to recursively fetch a conversation thread (walking up `parents`), or is this solely a UI concern?
+       - Proposed default: UI concern; CLI provides linear scan or simple regex filtering.
+       - A: TBD.
+     - Q: Should `run-agent bus post` return the generated `msg_id` to the caller (stdout/json)?
+       - Proposed default: Yes, print `msg_id` to stdout on success to allow chaining.
+       - A: TBD.
+
+5. New docs/topics suggested
+   - No new documents needed. The scope is well-covered by `subsystem-message-bus-tools.md`.

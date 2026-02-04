@@ -1,0 +1,34 @@
+I will read the core documentation and topic definition files, followed by the subsystem specifications and agent backend details, and finally the relevant question files and git history to gather all necessary information for the review.
+1) External facts check
+- `claude` CLI typically uses `ANTHROPIC_API_KEY` and supports `--input-format`/`--output-format`.
+- `codex` and `gemini` CLIs with flags `--dangerously-bypass-approvals-and-sandbox` and `--approval-mode yolo` appear to be specific agentic wrapper tools (likely `claude-code` forks or internal tools) rather than standard vendor SDK CLIs. Assumed to exist as prerequisites.
+- HCL is a standard, robust configuration format suitable for this use case.
+
+2) TIPICS updates
+- **Configuration & Backend Selection**:
+    - *Decision:* `config.hcl` is the single source of truth for enabled backends, credential mapping, and selection weights.
+    - *Decision:* Model selection (e.g., Sonnet vs Opus) is currently delegated to the host CLI's default configuration; `run-agent` does not enforce specific models in MVP.
+    - *Decision:* Standard API key environment variables (e.g., `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`) are populated by `run-agent` from `config.hcl` values.
+
+3) Spec updates
+- **subsystem-runner-orchestration.md**:
+    - Add `config.hcl` structure details: support `backend "name" { enabled = true, weight = 10, ... }` blocks.
+    - Explicitly state that `run-agent` does *not* currently override the CLI's default model via flags (unless a `model` config field is added later).
+- **subsystem-env-contract.md**:
+    - Add a "Backend Credentials" section listing the environment variables `run-agent` guarantees to set if defined in config (e.g., `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `PERPLEXITY_API_KEY`).
+
+4) Questions to remove/resolve
+- **subsystem-runner-orchestration-QUESTIONS.md**:
+    - Q: run-agent binary update/versioning strategy? -> Resolution: Manual install/rebuild for MVP.
+    - Q: config.hcl schema/versioning and validation location? -> Resolution: Validated by `run-agent` on startup using embedded Go struct tags.
+- **subsystem-agent-backend-claude-QUESTIONS.md**:
+    - Q: What environment variable name...? -> Resolution: `ANTHROPIC_API_KEY`, mapped from `anthropic_api_key` in config.
+- **subsystem-agent-backend-gemini-QUESTIONS.md**:
+    - Q: What environment variable name...? -> Resolution: `GEMINI_API_KEY` (standard convention).
+
+5) New open questions
+- **subsystem-runner-orchestration-QUESTIONS.md**:
+    - Q: How to configure specific models (e.g., `claude-3-5-sonnet` vs `opus`) per backend? / Proposed default: Add `model` field to HCL backend block and map to CLI flags where supported. / A: TBD.
+    - Q: Should `run-agent` support capability-based selection (e.g., "needs-coding", "needs-vision")? / Proposed default: No, rely on "I'm lucky" or round-robin for MVP. / A: TBD.
+- **subsystem-agent-backend-gemini-QUESTIONS.md**:
+    - Q: Does the `gemini` CLI support a model selection flag? / Proposed default: Investigate CLI help. / A: TBD.

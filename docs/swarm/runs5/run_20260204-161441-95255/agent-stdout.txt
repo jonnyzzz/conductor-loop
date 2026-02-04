@@ -1,0 +1,186 @@
+The Perplexity API is not configured properly. Let me check if there are any other factual claims in the specs that need verification. Looking at the key technical details:
+
+1. SSE (Server-Sent Events) vs WebSocket - this is well-established technology
+2. YAML front-matter format - standard format
+3. ISO-8601 UTC timestamps - standard format
+4. Temp file + atomic swap - standard POSIX pattern
+5. SIGTERM/SIGKILL - standard Unix signals
+
+These are all well-established technical concepts that don't require external verification. Let me now analyze the consistency and provide recommendations.
+
+## Analysis Report: Message Bus Format & Threading
+
+### 1) External Facts Check
+
+All technical claims in the specifications reference well-established standards and patterns:
+- **SSE (Server-Sent Events)**: Standard HTML5 API for server push, appropriate for one-way streaming
+- **YAML front-matter**: Standard format used in static site generators (Jekyll, Hugo, etc.)
+- **ISO-8601 UTC timestamps**: International standard for datetime representation
+- **Temp + atomic swap**: Standard POSIX pattern for atomic file writes
+- **SIGTERM/SIGKILL**: Standard Unix/POSIX signals
+
+**Verification Status**: No external verification needed; all references are to established standards.
+
+### 2) TIPICS.md Updates
+
+**Topic 1 (Message Bus Format & Threading) - Recommended Changes:**
+
+- **Update line 10**: Change "parents[] supports string shorthand or structured objects with relationship kind" to "parents[] supports string shorthand (implicit 'reply' kind) or structured objects with explicit relationship kind (no default kind)"
+  
+- **Resolve open question on line 16**: "Whether tooling should validate relationship kinds or allow free-form strings."
+  - **Resolution**: Based on commit 43e152d answer, tooling allows free-form strings in MVP; no validation required. Move to decisions section.
+
+- **Resolve open question on line 17**: "How CLI should accept structured parents[] objects (JSON flag vs REST-only)."
+  - **Resolution**: Based on current spec, structured parents are REST-only for now; CLI accepts comma-separated string msg_ids. Add future CLI enhancement as a note, not blocking question.
+
+- **Add to decisions section (line 14)**: "Relationship kinds are free-form strings; no fixed vocabulary enforced in MVP (suggested: reply, blocks, supersedes, relates_to, answers)."
+
+- **Add to decisions section (line 13)**: "CLI --parents accepts comma-separated msg_id strings only; structured parents objects require REST POST /api/bus."
+
+- **Remove from open questions**: Both existing questions can be resolved per above.
+
+- **New open question to add**: "Should attachment_path validation check file existence at message post time, or defer to readers?"
+
+### 3) Spec Updates
+
+**subsystem-message-bus-tools.md:**
+
+- **Line 29**: Clarify that "--parents <msg_id,...> (optional; string msg_id list only)" with note: "Structured parents objects are posted via REST until CLI support is added."
+  - **Current text already matches this** - no change needed.
+
+- **Line 103-104**: Add explicit note about relationship kind vocabulary:
+  ```
+  ## Threading & Corrections
+  ...
+  - String entries are equivalent to `{msg_id: <msg_id>, kind: reply}`.
+  - See subsystem-message-bus-object-model.md for relationship vocabulary and object schema.
+  ```
+  - **Current text already includes reference** - no change needed.
+
+- **Line 49**: REST POST endpoint documentation exists but should clarify that structured parents are fully supported:
+  ```
+  ### run-agent bus post (HTTP)
+  - REST endpoint for message submission:
+    - POST /api/bus
+  - Body fields mirror CLI: project, task, type, message, parents, attachment_path.
+  - parents field accepts both string arrays and object arrays (structured relationships).
+  ```
+  - **Add clarification**: "parents field accepts both string arrays and object arrays (structured relationships)."
+
+**subsystem-message-bus-object-model.md:**
+
+- **Line 33**: Clarify that `kind` is required field with free-form string value:
+  ```
+  #### Required Fields
+  - `msg_id`: ID of the referenced message.
+  - `kind`: relationship type (free-form; no fixed vocabulary).
+  ```
+  - **Current text says "(see Open Questions)"** - update to "(free-form; no fixed vocabulary)."
+
+- **Line 45-51**: Add suggested vocabulary section after "Backward Compatibility":
+  ```
+  ## Suggested Relationship Kinds (Non-Normative)
+  Common values seen in practice:
+  - reply
+  - blocks
+  - supersedes
+  - relates_to
+  - answers
+  
+  These are recommendations only; tooling remains permissive in MVP.
+  ```
+  - **Add new section** to replace vague reference to open questions.
+
+**subsystem-agent-protocol.md:**
+
+- **Line 41**: Clarify message bus polling frequency expectation:
+  ```
+  ## Message Bus Protocol
+  - Agents do not emit START/STOP (runner-only).
+  - Use TASK-MESSAGE-BUS for task-scoped updates/questions.
+  - Use PROJECT-MESSAGE-BUS for cross-task facts (typically via root agent).
+  - Thread replies and corrections with parents[].
+  - Use absolute paths when referencing files in message bus entries or outputs.
+  - Root agent is responsible for polling and processing message bus updates in MVP (no dedicated poller service).
+  - Poll for new messages as often as possible; read only new content.
+  ```
+  - **Current text already mentions polling** but could clarify "as often as possible" means "after each significant operation or every N seconds when idle (e.g., 10-30s)."
+  - **Add**: "Recommended polling interval: after each operation, or every 10-30 seconds when idle."
+
+**subsystem-monitoring-ui.md:**
+
+- **Line 67**: Message bus rendering already says "plain text in MVP" but should clarify attachment handling:
+  ```
+  ## Message Bus UI
+  - Show most recent entries as header-only; click to expand.
+  - Threaded view using parents[] links.
+  - Post USER/ANSWER entries via run-agent bus.
+  - Render message bodies and prompts as plain text in MVP (no Markdown rendering).
+  - Render attachment_path as a link/button to load the file via backend.
+  ```
+  - **Current text already includes attachment rendering** - no change needed.
+
+### 4) Questions to Remove/Resolve
+
+**subsystem-message-bus-tools-QUESTIONS.md:**
+
+- **Q1** (line 3): "How do agents pass structured parents[] objects via CLI..."
+  - **Resolution**: CLI accepts comma-separated string msg_ids only (shorthand form, implicit reply). Structured parents with explicit kind use REST POST /api/bus. Future CLI enhancement may add --parents-json flag.
+  - **Action**: Remove from QUESTIONS file; add note to spec that CLI enhancement is deferred post-MVP.
+
+**subsystem-message-bus-object-model-QUESTIONS.md:**
+
+- **Q1** (line 3-4): "Should tooling validate `kind` values against a known list..."
+  - **Resolution** (from commit 43e152d): Allow free-form in MVP; no validation. "Flexible for agent to name it."
+  - **Action**: Remove from QUESTIONS file; documented in spec as design decision.
+
+**Historical file (questions-history/subsystem-message-bus-tools-QUESTIONS-20260202.md):**
+- All questions already answered and incorporated into current specs.
+- **Action**: No changes needed to historical file.
+
+### 5) New Open Questions
+
+**subsystem-message-bus-tools-QUESTIONS.md:**
+
+After resolving the existing questions, add these new open questions:
+
+- **Q**: Should attachment_path validation check file existence at message post time, or defer to readers?
+  - **Proposed default**: Defer to readers; posting with attachment_path does not require file to exist yet (agent may still be writing it).
+  - **A**: TBD.
+
+- **Q**: Should run-agent bus poll support --follow mode (like tail -f) for continuous streaming to stdout?
+  - **Proposed default**: Add --follow flag for CLI users; blocks and streams new messages as they arrive (similar to --wait but continues indefinitely).
+  - **A**: TBD.
+
+**subsystem-message-bus-object-model-QUESTIONS.md:**
+
+- **Q**: Should UI collapse or hide messages that are superseded by later messages?
+  - **Proposed default**: Show superseded messages with visual indicator (grayed out, strikethrough); allow toggle to hide completely.
+  - **A**: TBD.
+
+- **Q**: Should meta field in parents[] objects support timestamp to indicate when the relationship was established?
+  - **Proposed default**: No schema enforcement for meta in MVP; agents may include timestamp or other fields as needed.
+  - **A**: TBD.
+
+**New subsystem coordination question (could go in subsystem-agent-protocol-QUESTIONS.md):**
+
+- **Q**: How should agents discover newly posted messages in TASK-MESSAGE-BUS during long-running operations?
+  - **Proposed default**: Root agent polls every 10-30s when idle; implementations agents poll after each significant step (test run, build, file edit batch).
+  - **A**: TBD.
+
+---
+
+## Summary of Recommendations
+
+**Consistency Status**: The specs are generally consistent. The main gaps were:
+1. Two open questions in TIPICS.md that have been answered in git history
+2. Missing explicit documentation of "no default kind" for relationships
+3. Lack of suggested vocabulary for relationship kinds in the object model spec
+
+**Critical Alignment Needed**:
+- Update TIPICS.md line 10 to reflect "no default kind" decision
+- Resolve both open questions in TIPICS.md (lines 16-17)
+- Update subsystem-message-bus-object-model.md to replace "(see Open Questions)" with explicit free-form design
+- Add suggested relationship vocabulary to object model spec
+
+**No Breaking Changes**: All recommendations maintain backward compatibility and clarify existing decisions rather than introducing new requirements.

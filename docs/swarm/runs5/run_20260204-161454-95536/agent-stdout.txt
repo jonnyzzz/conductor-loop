@@ -1,0 +1,111 @@
+The Perplexity MCP is not configured. Let me proceed without external verification since the technical claims in the documentation are standard Unix/Linux practices that don't require verification.
+
+Now let me analyze the documentation comprehensively:
+
+## Analysis of Topic 2: Run Lifecycle & Restart (Ralph)
+
+### 1) External Facts Check
+
+**Status:** Perplexity MCP not available (401 error). However, no external factual claims require verification - all technical details (SIGTERM/SIGKILL, process groups, timestamp formats, Go implementation) are standard engineering practices and don't involve external APIs, protocol specifications, or vendor-specific features that would need verification.
+
+### 2) TIPICS.md Updates
+
+**Topic 2 current state is well-aligned with specs.** Suggested minor improvements:
+
+- **Decision: Root agent message-bus handling** - Already correctly captured ("Message-bus handling is orchestrated by the root agent in MVP").
+- **Decision: DONE file semantics** - Could be more explicit about what "all child runs have exited" means (includes transitive children).
+- **Decision: Ralph between-iteration activities** - Not explicitly mentioned; ideas.md line 44 mentions "compaction of message bus, fact propagation" between iterations.
+- **Decision: Process detachment** - ideas.md line 211 mentions "Detach agent process from the parent agent terminal" - this is implemented but not explicitly called out in TIPICS.
+- **Open question removal** - The current "None at this time" is accurate; the xAI question moved to subsystem-runner-orchestration-QUESTIONS.md.
+
+**Proposed additions:**
+- Add to decisions: "Between Ralph iterations, optional compaction/fact propagation may run before restarting root agent."
+- Add to decisions: "Agent processes detach from parent terminal but runner blocks on PID; process survives parent exit but not supervisor crash."
+- Clarify completion condition: "Completion = DONE file exists AND all child runs (including transitive descendants) have exited."
+
+**No new open questions needed** - all questions from the historical file have been resolved.
+
+### 3) Spec Updates
+
+#### subsystem-runner-orchestration.md
+
+**Line 44:** "Between Ralph iterations, the supervisor may run compaction/fact propagation steps before restarting."
+- This is already present and correct.
+
+**Line 30:** "Detaches from the controlling terminal (so the agent survives parent exit) but still waits on the agent PID for exit status."
+- This is already present and correct.
+
+**Line 42-44:** "Task is complete only when DONE exists AND all child runs have exited."
+- **Suggest clarifying:** "Task is complete only when DONE exists AND all child runs (including transitive descendants) have exited."
+
+**Line 106:** Missing explicit statement about START/STOP/CRASH event format.
+- **Suggest adding:** "START/STOP/CRASH events follow message bus format (type=START/STOP, body includes run_id, agent_type, exit_code for STOP)."
+
+**No other changes needed** - the spec is comprehensive and consistent with TIPICS.md.
+
+#### subsystem-monitoring-ui.md
+
+**Line 46:** "Show restart chain via previous_run_id (Ralph loop history)."
+- This is already correct and aligned with runner orchestration spec.
+
+**No changes needed** - UI spec correctly reflects run lifecycle requirements.
+
+### 4) Questions to Remove/Resolve
+
+#### subsystem-runner-orchestration-QUESTIONS.md
+
+**Current questions:**
+1. Q: How are run-agent binary updates/versioning handled in the Go implementation (manual install vs self-update)? | Proposed default: Manual install/rebuild for MVP. | A: TBD.
+   - **Status:** Still open, but out of scope for Topic 2 (Run Lifecycle & Restart). This is a deployment/distribution question, not lifecycle.
+   - **Action:** Keep as-is; belongs to Topic 9 (Implementation Stack & Build Pipeline).
+
+2. Q: Where is the config.hcl schema/version defined and validated? | Proposed default: Embed schema in Go binary; validate on startup. | A: TBD.
+   - **Status:** Still open, but out of scope for Topic 2. This is configuration/validation topic.
+   - **Action:** Keep as-is; belongs to Topic 5 (Configuration & Backend Selection).
+
+**Note:** The xAI question was already resolved and moved in commit 43e152d ("We are not going to support xAI just now, park the work for post-MVP").
+
+#### questions-history/subsystem-runner-orchestration-QUESTIONS-20260202.md
+
+All 12 questions from the historical file have been answered and integrated into specs:
+
+1. **Ralph restart linking** - Resolved: previous_run_id chain (line 4).
+2. **Locking mechanism** - Resolved: No lockfile, timestamp+PID uniqueness (line 7-8).
+3. **Lucky agent selection** - Resolved: Query message bus for decision (line 11-12).
+4. **Message-bus pollers** - Resolved: Root agent handles it, no dedicated poller (line 15-16).
+5. **Orphaned runs** - Resolved: Wait for all children to exit (line 19-20).
+6. **Stop/kill mechanism** - Resolved: SIGTERM -> SIGKILL with grace period (line 23).
+7. **Idle/stuck/waiting detection** - Resolved: Thresholds and child consideration (line 26).
+8. **Config precedence** - Resolved: CLI > env > task > project > global (line 29).
+9. **Credential validation** - Resolved: No proactive validation (line 33).
+10. **Sub-agent crash propagation** - Resolved: CRASH to bus, exit_code to parent (line 36).
+11. **Retry policy** - Resolved: Exponential backoff for transient (line 39).
+12. **Concurrent task coordination** - Resolved: Message bus heuristics (line 42).
+13. **Supervisor restart** - Resolved: Rediscover PIDs, post SUPERVISOR_RESTART (line 45).
+
+**Action:** All resolved; no questions to remove from the current QUESTIONS file since they're already resolved in the historical file.
+
+### 5) New Open Questions
+
+**None identified.** The topic is well-specified with clear answers to all lifecycle questions:
+
+- Ralph loop logic is fully defined (restart conditions, completion criteria).
+- Process management is specified (detachment, SIGTERM/SIGKILL, pgid).
+- Idle/stuck detection has concrete thresholds.
+- Message bus handling approach is decided (root agent responsibility in MVP).
+- Restart chain tracking is defined (previous_run_id).
+- All edge cases from historical questions are resolved.
+
+The two remaining questions in subsystem-runner-orchestration-QUESTIONS.md (binary updates, config schema) are out of scope for Topic 2 and belong to other topics (Implementation Stack, Configuration).
+
+---
+
+## Summary
+
+**Topic 2 (Run Lifecycle & Restart) is in excellent shape.** The decisions in TIPICS.md accurately reflect the specs, all historical questions have been resolved, and no new open questions are needed. The only suggestions are minor clarifications:
+
+1. Explicitly state "transitive descendants" in completion criteria.
+2. Optionally add "between-iteration activities" and "process detachment" to TIPICS decisions (already in specs).
+3. Clarify START/STOP/CRASH event format in runner spec.
+
+No spec contradictions exist. The design is coherent and implementation-ready.

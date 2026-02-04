@@ -1,0 +1,41 @@
+I will begin by listing the files in the current directory to identify all relevant subsystem documentation and question files.
+I will list the contents of the `questions-history` directory to see what historical data is available, and then I will begin reading the core design documents (`ideas.md`, `SUBSYSTEMS.md`, `TIPICS.md`) to establish the baseline context.
+I will read the subsystem specifications and question files for the agent backends (Claude, Codex, Gemini, Perplexity, and xAI) to understand the integration details and open questions for each backend.
+I will now read the subsystem specifications and question files for the core subsystems, including the agent protocol, environment contract, and message bus object model and tools, to identify any inconsistencies or outstanding questions.
+I will now read the remaining subsystem specifications and question files for the monitoring UI, runner orchestration, and storage layout to identify any inconsistencies or outstanding questions. After this, I will cross-reference my findings with the `questions-history` and `TIPICS.md` files to finalize the list of answered questions.
+I will read the `subsystem-agent-protocol-QUESTIONS-20260202.md` file from the `questions-history` directory to understand the format and see if any past questions have been resolved.
+I will use Google Search to verify the licensing and availability of "JetBrains Ring UI" and "JetBrains Mono" to ensure they are suitable for the project.
+1) External facts check
+- **JetBrains Ring UI**: Confirmed available under Apache 2.0 license (`@jetbrains/ring-ui`).
+- **JetBrains Mono**: Confirmed available under SIL Open Font License 1.1.
+- **Fact check**: Both are suitable for the project stack.
+
+2) Contradictions/missing decisions
+- **Perplexity Integration**: `ideas.md` calls for a "Perplexity CLI" wrapper (`run-agent` invokes `perplexity ...`), but `subsystem-agent-backend-perplexity.md` and `TIPICS.md` define it as a **Native REST** integration built into the `run-agent` binary.
+- **Git Capability**: `ideas.md` requests "Git Pro skills", but `subsystem-agent-protocol.md` only provides prompt guidance. There is no formal "git tool" defined in `subsystem-message-bus-tools.md`, leaving agents to rely on raw shell commands (which conflicts with the "no sandbox" safety goals if not managed).
+- **Polling Service**: `ideas.md` mentions a possible dedicated polling service. `TIPICS.md` (Topic 2) confirms the decision is **Root Agent Orchestration** for MVP. The protocol spec questions this, but the decision is made.
+
+3) Questions to remove/resolve
+- **subsystem-agent-protocol-QUESTIONS.md**:
+  - *Q: When should the system move to a dedicated message-bus polling service?*
+    - **Resolve**: Post-MVP. `TIPICS.md` Topic 2 confirms MVP uses root agent orchestration.
+  - *Q: Parent blocking vs exit behavior?*
+    - **Resolve**: Parent blocks. `subsystem-runner-orchestration.md` states `run-agent job` blocks until completion.
+
+- **subsystem-agent-backend-perplexity-QUESTIONS.md**:
+  - *Q: Should the Perplexity adapter use streaming?*
+    - **Resolve**: Yes (simulated or real). `subsystem-monitoring-ui.md` relies on streaming/periodic updates to avoid "stuck" detection.
+
+4) New questions to add
+- **subsystem-runner-orchestration-QUESTIONS.md**:
+  - Q: Is there a command to validate `config.hcl` without running a task (e.g., `run-agent config check`)?
+- **subsystem-message-bus-tools-QUESTIONS.md**:
+  - Q: Should "Git" operations be formalized into a specific tool (e.g., `run-agent git ...`) to enforce "Git Pro" safety behaviors (staging only, specific files), or remain raw shell commands?
+
+5) Spec updates
+- **ideas.md**:
+  - Update: Change Perplexity section to describe "Native REST integration" instead of "CLI agent".
+- **subsystem-monitoring-ui.md**:
+  - Update: Explicitly mention `@jetbrains/ring-ui` and Apache 2.0 license validity.
+- **subsystem-agent-protocol-QUESTIONS.md**:
+  - Update: Move "Polling Service" and "Parent Blocking" questions to "Answered" or remove them.

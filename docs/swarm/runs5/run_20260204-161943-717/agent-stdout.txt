@@ -1,0 +1,39 @@
+I will read the necessary design documents and check the git history to gather context for the review.
+I will verify the capabilities of the Perplexity API, specifically looking for available models, streaming support, and how citations are handled in the API response, to inform the technical specifications.
+I have completed the review of the Perplexity backend subsystem.
+
+### 1) External facts check
+- **Perplexity API Models (2025):** The `sonar` family is current (`sonar`, `sonar-pro`, `sonar-reasoning`, `sonar-reasoning-pro`, `sonar-deep-research`).
+- **Streaming:** Explicitly supported (`chat.completion` chunks).
+- **Citations:** API returns a `citations` field (list of URLs) and the text content uses indices like `[1]`.
+
+### 2) Spec updates
+**`subsystem-agent-backend-perplexity.md`**
+- **Environment / Config:**
+  - Define default model: `sonar-reasoning` (or `sonar-pro` for faster tasks).
+  - Explicitly state `config.hcl` support for a `perplexity { model = "..." }` block.
+- **Invocation (REST):**
+  - Mandate usage of the `stream=true` parameter.
+  - Adapter must process stream chunks to emit liveness signals (log to `agent-stderr.txt` or update a liveness timestamp file) to prevent the runner's "stuck" detection from killing long-running reasoning tasks.
+- **I/O Contract:**
+  - **Citations:** The adapter must parse the `citations` field from the API response and append a "## References" section to the bottom of `output.md` mapping indices `[1]` to URLs.
+
+### 3) Questions to remove/resolve
+**`subsystem-agent-backend-perplexity-QUESTIONS.md`**
+- **Remove:** "Which Perplexity model should be the default...?"
+  - **Resolution:** `sonar-reasoning` (or `sonar-reasoning-pro` if available/affordable) by default. Configurable in `config.hcl`. (Answered in Git history).
+- **Remove:** "What timeout and retry policy...?"
+  - **Resolution:** Use streaming for liveness. If no stream events for > `runner.stuck_threshold` (15m), consider it stuck. (Answered in Git history).
+- **Resolve:** "Should the Perplexity adapter use streaming responses...?"
+  - **Resolution:** Yes. Required for liveness on long "reasoning" tasks.
+- **Resolve:** "How should Perplexity citations be represented...?"
+  - **Resolution:** Append to `output.md` as a reference list.
+
+### 4) New open questions
+**`subsystem-agent-backend-perplexity-QUESTIONS.md`**
+- **Q:** How should the adapter handle `sonar-deep-research` specific timeouts which may exceed standard runner limits (e.g., >15m)?
+  - **Proposed default:** Special case in runner or periodic "still working" log messages from adapter to reset the stuck timer.
+  - **A:** TBD
+
+### 5) New docs/topics suggested
+- None. Fits within existing subsystem docs.

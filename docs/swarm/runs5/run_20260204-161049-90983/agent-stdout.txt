@@ -1,0 +1,94 @@
+Now I have enough information. Let me compile the review:
+
+## 1) External Facts Check
+
+I verified the following external factual claims about Claude CLI using web search:
+
+**Verified:**
+- ✓ ANTHROPIC_API_KEY is the correct environment variable name for Claude CLI authentication ([Claude Help Center](https://support.claude.com/en/articles/12304248-managing-api-key-environment-variables-in-claude-code))
+- ✓ `-p` (or `--print`) flag exists for headless/non-interactive mode ([Claude Code Docs](https://code.claude.com/docs/en/cli-reference))
+- ✓ `--permission-mode bypassPermissions` is valid ([Claude Platform API Docs](https://platform.claude.com/docs/en/agent-sdk/permissions))
+- ✓ `--input-format` and `--output-format` flags exist with `text` as valid value ([ClaudeLog](https://claudelog.com/faqs/what-is-output-format-in-claude-code/))
+
+**Unverified/Unclear:**
+- ⚠ `--tools default` - Documentation found references to `--allowedTools` but not specifically `--tools default` syntax. May need verification against actual Claude CLI help output or may be incorrect syntax.
+
+**Resolution needed:** The spec should clarify whether `--tools default` is the correct flag syntax, or if it should be `--allowedTools` or a different formulation.
+
+## 2) Spec Updates
+
+### subsystem-agent-backend-claude.md
+
+- **Line 16**: Update command from "current run-agent.sh" to "used by run-agent" since this is meant to be the Go binary contract, not referencing legacy shell scripts.
+  
+- **Line 16**: Verify and correct the `--tools default` flag syntax. Based on web search, the actual flag may be `--allowedTools` or tool configuration may work differently. Consider removing this flag entirely if Claude CLI defaults provide all tools, or specify the correct syntax.
+
+- **Line 28**: Add clarification: "run-agent does not set a model; host CLI defaults/config are used" → This has already been answered in QUESTIONS (Answer: "we do not specify a model to Claude Code at all").
+
+- **Section "Environment / Config"** (line 25-28): Add explicit statement about ANTHROPIC_API_KEY being the environment variable name that run-agent should inject for authentication.
+
+- **Section "I/O Contract"** (line 20-23): Add note that `--output-format text` ensures output.md contains human-readable response (not JSON).
+
+### subsystem-agent-backend-claude-QUESTIONS.md
+
+- **Current content**: The file still has the old "A: TBD" question that was answered in commit 43e152d. Update to reflect the actual resolved answers:
+  - Model selection question is RESOLVED with answer from git history.
+  - Tool access restriction question is RESOLVED with answer from git history.
+  
+- **Add new question**: "Q: Is `--tools default` the correct flag syntax, or should it be `--allowedTools` or another form? | Proposed: Verify against `claude --help` output. | A: TBD."
+
+## 3) Questions to Remove/Resolve
+
+### subsystem-agent-backend-claude-QUESTIONS.md
+
+**Remove (already answered in git commit 43e152d):**
+
+1. **Q: Which Claude model should be the default for coding tasks?**
+   - **Resolution:** Do not specify a model at all; use host CLI defaults/config. This is the final decision.
+   
+2. **Q: Should tool access be restricted beyond `--tools default` for certain tasks?**
+   - **Resolution:** All tools should be accessible and allowed. Use the same approach as ../run-agent.sh. No restrictions in MVP.
+
+**Move to spec body:** Since both questions are resolved, the answers should be integrated into subsystem-agent-backend-claude.md directly rather than remaining as open questions.
+
+## 4) New Open Questions
+
+### subsystem-agent-backend-claude-QUESTIONS.md
+
+1. **Q: What is the correct CLI flag syntax for enabling all tools - is it `--tools default`, `--allowedTools`, or something else?** | Proposed default: Verify with `claude --help` output and update spec accordingly. | A: TBD.
+
+2. **Q: Should run-agent pass `--dangerously-skip-permissions` (shorthand) or `--permission-mode bypassPermissions` (explicit) to Claude CLI?** | Proposed default: Use `--permission-mode bypassPermissions` for clarity and explicitness. | A: TBD.
+
+3. **Q: How should run-agent handle Claude CLI stderr output containing progress/interactive prompts vs. actual errors?** | Proposed default: Capture all stderr to agent-stderr.txt; UI should display but not treat progress messages as errors. | A: TBD.
+
+4. **Q: If ANTHROPIC_API_KEY is not set and Claude CLI requires interactive auth, how should run-agent detect and report this configuration error?** | Proposed default: Check for exit code 1 and stderr containing auth-related keywords; fail fast with clear error message directing user to config. | A: TBD.
+
+5. **Q: Should run-agent validate that Claude CLI is available on PATH before attempting to invoke it, or rely on exec failure?** | Proposed default: Pre-flight check with `which claude` or similar; fail fast with actionable error if missing. | A: TBD.
+
+6. **Q: What is the expected behavior if stdin redirect fails or prompt.md is empty?** | Proposed default: Claude CLI should return error; run-agent logs failure and sets non-zero run status. | A: TBD.
+
+## 5) New Docs/Topics Suggested
+
+**No new dedicated docs needed.** The Claude backend is appropriately scoped as a single subsystem spec. However, consider:
+
+- **Cross-reference update**: TIPICS.md Topic 8 (Agent Backend Integrations) mentions "Backend-specific env var mappings" as an open question. The ANTHROPIC_API_KEY finding should be cross-referenced or consolidated there.
+
+- **Consistency check needed**: All five backend specs (codex, claude, gemini, perplexity, xAI) should have parallel structure for:
+  - Environment variable naming conventions
+  - Tool access configuration
+  - Credential validation approach
+  - Pre-flight checks (CLI availability)
+
+**Recommendation:** After resolving the Claude-specific questions, create a brief "Agent Backend Common Patterns" section in subsystem-runner-orchestration.md that documents shared concerns (auth, tool access, error handling, pre-flight checks) to ensure consistency across all backend implementations.
+
+---
+
+## Sources
+
+- [Claude Help Center: Managing API key environment variables](https://support.claude.com/en/articles/12304248-managing-api-key-environment-variables-in-claude-code)
+- [Claude Code Docs: CLI reference](https://code.claude.com/docs/en/cli-reference)
+- [Claude Platform: Configure permissions](https://platform.claude.com/docs/en/agent-sdk/permissions)
+- [ClaudeLog: What is --output-format](https://claudelog.com/faqs/what-is-output-format-in-claude-code/)
+- [Eesel.ai: Claude Code CLI reference guide](https://www.eesel.ai/blog/claude-code-cli-reference)
+- [ClaudeLog: How to Set Permission Mode](https://claudelog.com/faqs/how-to-set-claude-code-permission-mode/)
+- [Shipyard: Claude Code CLI Cheatsheet](https://shipyard.build/blog/claude-code-cheat-sheet/)

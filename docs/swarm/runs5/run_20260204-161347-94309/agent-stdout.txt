@@ -1,0 +1,92 @@
+Now let me compile my findings:
+
+## Review Report: Monitoring & Control UI Subsystem
+
+### 1) External Facts Check
+
+**Status:** Perplexity MCP authentication failed (401 error - consistent with ISSUES.md entry). However, I can confirm from my knowledge cutoff (January 2025) that all technical claims in the spec are factually correct:
+
+- **Vite**: Standard build tool for React/TypeScript projects ✓
+- **go:embed**: Standard Go feature for embedding static assets in binaries ✓
+- **SSE vs WebSocket**: SSE is correct for unidirectional server-to-client streaming; simpler than WebSocket ✓
+- **React Context**: Sufficient for simple state management without Redux/Zustand ✓
+- **JetBrains Mono**: Valid monospace font suitable for development UIs ✓
+
+No external fact-checking required beyond these well-established technologies.
+
+### 2) Spec Updates
+
+**subsystem-monitoring-ui.md:**
+- Add explicit mention that backend computes run status (already present at line 80 but could be clearer in Status & Indicators section)
+- Clarify that output.md is the default view with raw logs as a toggle (currently line 73 mentions tail size but doesn't explicitly state default view precedence; storage spec confirms output.md is canonical)
+- Add note about local storage autosave for prompt editor to prevent data loss (mentioned in line 54)
+- Document that filesystem watchers are preferred over polling (line 88)
+
+**subsystem-monitoring-ui-QUESTIONS.md:**
+- File shows "No open questions at this time" but should actually list the 8 build/implementation questions from the archived version
+- The current QUESTIONS file is misleading - it suggests all questions are resolved when implementation details are still TBD
+
+### 3) Questions to Remove/Resolve
+
+**From subsystem-monitoring-ui-QUESTIONS.md (current version):**
+
+All questions in this file were REMOVED in commit 5efa144 (2026-02-03) and replaced with "No open questions at this time."
+
+**From questions-history/subsystem-monitoring-ui-QUESTIONS-20260202.md (archived version):**
+
+All 9 questions in the archived version WERE ANSWERED:
+1. Task ID collision → **RESOLVED**: Prompt user; default to restart/attach
+2. stdout/stderr merge → **RESOLVED**: Merge chronologically with stream tags and color coding
+3. Log tail size → **RESOLVED**: Show last 1MB or 5k lines
+4. Plain text vs Markdown → **RESOLVED**: Plain text with JetBrains Mono
+5. Tree ordering → **RESOLVED**: Order by last activity (most recent first)
+6. Run controls → **RESOLVED**: Read-only for MVP
+7. Real-time states → **RESOLVED**: Status badges from backend (2s refresh)
+8. localhost vs LAN auth → **RESOLVED**: localhost only, no token auth, served from run-agent binary
+9. Search/filter → **RESOLVED**: Browse-only for MVP; search later
+
+**These should remain resolved and NOT be reopened.**
+
+### 4) New Open Questions
+
+**subsystem-monitoring-ui-QUESTIONS.md should be updated with:**
+
+```markdown
+# Monitoring & Control UI - Questions
+
+- Q: Which build tool should be used for the TypeScript + React UI (Vite, CRA, custom)? | Proposed default: Vite for fast dev and optimized builds. | A: TBD.
+- Q: How are frontend assets embedded into the Go binary (go:embed vs external assets)? | Proposed default: go:embed of a built dist folder. | A: TBD.
+- Q: What is the API contract between the Go backend and the UI (REST/JSON schemas, SSE event formats), and how are TypeScript types generated? | Proposed default: REST/JSON + SSE; add OpenAPI or manual type sync later. | A: TBD.
+- Q: What is the development workflow for the UI (separate dev server with proxy vs embedded only)? | Proposed default: Separate dev server with proxy to Go backend; embed for release. | A: TBD.
+- Q: Do we need a state management library (Redux/Zustand) or is React Context sufficient for MVP? | Proposed default: Context + hooks for MVP. | A: TBD.
+```
+
+**Rationale:** These are implementation-level questions that are distinct from the UX/behavior questions that were resolved. TIPICS.md Topic 9 and 10 acknowledge these are open.
+
+### 5) New Docs/Topics Suggested
+
+**No new dedicated docs needed.** However:
+
+**Cross-cutting concerns identified:**
+1. **Topic 10 (Frontend-Backend API Contract)** in TIPICS.md correctly identifies the API contract as an open area but has minimal detail. Consider expanding this topic once implementation starts.
+2. **Output display precedence**: The spec mentions both output.md (canonical) and raw stdout/stderr but doesn't clearly state the UI default. Storage spec (subsystem-storage-layout.md:41) says output.md is canonical response. UI spec should explicitly state: "Default view shows output.md; toggle to view raw stdout/stderr logs."
+
+**Contradictions found:**
+- **NONE**: All decisions are consistent between ideas.md, TIPICS.md, and the monitoring UI spec.
+
+**Missing decisions/clarifications:**
+- Output pane should default to output.md with optional toggle to raw logs (implicit from storage spec but not explicit in UI spec)
+- When "Start Task" is pressed, the UI should use `run-agent task` not `run-task.sh` (correctly stated in spec line 58)
+- Attachment path rendering (line 69) is mentioned but no detail on how backend serves these files (implicit: backend provides file serving endpoint)
+
+---
+
+## Summary
+
+**Contradictions:** None found.
+
+**Answered questions ready for spec integration:** All 9 UX/behavior questions from the archived QUESTIONS file were answered and integrated into subsystem-monitoring-ui.md.
+
+**New open questions identified:** 5 implementation/build questions that should be added to subsystem-monitoring-ui-QUESTIONS.md.
+
+**Spec is mature:** The monitoring UI subsystem spec is well-defined for MVP. The remaining questions are implementation details that can be resolved during development without affecting the design.

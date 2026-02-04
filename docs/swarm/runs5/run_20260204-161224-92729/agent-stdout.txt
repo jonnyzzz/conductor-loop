@@ -1,0 +1,124 @@
+The Perplexity MCP is not configured. I'll proceed with analysis based on the documents. The technical claims in the spec (SIGTERM/SIGKILL, ISO-8601, YAML front-matter) are standard practices and don't require external verification.
+
+Now let me analyze the documents for contradictions, answered questions, and missing decisions:
+
+## 1) External Facts Check
+
+The Perplexity MCP returned a 401 error (not configured). However, the technical claims in the documents are standard industry practices:
+- SIGTERM → 30s wait → SIGKILL: standard Unix termination pattern
+- ISO-8601 UTC timestamps: standard for distributed systems
+- YAML front-matter with `---` separators: established format
+- Process group (pgid) termination: correct Unix approach
+- Max delegation depth of 16: reasonable for recursion limits
+
+No external verification needed; claims are technically sound.
+
+---
+
+## 2) Spec Updates
+
+### subsystem-agent-protocol.md
+- **Line 24**: Add explicit guidance about message bus polling frequency
+  - Current: "Poll for new messages as often as possible; read only new content."
+  - Add: Clarify that root agent should poll between significant operations (after delegation, after file writes, etc.)
+  
+- **Line 42 (Message Bus Protocol)**: Document the answered question about poller service
+  - Add: "Root agent is responsible for polling and processing message bus updates in MVP (no dedicated poller service)."
+  - **RESOLVED**: This is already in line 40-41 of current spec
+
+- **Line 75 (Git Safety)**: Expand Git Pro guidance reference
+  - Current mentions "Git Pro" behavior but doesn't link to THE_PROMPT_v5.md
+  - Add: "Git Pro guidance is provided via THE_PROMPT_v5.md; extend that prompt with small-logical-commit instructions."
+
+- **Add new section after Line 32 (Run Folder Ownership)**: Clarify parent monitoring rights
+  - "Parents may read child output/TASK_STATE for monitoring; policy does not restrict this."
+  - **RESOLVED**: This is already in line 32 of current spec
+
+### TIPICS.md
+- **Topic 4 (Agent Governance & Delegation), line 60-62**: Update with resolved question about parent blocking
+  - Current shows as open question
+  - Resolution from historical answers shows no definitive answer yet, so keep as open
+
+---
+
+## 3) Questions to Remove/Resolve
+
+### subsystem-agent-protocol-QUESTIONS.md
+
+**REMOVE (already answered in questions-history):**
+None - the historical file shows all previous questions were integrated into the spec.
+
+**RESOLVE (answered but not yet integrated):**
+
+1. **Git Pro skills question** (current line 3-5):
+   - Q: How are "Git Pro" skills defined and injected into agent prompts/tooling?
+   - Resolution: "No specific actions. We use basic descriptions in THE_PROMPT_v5.md to explain how to use Git. Add sections there for small logical commits."
+   - **Action**: Update subsystem-agent-protocol.md line 75 to reference THE_PROMPT_v5.md explicitly (see section 2 above)
+   - **Remove from QUESTIONS**: This question should be removed as it's been answered
+
+**KEEP (still unanswered):**
+
+1. **Parent blocking question** (line 3):
+   - Q: "When a parent agent delegates to a sub-agent, must the parent block until the child completes, or can it exit and rely on Ralph to manage completion?"
+   - This remains genuinely open; no answer in historical docs
+   - Keep as-is
+
+2. **Dedicated poller timing question** (line 4):
+   - Q: "When should the system move from root-agent polling to a dedicated message-bus polling service?"
+   - Answer already provided: "Post-MVP, only if message volume or latency requires it."
+   - Decision is documented in spec (line 40-41)
+   - **Remove from QUESTIONS**: This is resolved
+
+---
+
+## 4) New Open Questions
+
+### subsystem-agent-protocol-QUESTIONS.md
+
+**ADD:**
+
+1. **Q**: Should THE_PROMPT_v5.md be version-controlled in the swarm repo or injected at runtime by run-agent?
+   - **Proposed default**: Version-controlled in swarm repo; run-agent reads and injects it into agent prompts
+   - **A**: TBD
+
+2. **Q**: What is the policy when an agent's RUN_FOLDER fills up (disk space) during execution?
+   - **Proposed default**: No enforcement; agent should handle gracefully and log to message bus if writes fail
+   - **A**: TBD
+
+3. **Q**: Should agents be allowed to modify their own run-info.yaml metadata during execution?
+   - **Proposed default**: No; run-info.yaml is written by runner only and is read-only for agents
+   - **A**: TBD
+
+4. **Q**: How should agents handle discovering that TASK_STATE.md or message bus files are corrupted or malformed?
+   - **Proposed default**: Log ERROR to message bus (if possible), write to stderr, and exit with code 1; runner will capture and restart
+   - **A**: TBD
+
+---
+
+## 5) New Docs/Topics Suggested
+
+**No new dedicated docs needed.** The agent protocol scope is well-defined and doesn't overlap significantly with other subsystems. The integration points (message bus, storage layout, runner orchestration) are already covered by dedicated specs.
+
+**However, consider:**
+
+1. **THE_PROMPT_v5.md specification**: Currently referenced in ideas.md (line 17, 151) and subsystem-agent-protocol.md (line 75), but no dedicated spec exists in this folder. This should either:
+   - Be added to the SUBSYSTEMS.md registry if it's a formal subsystem
+   - Be documented as a separate artifact in ideas.md with a clear location and versioning strategy
+   
+2. **Cross-reference check**: The "Git Pro skills" concept appears in:
+   - ideas.md line 16 (as a need)
+   - subsystem-agent-protocol.md line 75 (as guidance)
+   - subsystem-agent-protocol-QUESTIONS.md (as a resolved question)
+   - But THE_PROMPT_v5.md itself is not in the swarm/ folder. Clarify location.
+
+---
+
+## Summary
+
+**Contradictions found**: None. The spec updates from git history show consistent evolution.
+
+**Missing decisions**: 4 new open questions identified around THE_PROMPT_v5.md location, disk space handling, run-info.yaml mutability, and corruption handling.
+
+**Questions to resolve**: 2 questions can be removed (Git Pro skills - answered; poller timing - already in spec).
+
+**New topics**: Consider adding THE_PROMPT_v5.md to the formal documentation structure or clarifying its location/versioning.

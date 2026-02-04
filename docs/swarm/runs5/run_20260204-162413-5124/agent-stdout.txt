@@ -1,0 +1,37 @@
+I will read the necessary files to review the "Monitoring UI & Streaming UX" topic and check the git history for relevant changes.
+I have analyzed the documents and will now present the review for Topic 6: Monitoring UI & Streaming UX.
+
+### 1) External facts check
+*   **Vite vs CRA**: Create React App (CRA) is deprecated; Vite is the current industry standard for new React projects (faster builds, HMR).
+*   **go:embed**: Introduced in Go 1.16, this is the standard native way to bundle static assets (like a built React `dist/` folder) into a Go binary.
+*   **SSE vs WebSockets**: Server-Sent Events (SSE) is efficient for unidirectional server-to-client streaming (logs, bus updates) over HTTP/2. WebSockets are better for high-frequency bidirectional data. Since the UI posts data via standard REST `POST`, SSE is a simpler and appropriate choice for the "monitoring" aspect.
+*   **JetBrains Mono**: Open-source font, easily embeddable via webfont (WOFF2).
+
+### 2) TIPICS updates
+*   **Topic 6: Monitoring UI & Streaming UX**
+    *   **Decisions**:
+        *   Update "Status badges" bullet to clarify the UI *reflects* the state managed by the runner (Ralph), specifically distinguishing between "idle" (no output) and "stuck/dead" (runner intervention).
+        *   Add decision: "Auto-scroll (follow tail) enabled by default for active run logs."
+    *   **Open Questions**:
+        *   Add "State management strategy (Context vs external lib) for high-frequency updates."
+
+### 3) Spec updates
+*   **subsystem-monitoring-ui.md**
+    *   **Output & Logs**:
+        *   Add: "Auto-scroll behavior: UI 'follows tail' by default when receiving new events; user scroll interaction pauses auto-scroll."
+    *   **Status & Indicators**:
+        *   Clarification: Replace "mark/kick after N minutes" with "display 'stuck' or 'terminated' status". The UI is read-only; the *runner* performs the kick, the UI observes the result.
+    *   **Message Bus UI**:
+        *   Add: "Hyperlink detection: URL-like strings in plain text messages should be rendered as clickable `<a>` tags (target=_blank)."
+
+### 4) Questions to remove/resolve
+*   *None.* The current questions in `subsystem-monitoring-ui-QUESTIONS.md` are valid execution details that need to be decided during implementation, not spec design.
+
+### 5) New open questions
+*   **subsystem-monitoring-ui-QUESTIONS.md**
+    *   **Q:** Should plain text message rendering support basic auto-linking (URLs) or remain strictly raw text?
+        *   *Proposed default:* Support auto-linking for usability.
+        *   *A:* TBD.
+    *   **Q:** How does the UI handle "Follow Tail" when the user scrolls up?
+        *   *Proposed default:* Pauses auto-scroll immediately on scroll up; "Resume following" button appears.
+        *   *A:* TBD.

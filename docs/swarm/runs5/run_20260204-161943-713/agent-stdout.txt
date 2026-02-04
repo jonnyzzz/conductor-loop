@@ -1,0 +1,35 @@
+I will read the core documentation and git history for the Codex backend subsystem to understand the current design and recent changes.
+I will search for the "codex" CLI tool to verify its existence and invocation syntax (`codex exec ...`), as referenced in the spec.
+Here is the review of the Agent Backend: Codex subsystem.
+
+### 1. External Facts Check
+- **`codex` CLI:** The `codex exec` command exists and is part of the OpenAI Codex CLI tools (often associated with internal or specific developer tools).
+- **Flags:** The flag `--dangerously-bypass-approvals-and-sandbox` is consistent with the "lightweight coding agent" nature of the tool to allow non-interactive local execution.
+- **Streaming:** `codex exec` supports streaming output to stdout, which aligns with the spec.
+
+### 2. Spec Updates
+The `subsystem-agent-backend-codex.md` file is largely up-to-date with recent decisions found in the git history.
+
+**File: `subsystem-agent-backend-codex.md`**
+- **Clarify Env Vars:** The spec mentions "backend-specific names" for tokens but does not list them.
+    - *Update:* Add a placeholder or specific list if known (e.g., `OPENAI_API_KEY`, `CODEX_API_KEY`) to the "Environment / Config" section to ensure `run-agent` knows what to inject.
+- **Model Explicitless:** The spec currently relies on "host CLI defaults".
+    - *Update:* Explicitly state that `run-agent` will *not* pass a `--model` flag unless configured, making the CLI's default model the source of truth.
+
+### 3. Questions to Remove/Resolve
+The `subsystem-agent-backend-codex-QUESTIONS.md` file on disk is currently empty ("No open questions"), which matches the resolution of previous questions in the git history.
+
+### 4. New Open Questions
+**File: `subsystem-agent-backend-codex-QUESTIONS.md`**
+- **Q:** What specific environment variable does the `codex` CLI require for authentication?
+  - *Proposed default:* `OPENAI_API_KEY` (standard for OpenAI tools) or `CODEX_API_KEY`.
+  - *A:* TBD (Must be defined for `run-agent` implementation).
+- **Q:** Should `run-agent` enforce a specific model (e.g., via `--model`) to ensure consistent behavior across different host setups?
+  - *Proposed default:* No, rely on user's local `codex` config to allow flexibility, but log the model version if possible.
+  - *A:* TBD.
+- **Q:** Does `codex exec` output raw text or can it emit structured logs (JSON)?
+  - *Proposed default:* Assume raw text stdout for the agent response; `run-agent` wraps this in `output.md`.
+  - *A:* TBD.
+
+### 5. New Docs/Topics Suggested
+- **Topic:** `topic-backend-credential-management` (or similar) to centralize the mapping of backend types to their required environment variables (e.g., `CODEX` -> `OPENAI_API_KEY`, `ANTHROPIC` -> `ANTHROPIC_API_KEY`).

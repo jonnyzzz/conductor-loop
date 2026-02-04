@@ -1,0 +1,100 @@
+Perfect. Now I have all the information I need to provide the analysis. Let me compile the findings.
+
+## Analysis Report: Agent Backend: Codex
+
+### 1. External Facts Check
+
+**Claim: Codex CLI command and flags**
+- The spec references `codex exec --dangerously-bypass-approvals-and-sandbox` command.
+- **Verification status**: The web search confirms "Codex CLI" exists as OpenAI's CLI coding tool in 2026, but I could not verify the exact flag `--dangerously-bypass-approvals-and-sandbox` through external sources. However, the reference implementation in run-agent.sh:42 confirms this flag is actively used in the project.
+- **Assessment**: The command appears to be project-specific usage based on the actual implementation. No contradictions found with documented OpenAI Codex CLI behavior in 2026.
+
+**No other external protocol/API claims require verification** - the spec correctly defers to CLI defaults and host configuration.
+
+Sources:
+- [Claude Code by Anthropic | AI Coding Agent, Terminal, IDE](https://claude.com/product/claude-code)
+- [OpenAI Codex vs. Claude Code: Which CLI AI tool is best for coding?](https://blog.openreplay.com/openai-codex-vs-claude-code-cli-ai-tool/)
+- [Comparing Claude Code vs Codex for coding](https://graphite.com/guides/claude-code-vs-codex)
+
+---
+
+### 2. Spec Updates
+
+**subsystem-agent-backend-codex.md**
+- Line 16: Change "Command (current run-agent.sh):" to "Command (used by run-agent):" for consistency with Claude/Gemini backend specs (already done in current version).
+- Line 28: Change "No sandboxing enforced; full tool access is allowed by default." to "No sandboxing enforced; full tool access is required (keep `--dangerously-bypass-approvals-and-sandbox`)." - more explicit about the requirement rather than "allowed".
+- Line 29: Add note that "run-agent does not override model/reasoning settings; host CLI defaults apply." (consistent with Claude backend spec:29).
+- **New section needed**: Add explicit statement about working directory handling similar to other backends (it's implied by orchestration but should be explicit).
+
+**subsystem-agent-backend-codex-QUESTIONS.md**
+- Remove both questions entirely (both are answered).
+
+---
+
+### 3. Questions to Remove/Resolve
+
+**subsystem-agent-backend-codex-QUESTIONS.md**
+
+**Q1: Should run-agent allow overriding the Codex model and reasoning settings per task?**
+- **Resolution**: No override in MVP. Use CLI defaults; defer configuration to host CLI config. Optional overrides via config.hcl are future work.
+- **Answered by**: Cross-reference to "See Claude answers" plus consistent pattern across Claude (line 29), Gemini (line 29), and Codex specs.
+- **Action**: Remove this question. Update main spec to clarify "run-agent does not override model/reasoning settings; host CLI defaults apply."
+
+**Q2: Should the Codex adapter always run with `--dangerously-bypass-approvals-and-sandbox`, or allow a safer mode?**
+- **Resolution**: Yes, always use `--dangerously-bypass-approvals-and-sandbox` in MVP. All agents run with full tool access; no sandboxing enforced per subsystem-runner-orchestration.md:16 and subsystem-agent-protocol.md (topic 4 in TIPICS.md).
+- **Answered by**: Answer in QUESTIONS file references run-agent.sh as the authoritative example, and TIPICS.md Topic 4 confirms "No enforced sandbox, sensitive-path guardrails, or resource limits."
+- **Action**: Remove this question. Update main spec to use stronger language ("required" vs "allowed").
+
+---
+
+### 4. New Open Questions
+
+**subsystem-agent-backend-codex-QUESTIONS.md**
+
+**Q: Should Codex-specific environment variables (API keys, auth tokens) use a standardized name in config.hcl or backend-specific names?**
+- **Context**: subsystem-env-contract.md:47-48 states "Tokens and credentials are injected into agent processes from config; the naming is backend-specific and not standardized here." However, no documentation exists for the Codex-specific naming.
+- **Proposed default**: Use `OPENAI_API_KEY` (industry standard) or `CODEX_API_TOKEN` (project-specific). Document in config.hcl schema.
+- **A: TBD** (implementation decision needed)
+
+**Q: Does the Codex CLI support streaming output, and should run-agent capture streaming stderr for progress monitoring?**
+- **Context**: subsystem-monitoring-ui.md (TIPICS.md Topic 6) specifies SSE streaming for UI, but backend specs don't clarify if CLI tools support streaming or if output is buffered.
+- **Proposed default**: Treat Codex stderr as streaming for progress monitoring; flush behavior depends on CLI implementation. Document actual behavior after testing.
+- **A: TBD** (test and document actual behavior)
+
+**Q: What is the retry/timeout strategy for Codex invocations when the CLI hangs or times out?**
+- **Context**: subsystem-runner-orchestration.md:108-112 defines transient error backoff but not CLI-level timeouts. Codex could hang indefinitely on network issues.
+- **Proposed default**: Rely on idle/stuck detection (5m/15m) from orchestration; no explicit CLI timeout flag unless Codex supports it.
+- **A: TBD** (verify Codex CLI timeout options)
+
+---
+
+### 5. New Docs/Topics Suggested
+
+**No new dedicated doc required.** All Codex-specific concerns are adequately scoped within:
+- subsystem-agent-backend-codex.md (invocation contract)
+- subsystem-runner-orchestration.md (lifecycle)
+- subsystem-env-contract.md (environment variables)
+
+**However**, consider adding a **cross-backend comparison table** in subsystem-runner-orchestration.md or a new `subsystem-agent-backend-comparison.md` to document:
+- CLI command patterns for each backend
+- Full-access/bypass flags for each backend
+- Streaming behavior per backend
+- Known limitations/quirks per backend
+
+This would reduce duplication and make backend-specific differences more discoverable.
+
+---
+
+### Summary
+
+**Contradictions found**: None. The Codex spec is consistent with ideas.md, TIPICS.md, and sibling backend specs.
+
+**Answered questions**: Both questions in the QUESTIONS file are now resolved and should be removed after updating the main spec.
+
+**Spec gaps**: 
+1. Model/reasoning override behavior not explicitly documented (defer to CLI defaults).
+2. Environment variable naming for Codex tokens not specified.
+3. Streaming behavior not documented.
+4. CLI timeout handling not specified.
+
+**Recommendation**: Update subsystem-agent-backend-codex.md with the spec updates listed in section 2, remove both questions from QUESTIONS file, and add the 3 new open questions listed in section 4.

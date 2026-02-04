@@ -1,0 +1,35 @@
+I will start by reading the core documentation and design files to understand the current state of the "Message Bus Format & Threading" topic.
+1) External facts check
+Skipped (not Claude).
+
+2) TIPICS updates
+*   **Decisions**:
+    *   Explicitly mention that `run-agent bus poll` supports blocking (`--wait`), resuming (`--since-id`), and filtering (`--filter`), fulfilling the "beads" / "mailbox" needs without a cursor file.
+    *   Clarify that the "beads" concept is realized via the structured `parents[]` object model (supporting `kind: blocks`, `kind: supersedes`, etc.).
+    *   Refine "Routing" to explicitly state that the `run-agent bus` CLI automatically targets `TASK-MESSAGE-BUS.md` if a task ID is present, and `PROJECT-MESSAGE-BUS.md` otherwise.
+
+3) Spec updates
+*   **subsystem-message-bus-tools.md**:
+    *   Update `run-agent bus post` section to explicitly link to `subsystem-message-bus-object-model.md` for the `parents` logic, confirming that the CLI accepts the JSON/Object structure (via new flag or future update) to support the "beads" model.
+    *   Clarify that `run-agent bus poll` with `--wait` is the primary mechanism for agents to "listen" for new messages (replacing the need for a dedicated `poll-message.sh` script mentioned in `ideas.md`).
+*   **subsystem-message-bus-object-model.md**:
+    *   Add a non-normative note that `kind: reply` is the default when `parents` is a list of strings, ensuring backward compatibility.
+
+4) Questions to remove/resolve
+*   **subsystem-message-bus-tools-QUESTIONS.md**:
+    *   Q: "What are the required header fields...?" -> Resolved in TIPICS (msg_id, ts, type, project).
+    *   Q: "Should tooling read legacy single-line entries...?" -> Resolved in TIPICS (No, new tool, YAML only).
+    *   Q: "What is the exact concurrency/atomicity strategy...?" -> Resolved in TIPICS (temp + atomic swap).
+    *   Q: "What ordering guarantees...?" -> Resolved in TIPICS (Timestamp + PID, no global FIFO).
+    *   Q: "Should poll/pager support cursor persistence...?" -> Resolved in TIPICS (Caller managed; no cursor file).
+    *   Q: "Are there message size limits...?" -> Resolved in TIPICS (Soft 64KB, attachments in task folder).
+    *   Q: "Should task-level messages be mirrored...?" -> Resolved in TIPICS (No mirroring).
+    *   Q: "How should corrections/updates...?" -> Resolved via `parents[]` / object model.
+    *   Q: "Should the bus support structured query...?" -> Resolved in TIPICS (Sequential scan + filter/regex is sufficient for MVP).
+    *   Q: "What is the canonical method for agents to post...?" -> Resolved in TIPICS (run-agent bus CLI only).
+
+5) New open questions
+*   **subsystem-message-bus-tools-QUESTIONS.md**:
+    *   Q: How exactly should the CLI accept structured `parents` objects?
+        *   Proposed default: Add `--parents-json '<json_string>'` or accept a JSON file path to allow complex "beads" relationships.
+        *   A: TBD.

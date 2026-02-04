@@ -1,0 +1,176 @@
+Perfect. Now I have all the information needed. Let me compile my analysis.
+
+---
+
+## Topic 6: Monitoring UI & Streaming UX - Review Analysis
+
+### 1) External Facts Check
+
+I attempted to verify external technical claims but Perplexity MCP was unavailable. I used WebSearch as fallback and verified:
+
+**SSE vs WebSocket (2026):**
+- ✅ SSE is appropriate for server-to-client streaming (one-way communication)
+- ✅ SSE uses standard HTTP/HTTPS, simpler implementation than WebSocket
+- ✅ WebSocket offers bidirectional communication but adds complexity
+- ✅ Performance is similar for unidirectional streaming use cases
+- ✅ SSE with polling fallback is a standard pattern
+- **Conclusion:** Spec decision "SSE (WS optional) with 2s polling fallback" is sound
+
+**Vite + React + TypeScript (2026):**
+- ✅ Vite is current best practice for React+TS builds (fast dev, optimized production)
+- ✅ `vite build` produces optimized static assets in `dist/` folder
+- ✅ go:embed pattern works well with Vite dist output
+- ✅ Separate dev server with proxy to backend is standard workflow
+- **Conclusion:** Proposed Vite tooling in questions is appropriate
+
+**JetBrains Mono:**
+- ✅ Widely used monospace font for code/terminal UIs, available as web font
+- **Conclusion:** Spec requirement is valid
+
+**Sources:**
+- [WebSockets vs Server-Sent Events (SSE)](https://ably.com/blog/websockets-vs-sse)
+- [Server-Sent Events vs WebSockets: Key Differences](https://www.nimbleway.com/blog/server-sent-events-vs-websockets-what-is-the-difference-2026-guide)
+- [Complete Guide to Setting Up React with TypeScript and Vite (2026)](https://medium.com/@robinviktorsson/complete-guide-to-setting-up-react-with-typescript-and-vite-2025-468f6556aaf2)
+- [Building for Production | Vite](https://vite.dev/guide/build)
+
+---
+
+### 2) TIPICS Updates
+
+**Current state is well-aligned.** Minor refinements:
+
+- **Add to decisions:** "Implementation: TypeScript + React SPA; Go binary embeds UI assets for distribution."
+- **Clarify:** "Streaming via SSE (WS optional)" → specify this means SSE is primary; WebSocket is stretch/future
+- **Add to open questions:** "UI build tooling and embedding workflow." (already in subsystem-monitoring-ui-QUESTIONS.md but should be elevated to TIPICS)
+- **Add to open questions:** "API contract and TypeScript type generation." (cross-topic with Topic 10)
+
+**Updated Topic 6 decisions section:**
+```markdown
+6. Monitoring UI & Streaming UX
+   - Decisions:
+     - Implementation: run-agent serve hosts UI + API; TypeScript + React SPA; assets embedded in Go binary via go:embed.
+     - Layout: tree ~1/3, message bus ~1/5, output pane bottom; projects are roots; order by last activity.
+     - Threaded message bus view; plain text rendering in MVP.
+     - Output: merged stdout/stderr with stream tags and filter toggle; output.md is the default view.
+     - Streaming via SSE (primary) with 2s polling fallback; WebSocket optional/future; default tail size 1MB or 5k lines.
+     - Task creation UI: existing task id prompts attach/restart vs new with timestamp suffix; prompt editor autosaves to local storage; uses run-agent task.
+     - Status badges based on idle/stuck thresholds (2s refresh from run metadata + bus events).
+     - Read-only for MVP; localhost only; no global search in MVP.
+   - Open questions (see subsystem-monitoring-ui-QUESTIONS.md):
+     - UI build tooling and embedding workflow.
+     - API contract and TypeScript type generation.
+   - Related: ideas.md, subsystem-monitoring-ui.md, subsystem-message-bus-tools.md
+```
+
+---
+
+### 3) Spec Updates
+
+#### subsystem-monitoring-ui.md
+
+**Add to Overview section (after line 4):**
+```markdown
+The UI is built with TypeScript + React, bundled for production, and embedded into the Go binary using go:embed for single-binary distribution.
+```
+
+**Add new section before "Notes":**
+```markdown
+## Implementation Stack
+- Frontend: TypeScript + React
+- Build tool: Vite (proposed; see QUESTIONS)
+- State management: React Context + hooks for MVP (proposed; see QUESTIONS)
+- Font: JetBrains Mono (served as web font or system fallback)
+- Backend integration: REST/JSON + SSE streaming to run-agent Go server
+- Distribution: Static assets embedded in Go binary via go:embed
+```
+
+**Clarify "Output & Logs" section (line 72):**
+```markdown
+- Live streaming via SSE (primary); WebSocket as optional future enhancement; 2s polling fallback.
+```
+
+**Add to "Data Sources" section (line 62):**
+```markdown
+- REST API endpoints hosted by run-agent serve for reads and message posting.
+```
+
+#### subsystem-monitoring-ui-QUESTIONS.md
+
+**Replace current content with:**
+```markdown
+# Monitoring & Control UI - Questions
+
+- Q: Which build tool should be used for the TypeScript + React UI (Vite, CRA, custom)? | Proposed default: Vite for fast dev and optimized builds. | A: TBD.
+- Q: How are frontend assets embedded into the Go binary (go:embed vs external assets)? | Proposed default: go:embed of a built dist folder. | A: TBD.
+- Q: What is the API contract between the Go backend and the UI (REST/JSON schemas, SSE event formats), and how are TypeScript types generated? | Proposed default: REST/JSON + SSE; add OpenAPI or manual type sync later. | A: TBD.
+- Q: What is the development workflow for the UI (separate dev server with proxy vs embedded only)? | Proposed default: Separate dev server with proxy to Go backend; embed for release. | A: TBD.
+- Q: Do we need a state management library (Redux/Zustand) or is React Context sufficient for MVP? | Proposed default: Context + hooks for MVP. | A: TBD.
+```
+
+#### subsystem-message-bus-tools.md
+
+**Add clarification to "run-agent bus stream" section (line 44):**
+```markdown
+### run-agent bus stream (HTTP)
+- REST/SSE stream for UI:
+  - GET /api/bus/stream?project=<id>&task=<id>
+- Event format: SSE text/event-stream with data: payload containing JSON message objects
+- No auth (localhost only in MVP).
+- Same parameters as CLI; text streaming is preferred.
+- Hosted by run-agent serve (shared with UI backend).
+```
+
+---
+
+### 4) Questions to Remove/Resolve
+
+#### questions-history/subsystem-monitoring-ui-QUESTIONS-20260202.md
+
+All 9 questions have been answered and integrated into specs. Current subsystem-monitoring-ui-QUESTIONS.md was cleared (shows "No open questions at this time"). This is **incorrect** - there ARE open questions about tooling and API contract.
+
+**Resolutions:**
+- Q1 (task id collision): ✅ Resolved → "Prompt to attach/restart; offer new with suffix"
+- Q2 (stdout/stderr): ✅ Resolved → "Merge chronologically with tags"
+- Q3 (log tail size): ✅ Resolved → "1MB or 5k lines; Load more button"
+- Q4 (markdown vs plain text): ✅ Resolved → "Plain text in MVP"
+- Q5 (ordering): ✅ Resolved → "Last activity, alphabetical tiebreak"
+- Q6 (run controls): ✅ Resolved → "Read-only for MVP"
+- Q7 (status badges): ✅ Resolved → "Backend computes; 2s refresh"
+- Q8 (auth/localhost): ✅ Resolved → "Localhost only, no auth"
+- Q9 (search): ✅ Resolved → "Browse-only for MVP"
+
+**All historical questions should remain archived.** Do not re-add to active QUESTIONS file.
+
+---
+
+### 5) New Open Questions
+
+#### subsystem-monitoring-ui-QUESTIONS.md (Active)
+
+The file currently says "No open questions" but this is incorrect. Restore the following:
+
+```markdown
+# Monitoring & Control UI - Questions
+
+- Q: Which build tool should be used for the TypeScript + React UI (Vite, CRA, custom)? | Proposed default: Vite for fast dev and optimized builds. | A: TBD.
+- Q: How are frontend assets embedded into the Go binary (go:embed vs external assets)? | Proposed default: go:embed of a built dist folder. | A: TBD.
+- Q: What is the API contract between the Go backend and the UI (REST/JSON schemas, SSE event formats), and how are TypeScript types generated? | Proposed default: REST/JSON + SSE; add OpenAPI or manual type sync later. | A: TBD.
+- Q: What is the development workflow for the UI (separate dev server with proxy vs embedded only)? | Proposed default: Separate dev server with proxy to Go backend; embed for release. | A: TBD.
+- Q: Do we need a state management library (Redux/Zustand) or is React Context sufficient for MVP? | Proposed default: Context + hooks for MVP. | A: TBD.
+```
+
+#### Additional Cross-Topic Question (for subsystem-runner-orchestration-QUESTIONS.md or Topic 10)
+
+```markdown
+- Q: What API versioning strategy should be used for the run-agent serve REST/SSE endpoints? | Proposed default: No version prefix in MVP; add /v1/ prefix before breaking changes. | A: TBD.
+```
+
+---
+
+## Summary
+
+**Validation Status:** Topic 6 decisions are well-grounded and aligned with 2026 best practices. All historical questions have been answered and properly integrated into specs.
+
+**Issue Found:** subsystem-monitoring-ui-QUESTIONS.md was incorrectly cleared. It should contain 5 open questions about build tooling, embedding, API contract, dev workflow, and state management.
+
+**Cross-cutting needs:** API contract design (Topic 10) needs coordination with UI implementation. Both TIPICS Topic 6 and Topic 10 should reference the shared API/TypeScript type generation question.

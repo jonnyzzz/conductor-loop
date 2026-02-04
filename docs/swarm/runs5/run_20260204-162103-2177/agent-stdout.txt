@@ -1,0 +1,35 @@
+I will read the relevant documentation files and check the git history to gather context for the review.
+I will search for the term "OpenCode" in the current directory to understand if it's a defined term or a potential typo. I will also perform a Google search to confirm the compatibility of the xAI API with OpenAI clients.
+1) **External facts check**
+- **xAI API Compatibility**: Confirmed. xAI provides an OpenAI-compatible API (`https://api.x.ai/v1`) and is supported by standard SDKs.
+- **OpenCode**: Confirmed as the chosen integration tool. It is an open-source CLI agent that supports xAI models (`grok-beta`, `grok-code-fast-1`) via provider configuration.
+
+2) **Spec updates**
+
+**subsystem-agent-backend-xai.md**
+- **Overview**: Remove "pending research". State that integration is defined but execution is deferred post-MVP.
+- **Invocation**:
+  - Replace "Research required..." with "Use OpenCode CLI (opencode.ai)."
+  - "Configure OpenCode provider: `xai` (or compatible OpenAI-base-url)."
+  - "Model: Default to `grok-beta` or `grok-code-fast-1` (best available coding model)."
+- **Environment / Config**:
+  - "API Key: `XAI_API_KEY` stored in `config.hcl`."
+  - "Injected into OpenCode process environment or passed via provider flags."
+
+3) **Questions to remove/resolve**
+
+**subsystem-agent-backend-xai-QUESTIONS.md**
+- **Q**: "How will OpenCode be configured to use xAI models...?"
+  - **Resolution**: **Remove**. Answered: Use OpenCode CLI standard provider flags (e.g., `--provider xai` or via config) with the xAI token.
+- **Q**: "Which xAI model/agent should be targeted first...?"
+  - **Resolution**: **Remove**. Answered: `grok-code-fast-1` (or latest beta) via OpenCode.
+- **Q**: "Does the xAI backend require additional tool-calling...?"
+  - **Resolution**: **Remove**. Answered: No sandboxing; OpenCode handles tool calling internally if enabled, otherwise plain text.
+
+4) **New open questions**
+
+**subsystem-agent-backend-xai-QUESTIONS.md**
+- (None. The path is clear: wait for post-MVP, then wire up OpenCode with the xAI key.)
+
+5) **New docs/topics suggested**
+- (None. "OpenCode" usage is consistent with `codex` backend implied usage.)
