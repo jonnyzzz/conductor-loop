@@ -8,6 +8,7 @@ DOCKER_IMAGE ?= conductor-loop:dev
 build:
 	@mkdir -p $(BIN_DIR)
 	$(GO) build -o $(BIN_DIR)/ ./cmd/...
+	@ln -sf $(BIN_DIR)/conductor conductor
 
 test:
 	$(GO) test ./...
@@ -20,4 +21,4 @@ docker:
 	docker build -t $(DOCKER_IMAGE) .
 
 clean:
-	rm -rf $(BIN_DIR)
+	rm -rf $(BIN_DIR) conductor
