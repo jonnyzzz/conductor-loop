@@ -16,6 +16,8 @@
 - 2026-02-04: Codex sub-agent run for prompts/planning-round4/codex-review.md (run_20260204-164017-19186) hung with no output; terminated PIDs 19213 and 19214.
 - 2026-02-04: Claude review run for prompts/planning-round5/review.md (run_20260204-164943-24993) failed with API error 500.
 - 2026-02-04: Codex review run for prompts/planning-round5/review.md (run_20260204-164943-24995) hung; terminated PIDs 25032 and 25038.
+- 2026-02-04: Spec mismatch: backend specs/TOPICS reference config keys `openai_api_key`/`anthropic_api_key`/`gemini_api_key`/`perplexity_api_key`, but config schema uses per-agent `token`/`env_var` fields only. Needs resolution before implementation.
+- 2026-02-04: Spec mismatch: output.md generation for CLI backends is undefined (agent protocol/storage require output.md; codex/claude specs say "runner may create"; run-agent.sh doesn't create output.md).
 
 ## Backlog
 

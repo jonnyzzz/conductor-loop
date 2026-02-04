@@ -118,6 +118,15 @@ Message: Round 7 iteration: Completed user-requested Perplexity streaming resear
      - Updated all subsystem-agent-backend-*.md specifications
      - Closed questions in subsystem-agent-backend-claude-QUESTIONS.md and subsystem-agent-backend-codex-QUESTIONS.md
      - Gemini streaming verification still requires experiments (noted in QUESTIONS)
+
+---
+msg_id: MSG-20260204-181710-final-review
+ts: 2026-02-04T18:17:10Z
+type: ISSUE
+project: swarm
+task: planning
+---
+Final review completed. Critical blockers: config key mismatch between backend specs/TOPICS and config schema; output.md generation for CLI backends undefined vs required; claude agent block in config schema missing env_var injection. Minor issues: Gemini streaming status contradictions in Round-7 summary; PLANNING-COMPLETE claims streaming verified for all backends while TOPICS marks codex/claude as assumed; Perplexity adapter lacks concrete request/stream parsing spec. Review delivered to user.
   3. **Specification Consistency Updates**:
      - Updated SUBSYSTEMS.md subsystem #7 with env var mappings and streaming status
      - Updated TOPICS.md Topic #7 (Environment Contract) with all resolved decisions
