@@ -228,3 +228,4 @@ Add support for Perplexity as CLI agent, so given prompt it should run the Perpp
 
 Support xAI. We need to research the best coding agent for that.
 
+We need a dedicated document to have specifications for the environment variables between all tool calls.
