@@ -1,0 +1,27 @@
+# Binaries
+bin/
+dist/
+*.exe
+*.out
+*.test
+*.dll
+*.so
+*.dylib
+conductor
+
+# Test outputs
+cover.out
+coverage.out
+*.cover
+*.prof
+test-results/
+tmp/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# Runs
+runs/
