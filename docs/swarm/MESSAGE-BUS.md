@@ -99,3 +99,28 @@ Message: Verification and corrections completed. Ran Gemini sub-agent verificati
   4. Updated SUBSYSTEMS.md to include new subsystem #8 (Frontend-Backend API Contract)
   5. Created ROUND-6-SUMMARY.md with comprehensive planning statistics and status
 System now has 8 complete subsystems with 15 specification files. 5/7 subsystems implementation-ready. Remaining work: CLI flag experimentation for agent backends (claude/codex/gemini), Perplexity streaming research. Total specification: ~1500 lines across all docs, 21 required + 4 optional fields in run-info.yaml, 30+ fields in config.hcl schema.
+
+[2026-02-04T19:45:00Z] type=info project=swarm task=planning agent=claude-sonnet-4-5
+Message: Round 7 iteration: Completed user-requested Perplexity streaming research and agent backend updates.
+  1. **Perplexity Streaming Research** (resolved via WebSearch, Perplexity MCP 401):
+     - Confirmed: Perplexity API supports streaming via `stream=True` parameter
+     - Uses SSE (Server-Sent Events) format
+     - All models support streaming (sonar-pro, sonar-reasoning, sonar-reasoning-pro, sonar-deep-research, r1-1776)
+     - Citations arrive at end of stream
+     - Updated subsystem-agent-backend-perplexity.md with streaming details
+     - Closed question in subsystem-agent-backend-perplexity-QUESTIONS.md
+     - Sources: https://docs.perplexity.ai/guides/streaming-responses, https://docs.litellm.ai/docs/providers/perplexity
+  2. **Agent Backend CLI Flags** (resolved from run-agent.sh analysis):
+     - Claude: Confirmed `--tools default --permission-mode bypassPermissions` flags
+     - Codex: Confirmed `--dangerously-bypass-approvals-and-sandbox -C "$CWD" -` flags and OPENAI_API_KEY env var
+     - Gemini: Confirmed `--screen-reader true --approval-mode yolo` flags and GEMINI_API_KEY env var
+     - All backends support @file reference for token paths in config.hcl
+     - Updated all subsystem-agent-backend-*.md specifications
+     - Closed questions in subsystem-agent-backend-claude-QUESTIONS.md and subsystem-agent-backend-codex-QUESTIONS.md
+     - Gemini streaming verification still requires experiments (noted in QUESTIONS)
+  3. **Specification Consistency Updates**:
+     - Updated SUBSYSTEMS.md subsystem #7 with env var mappings and streaming status
+     - Updated TOPICS.md Topic #7 (Environment Contract) with all resolved decisions
+     - Updated TOPICS.md Topic #8 (Agent Backend Integrations) with detailed env vars, CLI flags, and streaming status
+  4. **Git History Review**: Verified all answers from recent commits (e31eb8d, 43e152d) already integrated
+Status: 6/8 subsystems fully resolved. Only remaining: Gemini streaming verification (experimental).

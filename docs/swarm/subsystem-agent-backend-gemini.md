@@ -24,8 +24,12 @@ Defines how the Go `run-agent` binary invokes the Gemini CLI for a single agent 
 
 ## Environment / Config
 - Requires Gemini CLI available on PATH.
-- Tokens/credentials are injected by run-agent from config (backend-specific names).
+- Tokens/credentials are injected by run-agent from config:
+  - Environment variable: `GEMINI_API_KEY`
+  - Config key: `gemini_api_key` (in `config.hcl`)
+  - Supports @file reference for token file paths (e.g., `gemini_api_key = "@/path/to/key.txt"`)
 - Approval mode is set to yolo in current runner scripts (full access).
+- Screen reader mode (`--screen-reader true`) may affect output verbosity; streaming behavior needs experimental verification.
 - run-agent does not set a model; host CLI defaults/config are used.
 
 ## Related Files

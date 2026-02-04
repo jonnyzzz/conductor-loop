@@ -27,8 +27,9 @@ This list is derived from ideas.md and the subsystem specs (and their QUESTIONS)
    - Spec: subsystem-env-contract.md
 
 7. Agent Backend Integrations
-   - Scope: per-agent adapter specs (codex, claude, gemini, perplexity, xAI), CLI/REST invocation and I/O contracts, token management, env var mapping, output conventions, keep-alive mechanisms.
+   - Scope: per-agent adapter specs (codex, claude, gemini, perplexity, xAI), CLI/REST invocation and I/O contracts, token management (@file support), env var mapping (OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, PERPLEXITY_API_KEY), output conventions, streaming behavior.
    - Spec: subsystem-agent-backend-codex.md, subsystem-agent-backend-claude.md, subsystem-agent-backend-gemini.md, subsystem-agent-backend-perplexity.md, subsystem-agent-backend-xai.md
+   - Status: Perplexity streaming verified (SSE support confirmed). Claude and Codex CLI flags confirmed from run-agent.sh. Gemini streaming behavior requires experimental verification.
 
 8. Frontend-Backend API Contract
    - Scope: REST/JSON + SSE API endpoints for monitoring UI, request/response schemas, TypeScript type generation, error handling, security (path validation), log/message streaming.

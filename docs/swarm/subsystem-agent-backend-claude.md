@@ -24,9 +24,10 @@ Defines how the Go `run-agent` binary invokes the Claude CLI for a single agent 
 
 ## Environment / Config
 - Requires Claude CLI available on PATH.
-- Tokens/credentials are injected by run-agent from config (backend-specific names).
-  - Environment variable: `ANTHROPIC_API_KEY`.
-  - Config key: `anthropic_api_key` (in `config.hcl`).
+- Tokens/credentials are injected by run-agent from config:
+  - Environment variable: `ANTHROPIC_API_KEY`
+  - Config key: `anthropic_api_key` (in `config.hcl`)
+  - Supports @file reference for token file paths (e.g., `anthropic_api_key = "@/path/to/key.txt"`)
 - Tool access is enabled via `--tools default` and bypass permissions mode.
 - run-agent does not set a model; host CLI defaults/config are used.
 

@@ -24,7 +24,10 @@ Defines how the Go `run-agent` binary invokes the Codex CLI for a single agent r
 
 ## Environment / Config
 - Requires Codex CLI available on PATH.
-- Tokens/credentials are injected by run-agent from config (backend-specific names).
+- Tokens/credentials are injected by run-agent from config:
+  - Environment variable: `OPENAI_API_KEY`
+  - Config key: `openai_api_key` (in `config.hcl`)
+  - Supports @file reference for token file paths (e.g., `openai_api_key = "@/path/to/key.txt"`)
 - No sandboxing enforced; full tool access is required (keep `--dangerously-bypass-approvals-and-sandbox`).
 - run-agent does not override model/reasoning settings; host CLI defaults apply.
 

@@ -97,17 +97,31 @@ This list captures the current planning topics derived from ideas.md, the subsys
      - Task/run paths are provided via prompt preamble (RUN_FOLDER in prompt text, not env var).
      - Error messages must not instruct agents to set env vars; agents should not manipulate JRUN_*.
      - run-agent prepends its binary location to PATH for child processes.
-   - Open questions (see subsystem-env-contract-QUESTIONS.md):
-     - Path normalization, env inheritance, signal handling, date injection.
+     - Path normalization: OS-native using Go filepath.Clean (resolved 2026-02-04).
+     - Environment inheritance: full inheritance in MVP, no sandbox (resolved 2026-02-04).
+     - Signal handling: SIGTERM → 30s grace period → SIGKILL (resolved 2026-02-04).
+     - Date/time: NOT injected; agents access system time themselves (resolved 2026-02-04).
+   - Open questions: None at this time.
    - Related: ideas.md, subsystem-agent-protocol.md, subsystem-runner-orchestration.md
 
 8. Agent Backend Integrations
    - Decisions:
      - Each backend has a dedicated spec (codex, claude, gemini, perplexity, xAI).
      - All backends run with full tool access; no sandboxing enforced in MVP.
+     - Environment variable mappings (resolved 2026-02-04):
+       - Codex: `OPENAI_API_KEY` (config key: `openai_api_key`)
+       - Claude: `ANTHROPIC_API_KEY` (config key: `anthropic_api_key`)
+       - Gemini: `GEMINI_API_KEY` (config key: `gemini_api_key`)
+       - Perplexity: `PERPLEXITY_API_KEY` (config key: `perplexity_api_key`)
+       - All support @file reference for token file paths
+     - CLI flags (confirmed from run-agent.sh):
+       - Claude: `claude -p --input-format text --output-format text --tools default --permission-mode bypassPermissions`
+       - Codex: `codex exec --dangerously-bypass-approvals-and-sandbox -C "$CWD" -`
+       - Gemini: `gemini --screen-reader true --approval-mode yolo`
+     - Perplexity streaming: Confirmed SSE support via `stream=True` parameter (resolved via research 2026-02-04).
      - Perplexity is native REST-backed; xAI is deferred post-MVP with OpenCode planned.
-   - Open questions (see subsystem-agent-backend-*-QUESTIONS.md):
-     - Backend-specific env var mappings and streaming behavior.
+   - Open questions:
+     - Gemini streaming behavior requires experimental verification.
    - Related: subsystem-agent-backend-*.md, subsystem-runner-orchestration.md
 
 9. Implementation Stack & Build Pipeline
