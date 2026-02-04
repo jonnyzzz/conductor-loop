@@ -33,7 +33,12 @@
 - Runner always creates output.md from captured stdout
 - Simpler, guaranteed behavior
 
-**Answer**: [PENDING - Need to choose A, B, or C]
+**Answer**:  When agent is started, we prepend to the begining of the prompt: "Write output.md to <run_id>/output.md".
+In this message we keep the full path to output.md, so we instruct agent to create the file. 
+This is the best-effort approach. In addition to that, and fully independently, the run-agent functionality 
+will manage the stdin and stdout of the agent and create the related stdout.txt/stderr.txt files. These files will be 
+created in the run_id folder, and these files are the fallback. The run-agent tool source outpout the infomtation
+about the target files to it's output to help the parent agent know what to do.
 
 ---
 

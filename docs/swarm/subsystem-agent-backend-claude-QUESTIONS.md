@@ -15,3 +15,6 @@
   Integrated into subsystem-agent-backend-claude.md.
 
 No open questions at this time. 
+
+
+COMMENT_UPDATE: Use markdown output in Claude, or just fallback to defaults.

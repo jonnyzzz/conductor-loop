@@ -13,6 +13,9 @@ These questions address contradictions between summary/planning documents.
 | Gemini | ... | ⚠️ Pending | ... | 🟡 MOSTLY READY |
 ```
 
+ANSWER: You need to research Gemini streaming behavior to verify status, update the documentation. 
+Independently, the run-agent should create stdout/stderr log files. Test the CLI options.
+
 **Line 160** (Open Questions section):
 ```
 - Gemini CLI streaming behavior verification (experimental testing needed)
@@ -27,7 +30,7 @@ But **Line 175** and specs say:
 
 **Action**: Verify ROUND-7-SUMMARY.md current content and fix any remaining contradictions.
 
-**Answer**: [PENDING - Need to check file]
+**Answer**: Run experiments and update documentation.
 
 ---
 
@@ -53,7 +56,7 @@ Text: "streaming verified for all backends"
 
 **Proposed Fix**: Change PLANNING-COMPLETE.md to say "assumed working" to match TOPICS.md (more accurate).
 
-**Answer**: [PENDING]
+**Answer**: Consolidate documents, update the status after careful verification with multiple run-agents.
 
 ---
 
@@ -76,4 +79,6 @@ Text: "streaming verified for all backends"
 
 **Question**: Should all these files be updated in one coordinated fix?
 
-**Answer**: [PENDING - Depends on Q1 in subsystem-runner-orchestration-QUESTIONS.md]
+**Answer**: See answers in the Q1 in subsystem-runner-orchestration-QUESTIONS.md. For each agent we supply the token, it's done agent-speficially, 
+we duplicate that on one hand and try to unify the approach from the other. We only ask for token from the user (via value or file),
+the env variables and other config parameters are fully up to the implementation and are hardcoded.

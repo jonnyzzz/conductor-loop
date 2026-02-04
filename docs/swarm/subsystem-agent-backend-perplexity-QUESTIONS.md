@@ -28,7 +28,7 @@
 - Update ROUND-6-SUMMARY.md to reflect current decision (BOTH files)
 - Or update current spec to clarify which approach is correct
 
-**Answer**: [PENDING]
+**Answer**: Perplexity tool creates stdout and stderr files. It only creates the output.md file if that API clearly tells the difference between streamging and progress and the final answer. 
 
 ---
 
@@ -44,4 +44,4 @@
 
 **Question**: Should these implementation details be added to subsystem-agent-backend-perplexity.md, or are they implementation-specific?
 
-**Answer**: [PENDING]
+**Answer**: Conduct the research to learn more details of that, find answers. Use multiple run-agent.sh with claude, codex, gemini to research.

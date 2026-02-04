@@ -8,8 +8,8 @@
 **Config Schema** (subsystem-runner-orchestration-config-schema.md:92-108):
 ```hcl
 agent "codex" {
-  token = "@~/.config/openai/token"
-  env_var = "OPENAI_API_KEY"
+  token = "@~/.config/openai/token"  <-- PROPSED: use dedicated field for token_file instead of @ inside.
+  env_var = "OPENAI_API_KEY"  <--- ANSWER remove that, it's implementation detail we can easily hardcode.
 }
 ```
 
@@ -30,7 +30,11 @@ To:
 - See subsystem-runner-orchestration-config-schema.md for full schema
 ```
 
-**Answer**: [PENDING]
+**Answer**: The env var for each agent is always a constant, we do not need it in the config schema.
+The only parameters we include for each of the agents are -- token -- a token value. We need to allow to provide `token_file` instead of the token.
+In the case of Token File, it must read the file, trim the contents and use that as the token value.
+
+See comments in the code.
 
 ---
 
@@ -51,7 +55,11 @@ Missing: the CWD argument value and the `-` stdin marker.
 1. Document that `-C` requires CWD injection by runner, `-` for stdin is automatic
 2. Or show complete example: `cli_flags = ["exec", "--dangerously-bypass-approvals-and-sandbox", "-C", "<cwd>", "-"]`
 
-**Answer**: [PENDING]
+**Answer**: We just start agents in the given working directory, with all permisions (aka with no restictions). 
+Our run-agent tool should make sure it sets the working directory correctly, so we do not need to use -C or something like that. 
+At this point, out goal or all agents to start them in unrestricted mode, so we hardcode all set settings in our tool, 
+and there is no need to provide any additional CLI flags in the tool configuration. It makes sense to wrap the agent process
+invocation in a shell script, which is started with the correct working directory.
 
 ---
 

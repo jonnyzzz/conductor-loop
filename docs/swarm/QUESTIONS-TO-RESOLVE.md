@@ -18,6 +18,9 @@ Based on Codex Review Round 2 - these need answers to proceed with implementatio
 
 **Suggested Answer**: Yes, update backend specs to match config schema
 
+
+See the answers in the `subsystem-runner-orchestration-QUESTIONS.md` → Q1
+
 ---
 
 ### 2. output.md Generation Responsibility
@@ -36,6 +39,7 @@ Based on Codex Review Round 2 - these need answers to proceed with implementatio
 
 **Suggested Answer**: Option A (matches your comment, guarantees UI has output.md)
 
+ANSWER: See `subsystem-agent-protocol-QUESTIONS.md` → Q1
 ---
 
 ## ⚠️ MEDIUM (Consistency Issues)
@@ -48,6 +52,7 @@ Based on Codex Review Round 2 - these need answers to proceed with implementatio
 
 **Suggested Answer**: BOTH files (current spec is correct, update ROUND-6-SUMMARY)
 
+ASNWERED in `subsystem-agent-backend-perplexity-QUESTIONS.md` → Q1
 ---
 
 ### 4. Codex cli_flags Example
@@ -58,6 +63,7 @@ Based on Codex Review Round 2 - these need answers to proceed with implementatio
 
 **Suggested Answer**: Document that `-C` takes CWD from runner, `-` for stdin is automatic
 
+Cowered in `subsystem-runner-orchestration-QUESTIONS.md` → Q2
 ---
 
 ## 📝 LOW (Documentation Cleanup)
@@ -69,6 +75,8 @@ Based on Codex Review Round 2 - these need answers to proceed with implementatio
 **Question**: Was this fixed in commit 2133bb2?
 
 **Action**: Check file and fix any remaining contradictions
+
+Do it yourself
 
 ---
 
