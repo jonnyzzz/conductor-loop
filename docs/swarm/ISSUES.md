@@ -16,3 +16,7 @@
 - 2026-02-04: Codex sub-agent run for prompts/planning-round4/codex-review.md (run_20260204-164017-19186) hung with no output; terminated PIDs 19213 and 19214.
 - 2026-02-04: Claude review run for prompts/planning-round5/review.md (run_20260204-164943-24993) failed with API error 500.
 - 2026-02-04: Codex review run for prompts/planning-round5/review.md (run_20260204-164943-24995) hung; terminated PIDs 25032 and 25038.
+
+## Backlog
+
+- [Post-MVP] xAI backend integration: Configure OpenCode to use xAI models. Provide a run-agent adapter that passes model/provider flags to OpenCode based on config.hcl. (Source: subsystem-agent-backend-xai-QUESTIONS.md)

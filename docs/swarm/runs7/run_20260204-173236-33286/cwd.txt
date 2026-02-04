@@ -1,0 +1,9 @@
+RUN_ID=run_20260204-173236-33286
+CWD=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm
+AGENT=gemini
+CMD=gemini --screen-reader true --approval-mode yolo <"./runs7/run_20260204-173236-33286/prompt.md"
+PROMPT=./runs7/run_20260204-173236-33286/prompt.md
+STDOUT=./runs7/run_20260204-173236-33286/agent-stdout.txt
+STDERR=./runs7/run_20260204-173236-33286/agent-stderr.txt
+PID=33299
+EXIT_CODE=0

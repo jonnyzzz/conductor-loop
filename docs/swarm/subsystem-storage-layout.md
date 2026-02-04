@@ -54,7 +54,9 @@ Base root:
 ## File Formats
 ### run-info.yaml
 - YAML with lower-case keys.
+- Encoding: UTF-8 without BOM (strict enforcement).
 - Required fields:
+  - version (integer, currently 1; for schema evolution).
   - run_id, project_id, task_id
   - parent_run_id, previous_run_id
   - agent, pid, pgid
@@ -63,9 +65,11 @@ Base root:
 - Optional fields:
   - backend_provider, backend_model, backend_endpoint (no secrets).
   - commandline (full command used to start the agent).
+- Detailed schema specification: see subsystem-storage-layout-run-info-schema.md.
 
 ### TASK_STATE.md
 - Free-text summary maintained by root agent.
+- Encoding: UTF-8 without BOM (strict enforcement).
 - Short, current status only (not a log).
 - Written by root agent only; update via temp write + atomic rename.
 - Some prompts may refer to STATE.md, but the canonical file name is TASK_STATE.md.
@@ -75,6 +79,7 @@ Base root:
 - Deleting DONE restarts the Ralph loop on next run.
 
 ### FACT-*.md and TASK-FACTS-*.md
+- Encoding: UTF-8 without BOM (strict enforcement).
 - YAML front matter required:
   - created_at, scope (task|project), run_id, title
 - Body is Markdown.
@@ -113,6 +118,7 @@ Base root:
 - Symlinks/hardlinks inside the storage tree are not allowed.
 - No host_id segmentation; runs live under project/task only.
 - No size limits enforced for output.md, TASK_STATE.md, or FACT files.
+- All text files (TASK.md, TASK_STATE.md, output.md, prompt.md, stdout/stderr logs, FACT files, MESSAGE-BUS files) use strict UTF-8 encoding without BOM.
 
 ## Notes
 - UI reads only from this layout + message bus files.

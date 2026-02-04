@@ -46,6 +46,10 @@ parents:
 - Tooling MUST accept any `kind` string; no validation or warnings in MVP.
 - Writers SHOULD use snake_case for `kind` values to keep conventions consistent.
 
+## Cross-Scope References
+- Task messages MAY reference project-level messages via parents[].
+- UI aggregates both PROJECT-MESSAGE-BUS.md and TASK-MESSAGE-BUS.md and resolves cross-scope references with clear scope labels (e.g., "[project]", "[task]").
+
 ## Suggested Relationship Kinds (Non-Normative)
 Common values seen in practice:
 - reply

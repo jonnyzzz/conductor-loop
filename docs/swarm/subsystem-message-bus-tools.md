@@ -28,6 +28,7 @@ Provides the run-agent bus CLI and REST conventions for writing to and reading f
   - --parents <msg_id,...> (optional; string msg_id list only)
 - Agents rely on JRUN_* env vars; error messages must not hint to agents to set env vars.
 - Structured parents objects are posted via REST until CLI support is added.
+- Output: prints the generated msg_id to stdout on success for chaining (format: clear single-line output).
 
 ### run-agent bus poll
 - Purpose: read new messages.

@@ -30,18 +30,26 @@ These are set by run-agent for internal bookkeeping. Agents must not reference t
 ## Prompt/Context Injection (Agent-Visible)
 - run-agent prepends the prompt with absolute paths for the task folder and run folder.
 - The run folder is provided as a prompt label (e.g., `RUN_FOLDER=/path/to/run`), not as an environment variable.
+- Paths are normalized using OS-native conventions (Go filepath.Clean).
 - Root agents rely on CWD (task folder) and prompt preamble; sub-agents rely on the prompt preamble.
 - The prompt preamble includes explicit instructions to write final output to `output.md` in the run folder.
+- No current date/time is injected into the prompt preamble; agents access system time themselves.
 
 ## Injection Rules
 - run-agent always sets JRUN_* internally before spawning agents.
 - run-agent prepends its own binary location to PATH for child processes.
 - Backend tokens are injected into the agent process environment via config (backend-specific); agents must not rely on them for workflow.
 - No agent-writable environment variables are defined.
+- Agents inherit the full parent environment (no sandbox restrictions in MVP).
 
 ## Error Messaging
 - Missing required JRUN_* -> fail fast.
 - Error messages must not instruct agents to set env vars manually.
+
+## Signal Handling
+- run-agent forwards SIGTERM to the agent process group.
+- Grace period: 30 seconds wait after SIGTERM before sending SIGKILL.
+- Termination events (STOP, CRASH) are logged to the message bus by run-agent.
 
 ## Security Notes
 - Tokens and credentials are injected into agent processes from config; the naming is backend-specific and not standardized here.

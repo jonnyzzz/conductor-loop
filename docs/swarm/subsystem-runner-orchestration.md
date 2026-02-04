@@ -57,7 +57,7 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
 
 ## Configuration
 - Config file format: HCL (Hashicorp).
-- Stored under user home (global config only). Per-project/task config is not required yet.
+- Stored under user home at ~/run-agent/config.hcl (global config only). Per-project/task config is not required yet.
 - Precedence (when/if per-project/task config is added): CLI > env vars > task config > project config > global config.
 - Configurable items:
   - max restarts / time budget for Ralph loop
@@ -67,8 +67,13 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
   - supported agent backends/providers list
   - projects_root (override for ~/run-agent)
   - deploy_ssh_key (optional; used when backing storage with a git repo)
-- token values may be provided inline or via @/path/to/token file references
+- Token values may be provided inline or via @/path/to/token file references.
 - @file references are resolved at config load; missing files are treated as configuration errors.
+- Schema validation:
+  - Embed schema definition in Go binary (see subsystem-runner-orchestration-config-schema.md).
+  - Validate config.hcl on startup with clean, explanatory error messages.
+  - Provide `run-agent config schema` command to extract/display the schema.
+  - Provide `run-agent config init` command to create/update config.hcl with comments and defaults.
 
 ## Run ID / Timestamp Rules
 - Canonical timestamp format: UTC `YYYYMMDD-HHMMSSMMMM-PID` (lexically sortable).

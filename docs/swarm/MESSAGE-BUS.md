@@ -83,3 +83,19 @@ Message: Round 4: ran claude + gemini reviews for all subsystems/topics via ../r
 
 [2026-02-04T16:53:57Z] type=info project=swarm task=planning
 Message: Round 5: re-ran claude + gemini + codex reviews via ../run-agent.sh (runs6). Gemini completed with notes; Claude returned API 500; Codex hung and was terminated (logged in ISSUES.md). Updated monitoring UI stack decisions (webpack/npm + Ring UI + go:embed), aligned ideas.md to native Perplexity REST, and refreshed open questions and TIPICS topics accordingly.
+
+[2026-02-04T17:31:55Z] type=info project=swarm task=planning
+Message: Round 6 (Claude Sonnet 4.5): Consolidated all answered questions from *-QUESTIONS.md files into subsystem specifications. Created three new specification documents:
+  - subsystem-storage-layout-run-info-schema.md (complete run-info.yaml v1 schema with Go implementation notes)
+  - subsystem-runner-orchestration-config-schema.md (complete config.hcl schema with HCL validation approach)
+  - RESEARCH-FINDINGS.md (technical research on HCL, Ring UI, SSE vs WebSocket, message bus patterns, Go process management)
+Cleaned up all *-QUESTIONS.md files (most now show "No open questions"). Updated SUBSYSTEMS.md with schema doc references and enhanced details. Renamed TIPICS.md to TOPICS.md. Added xAI integration to ISSUES.md backlog. All subsystem specs now include resolved answers: UTF-8 encoding requirements, schema versioning, signal handling (SIGTERM 30s → SIGKILL), env inheritance, path normalization, msg_id return value, cross-scope parents resolution, webpack dev workflow, SSE streaming endpoint design, backend-controlled file paths. Research used WebSearch (Perplexity MCP still 401). Next: run sub-agent verification passes to validate all specifications.
+
+[2026-02-04T18:35:00Z] type=info project=swarm task=planning
+Message: Verification and corrections completed. Ran Gemini sub-agent verification (runs7/run_20260204-173236-33286). Key findings addressed:
+  1. Created subsystem-frontend-backend-api.md with complete REST/JSON + SSE endpoint specifications
+  2. Fixed Perplexity output inconsistency: adapter now writes BOTH output.md and stdout for UI consistency
+  3. Added keep-alive mechanism to Perplexity spec: emit progress every 30s to prevent stuck detection
+  4. Updated SUBSYSTEMS.md to include new subsystem #8 (Frontend-Backend API Contract)
+  5. Created ROUND-6-SUMMARY.md with comprehensive planning statistics and status
+System now has 8 complete subsystems with 15 specification files. 5/7 subsystems implementation-ready. Remaining work: CLI flag experimentation for agent backends (claude/codex/gemini), Perplexity streaming research. Total specification: ~1500 lines across all docs, 21 required + 4 optional fields in run-info.yaml, 30+ fields in config.hcl schema.

@@ -64,12 +64,17 @@ A TypeScript + React web UI for observing the agent swarm. It is served by the r
 
 ## Build & Delivery
 - UI is built via npm/package.json with webpack tooling.
+- Development workflow: webpack-dev-server with proxy to Go backend for API calls.
 - Production assets are embedded into the Go binary using go:embed.
+- State management: React Context + hooks (no Redux/Zustand in MVP).
 
 ## Backend API Expectations (MVP)
-- run-agent serve exposes REST endpoints for listing projects/tasks and reading files.
+- run-agent serve exposes REST/JSON endpoints for listing projects/tasks.
 - run-agent serve exposes message bus endpoints (POST + SSE stream).
 - run-agent serve exposes a task-start endpoint that mirrors `run-agent task`.
+- File read endpoints: Go backend controls allowed paths (no client-specified paths; prevents traversal attacks).
+- Log streaming: single SSE endpoint streams all relevant files line-by-line with clear header messages for each file/run; includes new runs automatically.
+- API contract: REST/JSON + SSE; integration tests (Node or browser-based) verify TypeScript can consume the API; consider OpenAPI spec generation for automated type sync.
 - Exact endpoint paths and schemas are defined in Topic 10 (Frontend-Backend API Contract).
 
 ## Message Bus UI
@@ -80,7 +85,8 @@ A TypeScript + React web UI for observing the agent swarm. It is served by the r
 - Render attachment_path as a link/button to load the file via backend.
 
 ## Output & Logs
-- Live streaming via SSE/WS; 2s polling fallback.
+- Live streaming via SSE (WebSocket optional); 2s polling fallback.
+- Single SSE endpoint streams all files line-by-line with header messages for each file and run; no per-run filtering (client-side filtering only).
 - Default tail size: last 1MB or 5k lines; "Load more" fetches older chunks.
 - stdout/stderr merged chronologically with stream tags and color coding; quick filter toggle to isolate stderr.
 - output.md is the default render target; raw logs are secondary.
