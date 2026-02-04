@@ -1,6 +1,6 @@
 # Agent Protocol & Governance - Questions
 
-## Open Questions (From Codex Review Round 2)
+## Resolved Questions
 
 ### Q1: output.md Generation Responsibility
 **Issue**: Multiple conflicting statements about who creates output.md for CLI backends.
@@ -34,11 +34,17 @@
 - Simpler, guaranteed behavior
 
 **Answer**:  When agent is started, we prepend to the begining of the prompt: "Write output.md to <run_id>/output.md".
-In this message we keep the full path to output.md, so we instruct agent to create the file. 
-This is the best-effort approach. In addition to that, and fully independently, the run-agent functionality 
-will manage the stdin and stdout of the agent and create the related stdout.txt/stderr.txt files. These files will be 
+In this message we keep the full path to output.md, so we instruct agent to create the file.
+This is the best-effort approach. In addition to that, and fully independently, the run-agent functionality
+will manage the stdin and stdout of the agent and create the related stdout.txt/stderr.txt files. These files will be
 created in the run_id folder, and these files are the fallback. The run-agent tool source outpout the infomtation
 about the target files to it's output to help the parent agent know what to do.
+
+**Resolution** (2026-02-04):
+- Updated subsystem-agent-protocol.md with new "Output Files & I/O Capture" section
+- Updated agent protocol behavioral rules to clarify best-effort approach
+- Updated subsystem-agent-backend-perplexity.md I/O contract
+- All specs now consistent: prompt instructs output.md creation, runner captures stdout/stderr independently
 
 ---
 
