@@ -222,3 +222,9 @@ The web ui should be ready to maintain multiple backends/hosts
 
 
 run-agent go binary must put itself to the PATH for it's sub processes, put to the front. Make sure it's not already included like that from the parent process
+
+
+Add support for Perplexity as CLI agent, so given prompt it should run the Perpplexity agent request and return the result. We need to implement the Perplexity CLI based on their API. It should work given the Perplexity Token. 
+
+Support xAI. We need to research the best coding agent for that.
+
