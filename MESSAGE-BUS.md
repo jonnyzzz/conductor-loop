@@ -111,3 +111,17 @@
 [2026-02-04 23:32:33] PROGRESS: Starting task infra-config with codex agent
 [2026-02-04 23:32:33] FACT: Task infra-config started (PID: 90853)
 [2026-02-04 23:32:33] PROGRESS: Waiting for 2 tasks to complete (timeout: 3600s)...
+[2026-02-04 23:46:00] FACT: Storage layer implemented
+[2026-02-04 23:46:00] FACT: 9 unit tests passing
+[2026-02-04 23:46:00] FACT: Race detector clean
+[2026-02-04 23:46:55] PROGRESS: Starting task infra-messagebus with codex agent
+[2026-02-04 23:46:56] FACT: Task infra-messagebus started (PID: 4984)
+[2026-02-04 23:46:56] PROGRESS: Waiting for 1 tasks to complete (timeout: 3600s)...
+[2026-02-05 00:06:15] FACT: Message bus implemented
+[2026-02-05 00:06:15] FACT: Concurrency tests pass (1000/1000 messages)
+[2026-02-05 00:06:15] FACT: Zero data loss verified
+[2026-02-05 00:07:35] ======================================================================
+[2026-02-05 00:07:35] ======================================================================
+[2026-02-05 00:07:35] Review MESSAGE-BUS.md for full trace
+[2026-02-05 00:07:35] Review ISSUES.md for any blockers
+[2026-02-05 00:07:35] Next: Run acceptance tests
