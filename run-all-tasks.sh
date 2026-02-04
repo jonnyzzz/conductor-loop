@@ -514,7 +514,7 @@ create_all_prompts() {
     # - Test suites (5 prompts)
     # - Documentation (3 prompts)
 
-    log "FACT: Created ${#PROMPTS[@]} task prompts in $PROMPTS_DIR/"
+    log "FACT: Task prompts created in $PROMPTS_DIR/"
 }
 
 #############################################################################
