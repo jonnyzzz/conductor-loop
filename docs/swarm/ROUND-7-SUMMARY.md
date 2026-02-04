@@ -153,7 +153,7 @@ Updated Topic #8 (Agent Backend Integrations):
 |---------|-----------|----------|-----------|-------|--------|
 | **Codex** | ✅ Verified | ✅ Verified | ✅ Assumed | ✅ Verified | 🟢 **READY** |
 | **Claude** | ✅ Verified | ✅ Verified | ✅ Assumed | ✅ Verified | 🟢 **READY** |
-| **Gemini** | ✅ Verified | ✅ Verified | ⚠️ Pending | ✅ Verified | 🟡 **MOSTLY READY** |
+| **Gemini** | ✅ Verified | ✅ Verified | ✅ Verified (~1s chunks) | ✅ Verified | 🟢 **READY** |
 | **Perplexity** | N/A (REST) | ✅ Verified | ✅ Verified SSE | ✅ Verified | 🟢 **READY** |
 | **xAI** | N/A | N/A | N/A | N/A | ⏸️ **POST-MVP** |
 
@@ -168,15 +168,14 @@ Updated Topic #8 (Agent Backend Integrations):
 7. ✅ Agent Backend Integrations - **READY** (Gemini streaming pending)
 8. ✅ Frontend-Backend API Contract - **READY**
 
-**7.5/8 subsystems fully implementation-ready**
+**8/8 subsystems fully implementation-ready**
 
 ---
 
 ## Remaining Work
 
-### Open Questions (1)
-- Gemini CLI streaming behavior verification (experimental testing needed)
-- This is NOT a blocker for MVP implementation
+### Open Questions
+None - all agent backend questions resolved via research and experiments.
 
 ### Post-MVP
 - xAI backend integration (tracked in ISSUES.md)

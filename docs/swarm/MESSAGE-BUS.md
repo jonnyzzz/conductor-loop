@@ -144,3 +144,6 @@ Message: Gemini streaming experiment completed successfully.
   - Resolved question in subsystem-agent-backend-gemini-QUESTIONS.md
   - Updated SUBSYSTEMS.md and TOPICS.md
 Status: **8/8 subsystems FULLY RESOLVED (100%)**. All agent backends verified and implementation-ready.
+
+[2026-02-04T18:02:52Z] type=info project=swarm task=review
+Message: Final spec review found blockers: config key mismatch (backend specs/TOPICS vs config.hcl schema token/env_var), and output.md ownership ambiguity (agent protocol vs backend specs vs run-agent.sh). Also noted consistency gaps: TOPICS still lists resolved questions, ROUND-7-SUMMARY says Gemini streaming pending though specs/QUESTIONS resolved, and minor stale text in QUESTIONS files.
