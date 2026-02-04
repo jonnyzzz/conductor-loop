@@ -1,8 +1,0 @@
-RUN_ID=run_20260131-205341-36594
-CWD=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm
-AGENT=claude
-CMD=claude -p --input-format text --output-format text --tools default --permission-mode bypassPermissions < "/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm/runs3/run_20260131-205341-36594/prompt.md"
-PROMPT=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm/runs3/run_20260131-205341-36594/prompt.md
-STDOUT=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm/runs3/run_20260131-205341-36594/agent-stdout.txt
-STDERR=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/swarm/runs3/run_20260131-205341-36594/agent-stderr.txt
-PID=36616
