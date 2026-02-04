@@ -83,30 +83,24 @@ delegation {
 
 # Agent backend configurations
 agent "claude" {
-  token = "@~/.config/claude/token"  # or inline: "sk-ant-..."
-  # CLI-specific settings
-  cli_path = "claude"
-  cli_flags = ["-p", "--input-format", "text", "--output-format", "text", "--tools", "default", "--permission-mode", "bypassPermissions"]
+  token = "sk-ant-..."  # Inline token value
+  # OR use token_file for file-based token:
+  # token_file = "~/.config/claude/token"
 }
 
 agent "codex" {
-  token = "@~/.config/openai/token"
-  env_var = "OPENAI_API_KEY"
-  cli_path = "codex"
-  cli_flags = ["exec", "--dangerously-bypass-approvals-and-sandbox", "-C"]
+  token_file = "~/.config/openai/token"  # File-based token
 }
 
 agent "gemini" {
-  token = "@~/.config/gemini/token"
-  env_var = "GEMINI_API_KEY"
-  cli_path = "gemini"
-  cli_flags = ["--screen-reader", "true", "--approval-mode", "yolo"]
+  token = "..."  # Inline token
 }
 
 agent "perplexity" {
-  token = "@~/.config/perplexity/token"
+  token_file = "~/.config/perplexity/token"
+  # REST-specific (optional):
   api_endpoint = "https://api.perplexity.ai/chat/completions"
-  model = "sonar-reasoning"  # or other supported models
+  model = "sonar-reasoning"
 }
 ```
 
@@ -181,31 +175,42 @@ Each agent block defines configuration for a specific agent type.
 
 The agent type identifier (e.g., "claude", "codex", "gemini", "perplexity").
 
-#### token (string, required)
+#### token (string, optional - one of token/token_file required)
 
-API token or credential. Two formats supported:
-- Inline: `"sk-ant-api03-..."` (value used directly)
-- File reference: `"@/path/to/token"` or `"@~/path/to/token"` (file contents read and trimmed)
+Inline API token or credential value (e.g., `"sk-ant-api03-..."`). Value used directly.
 
-File references are resolved at config load time. Missing files cause configuration errors.
+Use this for:
+- Inline secrets (not recommended for production)
+- Environment variable expansion (if supported by HCL parser)
 
-#### CLI-Based Agents
+Mutually exclusive with `token_file`.
 
-##### cli_path (string, optional)
+#### token_file (string, optional - one of token/token_file required)
 
-Default: agent type name (e.g., "claude" for agent "claude")
+Path to file containing API token. Tilde `~` expanded to user home. File contents read and trimmed at config load time.
 
-Path or name of the CLI binary. Resolved via PATH.
+Use this for:
+- Secure token storage (recommended)
+- File-based secrets management
 
-##### cli_flags (list of strings, optional)
+File must:
+- Be readable by user running run-agent
+- Contain only the token (whitespace trimmed)
+- Use UTF-8 encoding
 
-Default: empty list
+Missing files cause configuration errors.
 
-Additional command-line flags to pass to the CLI. The prompt is always piped via stdin.
+Mutually exclusive with `token`.
 
-##### env_var (string, optional)
+**Environment Variable Injection**:
+The runner automatically injects tokens as environment variables using hardcoded mappings:
+- `claude` → `ANTHROPIC_API_KEY`
+- `codex` → `OPENAI_API_KEY`
+- `gemini` → `GEMINI_API_KEY`
+- `perplexity` → `PERPLEXITY_API_KEY`
 
-Environment variable name for token injection (e.g., "OPENAI_API_KEY"). If omitted, token is not injected via environment.
+**CLI Invocation**:
+The runner hardcodes all CLI flags and working directory setup. No configuration needed. All agents run in unrestricted mode with proper working directory set by the runner.
 
 #### REST-Based Agents (Perplexity, future xAI)
 
@@ -219,11 +224,12 @@ Default model to use for this agent. May be overridden at runtime.
 
 ## Token File Format
 
-Token files referenced via `@/path/to/token`:
+Token files referenced via `token_file` field:
 - Must be readable by the user running run-agent
 - Must contain only the token (whitespace trimmed)
 - May contain a single newline at the end (will be trimmed)
 - Must use UTF-8 encoding
+- Path supports tilde expansion (`~` → user home)
 
 ## Validation Rules
 
@@ -235,8 +241,8 @@ MUST validate:
 - Valid HCL syntax
 - All required blocks present (ralph, agent_selection, monitoring, delegation)
 - At least one agent block defined
-- Each agent block has valid token (inline or @file)
-- File references resolve successfully (no missing files)
+- Each agent block has exactly one of: token or token_file (mutually exclusive)
+- All token_file references resolve successfully (files exist and readable)
 - strategy is one of: round-robin, random, weighted
 - If strategy=weighted, weights block is present
 - max_restarts > 0
@@ -306,31 +312,27 @@ delegation {
 
 # Agent backend configurations
 # Configure at least one agent below
+# Use either 'token' (inline) or 'token_file' (file path), not both
 
 # agent "claude" {
-#   token = "@~/.config/claude/token"  # or inline: "sk-ant-..."
-#   cli_path = "claude"
-#   cli_flags = ["-p", "--input-format", "text", "--output-format", "text", "--tools", "default", "--permission-mode", "bypassPermissions"]
+#   token = "sk-ant-..."              # Inline token (not recommended)
+#   # OR use token_file:
+#   # token_file = "~/.config/claude/token"
 # }
 
 # agent "codex" {
-#   token = "@~/.config/openai/token"
-#   env_var = "OPENAI_API_KEY"
-#   cli_path = "codex"
-#   cli_flags = ["exec", "--dangerously-bypass-approvals-and-sandbox", "-C"]
+#   token_file = "~/.config/openai/token"  # File-based (recommended)
 # }
 
 # agent "gemini" {
-#   token = "@~/.config/gemini/token"
-#   env_var = "GEMINI_API_KEY"
-#   cli_path = "gemini"
-#   cli_flags = ["--screen-reader", "true", "--approval-mode", "yolo"]
+#   token_file = "~/.config/gemini/token"
 # }
 
 # agent "perplexity" {
-#   token = "@~/.config/perplexity/token"
-#   api_endpoint = "https://api.perplexity.ai/chat/completions"
-#   model = "sonar-reasoning"
+#   token_file = "~/.config/perplexity/token"
+#   # Optional REST-specific settings:
+#   # api_endpoint = "https://api.perplexity.ai/chat/completions"
+#   # model = "sonar-reasoning"
 # }
 ```
 
@@ -370,12 +372,26 @@ type DelegationConfig struct {
 
 type AgentConfig struct {
     Type        string   `hcl:"type,label"`
-    Token       string   `hcl:"token"`
-    CLIPath     string   `hcl:"cli_path,optional"`
-    CLIFlags    []string `hcl:"cli_flags,optional"`
-    EnvVar      string   `hcl:"env_var,optional"`
-    APIEndpoint string   `hcl:"api_endpoint,optional"`
-    Model       string   `hcl:"model,optional"`
+    Token       string   `hcl:"token,optional"`       // Inline token value
+    TokenFile   string   `hcl:"token_file,optional"`  // Path to token file
+    APIEndpoint string   `hcl:"api_endpoint,optional"` // REST agents only
+    Model       string   `hcl:"model,optional"`        // REST agents only
+}
+
+// GetEnvVarName returns the hardcoded environment variable name for this agent type
+func (a *AgentConfig) GetEnvVarName() string {
+    switch a.Type {
+    case "claude":
+        return "ANTHROPIC_API_KEY"
+    case "codex":
+        return "OPENAI_API_KEY"
+    case "gemini":
+        return "GEMINI_API_KEY"
+    case "perplexity":
+        return "PERPLEXITY_API_KEY"
+    default:
+        return ""
+    }
 }
 ```
 
@@ -386,20 +402,30 @@ type AgentConfig struct {
 3. Decode into Config struct using `gohcl.DecodeBody`
 4. Apply defaults for optional fields
 5. Validate required blocks and fields
-6. Resolve token @file references (expand ~, read file, trim whitespace)
-7. Validate token file existence and readability
-8. Build agent registry from agent blocks
+6. Validate agent configs (exactly one of token/token_file)
+7. Resolve token_file references (expand ~, read file, trim whitespace)
+8. Validate token file existence and readability
+9. Build agent registry from agent blocks
 
 ### Token Resolution
 
 ```go
-func resolveToken(token string) (string, error) {
-    if !strings.HasPrefix(token, "@") {
-        return token, nil // inline token
+func (a *AgentConfig) ResolveToken() (string, error) {
+    // Validate mutually exclusive fields
+    if a.Token != "" && a.TokenFile != "" {
+        return "", fmt.Errorf("agent %s: cannot specify both token and token_file", a.Type)
+    }
+    if a.Token == "" && a.TokenFile == "" {
+        return "", fmt.Errorf("agent %s: must specify either token or token_file", a.Type)
     }
 
-    path := strings.TrimPrefix(token, "@")
-    path = expandTilde(path) // expand ~/...
+    // Inline token
+    if a.Token != "" {
+        return a.Token, nil
+    }
+
+    // File-based token
+    path := expandTilde(a.TokenFile) // expand ~/...
 
     content, err := os.ReadFile(path)
     if err != nil {
