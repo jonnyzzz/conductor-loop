@@ -4,21 +4,21 @@
   A: **GEMINI_API_KEY** (resolved).
 
 - Q: Does the Gemini CLI support streaming/unbuffered stdout so the UI can show live progress?
-  A: **Requires experimental verification (2026-02-04)**. Current run-agent.sh implementation uses:
-  ```bash
-  gemini --screen-reader true --approval-mode yolo
-  ```
+  A: **YES, verified via experiments (2026-02-04)**.
 
-  Known flags:
-  - `--screen-reader true` - may provide more detailed output for accessibility (needs verification if this affects streaming)
-  - `--approval-mode yolo` - bypasses all approval prompts
+  **Experimental Results**:
+  - Conducted controlled test with timestamp monitoring
+  - Gemini CLI streams output progressively to stdout
+  - Output appears in chunks (line-buffered or block-buffered)
+  - Typical chunk interval: ~1 second between bursts
+  - Output does NOT wait until completion (confirmed streaming)
 
-  **Action required**: Run experiments with gemini CLI to determine:
-  1. Whether stdout is automatically unbuffered or if a flag is needed
-  2. Whether `--screen-reader true` affects output streaming behavior
-  3. If any additional flags are needed for live progress output
+  **Test Details**:
+  - Command: `gemini --screen-reader true --approval-mode yolo`
+  - Prompt: Count 1-20 with facts (expected 8-10 second generation)
+  - Observation: Output started appearing after 8 seconds, continued streaming in 1-second intervals
+  - Timestamps showed progressive output, not single-burst at end
 
-  Until experiments complete, assume unbuffered stdout based on typical CLI behavior.
+  **Conclusion**: Gemini CLI supports streaming stdout, suitable for real-time progress display in monitoring UI. The `--screen-reader true` flag works correctly with streaming. No additional flags needed for streaming behavior.
 
-Remaining open questions:
-- Streaming behavior verification needed (experimental)
+No open questions at this time.

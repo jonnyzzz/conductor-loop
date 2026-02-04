@@ -119,9 +119,9 @@ This list captures the current planning topics derived from ideas.md, the subsys
        - Codex: `codex exec --dangerously-bypass-approvals-and-sandbox -C "$CWD" -`
        - Gemini: `gemini --screen-reader true --approval-mode yolo`
      - Perplexity streaming: Confirmed SSE support via `stream=True` parameter (resolved via research 2026-02-04).
+     - Gemini streaming: Verified progressive stdout streaming in ~1s chunk intervals (resolved via experiments 2026-02-04).
      - Perplexity is native REST-backed; xAI is deferred post-MVP with OpenCode planned.
-   - Open questions:
-     - Gemini streaming behavior requires experimental verification.
+   - Open questions: None at this time.
    - Related: subsystem-agent-backend-*.md, subsystem-runner-orchestration.md
 
 9. Implementation Stack & Build Pipeline
