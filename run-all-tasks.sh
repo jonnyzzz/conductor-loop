@@ -577,11 +577,8 @@ wait_for_tasks() {
 check_task_success() {
     local task_id="$1"
 
-    # Find the run directory for this task
-    local run_dir=$(find "$RUNS_DIR" -name "run_*" -type d | \
-                    xargs grep -l "$task_id" | \
-                    head -1 | \
-                    xargs dirname 2>/dev/null)
+    # Find the run directory for this task by searching prompt.md files for task ID
+    local run_dir=$(find "$RUNS_DIR" -type f -name "prompt.md" -exec grep -l "^\\*\\*Task ID\\*\\*: $task_id" {} \; 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
 
     if [ -z "$run_dir" ]; then
         log_error "Cannot find run directory for task $task_id"
