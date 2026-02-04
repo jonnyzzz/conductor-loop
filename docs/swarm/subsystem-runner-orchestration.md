@@ -1,7 +1,7 @@
 # Runner & Orchestration Subsystem
 
 ## Overview
-This subsystem owns how agents are started, restarted, and coordinated. It defines the `run-agent` binary (and `run-task` subcommand) responsible for spawning agent runs, tracking lineage, and enforcing the root "Ralph" restart loop until completion.
+This subsystem owns how agents are started, restarted, and coordinated. It defines the `run-agent` binary (including the `task` and `job` subcommands) responsible for spawning agent runs, tracking lineage, and enforcing the root "Ralph" restart loop until completion.
 
 ## Goals
 - Start agents with a consistent run layout and metadata (see Storage & Data Layout).
@@ -25,7 +25,7 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
 - Ensure the run-agent binary is available on PATH for spawned agents.
 
 ## Components
-### run-agent (binary)
+### run-agent job (subcommand)
 - Starts one agent run and blocks until completion.
 - Detaches from the controlling terminal (so the agent survives parent exit) but still waits on the agent PID for exit status.
 - Maintains process group ID for stop/kill.
@@ -34,7 +34,7 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
 - Posts run START/STOP events to message bus.
 - Prepends its own binary location to PATH for child processes.
 
-### run-task (subcommand)
+### run-agent task (subcommand)
 - Creates/locates project and task folders.
 - Validates TASK.md is non-empty.
 - Starts root agent and enforces the Ralph restart loop.
@@ -42,6 +42,13 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
 - If DONE exists but children are still running, wait and restart root to catch up.
 - If children are done but DONE is absent, restart root.
 - Between Ralph iterations, the supervisor may run compaction/fact propagation steps before restarting.
+- `run-task`/`run-task.sh` are thin wrappers (if present) that call `run-agent task`.
+
+### run-agent serve (subcommand)
+- Serves the Monitoring UI and message bus API endpoints (REST + SSE).
+
+### run-agent bus (subcommand)
+- Provides CLI access for posting, polling, and streaming message bus entries.
 
 ### run-agent stop (subcommand)
 - Stops a run by run_id.
@@ -58,6 +65,9 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
   - agent selection weights and ordering
   - delegation depth (max 16 by default)
   - supported agent backends/providers list
+  - projects_root (override for ~/run-agent)
+  - deploy_ssh_key (optional; used when backing storage with a git repo)
+  - token values may be provided inline or via @/path/to/token file references
 
 ## Run ID / Timestamp Rules
 - Canonical timestamp format: UTC `YYYYMMDD-HHMMSSMMMM-PID` (lexically sortable).
@@ -70,6 +80,11 @@ This subsystem owns how agents are started, restarted, and coordinated. It defin
 - "I'm lucky" mode: random selection with uniform weighting (weights configurable).
 - On failure, mark the backend as degraded temporarily and try the next agent.
 - Selection decisions may consult recent message bus events; each run should record its chosen agent/backend in run-info and/or message bus entries.
+
+## Agent Backends
+- Native agent types include: codex, claude, gemini, perplexity.
+- xAI integration is pending research to select the best coding agent and interface.
+- Each agent type has a dedicated design document (see subsystem-agent-backend-*.md).
 
 ## Idle / Stuck / Waiting Detection
 - Use last stdout/stderr timestamp + message bus activity.
@@ -86,14 +101,14 @@ The root agent prompt must include:
 - Write facts as FACT-*.md (YAML front matter required).
 - Update TASK_STATE.md with a short free-text status.
 - Write final results to output.md in the run folder.
-- Create DONE file when the task is complete (and post COMPLETED to message bus).
+- Create DONE file when the task is complete (and post an INFO/OBSERVATION message to the bus).
 - Delegate sub-tasks by starting sub agents via run-agent.
 
 ## Error Handling
 - Missing env vars -> fail fast (error messages must not instruct agents to set env).
 - Transient backend errors -> exponential backoff (1s, 2s, 4s; max 3 tries).
 - Auth/quota errors -> fail fast.
-- Poller crashes -> log and let root agent decide recovery.
+- Message-bus handler crashes -> log and let root agent decide recovery.
 - No proactive credential validation/refresh in MVP; failures are handled at spawn time.
 
 ## Concurrency & Coordination
@@ -105,6 +120,7 @@ The root agent prompt must include:
   - run_id, project_id, task_id, parent_run_id, previous_run_id
   - agent type, pid/pgid, start/end time, exit code
   - paths to prompt/output/stdout/stderr
+  - commandline (optional; full command used to start the agent)
 - START/STOP/CRASH events are posted to message bus for UI reconstruction.
 
 ## Security / Permissions

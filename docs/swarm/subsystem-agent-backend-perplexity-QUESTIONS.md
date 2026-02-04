@@ -1,0 +1,4 @@
+# Agent Backend: Perplexity - Questions
+
+- Q: Which Perplexity model should be the default for coding tasks (e.g., sonar-pro vs sonar-reasoning), and should this be configurable per task? | Proposed default: Choose a reasoning-capable model by default; allow override in config.hcl. | A: TBD.
+- Q: What timeout and retry policy should the Perplexity adapter use for long prompts? | Proposed default: Align with runner transient backoff (1s/2s/4s) and a 60s request timeout. | A: TBD.

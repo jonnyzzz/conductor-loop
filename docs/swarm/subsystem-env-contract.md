@@ -1,39 +1,46 @@
 # Environment & Invocation Contract Subsystem
 
 ## Overview
-Defines the environment variables and invocation contract between run-agent, run-task, and spawned agents. This subsystem standardizes which variables are injected, their meanings, and how agents are expected to treat them.
+Defines the invocation contract between run-agent (including `task`/`job`) and spawned agents. This includes internal environment variables used for run tracking, plus the prompt/context injection that agents use to discover paths (task/run folders) without relying on env vars.
 
 ## Goals
-- Document required environment variables for run tracking.
-- Clarify which variables are internal-only vs agent-visible.
-- Standardize RUN_FOLDER injection for sub-agents.
-- Ensure error messages do not instruct agents to set env vars manually.
+- Document internal JRUN_* variables for run tracking.
+- Document prompt/context injection for run/task paths.
+- Clarify that agents should not rely on environment variables for workflow.
+- Ensure child processes can find run-agent via PATH.
 
 ## Non-Goals
-- Defining backend-specific token naming beyond config injection.
+- Standardizing backend token names beyond config injection.
 - Enforcing env vars at the OS/sandbox level.
 - Providing a full process supervisor API (handled by Runner & Orchestration).
 
 ## Responsibilities
-- Specify required variables and their meanings.
-- Define when variables are set (root vs sub-agent).
-- Define read-only vs writable classification.
+- Specify required internal variables and their meanings.
+- Define prompt/context injection rules.
+- Define read-only vs writable classification for any injected values.
 - Describe failure behavior when required variables are missing.
 
-## Variable Contract (MVP)
+## Internal Environment Variables (Runner-Only)
+These are set by run-agent for internal bookkeeping. Agents must not reference them.
 - JRUN_PROJECT_ID (required; internal): project identifier for the current run.
 - JRUN_TASK_ID (required; internal): task identifier for the current run.
 - JRUN_ID (required; internal): run identifier (timestamp + PID format).
-- RUN_FOLDER (required for sub-agents; agent-visible): absolute path to the run folder to use for prompts, outputs, and temp files.
-- JRUN_PARENT_ID (required; internal): parent run identifier for lineage tracking. Name is TBD if it differs from this label.
+- JRUN_PARENT_ID (required; internal): parent run identifier for lineage tracking.
+
+## Prompt/Context Injection (Agent-Visible)
+- run-agent prepends the prompt with absolute paths for the task folder and run folder.
+- The run folder is provided as a prompt label (e.g., `RUN_FOLDER=/path/to/run`), not as an environment variable.
+- Root agents rely on CWD (task folder) and prompt preamble; sub-agents rely on the prompt preamble.
+- The prompt preamble includes explicit instructions to write final output to `output.md` in the run folder.
 
 ## Injection Rules
-- run-task/run-agent set JRUN_* variables before launching any agent process.
-- Sub-agents inherit JRUN_* variables and receive a RUN_FOLDER pointing at their run directory (under task/runs/).
-- Agents treat RUN_FOLDER as read-only and must place output.md in that folder.
+- run-agent always sets JRUN_* internally before spawning agents.
+- run-agent prepends its own binary location to PATH for child processes.
+- Backend tokens are injected into the agent process environment via config (backend-specific); agents must not rely on them for workflow.
+- No agent-writable environment variables are defined.
 
 ## Error Messaging
-- Missing required env vars -> fail fast.
+- Missing required JRUN_* -> fail fast.
 - Error messages must not instruct agents to set env vars manually.
 
 ## Security Notes

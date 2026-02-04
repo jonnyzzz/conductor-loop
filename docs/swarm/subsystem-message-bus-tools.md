@@ -25,7 +25,7 @@ Provides the run-agent bus CLI and REST conventions for writing to and reading f
   - --task <id> (optional)
   - --type <FACT|QUESTION|ANSWER|USER|START|STOP|ERROR|INFO|WARNING|OBSERVATION|ISSUE>
   - --message <text> (body)
-  - --parents <msg_id,...> (optional)
+  - --parents <msg_id,...> (optional; structured relationships are supported via REST or future CLI extensions)
 - Agents rely on JRUN_* env vars; error messages must not hint to agents to set env vars.
 
 ### run-agent bus poll
@@ -36,6 +36,7 @@ Provides the run-agent bus CLI and REST conventions for writing to and reading f
   - --since <timestamp> (optional)
   - --since-id <msg_id> (optional)
   - --filter <type|regex> (optional, linear scan)
+  - --wait (optional; block until a new message arrives)
 - No cursor file; caller manages last seen id.
 
 ### run-agent bus stream (HTTP)
@@ -44,6 +45,11 @@ Provides the run-agent bus CLI and REST conventions for writing to and reading f
 - No auth (localhost only in MVP).
 - Same parameters as CLI; text streaming is preferred.
 - Hosted by run-agent serve (shared with UI backend).
+
+### run-agent bus post (HTTP)
+- REST endpoint for message submission:
+  - POST /api/bus
+- Body fields mirror CLI: project, task, type, message, parents, attachment_path.
 
 ## Message Format
 Append-only YAML front-matter entries separated by `---`:
@@ -55,7 +61,10 @@ type: <TYPE>
 project: <project_id>
 task: <task_id>
 run_id: <run_id>
-parents: [<msg_id>, ...]
+parents:
+  - msg_id: <msg_id>
+    kind: <relationship>
+  - <msg_id>
 attachment_path: <optional path>
 ---
 <message body>
@@ -86,7 +95,11 @@ Canonical types:
 ## Threading & Corrections
 - Messages are append-only; no in-place edits.
 - Use parents[] to reference prior messages (answers, corrections, updates).
-- UI collapses or threads entries by parents[].
+- parents[] supports two forms:
+  - String form: `parents: [<msg_id>, ...]` (shorthand).
+  - Object form: `parents: [{msg_id: <msg_id>, kind: <relationship>, ...}, ...]`.
+- String entries are equivalent to `{msg_id: <msg_id>, kind: reply}`.
+- See subsystem-message-bus-object-model.md for relationship vocabulary and object schema.
 
 ## Ordering Guarantees
 - Timestamp ordering only; ties resolved by msg_id.
@@ -102,6 +115,7 @@ Canonical types:
 - Soft limit: 64KB per message body.
 - Larger payloads stored as files with attachment_path metadata.
 - Attachments live in the task folder and should use the canonical timestamp + short description naming.
+- attachment_path is relative to the task folder.
 
 ## Compaction / Archival
 - No compaction/rotation strategy yet; files can grow.

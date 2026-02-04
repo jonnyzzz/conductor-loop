@@ -74,3 +74,6 @@ Integrated Gemini outputs into TIPICS (types list, question linking), closed ans
 
 [2026-02-04T10:25:22Z] type=info project=swarm task=planning
 Message: Updated subsystem specs (runner/storage/message-bus/monitoring/agent protocol), added environment contract subsystem, refreshed SUBSYSTEMS and TIPICS, and regenerated QUESTIONS with new open items (message dependency semantics, multi-host UI timing, Perplexity/xAI backend integration, env var list). Integrated Q/A history; removed answered questions. Sub-agent runs: gemini + claude completed; codex run hung and was terminated (logged in ISSUES.md). RLM web fetch failed; used local copy.
+
+[2026-02-04T15:00:00Z] type=info project=swarm task=planning
+Message: Consolidated latest ideas.md + Q/A (including history) and ran per-subsystem and per-topic reviews (claude + gemini + codex where applicable). Updated subsystem specs (runner, storage, message-bus, monitoring UI, agent protocol, env contract), added message-bus object model doc and per-agent backend specs (codex/claude/gemini/perplexity/xAI), refreshed SUBSYSTEMS.md and TIPICS.md, and regenerated *-QUESTIONS.md to keep only open TBDs. Noted Perplexity MCP 401 errors in ISSUES.md.

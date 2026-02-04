@@ -9,3 +9,5 @@
 - 2026-02-03: Additional Gemini topic-review passes (multi-run per topic) still lacked git history access; outputs rely on current docs.
 - 2026-02-04: web.run could not fetch https://jonnyzzz.com/RLM.md (HTTP 400). Used local copy from ../projects/clion/runs/run_005/artifacts/reference-docs/RLM.md as fallback.
 - 2026-02-04: Codex sub-agent run via ../run-agent.sh (run_20260204-101304-28855) hung with no final output; terminated PID 28894.
+- 2026-02-04: Claude sub-agent runs reported Perplexity API unauthorized (401), so web research could not be completed in several prompts.
+- 2026-02-04: Codex sub-agent run for subsystem-message-bus-tools (run_20260204-141214-61416) did not complete; parent runner was terminated, leaving partial logs.

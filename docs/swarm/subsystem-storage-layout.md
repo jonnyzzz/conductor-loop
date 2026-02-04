@@ -16,6 +16,7 @@ Defines the on-disk layout under ~/run-agent for projects, tasks, and individual
 - Define directory layout and naming conventions.
 - Define file formats for run metadata, facts, and state files.
 - Specify how agents read/write state and facts.
+- Clarify that config.hcl is global only (no per-project/task config files).
 
 ## Directory Layout
 Base root:
@@ -61,6 +62,7 @@ Base root:
   - cwd, prompt_path, output_path, stdout_path, stderr_path
 - Optional fields:
   - backend_provider, backend_model, backend_endpoint (no secrets).
+  - commandline (full command used to start the agent).
 
 ### TASK_STATE.md
 - Free-text summary maintained by root agent.
@@ -76,6 +78,11 @@ Base root:
 - YAML front matter required:
   - created_at, scope (task|project), run_id, title
 - Body is Markdown.
+
+### ATTACH-*.ext
+- Binary or text artifacts stored at task folder root.
+- attachment_path in message bus entries is relative to the task folder.
+- Names use the canonical timestamp + short description: ATTACH-<timestamp>-<name>.<ext>.
 
 ### home-folders.md
 - YAML format:
@@ -94,7 +101,7 @@ Base root:
 
 ## Lifecycle
 - Project directory created on first task creation.
-- Task directory created by run-task.
+- Task directory created by run-agent task.
 - Run directory created by run-agent per execution.
 - Facts are appended by creating new FACT files.
 - TASK_STATE.md overwritten by root agent each cycle.

@@ -42,6 +42,7 @@ A React web UI for observing the agent swarm. It is served by the run-agent Go b
 ### 3) Run Detail
 - Prompt, output.md, stdout, stderr, metadata.
 - Link to parent run.
+- Show restart chain via previous_run_id (Ralph loop history).
 - Output is merged chronologically with per-run color coding.
 
 ### 4) Start New Task
@@ -64,6 +65,7 @@ A React web UI for observing the agent swarm. It is served by the run-agent Go b
 - Threaded view using parents[] links.
 - Post USER/ANSWER entries via run-agent bus.
 - Render message bodies and prompts as plain text in MVP (no Markdown rendering).
+- Render attachment_path as a link/button to load the file via backend.
 
 ## Output & Logs
 - Live streaming via SSE/WS; 2s polling fallback.
@@ -75,7 +77,7 @@ A React web UI for observing the agent swarm. It is served by the run-agent Go b
 - Stuck detection:
   - warn after N/2 minutes of silence
   - mark/kick after N minutes (N = stuck threshold from runner config; default 15m)
-- Status is derived from run metadata + message bus events (2s refresh).
+- Status is derived by the backend from run metadata + message bus events (2s refresh); UI displays the computed state.
 
 ## Error States
 - Missing project or task folders: show warning and refresh option.

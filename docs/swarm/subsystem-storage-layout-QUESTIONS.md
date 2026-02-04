@@ -1,3 +1,3 @@
 # Storage & Data Layout - Questions
 
-- No open questions at this time.
+- Q: What are the allowed characters/length limits for task slugs, and what is the collision strategy? | Proposed default: Slugify to lowercase [a-z0-9-], max 48 chars; on collision append -<4char> hash. | A: TBD.

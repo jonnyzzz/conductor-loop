@@ -18,6 +18,7 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 - Agents MUST delegate if a task is too large or outside their folder context.
 - Agents SHOULD scope work to a single module/folder and delegate other folders to sub-agents.
 - Agents MUST read TASK_STATE.md and message bus on start.
+- Root agents SHOULD read PROJECT-MESSAGE-BUS.md and project FACT files on start.
 - Agents MUST write updates to TASK_STATE.md each cycle (root only).
 - Agents MUST write final results to output.md in their run folder.
 - Agents MUST use run-agent bus tooling; direct file appends are disallowed.
@@ -25,7 +26,7 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 
 ## Run Folder Ownership
 - No OWNERSHIP.md file.
-- run-agent injects a RUN_FOLDER path into sub-agent prompts.
+- run-agent injects a RUN_FOLDER path into sub-agent prompts (prompt text, not an env var).
 - Prompt preamble example: `RUN_FOLDER=<path>, use this folder for prompts, task outputs, and other temp files. Put the results to $RUN_FOLDER/output.md file`.
 - Agents write prompts/outputs/temporary files only inside RUN_FOLDER.
 - Ownership is conceptual (prompt-guided), not enforced by files.
@@ -36,6 +37,8 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 - Use TASK-MESSAGE-BUS for task-scoped updates/questions.
 - Use PROJECT-MESSAGE-BUS for cross-task facts (typically via root agent).
 - Thread replies and corrections with parents[].
+- Use absolute paths when referencing files in message bus entries or outputs.
+- Root agent is responsible for polling and processing message bus updates in MVP (no dedicated poller service).
 - Poll for new messages as often as possible; read only new content.
 
 ## Task State
@@ -46,10 +49,11 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 - FACT files are Markdown with YAML front matter.
 - Naming: FACT-<timestamp>-<name>.md (project), TASK-FACTS-<timestamp>.md (task).
 - Promotion to project-level facts is decided by the root agent; task agents can propose via message bus.
+- Root agents SHOULD promote stable task facts to project-level FACT files.
 
 ## Delegation & Depth
 - Max delegation depth: 16 (configurable in global settings).
-- run-task should fail new spawn attempts beyond the limit.
+- run-agent task should fail new spawn attempts beyond the limit.
 
 ## CWD Guidance
 - Root agent runs in task folder.
@@ -67,6 +71,7 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 - Avoid destructive commands unless explicitly required.
 - Provide a clear list of touched files in the final response.
 - Do not touch unrelated files; commit only selected files when asked.
+- Use "Git Pro" behavior: precise staging and no incidental file changes.
 
 ## Cancellation Protocol
 - Runner sends SIGTERM to agent pgid, waits 30s, then SIGKILL.
@@ -75,7 +80,7 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 ## Environment Variables
 - JRUN_* variables are implementation details (agents should not reference them).
 - Error messages must not instruct agents to set env vars.
-- RUN_FOLDER is injected for sub-agents; treat it as read-only.
+- RUN_FOLDER is provided in the prompt preamble (not as an env var); treat it as read-only.
 
 ## Protocol Versioning
 - No version negotiation or compatibility checks yet; assume backward compatibility.
