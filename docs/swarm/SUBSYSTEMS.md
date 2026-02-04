@@ -21,3 +21,7 @@ This list is derived from ideas.md and the subsystem specs (and their QUESTIONS)
 5. Agent Protocol & Governance
    - Scope: agent behavior rules, run folder usage, delegation depth, message bus-only comms, git safety guidance, no sandbox.
    - Spec: subsystem-agent-protocol.md
+
+6. Environment & Invocation Contract
+   - Scope: JRUN_* and RUN_FOLDER variables, injected env contract, read-only vs writable fields, error-message rules.
+   - Spec: subsystem-env-contract.md

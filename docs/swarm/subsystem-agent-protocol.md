@@ -16,6 +16,7 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 ## Behavioral Rules
 - Agents MUST work on a scoped task and exit when done.
 - Agents MUST delegate if a task is too large or outside their folder context.
+- Agents SHOULD scope work to a single module/folder and delegate other folders to sub-agents.
 - Agents MUST read TASK_STATE.md and message bus on start.
 - Agents MUST write updates to TASK_STATE.md each cycle (root only).
 - Agents MUST write final results to output.md in their run folder.
@@ -25,8 +26,10 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 ## Run Folder Ownership
 - No OWNERSHIP.md file.
 - run-agent injects a RUN_FOLDER path into sub-agent prompts.
+- Prompt preamble example: `RUN_FOLDER=<path>, use this folder for prompts, task outputs, and other temp files. Put the results to $RUN_FOLDER/output.md file`.
 - Agents write prompts/outputs/temporary files only inside RUN_FOLDER.
 - Ownership is conceptual (prompt-guided), not enforced by files.
+- Parents may read child output/TASK_STATE for monitoring; policy does not restrict this.
 
 ## Message Bus Protocol
 - Agents do not emit START/STOP (runner-only).
@@ -55,7 +58,7 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 - CWD is recorded in run-info.yaml for audit.
 
 ## Permissions & Safety
-- No enforced read/write boundaries yet; recommend delegation for non-local paths.
+- No enforced read/write boundaries or sensitive-path guardrails; cross-project access is not blocked.
 - Agents may execute repository scripts (no restrictions yet).
 - No resource limits enforced.
 
@@ -63,6 +66,7 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 - Stage only modified files.
 - Avoid destructive commands unless explicitly required.
 - Provide a clear list of touched files in the final response.
+- Do not touch unrelated files; commit only selected files when asked.
 
 ## Cancellation Protocol
 - Runner sends SIGTERM to agent pgid, waits 30s, then SIGKILL.
@@ -71,6 +75,10 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 ## Environment Variables
 - JRUN_* variables are implementation details (agents should not reference them).
 - Error messages must not instruct agents to set env vars.
+- RUN_FOLDER is injected for sub-agents; treat it as read-only.
+
+## Protocol Versioning
+- No version negotiation or compatibility checks yet; assume backward compatibility.
 
 ## Exit Codes
 - 0 = completed, 1 = failed.

@@ -1,3 +1,5 @@
 # Monitoring & Control UI - Questions
 
-- No open questions at this time. (Read-only MVP is decided.)
+- Q: When should multi-host backend selection be introduced (MVP vs later)?
+  Proposed default: Post-MVP; keep localhost-only for initial release.
+  A: TBD.

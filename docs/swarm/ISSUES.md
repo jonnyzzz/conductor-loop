@@ -7,3 +7,5 @@
 - 2026-01-31: Claude verification run via run-agent.sh (runs4/run_20260131-205708-37689) did not return; process killed. Verification pending.
 - 2026-02-03: Gemini topic-review agents could not access git history (no shell command tool); relied on current docs only.
 - 2026-02-03: Additional Gemini topic-review passes (multi-run per topic) still lacked git history access; outputs rely on current docs.
+- 2026-02-04: web.run could not fetch https://jonnyzzz.com/RLM.md (HTTP 400). Used local copy from ../projects/clion/runs/run_005/artifacts/reference-docs/RLM.md as fallback.
+- 2026-02-04: Codex sub-agent run via ../run-agent.sh (run_20260204-101304-28855) hung with no final output; terminated PID 28894.

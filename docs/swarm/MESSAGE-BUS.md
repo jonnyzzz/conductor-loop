@@ -71,3 +71,6 @@ artifacts: /Users/jonnyzzz/Work/jonnyzzz-ai-coder/runs/run_20260203-080850-4228/
 ---
 Integrated Gemini outputs into TIPICS (types list, question linking), closed answered QUESTIONS, and linked open questions to their files.
 ---
+
+[2026-02-04T10:25:22Z] type=info project=swarm task=planning
+Message: Updated subsystem specs (runner/storage/message-bus/monitoring/agent protocol), added environment contract subsystem, refreshed SUBSYSTEMS and TIPICS, and regenerated QUESTIONS with new open items (message dependency semantics, multi-host UI timing, Perplexity/xAI backend integration, env var list). Integrated Q/A history; removed answered questions. Sub-agent runs: gemini + claude completed; codex run hung and was terminated (logged in ISSUES.md). RLM web fetch failed; used local copy.
