@@ -31,6 +31,13 @@ const (
 )
 
 func TestMain(m *testing.M) {
+	if os.Getenv(envCodexHelperMode) != "" {
+		if err := runCodexHelper(); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	mode := os.Getenv(envHelperMode)
 	if mode != "" {
 		if err := runHelper(mode); err != nil {

@@ -64,11 +64,9 @@ func validateTokenFile(path string) error {
 		return fmt.Errorf("not a regular file")
 	}
 
-	file, err := os.Open(path)
-	if err != nil {
+	if _, err := os.ReadFile(path); err != nil {
 		return err
 	}
-	defer file.Close()
 
 	return nil
 }

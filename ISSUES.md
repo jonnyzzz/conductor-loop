@@ -361,6 +361,107 @@ stderr_excerpt: [last 100 lines]
 
 ---
 
+### ISSUE-019: Concurrent run-info.yaml Updates Cause Data Loss
+**Severity**: CRITICAL
+**Status**: OPEN (Identified 2026-02-05)
+**Blocking**: Data integrity
+
+**Description**:
+The current UpdateRunInfo() implementation uses read-modify-write pattern with no locking. Multiple processes updating the same run-info.yaml simultaneously will cause data loss through race conditions.
+
+**Impact**:
+- Lost exit codes when Ralph Loop and agent update simultaneously
+- Lost timestamps when concurrent updates occur
+- Status inconsistencies
+- Debugging becomes impossible
+
+**Source**:
+- Architecture Review Agent #3 (Platform & Concurrency), Section 2.3
+- File: internal/storage/atomic.go:48-64
+
+**Root Cause**:
+```go
+func UpdateRunInfo(path string, update func(*RunInfo) error) error {
+    info, err := ReadRunInfo(path)  // ← Read
+    if err != nil { return errors.Wrap(err, "read run-info for update") }
+    if err := update(info); err != nil {  // ← Modify
+        return errors.Wrap(err, "apply run-info update")
+    }
+    if err := WriteRunInfo(path, info); err != nil {  // ← Write (no lock!)
+        return errors.Wrap(err, "rewrite run-info")
+    }
+    return nil
+}
+```
+
+**Resolution Required**:
+Add file locking for read-modify-write operations:
+```go
+func UpdateRunInfo(path string, update func(*RunInfo) error) error {
+    lockPath := path + ".lock"
+    lockFile, err := os.Create(lockPath)
+    if err != nil { return err }
+    defer os.Remove(lockPath)
+    defer lockFile.Close()
+
+    if err := flock(lockFile, 5*time.Second); err != nil {
+        return err
+    }
+    defer funlock(lockFile)
+
+    // Now safe to read-modify-write
+    info, err := ReadRunInfo(path)
+    // ... rest of logic
+}
+```
+
+**Effort**: 1 day
+**Timeline**: Must fix before Stage 3 (Runner implementation)
+
+**Dependencies**:
+- infra-storage implementation
+- Message bus flock utilities
+
+---
+
+### ISSUE-020: Message Bus Circular Dependency Not Documented
+**Severity**: CRITICAL
+**Status**: OPEN (Identified 2026-02-05)
+**Blocking**: Integration testing
+
+**Description**:
+Runner has bidirectional data flow with Message Bus (writes START/STOP events AND reads for Ralph decisions), creating a runtime circular dependency not captured in THE_PLAN_v5.md phase ordering.
+
+**Impact**:
+- Integration testing may reveal timing issues
+- Runner might read from Message Bus before writing START event
+- Race conditions between Runner operations and message visibility
+- Documentation doesn't reflect actual runtime dependencies
+
+**Source**:
+- Architecture Review Agent #2 (Dependency Analysis), Section 3.2.2
+
+**Data Flow**:
+```
+Runner (writes) → Message Bus → Storage Files
+Runner (reads) ← Storage Files ← Message Bus posted data
+```
+
+**Resolution Required**:
+1. Add explicit integration test: "Runner writes START event before spawning agent"
+2. Document message bus write ordering requirements in Runner spec
+3. Ensure Runner flushes message bus writes before waiting on agent process
+4. Add to THE_PLAN_v5.md: Note that Message Bus MUST be fully tested before Runner
+
+**Effort**: 0.5 day
+**Timeline**: Phase 2 (Message Bus) → Integration Test Gate → Phase 3 (Runner)
+
+**Dependencies**:
+- infra-messagebus implementation
+- runner-orchestration implementation
+
+---
+
 ## MEDIUM PRIORITY ISSUES (Address During Implementation)
 
 ### ISSUE-011: Agent Protocol Should Sequence Before Backends
@@ -623,11 +724,11 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 
 | Severity | Open | Resolved |
 |----------|------|----------|
-| CRITICAL | 4 | 1 |
+| CRITICAL | 6 | 1 |
 | HIGH | 6 | 0 |
 | MEDIUM | 6 | 0 |
 | LOW | 2 | 0 |
-| **Total** | **18** | **1** |
+| **Total** | **20** | **1** |
 
 ---
 
