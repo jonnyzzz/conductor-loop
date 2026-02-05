@@ -25,3 +25,7 @@ tmp/
 
 # Runs
 runs/
+
+# Orchestration logs and outputs
+orchestration-*.log
+output-*.md
