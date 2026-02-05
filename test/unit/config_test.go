@@ -102,7 +102,7 @@ defaults:
 	}
 }
 
-func TestTokenFromEnv(t *testing.T) {
+func TestEnvVarOverrides(t *testing.T) {
 	dir := t.TempDir()
 	tokenPath := filepath.Join(dir, "token.txt")
 	if err := os.WriteFile(tokenPath, []byte("file-token"), 0o600); err != nil {
@@ -139,7 +139,7 @@ defaults:
 	}
 }
 
-func TestConfigValidation(t *testing.T) {
+func TestConfigValidationErrors(t *testing.T) {
 	dir := t.TempDir()
 	goodTokenPath := filepath.Join(dir, "token.txt")
 	if err := os.WriteFile(goodTokenPath, []byte("token"), 0o600); err != nil {
@@ -211,6 +211,72 @@ func TestConfigValidation(t *testing.T) {
 				t.Fatalf("expected error")
 			}
 		})
+	}
+}
+
+func TestTokenFileNotFound(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	content := `agents:
+  claude:
+    type: claude
+    token_file: missing.txt
+
+defaults:
+  agent: claude
+  timeout: 10
+`
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	if _, err := config.LoadConfig(configPath); err == nil {
+		t.Fatalf("expected error for missing token file")
+	}
+}
+
+func TestAPIConfigDefaults(t *testing.T) {
+	dir := t.TempDir()
+	tokenPath := filepath.Join(dir, "token.txt")
+	if err := os.WriteFile(tokenPath, []byte("token"), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+	configPath := filepath.Join(dir, "config.yaml")
+	content := fmt.Sprintf(`agents:
+  codex:
+    type: codex
+    token_file: %s
+
+defaults:
+  agent: codex
+  timeout: 10
+`, tokenPath)
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := config.LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	if cfg.API.Host != "0.0.0.0" {
+		t.Fatalf("expected default host, got %q", cfg.API.Host)
+	}
+	if cfg.API.Port != 8080 {
+		t.Fatalf("expected default port, got %d", cfg.API.Port)
+	}
+	if cfg.API.SSE.PollIntervalMs != 100 {
+		t.Fatalf("expected default poll interval, got %d", cfg.API.SSE.PollIntervalMs)
+	}
+	if cfg.API.SSE.DiscoveryIntervalMs != 1000 {
+		t.Fatalf("expected default discovery interval, got %d", cfg.API.SSE.DiscoveryIntervalMs)
+	}
+	if cfg.API.SSE.HeartbeatIntervalS != 30 {
+		t.Fatalf("expected default heartbeat, got %d", cfg.API.SSE.HeartbeatIntervalS)
+	}
+	if cfg.API.SSE.MaxClientsPerRun != 10 {
+		t.Fatalf("expected default max clients, got %d", cfg.API.SSE.MaxClientsPerRun)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/jonnyzzz/conductor-loop/internal/agent"
+	"github.com/jonnyzzz/conductor-loop/internal/runner"
 )
 
 type testAgent struct {
@@ -108,6 +109,75 @@ func TestSpawnProcess(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "stderr") {
 		t.Fatalf("stderr missing, got %q", stderr.String())
+	}
+}
+
+func TestExecutorStdioRedirection(t *testing.T) {
+	root := t.TempDir()
+	stdoutPath := filepath.Join(root, "stdout.txt")
+	stderrPath := filepath.Join(root, "stderr.txt")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	capture, err := agent.CaptureOutput(&stdout, &stderr, agent.OutputFiles{
+		StdoutPath: stdoutPath,
+		StderrPath: stderrPath,
+	})
+	if err != nil {
+		t.Fatalf("CaptureOutput: %v", err)
+	}
+
+	command, args := shellCommand("echo hello && echo oops 1>&2")
+	cmd, err := agent.SpawnProcess(command, args, nil, capture.Stdout, capture.Stderr)
+	if err != nil {
+		_ = capture.Close()
+		t.Fatalf("SpawnProcess: %v", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		_ = capture.Close()
+		t.Fatalf("wait: %v", err)
+	}
+	if err := capture.Close(); err != nil {
+		t.Fatalf("close capture: %v", err)
+	}
+
+	stdoutBytes, err := os.ReadFile(stdoutPath)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	stderrBytes, err := os.ReadFile(stderrPath)
+	if err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	if !strings.Contains(string(stdoutBytes), "hello") {
+		t.Fatalf("stdout file missing content: %q", string(stdoutBytes))
+	}
+	if !strings.Contains(string(stderrBytes), "oops") {
+		t.Fatalf("stderr file missing content: %q", string(stderrBytes))
+	}
+}
+
+func TestExecutorSetsid(t *testing.T) {
+	command, args := shellCommand("echo ok")
+	cmd, err := agent.SpawnProcess(command, args, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("SpawnProcess: %v", err)
+	}
+	assertProcessGroupConfigured(t, cmd)
+	if err := cmd.Wait(); err != nil {
+		t.Fatalf("wait: %v", err)
+	}
+}
+
+func TestAgentTypeValidation(t *testing.T) {
+	root := t.TempDir()
+	err := runner.RunJob("project", "task", runner.JobOptions{
+		RootDir: root,
+		Agent:   "unknown-agent",
+		Prompt:  "prompt",
+	})
+	if err == nil {
+		t.Fatalf("expected error for invalid agent type")
 	}
 }
 

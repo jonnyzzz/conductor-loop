@@ -1709,6 +1709,979 @@ EOF
 }
 
 #############################################################################
+# STAGE 5: INTEGRATION AND TESTING PROMPTS
+#############################################################################
+
+create_prompt_test_unit() {
+    cat > "$PROMPTS_DIR/test-unit.md" <<'EOF'
+# Task: Expand Unit Test Coverage
+
+**Task ID**: test-unit
+**Phase**: Integration and Testing
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: All Stages 1-4 complete
+
+## Objective
+Achieve >80% unit test coverage across all packages with focus on edge cases and error paths.
+
+## Current State
+Existing tests in test/unit/:
+- config_test.go (5 tests)
+- storage_test.go (4 tests)
+- agent_test.go (5 tests)
+- process_test.go (added in Stage 3)
+- ralph_test.go (added in Stage 3)
+
+## Required Implementation
+
+### 1. Test Coverage Analysis
+Run coverage analysis to identify gaps:
+```bash
+go test -cover ./...
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+Target packages needing more tests:
+- internal/storage (atomic.go, runinfo.go edge cases)
+- internal/config (validation.go, tokens.go error paths)
+- internal/messagebus (msgid.go uniqueness, lock.go timeouts)
+- internal/agent (executor.go, stdio.go)
+- internal/agent/*/  (all backend adapters)
+- internal/runner (orchestrator.go, task.go, job.go)
+- internal/api (handlers.go, sse.go, tailer.go, discovery.go)
+
+### 2. Unit Tests to Add
+
+**Storage Tests** (test/unit/storage_test.go):
+- TestAtomicWriteRaceCondition (concurrent writes)
+- TestRunInfoValidation (nil checks, empty fields)
+- TestRunInfoYAMLRoundtrip (marshal/unmarshal consistency)
+
+**Config Tests** (test/unit/config_test.go):
+- TestConfigValidationErrors (missing required fields)
+- TestTokenFileNotFound (error handling)
+- TestEnvVarOverrides (environment variable precedence)
+- TestAPIConfigDefaults (API config loading)
+
+**MessageBus Tests** (test/unit/messagebus_test.go):
+- TestMsgIDUniqueness (generate 10000 IDs, check uniqueness)
+- TestLockTimeout (verify flock timeout behavior)
+- TestConcurrentAppend (10 goroutines × 100 messages)
+
+**Agent Tests** (test/unit/agent_test.go):
+- TestExecutorStdioRedirection (verify stdout/stderr capture)
+- TestExecutorSetsid (verify process group isolation)
+- TestAgentTypeValidation (invalid agent type handling)
+
+**Runner Tests** (test/unit/runner_test.go):
+- TestProcessSpawn (verify PID/PGID tracking)
+- TestRalphLoopDONEDetection (DONE file handling)
+- TestOrchestrationParentChild (parent-child relationships)
+
+**API Tests** (test/unit/api_test.go):
+- TestHandlerErrorResponses (400, 404, 500 responses)
+- TestSSETailerPollInterval (verify polling frequency)
+- TestRunDiscoveryLatency (1s discovery interval)
+
+### 3. Mock External Dependencies
+Create mocks for:
+- Agent CLI executables (mock claude, codex commands)
+- File system operations (for race condition tests)
+- Time-dependent operations (for timeout tests)
+
+### 4. Edge Cases to Test
+- Empty/nil inputs
+- File not found errors
+- Permission denied errors
+- Timeout scenarios
+- Race conditions
+- Process crash scenarios
+- Malformed YAML/JSON
+
+### 5. Table-Driven Tests
+Use table-driven tests for validation logic:
+```go
+func TestConfigValidation(t *testing.T) {
+    tests := []struct {
+        name    string
+        config  Config
+        wantErr bool
+    }{
+        {"valid config", validConfig, false},
+        {"missing agent", invalidConfig1, true},
+        // ... more cases
+    }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            err := ValidateConfig(&tt.config)
+            if (err != nil) != tt.wantErr {
+                t.Errorf("got error %v, want error %v", err, tt.wantErr)
+            }
+        })
+    }
+}
+```
+
+### 6. Success Criteria
+- >80% code coverage across all packages
+- All edge cases tested
+- All error paths tested
+- All tests passing
+- No flaky tests
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Unit test coverage achieved (XX%)
+- FACT: Added YY new unit tests
+- FACT: All tests passing
+EOF
+}
+
+create_prompt_test_integration() {
+    cat > "$PROMPTS_DIR/test-integration.md" <<'EOF'
+# Task: Comprehensive Integration Testing
+
+**Task ID**: test-integration
+**Phase**: Integration and Testing
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: All Stages 1-4 complete
+
+## Objective
+Test component interactions, message bus concurrency, Ralph loop with real processes, and all agent backends.
+
+## Current State
+Existing integration tests in test/integration/:
+- messagebus_test.go (5 tests)
+- agent_claude_test.go, agent_codex_test.go, etc. (5 backend tests)
+- api_test.go (REST API tests)
+- sse_test.go (SSE streaming tests)
+- orchestration_test.go (orchestration tests)
+
+## Required Implementation
+
+### 1. Component Interaction Tests
+
+**Storage + Config Integration** (test/integration/storage_config_test.go):
+- TestLoadConfigAndCreateRun (load config, create run, verify storage)
+- TestRunInfoPersistenceAcrossRestarts (write, "restart", read, verify)
+
+**MessageBus + Multi-Agent** (test/integration/messagebus_concurrent_test.go):
+- TestConcurrentAgentWrites (10 agents × 100 messages, verify all written)
+- TestMessageBusOrdering (verify O_APPEND preserves order)
+- TestFlockContention (multiple processes competing for lock)
+
+**Runner + Agent Integration** (test/integration/runner_agent_test.go):
+- TestRunTaskWithRealAgent (spawn real codex/claude, verify completion)
+- TestParentChildRuns (parent spawns 3 children, verify all complete)
+- TestRalphLoopWaitForChildren (DONE + children running → wait)
+
+### 2. Message Bus Stress Tests
+
+**High Concurrency Test**:
+```go
+func TestMessageBusConcurrency(t *testing.T) {
+    const (
+        numAgents  = 10
+        numMsgs    = 100
+        totalMsgs  = numAgents * numMsgs
+    )
+
+    var wg sync.WaitGroup
+    for i := 0; i < numAgents; i++ {
+        wg.Add(1)
+        go func(agentID int) {
+            defer wg.Done()
+            for j := 0; j < numMsgs; j++ {
+                msg := fmt.Sprintf("Agent %d message %d", agentID, j)
+                if err := PostMessage(msg); err != nil {
+                    t.Errorf("PostMessage failed: %v", err)
+                }
+            }
+        }(i)
+    }
+    wg.Wait()
+
+    // Verify all messages written
+    messages := ReadAllMessages()
+    if len(messages) != totalMsgs {
+        t.Errorf("got %d messages, want %d", len(messages), totalMsgs)
+    }
+}
+```
+
+### 3. Ralph Loop Process Tests
+
+**Test Scenarios**:
+- Agent exits immediately (no children)
+- Agent spawns children and exits (DONE)
+- Agent spawns children and waits
+- Agent crashes (SIGKILL)
+- Child process becomes zombie
+- Process group cleanup
+
+### 4. Agent Backend Integration Tests
+
+For each backend (Claude, Codex, Gemini, Perplexity, xAI):
+- Test with real CLI/API
+- Test stdout/stderr capture
+- Test exit code handling
+- Test timeout behavior
+- Test error scenarios (invalid token, network error)
+
+**Example**:
+```go
+func TestClaudeBackendIntegration(t *testing.T) {
+    if testing.Short() {
+        t.Skip("skipping integration test")
+    }
+
+    agent := claude.NewAgent(cfg)
+    ctx := context.Background()
+    runCtx := &RunContext{
+        RunID:      "test-run",
+        Prompt:     "Say 'hello' and exit",
+        WorkingDir: tempDir,
+        StdoutPath: stdout,
+        StderrPath: stderr,
+    }
+
+    err := agent.Execute(ctx, runCtx)
+    if err != nil {
+        t.Fatalf("Execute failed: %v", err)
+    }
+
+    // Verify stdout contains "hello"
+    output, _ := os.ReadFile(stdout)
+    if !strings.Contains(string(output), "hello") {
+        t.Errorf("expected 'hello' in output")
+    }
+}
+```
+
+### 5. API Integration Tests
+
+**End-to-End API Tests**:
+- TestCreateTaskViaAPI (POST /api/v1/tasks)
+- TestStreamLogsViaSSE (GET /api/v1/runs/:id/stream)
+- TestConcurrentSSEClients (10 clients streaming same run)
+- TestAPIWithRealBackend (API → Runner → Agent → Storage)
+
+### 6. Cross-Platform Tests
+
+Test on multiple platforms:
+- macOS (primary development platform)
+- Linux (CI/container environment)
+- Windows (if feasible)
+
+Test platform-specific code:
+- File locking (flock vs Windows locking)
+- Process groups (PGID on Unix vs Windows)
+- Signal handling (SIGTERM vs Windows)
+
+### 7. Test Timeouts
+
+Set appropriate timeouts:
+- Short tests: 5s
+- Medium tests: 30s
+- Long tests (real agents): 2m
+- Stress tests: 5m
+
+### 8. Success Criteria
+- All component interactions tested
+- Message bus handles 1000+ concurrent messages
+- Ralph loop correctly waits for children
+- All agent backends tested with real CLIs
+- All tests passing
+- Tests complete in <5 minutes total
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Integration tests complete
+- FACT: Message bus stress test passed (XX messages)
+- FACT: All agent backends tested
+- FACT: Ralph loop tests passed
+EOF
+}
+
+create_prompt_test_docker() {
+    cat > "$PROMPTS_DIR/test-docker.md" <<'EOF'
+# Task: Docker Containerization and Testing
+
+**Task ID**: test-docker
+**Phase**: Integration and Testing
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: All Stages 1-4 complete
+
+## Objective
+Create Docker Compose setup and test full system in containers with persistence and network isolation.
+
+## Required Implementation
+
+### 1. Dockerfile
+Create `Dockerfile`:
+```dockerfile
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN go build -o /conductor ./cmd/conductor
+RUN go build -o /run-agent ./cmd/run-agent
+
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache bash curl jq
+
+# Copy binaries
+COPY --from=builder /conductor /usr/local/bin/
+COPY --from=builder /run-agent /usr/local/bin/
+
+# Create directories
+RUN mkdir -p /data/runs /data/config
+
+WORKDIR /data
+
+EXPOSE 8080
+
+CMD ["conductor"]
+```
+
+### 2. Docker Compose
+Create `docker-compose.yml`:
+```yaml
+version: '3.8'
+
+services:
+  conductor:
+    build: .
+    container_name: conductor
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data/runs:/data/runs
+      - ./config.yaml:/data/config/config.yaml:ro
+    environment:
+      - CONDUCTOR_CONFIG=/data/config/config.yaml
+    networks:
+      - conductor-net
+    restart: unless-stopped
+
+  frontend:
+    image: node:18-alpine
+    container_name: conductor-ui
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    command: npm run dev -- --host
+    ports:
+      - "3000:3000"
+    networks:
+      - conductor-net
+    depends_on:
+      - conductor
+
+networks:
+  conductor-net:
+    driver: bridge
+
+volumes:
+  run-data:
+```
+
+### 3. Test Configuration
+Create `config.docker.yaml`:
+```yaml
+agents:
+  codex:
+    type: codex
+    token_file: /secrets/codex.token
+    timeout: 300
+  claude:
+    type: claude
+    token_file: /secrets/claude.token
+    timeout: 300
+
+api:
+  host: 0.0.0.0
+  port: 8080
+  cors_origins:
+    - http://localhost:3000
+
+storage:
+  runs_dir: /data/runs
+```
+
+### 4. Docker Tests
+Create `test/docker/docker_test.go`:
+
+**Test Cases**:
+- TestDockerBuild (verify image builds successfully)
+- TestDockerRun (verify container starts and serves API)
+- TestDockerPersistence (create run, restart container, verify data persists)
+- TestDockerNetworkIsolation (verify containers can communicate)
+- TestDockerVolumes (verify volume mounts work)
+- TestDockerLogs (verify logs accessible via docker logs)
+
+**Example Test**:
+```go
+func TestDockerPersistence(t *testing.T) {
+    // Start container
+    cmd := exec.Command("docker-compose", "up", "-d")
+    if err := cmd.Run(); err != nil {
+        t.Fatalf("docker-compose up failed: %v", err)
+    }
+    defer exec.Command("docker-compose", "down").Run()
+
+    // Wait for startup
+    time.Sleep(5 * time.Second)
+
+    // Create a run via API
+    resp, err := http.Post("http://localhost:8080/api/v1/tasks", ...)
+    if err != nil {
+        t.Fatalf("POST failed: %v", err)
+    }
+
+    runID := extractRunID(resp)
+
+    // Restart container
+    exec.Command("docker-compose", "restart").Run()
+    time.Sleep(5 * time.Second)
+
+    // Verify run still exists
+    resp, err = http.Get(fmt.Sprintf("http://localhost:8080/api/v1/runs/%s", runID))
+    if err != nil || resp.StatusCode != 200 {
+        t.Errorf("run not found after restart")
+    }
+}
+```
+
+### 5. Multi-Container Test
+Test with multiple conductor instances:
+- Load balancing (multiple API servers)
+- Shared storage (all instances access same runs dir)
+- Message bus coordination (multiple writers)
+
+### 6. Health Checks
+Add health check to Dockerfile:
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/api/v1/health || exit 1
+```
+
+### 7. CI/CD Integration
+Create `.github/workflows/docker.yml`:
+```yaml
+name: Docker Tests
+
+on: [push, pull_request]
+
+jobs:
+  docker-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Docker image
+        run: docker build -t conductor:test .
+      - name: Run Docker tests
+        run: go test -v ./test/docker/...
+```
+
+### 8. Success Criteria
+- Docker image builds successfully (<500MB)
+- Container starts and serves API
+- Persistence works across restarts
+- Network isolation verified
+- All Docker tests passing
+- CI/CD pipeline runs Docker tests
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Docker image created
+- FACT: Docker Compose setup working
+- FACT: Persistence tests passed
+- FACT: All Docker tests passing
+EOF
+}
+
+create_prompt_test_performance() {
+    cat > "$PROMPTS_DIR/test-performance.md" <<'EOF'
+# Task: Performance Testing and Benchmarking
+
+**Task ID**: test-performance
+**Phase**: Integration and Testing
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: test-integration
+
+## Objective
+Benchmark system performance with focus on message bus throughput, run creation/completion, concurrent agents, and SSE latency.
+
+## Required Implementation
+
+### 1. Benchmark Framework
+Create `test/performance/benchmark_test.go`:
+
+**Go Benchmarks**:
+```go
+func BenchmarkMessageBusWrite(b *testing.B) {
+    mb := setupMessageBus()
+    b.ResetTimer()
+
+    for i := 0; i < b.N; i++ {
+        mb.Post("benchmark message")
+    }
+}
+
+func BenchmarkMessageBusReadAll(b *testing.B) {
+    mb := setupWithMessages(1000)
+    b.ResetTimer()
+
+    for i := 0; i < b.N; i++ {
+        mb.ReadAll()
+    }
+}
+
+func BenchmarkRunCreation(b *testing.B) {
+    storage := setupStorage()
+    b.ResetTimer()
+
+    for i := 0; i < b.N; i++ {
+        runInfo := &RunInfo{...}
+        storage.CreateRun(runInfo)
+    }
+}
+```
+
+### 2. Message Bus Throughput Test
+Measure messages/second:
+```go
+func TestMessageBusThroughput(t *testing.T) {
+    const duration = 10 * time.Second
+    const numWriters = 10
+
+    start := time.Now()
+    var totalMsgs atomic.Int64
+
+    var wg sync.WaitGroup
+    for i := 0; i < numWriters; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            for time.Since(start) < duration {
+                mb.Post("perf test message")
+                totalMsgs.Add(1)
+            }
+        }()
+    }
+    wg.Wait()
+
+    throughput := float64(totalMsgs.Load()) / duration.Seconds()
+    t.Logf("Throughput: %.2f messages/sec", throughput)
+
+    // Target: >1000 msg/sec
+    if throughput < 1000 {
+        t.Errorf("throughput too low: %.2f", throughput)
+    }
+}
+```
+
+### 3. Concurrent Agent Test
+Test with 50+ concurrent agents:
+```go
+func TestConcurrentAgents(t *testing.T) {
+    const numAgents = 50
+
+    start := time.Now()
+    var wg sync.WaitGroup
+
+    for i := 0; i < numAgents; i++ {
+        wg.Add(1)
+        go func(id int) {
+            defer wg.Done()
+            runTask(fmt.Sprintf("task-%d", id))
+        }(i)
+    }
+    wg.Wait()
+
+    duration := time.Since(start)
+    t.Logf("50 concurrent agents completed in %v", duration)
+
+    // Target: <5 minutes
+    if duration > 5*time.Minute {
+        t.Errorf("too slow: %v", duration)
+    }
+}
+```
+
+### 4. SSE Latency Test
+Measure log delivery latency:
+```go
+func TestSSELatency(t *testing.T) {
+    // Start SSE stream
+    stream := connectSSE(runID)
+
+    // Write log line
+    writeTime := time.Now()
+    writeLog(runID, "test message")
+
+    // Wait for SSE event
+    event := <-stream.Events
+    receiveTime := time.Now()
+
+    latency := receiveTime.Sub(writeTime)
+    t.Logf("SSE latency: %v", latency)
+
+    // Target: <200ms
+    if latency > 200*time.Millisecond {
+        t.Errorf("latency too high: %v", latency)
+    }
+}
+```
+
+### 5. Storage Performance
+Benchmark storage operations:
+- Run creation time
+- Run info read time
+- Atomic write performance
+- Concurrent read/write
+
+### 6. Memory Profiling
+Profile memory usage:
+```bash
+go test -memprofile=mem.prof ./...
+go tool pprof mem.prof
+```
+
+Check for:
+- Memory leaks
+- Excessive allocations
+- Goroutine leaks
+
+### 7. CPU Profiling
+Profile CPU usage:
+```bash
+go test -cpuprofile=cpu.prof ./...
+go tool pprof cpu.prof
+```
+
+Identify hotspots and optimize.
+
+### 8. Load Test Script
+Create `scripts/load-test.sh`:
+```bash
+#!/bin/bash
+# Simulate high load
+
+for i in {1..100}; do
+    curl -X POST http://localhost:8080/api/v1/tasks \
+        -H "Content-Type: application/json" \
+        -d '{"task_id": "load-'$i'", "agent_type": "codex"}' &
+done
+
+wait
+echo "Load test complete"
+```
+
+### 9. Performance Targets
+
+**Throughput**:
+- Message bus: >1000 messages/sec
+- Run creation: >100 runs/sec
+- API requests: >500 req/sec
+
+**Latency**:
+- SSE event delivery: <200ms
+- API response time: <50ms (p95)
+- Run creation: <10ms
+
+**Concurrency**:
+- 50+ concurrent agents without degradation
+- 100+ concurrent SSE clients
+- 1000+ messages in flight
+
+**Resource Usage**:
+- Memory: <500MB for 50 concurrent agents
+- CPU: <80% utilization under load
+- Goroutines: <1000 under normal load
+
+### 10. Success Criteria
+- All performance targets met
+- No memory leaks detected
+- No goroutine leaks detected
+- CPU hotspots identified and documented
+- System handles 50+ concurrent agents
+- Benchmarks documented
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Performance benchmarks complete
+- FACT: Message bus throughput: XX msg/sec
+- FACT: SSE latency: XX ms
+- FACT: 50 concurrent agents completed in XX minutes
+EOF
+}
+
+create_prompt_test_acceptance() {
+    cat > "$PROMPTS_DIR/test-acceptance.md" <<'EOF'
+# Task: End-to-End Acceptance Testing
+
+**Task ID**: test-acceptance
+**Phase**: Integration and Testing
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: test-integration, test-performance
+
+## Objective
+Run complete end-to-end scenarios to validate the entire system works as designed.
+
+## Required Implementation
+
+### 1. Acceptance Test Framework
+Create `test/acceptance/acceptance_test.go`:
+
+### 2. Scenario 1: Single Agent Task
+**Goal**: Single agent completes task end-to-end
+
+```go
+func TestScenario1_SingleAgentTask(t *testing.T) {
+    // 1. Start conductor
+    conductor := startConductor()
+    defer conductor.Stop()
+
+    // 2. Create task via API
+    task := createTask("single-task", "codex", "echo hello")
+
+    // 3. Wait for completion
+    waitForCompletion(task.RunID, 2*time.Minute)
+
+    // 4. Verify results
+    runInfo := getRunInfo(task.RunID)
+    assert.Equal(t, "completed", runInfo.Status)
+    assert.Equal(t, 0, runInfo.ExitCode)
+
+    // 5. Verify logs
+    logs := readLogs(task.RunID)
+    assert.Contains(t, logs, "hello")
+
+    // 6. Verify message bus
+    messages := readMessageBus()
+    assert.Contains(t, messages, "FACT: Task single-task completed")
+}
+```
+
+### 3. Scenario 2: Parent-Child Hierarchy
+**Goal**: Parent spawns 3 children, all complete
+
+```go
+func TestScenario2_ParentChildRuns(t *testing.T) {
+    // 1. Create parent task that spawns children
+    parentTask := createTask("parent", "codex", `
+        run-agent task child-1 "echo child 1"
+        run-agent task child-2 "echo child 2"
+        run-agent task child-3 "echo child 3"
+        echo "parent done"
+    `)
+
+    // 2. Wait for all runs
+    waitForCompletion(parentTask.RunID, 5*time.Minute)
+
+    // 3. Find child runs
+    childRuns := findChildRuns(parentTask.RunID)
+    assert.Len(t, childRuns, 3)
+
+    // 4. Verify all completed
+    for _, child := range childRuns {
+        runInfo := getRunInfo(child.RunID)
+        assert.Equal(t, "completed", runInfo.Status)
+        assert.Equal(t, 0, runInfo.ExitCode)
+    }
+
+    // 5. Verify parent completed
+    parentInfo := getRunInfo(parentTask.RunID)
+    assert.Equal(t, "completed", parentInfo.Status)
+
+    // 6. Verify run tree structure
+    tree := getRunTree(parentTask.RunID)
+    assert.Len(t, tree.Children, 3)
+}
+```
+
+### 4. Scenario 3: Ralph Loop Wait Pattern
+**Goal**: DONE with children running → wait → complete
+
+```go
+func TestScenario3_RalphLoopWait(t *testing.T) {
+    // 1. Create task that:
+    //    - Spawns long-running child
+    //    - Creates DONE file
+    //    - Ralph loop should wait for child
+
+    task := createTask("ralph-wait", "codex", `
+        run-agent task long-child "sleep 30 && echo done" &
+        touch DONE
+        echo "parent DONE created"
+    `)
+
+    // 2. Wait for DONE file
+    waitForDONE(task.RunID, 1*time.Minute)
+
+    // 3. Verify parent status (should be waiting)
+    parentInfo := getRunInfo(task.RunID)
+    assert.Contains(t, []string{"running", "waiting"}, parentInfo.Status)
+
+    // 4. Wait for child completion
+    time.Sleep(35 * time.Second)
+
+    // 5. Verify parent now completed
+    parentInfo = getRunInfo(task.RunID)
+    assert.Equal(t, "completed", parentInfo.Status)
+
+    // 6. Verify message bus shows wait pattern
+    messages := readMessageBus()
+    assert.Contains(t, messages, "DONE detected, waiting for children")
+}
+```
+
+### 5. Scenario 4: Message Bus Concurrent Writes
+**Goal**: Verify message bus handles concurrent writes correctly
+
+```go
+func TestScenario4_MessageBusRace(t *testing.T) {
+    // 1. Launch 10 tasks simultaneously
+    var tasks []Task
+    for i := 0; i < 10; i++ {
+        task := createTask(
+            fmt.Sprintf("concurrent-%d", i),
+            "codex",
+            fmt.Sprintf("for j in {1..100}; do echo 'Agent %d message '$j; done", i),
+        )
+        tasks = append(tasks, task)
+    }
+
+    // 2. Wait for all completions
+    for _, task := range tasks {
+        waitForCompletion(task.RunID, 3*time.Minute)
+    }
+
+    // 3. Read message bus
+    messages := readMessageBus()
+
+    // 4. Verify message count (10 agents × 100 messages = 1000)
+    agentMessages := countAgentMessages(messages)
+    assert.GreaterOrEqual(t, agentMessages, 1000)
+
+    // 5. Verify message ordering per agent (should be sequential)
+    for i := 0; i < 10; i++ {
+        agentMsgs := filterAgentMessages(messages, i)
+        verifySequential(t, agentMsgs, i)
+    }
+
+    // 6. Verify no corrupted messages (incomplete lines)
+    for _, msg := range messages {
+        assert.True(t, isWellFormed(msg))
+    }
+}
+```
+
+### 6. Scenario 5: UI Live Monitoring
+**Goal**: UI monitors live run progress via SSE
+
+```go
+func TestScenario5_UILiveMonitoring(t *testing.T) {
+    // 1. Start frontend (if not running)
+    frontend := startFrontend()
+    defer frontend.Stop()
+
+    // 2. Open UI in browser (via Playwright)
+    browser := playwright.LaunchBrowser()
+    page := browser.NewPage("http://localhost:3000")
+
+    // 3. Create a long-running task
+    task := createTask("ui-monitor", "codex", `
+        for i in {1..10}; do
+            echo "Progress: $i/10"
+            sleep 2
+        done
+        echo "Complete"
+    `)
+
+    // 4. Navigate to run detail page
+    page.Click(fmt.Sprintf("[data-run-id='%s']", task.RunID))
+
+    // 5. Verify live log streaming
+    logViewer := page.Locator(".log-viewer")
+
+    // Wait for "Progress: 5/10" to appear
+    logViewer.WaitForSelector(":text('Progress: 5/10')", 15*time.Second)
+
+    // 6. Verify status updates in real-time
+    statusBadge := page.Locator(".status-badge")
+    assert.Equal(t, "Running", statusBadge.Text())
+
+    // 7. Wait for completion
+    waitForCompletion(task.RunID, 30*time.Second)
+
+    // 8. Verify UI shows completed status
+    page.WaitForSelector(".status-badge:text('Completed')")
+
+    // 9. Verify complete logs visible
+    logText := logViewer.Text()
+    assert.Contains(t, logText, "Progress: 10/10")
+    assert.Contains(t, logText, "Complete")
+}
+```
+
+### 7. System Health Checks
+Between scenarios, verify:
+- No orphaned processes
+- No memory leaks
+- No file descriptor leaks
+- No goroutine leaks
+- Message bus not growing unbounded
+- Runs directory size reasonable
+
+### 8. Teardown and Cleanup
+After all tests:
+- Stop all agents
+- Clean up runs directory
+- Verify no processes left running
+- Reset message bus
+
+### 9. Success Criteria
+- All 5 scenarios pass
+- No errors in logs
+- No resource leaks
+- System stable after all tests
+- UI correctly displays all run states
+- Message bus integrity maintained
+
+### 10. Test Report
+Generate test report:
+- Scenarios passed/failed
+- Execution time per scenario
+- Resource usage (CPU, memory, disk)
+- Error summary
+- Performance metrics
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Scenario 1 (single agent) passed
+- FACT: Scenario 2 (parent-child) passed
+- FACT: Scenario 3 (Ralph wait) passed
+- FACT: Scenario 4 (message bus race) passed
+- FACT: Scenario 5 (UI monitoring) passed
+- FACT: All acceptance tests passed
+EOF
+}
+
+#############################################################################
 # CREATE ALL PROMPTS
 #############################################################################
 
@@ -1744,8 +2717,14 @@ create_all_prompts() {
     create_prompt_api_sse
     create_prompt_ui_frontend
 
+    # Testing prompts
+    create_prompt_test_unit
+    create_prompt_test_integration
+    create_prompt_test_docker
+    create_prompt_test_performance
+    create_prompt_test_acceptance
+
     # TODO: Add remaining prompts for:
-    # - Test suites (5 prompts)
     # - Documentation (3 prompts)
 
     log "FACT: Task prompts created in $PROMPTS_DIR/"
@@ -1999,6 +2978,68 @@ run_stage_4_api() {
     log_success "STAGE 4 COMPLETE: API and frontend implemented"
 }
 
+run_stage_5_testing() {
+    log "=========================================="
+    log "STAGE 5: INTEGRATION AND TESTING"
+    log "=========================================="
+
+    # Phase 5a: Core test suites (parallel)
+    log "Phase 5a: Core Test Suites (parallel)"
+    run_agent_task "test-unit" "codex" "$PROMPTS_DIR/test-unit.md"
+    run_agent_task "test-integration" "codex" "$PROMPTS_DIR/test-integration.md"
+    run_agent_task "test-docker" "codex" "$PROMPTS_DIR/test-docker.md"
+
+    log "PROGRESS: Waiting for 3 test suites to complete (timeout: ${STAGE_TIMEOUT}s)..."
+    wait_for_tasks "test-unit" "test-integration" "test-docker"
+
+    # Check Phase 5a tasks
+    local failed=0
+    if ! check_task_success "test-unit"; then
+        log_error "Task test-unit failed"
+        failed=1
+    fi
+
+    if ! check_task_success "test-integration"; then
+        log_error "Task test-integration failed"
+        failed=1
+    fi
+
+    if ! check_task_success "test-docker"; then
+        log_error "Task test-docker failed"
+        failed=1
+    fi
+
+    if [ $failed -eq 1 ]; then
+        log_error "Stage 5 Phase 5a failed: Core test suites failed"
+        return 1
+    fi
+
+    log_success "Phase 5a complete: Core test suites passed"
+
+    # Phase 5b: Performance and acceptance tests (sequential after integration)
+    log "Phase 5b: Performance and Acceptance Tests (sequential)"
+
+    log "Step 5.4: Performance Tests"
+    run_agent_task "test-performance" "codex" "$PROMPTS_DIR/test-performance.md"
+    wait_for_tasks "test-performance"
+
+    if ! check_task_success "test-performance"; then
+        log_error "Stage 5 failed: test-performance"
+        return 1
+    fi
+
+    log "Step 5.5: Acceptance Tests"
+    run_agent_task "test-acceptance" "codex" "$PROMPTS_DIR/test-acceptance.md"
+    wait_for_tasks "test-acceptance"
+
+    if ! check_task_success "test-acceptance"; then
+        log_error "Stage 5 failed: test-acceptance"
+        return 1
+    fi
+
+    log_success "STAGE 5 COMPLETE: All tests passed"
+}
+
 #############################################################################
 # MAIN EXECUTION
 #############################################################################
@@ -2041,8 +3082,12 @@ main() {
         exit 1
     fi
 
+    if ! run_stage_5_testing; then
+        log_error "FATAL: Stage 5 (Integration and Testing) failed"
+        exit 1
+    fi
+
     # TODO: Add remaining stages:
-    # run_stage_5_testing
     # run_stage_6_documentation
 
     log "======================================================================"

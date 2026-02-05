@@ -40,7 +40,7 @@ func TestLogTailing(t *testing.T) {
 	}
 }
 
-func TestSSEStreaming(t *testing.T) {
+func TestStreamLogsViaSSE(t *testing.T) {
 	root := t.TempDir()
 	runID := "run-001"
 	runDir := writeRunInfoSSE(t, root, "project", "task", runID, storage.StatusRunning)
@@ -130,6 +130,42 @@ func TestMultipleClients(t *testing.T) {
 	}
 	_ = waitForEvent(t, events1, "log", 2*time.Second)
 	_ = waitForEvent(t, events2, "log", 2*time.Second)
+}
+
+func TestConcurrentSSEClients(t *testing.T) {
+	root := t.TempDir()
+	runID := "run-010"
+	runDir := writeRunInfoSSE(t, root, "project", "task", runID, storage.StatusRunning)
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+
+	server := newSSEServer(t, root)
+	defer server.Close()
+
+	const clients = 10
+	responses := make([]*http.Response, 0, clients)
+	events := make([]<-chan sseEvent, 0, clients)
+	for i := 0; i < clients; i++ {
+		resp, err := http.Get(server.URL + "/api/v1/runs/" + runID + "/stream")
+		if err != nil {
+			t.Fatalf("stream request %d: %v", i, err)
+		}
+		responses = append(responses, resp)
+		events = append(events, readSSEEvents(resp))
+	}
+	for _, resp := range responses {
+		defer resp.Body.Close()
+	}
+
+	if err := appendLine(stdoutPath, "fanout-10"); err != nil {
+		t.Fatalf("append line: %v", err)
+	}
+
+	for i, ch := range events {
+		_ = waitForEvent(t, ch, "log", 2*time.Second)
+		if ch == nil {
+			t.Fatalf("event channel %d is nil", i)
+		}
+	}
 }
 
 func TestClientReconnect(t *testing.T) {

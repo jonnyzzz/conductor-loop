@@ -18,7 +18,7 @@ import (
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 )
 
-func TestCreateTask(t *testing.T) {
+func TestCreateTaskViaAPI(t *testing.T) {
 	root := t.TempDir()
 	ts := newTestServer(t, root)
 	defer ts.Close()

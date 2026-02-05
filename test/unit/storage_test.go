@@ -38,6 +38,37 @@ func TestRunInfoSerialization(t *testing.T) {
 	assertRunInfoEqual(t, info, got)
 }
 
+func TestRunInfoYAMLRoundtrip(t *testing.T) {
+	info := &storage.RunInfo{
+		RunID:       "roundtrip-1",
+		ParentRunID: "parent-1",
+		ProjectID:   "project",
+		TaskID:      "task-rt",
+		AgentType:   "claude",
+		PID:         42,
+		PGID:        100,
+		StartTime:   time.Date(2026, 2, 4, 9, 0, 0, 0, time.UTC),
+		EndTime:     time.Date(2026, 2, 4, 9, 30, 0, 0, time.UTC),
+		ExitCode:    0,
+		Status:      storage.StatusCompleted,
+		CWD:         "/tmp",
+		PromptPath:  "/tmp/prompt.md",
+		OutputPath:  "/tmp/output.md",
+		StdoutPath:  "/tmp/stdout.txt",
+		StderrPath:  "/tmp/stderr.txt",
+		CommandLine: "echo hello",
+	}
+	path := filepath.Join(t.TempDir(), "run-info.yaml")
+	if err := storage.WriteRunInfo(path, info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+	got, err := storage.ReadRunInfo(path)
+	if err != nil {
+		t.Fatalf("read run-info: %v", err)
+	}
+	assertRunInfoEqual(t, info, got)
+}
+
 func TestAtomicWrite(t *testing.T) {
 	infoA := &storage.RunInfo{
 		RunID:     "run-a",
@@ -128,6 +159,65 @@ func TestConcurrentWrites(t *testing.T) {
 	}
 	if !strings.HasPrefix(got.RunID, "run-") {
 		t.Fatalf("unexpected run id after concurrent writes: %q", got.RunID)
+	}
+}
+
+func TestAtomicWriteRaceCondition(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run-info.yaml")
+
+	const (
+		writers    = 5
+		iterations = 50
+	)
+
+	errCh := make(chan error, writers*iterations)
+	var wg sync.WaitGroup
+	for w := 0; w < writers; w++ {
+		w := w
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				info := &storage.RunInfo{
+					RunID:     fmt.Sprintf("race-%d-%d", w, i),
+					ProjectID: "project",
+					TaskID:    "task-race",
+					AgentType: "codex",
+					PID:       200 + w,
+					PGID:      300 + w,
+					StartTime: time.Date(2026, 2, 4, 15, 0, 0, i, time.UTC),
+					ExitCode:  -1,
+					Status:    storage.StatusRunning,
+				}
+				if err := storage.WriteRunInfo(path, info); err != nil {
+					errCh <- err
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("atomic write race error: %v", err)
+		}
+	}
+}
+
+func TestRunInfoValidation(t *testing.T) {
+	if err := storage.WriteRunInfo("", &storage.RunInfo{}); err == nil {
+		t.Fatalf("expected error for empty path")
+	}
+	if err := storage.WriteRunInfo("ignored", nil); err == nil {
+		t.Fatalf("expected error for nil info")
+	}
+	if _, err := storage.ReadRunInfo(""); err == nil {
+		t.Fatalf("expected error for empty path read")
+	}
+	if err := storage.UpdateRunInfo("ignored", nil); err == nil {
+		t.Fatalf("expected error for nil update")
 	}
 }
 
