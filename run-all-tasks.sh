@@ -925,6 +925,238 @@ Log to MESSAGE-BUS.md:
 EOF
 }
 
+create_prompt_runner_process() {
+    cat > "$PROMPTS_DIR/runner-process.md" <<'EOF'
+# Task: Implement Process Management
+
+**Task ID**: runner-process
+**Phase**: Runner Orchestration
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: agent-protocol, storage, config
+
+## Objective
+Implement process spawning with setsid() and stdio redirection.
+
+## Specifications
+Read: docs/specifications/subsystem-runner-orchestration.md
+Read: docs/decisions/problem-7-DECISION.md (setsid not daemonization)
+
+## Required Implementation
+
+### 1. Package Structure
+Location: `internal/runner/`
+Files:
+- process.go - Process spawning with setsid
+- stdio.go - Stdio redirection to files
+- pgid.go - Process group ID management
+
+### 2. Process Spawning
+```go
+type ProcessManager struct {
+    runDir string
+}
+
+func (pm *ProcessManager) SpawnAgent(ctx context.Context, agentType string, opts SpawnOptions) (*Process, error) {
+    // Use exec.Cmd with SysProcAttr.Setsid = true
+    // Redirect stdin/stdout/stderr to files
+    // Track PID and PGID
+    // Return Process handle
+}
+```
+
+### 3. Setsid Implementation
+- Use syscall.SysProcAttr{Setsid: true} on Unix
+- Use CREATE_NEW_PROCESS_GROUP on Windows
+- Do NOT daemonize (no double-fork)
+- Terminal detachment only
+
+### 4. Stdio Redirection
+- Create agent-stdout.txt, agent-stderr.txt in run dir
+- Open with O_APPEND for concurrent writes
+- Use io.MultiWriter for tee-style logging if needed
+
+### 5. Tests Required
+Location: `test/unit/process_test.go`
+- TestSpawnProcess
+- TestProcessSetsid
+- TestStdioRedirection
+- TestProcessGroupManagement
+
+## Success Criteria
+- All tests pass
+- Processes properly detached from terminal
+- Stdio correctly captured to files
+
+## References
+- docs/decisions/problem-7-DECISION.md
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Process management implemented
+- FACT: Setsid working on Unix and Windows
+EOF
+}
+
+create_prompt_runner_ralph() {
+    cat > "$PROMPTS_DIR/runner-ralph.md" <<'EOF'
+# Task: Implement Ralph Loop
+
+**Task ID**: runner-ralph
+**Phase**: Runner Orchestration
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: runner-process, messagebus
+
+## Objective
+Implement the Ralph Loop (Root Agent Loop) with wait-without-restart pattern.
+
+## Specifications
+Read: docs/specifications/subsystem-runner-orchestration.md
+Read: docs/decisions/problem-2-FINAL-DECISION.md (DONE + children handling)
+
+## Required Implementation
+
+### 1. Package Structure
+Location: `internal/runner/`
+Files:
+- ralph.go - Ralph Loop implementation
+- wait.go - Child process waiting logic
+
+### 2. Ralph Loop
+```go
+type RalphLoop struct {
+    runDir        string
+    messagebus    *messagebus.MessageBus
+    maxRestarts   int
+    waitTimeout   time.Duration // 300s default
+}
+
+func (rl *RalphLoop) Run(ctx context.Context) error {
+    // 1. Check for DONE file
+    // 2. If DONE exists:
+    //    - Wait for children (up to waitTimeout)
+    //    - Check children with kill(-pgid, 0)
+    //    - Return when all children exit or timeout
+    // 3. If no DONE:
+    //    - Check if process should restart
+    //    - Respect maxRestarts limit
+    //    - Restart if needed
+}
+```
+
+### 3. DONE File Detection
+- Check for DONE file in run directory
+- File presence signals "don't restart"
+- Must still wait for children
+
+### 4. Child Waiting
+- Use kill(-pgid, 0) to detect children
+- Poll every 1 second
+- Timeout after 300 seconds (configurable)
+- Return early if all children exit
+
+### 5. Restart Logic
+- Count restarts, enforce maxRestarts limit
+- Log restart events to message bus
+- Exponential backoff optional
+
+### 6. Tests Required
+Location: `test/unit/ralph_test.go`
+- TestRalphLoopDONEWithChildren
+- TestRalphLoopDONEWithoutChildren
+- TestRalphLoopRestartLogic
+- TestChildWaitTimeout
+
+## Success Criteria
+- All tests pass
+- DONE + children scenario working
+- 300s timeout enforced
+
+## References
+- docs/decisions/problem-2-FINAL-DECISION.md
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Ralph Loop implemented
+- FACT: Wait-without-restart working
+EOF
+}
+
+create_prompt_runner_orchestration() {
+    cat > "$PROMPTS_DIR/runner-orchestration.md" <<'EOF'
+# Task: Implement Run Orchestration
+
+**Task ID**: runner-orchestration
+**Phase**: Runner Orchestration
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: runner-ralph, storage, config, agent-protocol
+
+## Objective
+Implement run-agent task and job commands for orchestration.
+
+## Specifications
+Read: docs/specifications/subsystem-runner-orchestration.md
+
+## Required Implementation
+
+### 1. Package Structure
+Location: `internal/runner/`
+Files:
+- orchestrator.go - Main orchestration logic
+- task.go - Task command implementation
+- job.go - Job command implementation
+
+### 2. Task Command
+```go
+func RunTask(projectID, taskID string, opts TaskOptions) error {
+    // 1. Create run directory
+    // 2. Write run-info.yaml (status: running)
+    // 3. Load config, select agent
+    // 4. Spawn agent process
+    // 5. Start Ralph Loop
+    // 6. Update run-info.yaml (status: completed/failed)
+}
+```
+
+### 3. Job Command
+- Similar to task but with job-specific metadata
+- Support parent-child run relationships
+- Track parent_run_id in run-info.yaml
+
+### 4. Run Directory Structure
+Create:
+- run-info.yaml
+- agent-stdout.txt
+- agent-stderr.txt
+- DONE (created by agent when finished)
+
+### 5. Parent-Child Relationships
+- Child runs set parent_run_id
+- Parent waits for children via Ralph Loop
+- Message bus allows inter-run communication
+
+### 6. Tests Required
+Location: `test/integration/orchestration_test.go`
+- TestRunTask
+- TestRunJob
+- TestParentChildRuns
+- TestNestedRuns
+
+## Success Criteria
+- All tests pass
+- run-agent task command working
+- run-agent job command working
+- Parent-child relationships functional
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Orchestration implemented
+- FACT: Task and job commands working
+EOF
+}
+
 #############################################################################
 # CREATE ALL PROMPTS
 #############################################################################
@@ -951,8 +1183,12 @@ create_all_prompts() {
     create_prompt_agent_perplexity
     create_prompt_agent_xai
 
+    # Runner orchestration prompts
+    create_prompt_runner_process
+    create_prompt_runner_ralph
+    create_prompt_runner_orchestration
+
     # TODO: Add remaining prompts for:
-    # - Runner components (3 prompts)
     # - API components (3 prompts)
     # - Test suites (5 prompts)
     # - Documentation (3 prompts)
@@ -1133,6 +1369,42 @@ run_stage_2_agents() {
     log_success "STAGE 2 COMPLETE: Agent system implemented"
 }
 
+run_stage_3_runner() {
+    log "=========================================="
+    log "STAGE 3: RUNNER ORCHESTRATION"
+    log "=========================================="
+
+    # Sequential execution (dependencies)
+    log "Step 3.1: Process Management"
+    run_agent_task "runner-process" "codex" "$PROMPTS_DIR/runner-process.md"
+    wait_for_tasks "runner-process"
+
+    if ! check_task_success "runner-process"; then
+        log_error "Stage 3 failed: runner-process"
+        return 1
+    fi
+
+    log "Step 3.2: Ralph Loop"
+    run_agent_task "runner-ralph" "codex" "$PROMPTS_DIR/runner-ralph.md"
+    wait_for_tasks "runner-ralph"
+
+    if ! check_task_success "runner-ralph"; then
+        log_error "Stage 3 failed: runner-ralph"
+        return 1
+    fi
+
+    log "Step 3.3: Run Orchestration"
+    run_agent_task "runner-orchestration" "codex" "$PROMPTS_DIR/runner-orchestration.md"
+    wait_for_tasks "runner-orchestration"
+
+    if ! check_task_success "runner-orchestration"; then
+        log_error "Stage 3 failed: runner-orchestration"
+        return 1
+    fi
+
+    log_success "STAGE 3 COMPLETE: Runner orchestration implemented"
+}
+
 #############################################################################
 # MAIN EXECUTION
 #############################################################################
@@ -1165,8 +1437,12 @@ main() {
         exit 1
     fi
 
+    if ! run_stage_3_runner; then
+        log_error "FATAL: Stage 3 (Runner Orchestration) failed"
+        exit 1
+    fi
+
     # TODO: Add remaining stages:
-    # run_stage_3_runner
     # run_stage_4_api
     # run_stage_5_testing
     # run_stage_6_documentation
