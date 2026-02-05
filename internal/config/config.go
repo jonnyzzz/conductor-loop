@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Agents   map[string]AgentConfig `yaml:"agents"`
 	Defaults DefaultConfig          `yaml:"defaults"`
+	API      APIConfig              `yaml:"api"`
 }
 
 // AgentConfig describes a single agent backend configuration.
@@ -53,6 +54,7 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	applyAgentDefaults(&cfg)
+	applyAPIDefaults(&cfg)
 	applyTokenEnvOverrides(&cfg)
 
 	baseDir := filepath.Dir(path)

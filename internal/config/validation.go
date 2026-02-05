@@ -26,6 +26,18 @@ func ValidateConfig(cfg *Config) error {
 	if cfg.Defaults.Timeout <= 0 {
 		return fmt.Errorf("defaults.timeout must be positive")
 	}
+	if cfg.API.SSE.PollIntervalMs < 0 {
+		return fmt.Errorf("api.sse.poll_interval_ms must be non-negative")
+	}
+	if cfg.API.SSE.DiscoveryIntervalMs < 0 {
+		return fmt.Errorf("api.sse.discovery_interval_ms must be non-negative")
+	}
+	if cfg.API.SSE.HeartbeatIntervalS < 0 {
+		return fmt.Errorf("api.sse.heartbeat_interval_s must be non-negative")
+	}
+	if cfg.API.SSE.MaxClientsPerRun < 0 {
+		return fmt.Errorf("api.sse.max_clients_per_run must be non-negative")
+	}
 
 	for name, agent := range cfg.Agents {
 		if agent.Type == "" {
@@ -49,6 +61,10 @@ func ValidateConfig(cfg *Config) error {
 				return fmt.Errorf("agent %q token_file %q: %w", name, agent.TokenFile, err)
 			}
 		}
+	}
+
+	if cfg.API.Port < 0 || cfg.API.Port > 65535 {
+		return fmt.Errorf("api.port must be between 0 and 65535")
 	}
 
 	return nil

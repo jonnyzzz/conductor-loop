@@ -1158,6 +1158,557 @@ EOF
 }
 
 #############################################################################
+# STAGE 4: API AND FRONTEND PROMPTS
+#############################################################################
+
+create_prompt_api_rest() {
+    cat > "$PROMPTS_DIR/api-rest.md" <<'EOF'
+# Task: Implement REST API
+
+**Task ID**: api-rest
+**Phase**: API and Frontend
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: storage, config
+
+## Objective
+Implement REST API server for task management and run monitoring.
+
+## Specifications
+Read: docs/specifications/subsystem-api-rest.md
+
+## Required Implementation
+
+### 1. Package Structure
+Location: `internal/api/`
+Files:
+- server.go - HTTP server setup
+- routes.go - Route definitions
+- handlers.go - Request handlers
+- middleware.go - Auth, logging, CORS
+
+### 2. HTTP Framework Decision
+Research and choose:
+- net/http (stdlib, minimal)
+- gin (fast, popular)
+- echo (lightweight, good middleware)
+
+Recommendation: Start with net/http for simplicity, can refactor to gin/echo later if needed.
+
+### 3. API Endpoints
+
+#### Task Management
+```
+POST   /api/v1/tasks         - Create new task
+GET    /api/v1/tasks         - List all tasks
+GET    /api/v1/tasks/:id     - Get task details
+DELETE /api/v1/tasks/:id     - Cancel task
+```
+
+#### Run Management
+```
+GET    /api/v1/runs          - List all runs
+GET    /api/v1/runs/:id      - Get run details
+GET    /api/v1/runs/:id/info - Get run-info.yaml
+POST   /api/v1/runs/:id/stop - Stop running task
+```
+
+#### Message Bus
+```
+GET    /api/v1/messages      - Get all messages
+GET    /api/v1/messages?after=<msg_id> - Get messages after ID
+```
+
+#### Health
+```
+GET    /api/v1/health        - Health check
+GET    /api/v1/version       - Version info
+```
+
+### 4. Request/Response Models
+```go
+type TaskCreateRequest struct {
+    ProjectID string            `json:"project_id"`
+    TaskID    string            `json:"task_id"`
+    AgentType string            `json:"agent_type"`
+    Prompt    string            `json:"prompt"`
+    Config    map[string]string `json:"config,omitempty"`
+}
+
+type RunResponse struct {
+    RunID      string    `json:"run_id"`
+    ProjectID  string    `json:"project_id"`
+    TaskID     string    `json:"task_id"`
+    Status     string    `json:"status"`
+    StartTime  time.Time `json:"start_time"`
+    EndTime    time.Time `json:"end_time,omitempty"`
+    ExitCode   int       `json:"exit_code,omitempty"`
+}
+```
+
+### 5. Middleware
+- Logging (request/response times)
+- CORS (allow frontend origin)
+- Error handling (consistent JSON errors)
+- Authentication stub (token validation placeholder)
+
+### 6. Configuration
+Add to config.yaml:
+```yaml
+api:
+  host: "0.0.0.0"
+  port: 8080
+  cors_origins:
+    - "http://localhost:3000"
+  auth_enabled: false  # stub for future
+```
+
+### 7. Tests Required
+Location: `test/integration/api_test.go`
+- TestCreateTask
+- TestListRuns
+- TestGetRunInfo
+- TestMessageBusEndpoint
+- TestCORSHeaders
+- TestErrorResponses
+
+## Implementation Steps
+
+1. **Research Phase** (10 minutes)
+   - Compare net/http vs gin vs echo
+   - Document decision in MESSAGE-BUS.md
+
+2. **Implementation Phase** (45 minutes)
+   - Create server.go with HTTP server setup
+   - Implement all endpoint handlers
+   - Add middleware (logging, CORS, errors)
+   - Wire up storage and config dependencies
+
+3. **Testing Phase** (30 minutes)
+   - Write integration tests for all endpoints
+   - Test CORS with curl
+   - Test error handling
+
+4. **IntelliJ Checks** (15 minutes)
+   - Run all inspections
+   - Fix any warnings
+   - Ensure >80% test coverage
+
+## Success Criteria
+- All endpoints functional
+- All tests passing
+- CORS properly configured
+- Error handling consistent
+- IntelliJ checks clean
+
+## Output
+Log to MESSAGE-BUS.md:
+- DECISION: HTTP framework choice and rationale
+- FACT: REST API implemented
+- FACT: All endpoints tested
+EOF
+}
+
+create_prompt_api_sse() {
+    cat > "$PROMPTS_DIR/api-sse.md" <<'EOF'
+# Task: Implement SSE Log Streaming
+
+**Task ID**: api-sse
+**Phase**: API and Frontend
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: storage
+
+## Objective
+Implement Server-Sent Events (SSE) streaming for real-time log tailing.
+
+## Specifications
+Read: docs/specifications/subsystem-api-streaming.md
+
+## Required Implementation
+
+### 1. Package Structure
+Location: `internal/api/`
+Files:
+- sse.go - SSE handler and streaming logic
+- tailer.go - Log file tailing implementation
+- discovery.go - Run discovery polling
+
+### 2. SSE Endpoints
+
+```
+GET /api/v1/runs/:id/stream     - Stream logs for specific run
+GET /api/v1/runs/stream/all     - Stream logs from all runs
+GET /api/v1/messages/stream     - Stream message bus updates
+```
+
+### 3. SSE Event Format
+```
+event: log
+data: {"run_id": "...", "line": "...", "timestamp": "..."}
+
+event: status
+data: {"run_id": "...", "status": "completed", "exit_code": 0}
+
+event: message
+data: {"msg_id": "...", "content": "...", "timestamp": "..."}
+
+event: heartbeat
+data: {}
+```
+
+### 4. Log Tailing Implementation
+
+**Strategy**: Polling-based file tailing
+- Poll stdout/stderr files every 100ms
+- Track last read position (file offset)
+- Detect file rotation/truncation
+- Send new lines as SSE events
+
+```go
+type Tailer struct {
+    filePath string
+    offset   int64
+    ticker   *time.Ticker
+    events   chan SSEEvent
+}
+
+func (t *Tailer) Start() {
+    // Poll file every 100ms
+    // Read new content from offset
+    // Send as SSE events
+}
+```
+
+### 5. Run Discovery
+
+**Problem**: Clients need to discover new runs as they're created
+**Solution**: Poll runs directory every 1 second
+
+```go
+type RunDiscovery struct {
+    runsDir     string
+    knownRuns   map[string]bool
+    ticker      *time.Ticker
+    newRunChan  chan string
+}
+
+func (d *RunDiscovery) Poll() {
+    // List runs directory
+    // Compare with knownRuns
+    // Notify on new runs
+}
+```
+
+### 6. Concurrent Streaming
+
+Support multiple clients streaming different runs:
+- Each client gets dedicated goroutine
+- Each run gets dedicated tailer
+- Ref-counted tailers (start/stop based on client count)
+- Proper cleanup on client disconnect
+
+```go
+type StreamManager struct {
+    tailers map[string]*Tailer
+    clients map[string][]*SSEClient
+    mu      sync.RWMutex
+}
+```
+
+### 7. Client Reconnection
+
+Support `Last-Event-ID` header for resume:
+- Client sends last received log line number
+- Server resends from that position
+- Prevents missing logs on reconnect
+
+### 8. Configuration
+Add to config.yaml:
+```yaml
+api:
+  sse:
+    poll_interval_ms: 100
+    discovery_interval_ms: 1000
+    heartbeat_interval_s: 30
+    max_clients_per_run: 10
+```
+
+### 9. Tests Required
+Location: `test/integration/sse_test.go`
+- TestSSEStreaming
+- TestLogTailing
+- TestRunDiscovery
+- TestMultipleClients
+- TestClientReconnect
+- TestHeartbeat
+
+## Implementation Steps
+
+1. **Research Phase** (15 minutes)
+   - Study Go SSE libraries (standard vs third-party)
+   - Research file tailing patterns
+   - Document approach in MESSAGE-BUS.md
+
+2. **Implementation Phase** (60 minutes)
+   - Implement Tailer for log file polling
+   - Implement SSE handler with event formatting
+   - Implement RunDiscovery polling
+   - Implement StreamManager for concurrent clients
+   - Add reconnection support
+
+3. **Testing Phase** (30 minutes)
+   - Write integration tests
+   - Test with multiple concurrent clients
+   - Test reconnection scenarios
+   - Test with curl (manual verification)
+
+4. **IntelliJ Checks** (15 minutes)
+   - Run all inspections
+   - Fix any warnings
+   - Ensure >80% test coverage
+
+## Success Criteria
+- Real-time log streaming working
+- Multiple clients supported
+- Reconnection working
+- All tests passing
+- No goroutine leaks
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: SSE streaming implemented
+- FACT: Log tailing working
+- FACT: Run discovery implemented
+EOF
+}
+
+create_prompt_ui_frontend() {
+    cat > "$PROMPTS_DIR/ui-frontend.md" <<'EOF'
+# Task: Implement Monitoring UI
+
+**Task ID**: ui-frontend
+**Phase**: API and Frontend
+**Agent Type**: Implementation (Codex preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: api-rest, api-sse
+
+## Objective
+Build React-based web UI for monitoring task execution and viewing logs.
+
+## Specifications
+Read: docs/specifications/subsystem-ui-frontend.md
+
+## Required Implementation
+
+### 1. Technology Stack Decision
+
+Research and choose:
+- **Framework**: React vs Vue vs Svelte
+- **Language**: TypeScript (recommended)
+- **Build Tool**: Vite vs Create React App
+- **UI Library**: Tailwind CSS vs Material-UI vs Chakra UI
+- **SSE Client**: Native EventSource vs library
+
+**Recommendation**: React + TypeScript + Vite + Tailwind CSS (modern, fast, popular)
+
+### 2. Project Structure
+Location: `frontend/`
+```
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── TaskList.tsx
+│   │   ├── RunDetail.tsx
+│   │   ├── LogViewer.tsx
+│   │   ├── MessageBus.tsx
+│   │   └── RunTree.tsx
+│   ├── hooks/
+│   │   ├── useSSE.ts
+│   │   ├── useAPI.ts
+│   │   └── useWebSocket.ts (future)
+│   ├── api/
+│   │   └── client.ts
+│   ├── types/
+│   │   └── index.ts
+│   ├── App.tsx
+│   └── main.tsx
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+└── tailwind.config.js
+```
+
+### 3. Core Components
+
+#### TaskList Component
+- Display all tasks and runs
+- Filter by status (running, completed, failed)
+- Sort by start time
+- Click to view details
+
+#### RunDetail Component
+- Show run metadata (run_id, status, times, exit_code)
+- Display run tree (parent-child relationships)
+- Link to logs
+
+#### LogViewer Component
+- Real-time log streaming via SSE
+- Auto-scroll to bottom
+- Toggle between stdout/stderr
+- Search/filter logs
+- ANSI color support (terminal colors)
+
+#### MessageBus Component
+- Display all message bus messages
+- Filter by agent/run
+- Collapsible sections
+- Auto-refresh
+
+#### RunTree Component
+- Visualize parent-child run relationships
+- Expand/collapse nodes
+- Color by status
+- Click to navigate
+
+### 4. SSE Integration
+
+Custom hook for SSE:
+```typescript
+function useSSE(url: string, onMessage: (event: MessageEvent) => void) {
+  useEffect(() => {
+    const eventSource = new EventSource(url);
+
+    eventSource.addEventListener('log', onMessage);
+    eventSource.addEventListener('status', onMessage);
+    eventSource.addEventListener('message', onMessage);
+
+    eventSource.onerror = (err) => {
+      console.error('SSE error:', err);
+      // Reconnect logic
+    };
+
+    return () => eventSource.close();
+  }, [url]);
+}
+```
+
+### 5. API Client
+
+```typescript
+class APIClient {
+  private baseURL: string;
+
+  async getTasks(): Promise<Task[]> { ... }
+  async getRuns(): Promise<Run[]> { ... }
+  async getRunInfo(runId: string): Promise<RunInfo> { ... }
+  async getMessages(): Promise<Message[]> { ... }
+  async stopRun(runId: string): Promise<void> { ... }
+}
+```
+
+### 6. Features
+
+**Must Have**:
+- Task list view
+- Run detail view
+- Real-time log streaming
+- Message bus viewer
+- Status indicators
+
+**Nice to Have**:
+- Search/filter logs
+- Run tree visualization
+- Dark mode toggle
+- Export logs
+- Run comparison
+
+### 7. Styling
+- Responsive design (desktop + mobile)
+- Dark theme by default
+- Color-coded status (green=success, red=error, yellow=running)
+- Monospace font for logs
+- Clean, minimal UI
+
+### 8. Tests Required
+Location: `frontend/tests/`
+
+**Component Tests** (Vitest + React Testing Library):
+- TaskList.test.tsx
+- RunDetail.test.tsx
+- LogViewer.test.tsx
+
+**E2E Tests** (Playwright):
+- test/e2e/ui_test.go (using Playwright MCP)
+- Test full user flow: view tasks → click run → see logs
+
+### 9. Development Setup
+```bash
+cd frontend
+npm create vite@latest . -- --template react-ts
+npm install
+npm install -D tailwindcss postcss autoprefixer
+npm install @tanstack/react-query  # for data fetching
+npm run dev  # start dev server
+```
+
+### 10. Production Build
+```bash
+npm run build  # outputs to frontend/dist
+# Serve via Go HTTP server or nginx
+```
+
+## Implementation Steps
+
+1. **Research Phase** (20 minutes)
+   - Compare React vs Vue vs Svelte
+   - Choose UI library (Tailwind recommended)
+   - Document decisions in MESSAGE-BUS.md
+
+2. **Setup Phase** (15 minutes)
+   - Create Vite + React + TypeScript project
+   - Configure Tailwind CSS
+   - Set up project structure
+
+3. **Implementation Phase** (90 minutes)
+   - Build TaskList component
+   - Build RunDetail component
+   - Build LogViewer with SSE
+   - Build MessageBus component
+   - Wire up API client
+
+4. **Styling Phase** (30 minutes)
+   - Apply Tailwind styles
+   - Make responsive
+   - Add dark theme
+
+5. **Testing Phase** (30 minutes)
+   - Write component tests
+   - Write E2E test with Playwright
+   - Manual browser testing
+
+6. **IntelliJ Checks** (15 minutes)
+   - Run linter (ESLint)
+   - Check TypeScript errors
+   - Verify build
+
+## Success Criteria
+- All components rendering
+- SSE streaming working in browser
+- Logs displaying in real-time
+- UI responsive and styled
+- All tests passing
+
+## Output
+Log to MESSAGE-BUS.md:
+- DECISION: Technology stack choices and rationale
+- FACT: Frontend implemented
+- FACT: SSE streaming working in browser
+- FACT: All components tested
+EOF
+}
+
+#############################################################################
 # CREATE ALL PROMPTS
 #############################################################################
 
@@ -1188,8 +1739,12 @@ create_all_prompts() {
     create_prompt_runner_ralph
     create_prompt_runner_orchestration
 
+    # API and frontend prompts
+    create_prompt_api_rest
+    create_prompt_api_sse
+    create_prompt_ui_frontend
+
     # TODO: Add remaining prompts for:
-    # - API components (3 prompts)
     # - Test suites (5 prompts)
     # - Documentation (3 prompts)
 
@@ -1405,6 +1960,45 @@ run_stage_3_runner() {
     log_success "STAGE 3 COMPLETE: Runner orchestration implemented"
 }
 
+run_stage_4_api() {
+    log "=========================================="
+    log "STAGE 4: API AND FRONTEND"
+    log "=========================================="
+
+    # All 3 tasks in parallel (no hard dependencies)
+    log "Starting API and UI components in parallel..."
+    run_agent_task "api-rest" "codex" "$PROMPTS_DIR/api-rest.md"
+    run_agent_task "api-sse" "codex" "$PROMPTS_DIR/api-sse.md"
+    run_agent_task "ui-frontend" "codex" "$PROMPTS_DIR/ui-frontend.md"
+
+    log "PROGRESS: Waiting for 3 tasks to complete (timeout: ${STAGE_TIMEOUT}s)..."
+    wait_for_tasks "api-rest" "api-sse" "ui-frontend"
+
+    # Check each task
+    local failed=0
+    if ! check_task_success "api-rest"; then
+        log_error "Task api-rest failed"
+        failed=1
+    fi
+
+    if ! check_task_success "api-sse"; then
+        log_error "Task api-sse failed"
+        failed=1
+    fi
+
+    if ! check_task_success "ui-frontend"; then
+        log_error "Task ui-frontend failed"
+        failed=1
+    fi
+
+    if [ $failed -eq 1 ]; then
+        log_error "Stage 4 failed: One or more tasks failed"
+        return 1
+    fi
+
+    log_success "STAGE 4 COMPLETE: API and frontend implemented"
+}
+
 #############################################################################
 # MAIN EXECUTION
 #############################################################################
@@ -1442,8 +2036,12 @@ main() {
         exit 1
     fi
 
+    if ! run_stage_4_api; then
+        log_error "FATAL: Stage 4 (API and Frontend) failed"
+        exit 1
+    fi
+
     # TODO: Add remaining stages:
-    # run_stage_4_api
     # run_stage_5_testing
     # run_stage_6_documentation
 
