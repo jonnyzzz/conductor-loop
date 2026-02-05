@@ -1,0 +1,48 @@
+# Production Configuration Template
+# Production-ready setup with security and reliability features
+
+agents:
+  # Primary agent
+  claude:
+    type: claude
+    token_file: /secrets/anthropic-api-key.txt
+    timeout: 600  # 10 minutes for complex tasks
+
+  # Backup agent
+  codex:
+    type: codex
+    token_file: /secrets/openai-api-key.txt
+    timeout: 600
+
+  # Alternative agent for specific use cases
+  gemini:
+    type: gemini
+    token_file: /secrets/gemini-api-key.txt
+    timeout: 600
+
+defaults:
+  agent: claude
+  timeout: 600
+
+storage:
+  # Centralized storage with backups
+  runs_dir: /data/conductor-runs
+
+api:
+  host: 0.0.0.0
+  port: 8080
+  cors_origins:
+    # Production frontend
+    - https://conductor.example.com
+    # Staging frontend
+    - https://staging-conductor.example.com
+
+# Production notes:
+# 1. Use token_file, never inline tokens
+# 2. Store tokens in /secrets with restricted permissions (chmod 600)
+# 3. Use longer timeouts for reliability
+# 4. Enable HTTPS with reverse proxy (nginx/traefik)
+# 5. Monitor /data/conductor-runs disk usage
+# 6. Set up log rotation for runs older than 30 days
+# 7. Configure firewall to restrict API access
+# 8. Use health check endpoint for monitoring: /api/v1/health

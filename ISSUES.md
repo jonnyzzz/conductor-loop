@@ -774,3 +774,8 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 [0;31m[ERROR][0m Task test-unit failed
 [0;31m[ERROR][0m Stage 5 Phase 5a failed: Core test suites failed
 [0;31m[ERROR][0m Stage 5 (Integration and Testing) failed
+[0;31m[ERROR][0m TIMEOUT: Stage exceeded 3600s
+[0;31m[ERROR][0m Task docs-dev failed
+[0;31m[ERROR][0m Task docs-dev failed
+[0;31m[ERROR][0m Stage 6 failed: One or more documentation tasks failed
+[0;31m[ERROR][0m Stage 6 (Documentation) failed

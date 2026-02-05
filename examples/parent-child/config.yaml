@@ -1,0 +1,15 @@
+agents:
+  codex:
+    type: codex
+    timeout: 300
+
+defaults:
+  agent: codex
+  timeout: 300
+
+storage:
+  runs_dir: ./runs
+
+api:
+  host: localhost
+  port: 8080

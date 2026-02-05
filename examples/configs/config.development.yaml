@@ -1,0 +1,46 @@
+# Development Configuration Template
+# Optimized for development and testing
+
+agents:
+  claude:
+    type: claude
+    token_file: ~/.secrets/claude-dev.token
+    timeout: 120  # Shorter timeout for fast feedback
+
+  codex:
+    type: codex
+    token_file: ~/.secrets/codex-dev.token
+    timeout: 120
+
+  gemini:
+    type: gemini
+    token_file: ~/.secrets/gemini-dev.token
+    timeout: 120
+
+defaults:
+  agent: codex  # Fastest for iteration
+  timeout: 120
+
+storage:
+  runs_dir: ./dev-runs  # Separate from production runs
+
+api:
+  host: localhost
+  port: 8080
+  cors_origins:
+    - http://localhost:3000
+    - http://localhost:5173  # Vite dev server
+
+# Development tips:
+# 1. Use shorter timeouts for fast feedback
+# 2. Keep runs_dir separate from production
+# 3. Use dev-specific API tokens with lower rate limits
+# 4. Clear dev-runs/ periodically to save disk space:
+#    find ./dev-runs -mtime +7 -delete
+# 5. Enable verbose logging:
+#    export CONDUCTOR_LOG_LEVEL=debug
+# 6. Use local frontend dev server
+# 7. Hot reload: use `air` or similar tool
+# 8. Test with different agents quickly:
+#    conductor task create --agent claude ...
+#    conductor task create --agent codex ...

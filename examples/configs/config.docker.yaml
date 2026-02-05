@@ -1,0 +1,72 @@
+# Docker Configuration Template
+# Optimized for containerized deployment
+
+agents:
+  claude:
+    type: claude
+    token_file: /secrets/claude.token
+    timeout: 600
+
+  codex:
+    type: codex
+    token_file: /secrets/codex.token
+    timeout: 600
+
+defaults:
+  agent: claude
+  timeout: 600
+
+storage:
+  # Mount as Docker volume: -v conductor-runs:/data/runs
+  runs_dir: /data/runs
+
+api:
+  # Bind to all interfaces for container networking
+  host: 0.0.0.0
+  port: 8080
+  cors_origins:
+    - http://localhost:3000
+    - http://frontend:3000
+
+# Docker deployment notes:
+#
+# 1. Dockerfile:
+#    FROM golang:1.21-alpine
+#    WORKDIR /app
+#    COPY . .
+#    RUN go build -o conductor ./cmd/conductor
+#    EXPOSE 8080
+#    CMD ["./conductor", "--config", "/config/config.yaml", "serve"]
+#
+# 2. Docker Compose:
+#    version: '3.8'
+#    services:
+#      conductor:
+#        build: .
+#        ports:
+#          - "8080:8080"
+#        volumes:
+#          - ./config.yaml:/config/config.yaml:ro
+#          - conductor-runs:/data/runs
+#          - secrets:/secrets:ro
+#        environment:
+#          - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+#    volumes:
+#      conductor-runs:
+#      secrets:
+#
+# 3. Volume mounts:
+#    - /config/config.yaml - Read-only configuration
+#    - /data/runs - Persistent run storage
+#    - /secrets - Read-only token files
+#
+# 4. Environment variables override token_file:
+#    - ANTHROPIC_API_KEY for Claude
+#    - OPENAI_API_KEY for Codex
+#
+# 5. Health check:
+#    healthcheck:
+#      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3

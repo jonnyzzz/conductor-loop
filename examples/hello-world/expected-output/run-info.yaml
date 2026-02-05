@@ -1,0 +1,12 @@
+run_id: run_20260205-115154-12345
+project_id: hello-world
+task_id: greeting
+agent_type: codex
+status: completed
+start_time: 2026-02-05T11:51:54Z
+end_time: 2026-02-05T11:52:10Z
+exit_code: 0
+pid: 12345
+pgid: 12345
+restart_count: 0
+parent_run_id: ""

@@ -1,0 +1,429 @@
+# Web UI Guide
+
+Conductor Loop includes a modern React-based web UI for monitoring and managing tasks, viewing logs in real-time, and visualizing the message bus.
+
+## Accessing the Web UI
+
+### Default URL
+
+```
+http://localhost:8080
+```
+
+The web UI is served by the conductor server on the same port as the API.
+
+### Configuration
+
+Port and host are configured in config.yaml:
+
+```yaml
+api:
+  host: 0.0.0.0
+  port: 8080
+```
+
+### Opening the UI
+
+```bash
+# macOS
+open http://localhost:8080
+
+# Linux
+xdg-open http://localhost:8080
+
+# Windows
+start http://localhost:8080
+
+# Or open in your browser
+# Chrome, Firefox, Safari, Edge
+```
+
+## Overview
+
+The web UI provides several main views:
+
+1. **Task List** - Overview of all tasks and their status
+2. **Run Details** - Detailed view of a specific run with logs
+3. **Message Bus** - Cross-task communication viewer
+4. **Run Tree** - Hierarchical visualization of parent-child tasks
+
+Screenshot: [The main interface shows a clean, modern design with a task list on the left and log viewer on the right]
+
+## Task List View
+
+### Features
+
+- **Real-time Updates**: Tasks update automatically as they progress
+- **Status Indicators**: Color-coded status badges
+- **Quick Navigation**: Click any task to view details
+- **Search/Filter**: Find tasks quickly
+- **Sort Options**: Sort by time, status, or project
+
+### Status Colors
+
+| Status | Color | Meaning |
+|--------|-------|---------|
+| Running | Blue | Task is executing |
+| Success | Green | Task completed successfully |
+| Failed | Red | Task failed |
+| Created | Gray | Task created, not started |
+
+### Task List Layout
+
+```
+┌──────────────────────────────────────────────────┐
+│  Conductor Loop                     [Refresh]    │
+├──────────────────────────────────────────────────┤
+│  Project: my-project                             │
+│  ┌────────────────────────────────────────────┐ │
+│  │ task-001               [Running]           │ │
+│  │ Agent: codex                               │ │
+│  │ Started: 2 minutes ago                     │ │
+│  │ 3 runs                                     │ │
+│  └────────────────────────────────────────────┘ │
+│  ┌────────────────────────────────────────────┐ │
+│  │ task-002               [Success]           │ │
+│  │ Agent: claude                              │ │
+│  │ Completed: 5 minutes ago                   │ │
+│  │ 1 run                                      │ │
+│  └────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+```
+
+Screenshot: [The task list shows cards for each task with status badges, timestamps, and quick stats]
+
+### Actions
+
+- **Click Task**: Open run details
+- **Refresh Button**: Force reload task list
+- **Filter Input**: Type to filter tasks by name or project
+
+## Run Details View
+
+### Features
+
+- **Live Log Streaming**: Logs update in real-time via SSE
+- **Auto-scroll**: Automatically scroll to latest log line
+- **Status Timeline**: Visual timeline of run lifecycle
+- **Run Metadata**: Project, task, agent, timestamps
+- **Exit Code**: Final exit status
+- **Copy Logs**: Copy full output to clipboard
+
+### Log Viewer Layout
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  ← Back to Tasks                                         │
+├──────────────────────────────────────────────────────────┤
+│  Run: run_20260205_100001_abc123        [Running]       │
+│  Project: my-project  |  Task: task-001  |  Agent: codex│
+│  Started: 2 minutes ago                                  │
+├──────────────────────────────────────────────────────────┤
+│  Log Output:                          [Copy] [Download] │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │ [10:00:01] Starting agent...                       │ │
+│  │ [10:00:02] Loading configuration...                │ │
+│  │ [10:00:03] Executing prompt...                     │ │
+│  │ [10:00:05] Agent output: Hello World!              │ │
+│  │ [10:00:10] Processing results...                   │ │
+│  │ [10:00:15] ← NEW LOG LINE (auto-scrolls)           │ │
+│  │                                                     │ │
+│  └────────────────────────────────────────────────────┘ │
+│  Status: Running  |  Exit Code: -  |  Duration: 2m 15s  │
+└──────────────────────────────────────────────────────────┘
+```
+
+Screenshot: [The run details view shows a terminal-like log viewer with timestamps and auto-scrolling]
+
+### Log Features
+
+#### Auto-scroll
+
+The log viewer automatically scrolls to the latest line when new logs arrive. Disable by scrolling up manually.
+
+#### Timestamps
+
+Each log line includes a timestamp showing when it was written.
+
+#### Color Coding
+
+- **Info**: Normal log lines (white/gray)
+- **Error**: Error messages (red)
+- **Warning**: Warning messages (yellow)
+- **Success**: Success messages (green)
+
+#### Copy Logs
+
+Click the "Copy" button to copy all logs to clipboard.
+
+#### Download Logs
+
+Click "Download" to download logs as a .txt file.
+
+### Timeline View
+
+Visual timeline showing:
+1. Task created
+2. Task started
+3. Progress updates
+4. Task completed/failed
+
+Screenshot: [Timeline shows key events with timestamps and status transitions]
+
+## Message Bus Viewer
+
+### Features
+
+- **Real-time Updates**: Messages appear as they're written
+- **Message Types**: Color-coded by type
+- **Filtering**: Filter by project, task, or message type
+- **Message Thread**: View parent-child message relationships
+- **JSON View**: Inspect message data
+
+### Message Bus Layout
+
+```
+┌──────────────────────────────────────────────────────┐
+│  Message Bus                   Filter: [All Types ▾] │
+├──────────────────────────────────────────────────────┤
+│  [10:00:01] task_start                               │
+│  Project: my-project  |  Task: task-001              │
+│  Body: "Task started with agent codex"               │
+│                                                       │
+│  [10:00:05] progress                                 │
+│  Project: my-project  |  Task: task-001              │
+│  Body: "Processing input..."                         │
+│  Parents: msg_001                                    │
+│                                                       │
+│  [10:00:10] child_request                            │
+│  Project: my-project  |  Task: task-001              │
+│  Body: "Request child task: subtask-001"             │
+│  Parents: msg_002                                    │
+│                                                       │
+│  [10:01:30] task_complete                            │
+│  Project: my-project  |  Task: task-001              │
+│  Body: "Task completed successfully"                 │
+│  Parents: msg_003                                    │
+└──────────────────────────────────────────────────────┘
+```
+
+Screenshot: [Message bus viewer shows a feed of messages with type indicators and metadata]
+
+### Message Types
+
+| Type | Icon | Description |
+|------|------|-------------|
+| task_start | 🚀 | Task started |
+| task_complete | ✅ | Task completed |
+| task_failed | ❌ | Task failed |
+| progress | 📊 | Progress update |
+| child_request | 👶 | Child task request |
+| custom | 📝 | Custom message |
+
+### Filtering Messages
+
+Use the filter dropdown to show only specific message types:
+- All Types (default)
+- Task Events (start, complete, failed)
+- Progress Updates
+- Child Requests
+- Custom Messages
+
+## Run Tree Visualization
+
+### Features
+
+- **Hierarchical View**: See parent-child task relationships
+- **Interactive**: Click nodes to view details
+- **Status Indicators**: Color-coded nodes by status
+- **Zoom/Pan**: Navigate large task trees
+
+### Tree Layout
+
+```
+┌────────────────────────────────────────────────┐
+│  Run Tree                        [Expand All]  │
+├────────────────────────────────────────────────┤
+│                                                 │
+│      ┌──────────────────────┐                 │
+│      │   task-001 [Success] │                 │
+│      └──────────┬───────────┘                 │
+│                 │                               │
+│         ┌───────┴───────┐                     │
+│         │               │                      │
+│  ┌──────▼─────┐   ┌────▼──────┐              │
+│  │ subtask-1  │   │ subtask-2 │              │
+│  │ [Success]  │   │ [Running] │              │
+│  └────────────┘   └───────────┘              │
+│                                                 │
+└────────────────────────────────────────────────┘
+```
+
+Screenshot: [Tree view shows a hierarchical diagram with parent task at top and child tasks below]
+
+### Node Actions
+
+- **Click Node**: View run details
+- **Hover Node**: Show quick info tooltip
+- **Right-click Node**: Context menu (stop, restart, etc.)
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+R` / `Cmd+R` | Refresh current view |
+| `Ctrl+F` / `Cmd+F` | Focus search/filter input |
+| `Esc` | Close modal or return to task list |
+| `↑` / `↓` | Navigate task list |
+| `Enter` | Open selected task |
+| `Ctrl+C` / `Cmd+C` | Copy logs (when log viewer focused) |
+| `Space` | Pause/resume auto-scroll in log viewer |
+
+## Settings Panel
+
+Access via the settings icon (⚙️) in the top-right corner.
+
+### Available Settings
+
+- **Refresh Interval**: How often to poll for updates (default: 5s)
+- **Auto-scroll Logs**: Enable/disable auto-scroll (default: on)
+- **Log Line Limit**: Max lines to display (default: 1000)
+- **Theme**: Light/Dark mode
+- **Timestamp Format**: Relative or absolute timestamps
+- **Compact View**: Reduce spacing for more content
+
+### Example Settings
+
+```
+┌────────────────────────────────────┐
+│  Settings                   [Save] │
+├────────────────────────────────────┤
+│  Refresh Interval: [5s     ▾]     │
+│  Auto-scroll:      [✓] On         │
+│  Log Lines:        [1000]         │
+│  Theme:            [Dark    ▾]    │
+│  Timestamps:       [Relative ▾]   │
+│  Compact View:     [✓] On         │
+└────────────────────────────────────┘
+```
+
+## Performance Tips
+
+### For Large Task Lists
+
+1. **Use Filters**: Filter by project or status to reduce list size
+2. **Increase Refresh Interval**: Reduce polling frequency to 10s or 30s
+3. **Compact View**: Enable compact view in settings
+
+### For Long Logs
+
+1. **Limit Log Lines**: Reduce max lines to 500 or fewer
+2. **Disable Auto-scroll**: Scroll manually to reduce DOM updates
+3. **Download Logs**: Download and view in a text editor for very large logs
+
+### For Many Active Runs
+
+1. **Use SSE Streaming**: Let the server push updates instead of polling
+2. **Filter by Status**: Show only running or failed tasks
+3. **Close Inactive Tabs**: Only keep relevant views open
+
+## Troubleshooting UI Issues
+
+### UI Not Loading
+
+**Problem**: Blank page or loading forever
+
+**Solutions:**
+1. Check that conductor server is running
+2. Verify the URL is correct (http://localhost:8080)
+3. Check browser console for errors (F12 → Console)
+4. Clear browser cache and reload (Ctrl+Shift+R)
+5. Try a different browser
+
+### Logs Not Updating
+
+**Problem**: Logs frozen or not streaming
+
+**Solutions:**
+1. Check that the run is still active
+2. Verify SSE connection (F12 → Network → EventStream)
+3. Refresh the page
+4. Check CORS configuration if frontend is on different origin
+5. Check browser's SSE connection limit (try closing other tabs)
+
+### High CPU/Memory Usage
+
+**Problem**: Browser using too much CPU or memory
+
+**Solutions:**
+1. Reduce log line limit in settings
+2. Disable auto-scroll
+3. Increase refresh interval
+4. Close unused tabs
+5. Use a lighter browser (Firefox < Chrome)
+
+### Task List Empty
+
+**Problem**: No tasks showing despite tasks existing
+
+**Solutions:**
+1. Check that tasks exist via API: `curl http://localhost:8080/api/v1/tasks`
+2. Check browser console for errors
+3. Verify runs_dir is correctly configured
+4. Refresh the page
+5. Check network tab for failed API requests
+
+## Browser Compatibility
+
+### Supported Browsers
+
+- **Chrome**: 90+
+- **Firefox**: 88+
+- **Safari**: 14+
+- **Edge**: 90+
+
+### Required Features
+
+- ES6+ JavaScript
+- Fetch API
+- EventSource (SSE)
+- CSS Grid
+- CSS Flexbox
+
+### Not Supported
+
+- Internet Explorer (any version)
+- Legacy browsers without ES6 support
+
+## Development Mode
+
+For frontend development:
+
+```bash
+# Start backend
+conductor --config config.yaml
+
+# Start frontend dev server (in frontend/)
+cd frontend
+npm install
+npm run dev
+
+# Frontend: http://localhost:3000
+# Backend: http://localhost:8080
+```
+
+Configure CORS for development:
+
+```yaml
+api:
+  cors_origins:
+    - http://localhost:3000
+    - http://localhost:5173  # Vite dev server
+```
+
+## Next Steps
+
+- [API Reference](api-reference.md) - Build custom integrations
+- [CLI Reference](cli-reference.md) - Use the command-line
+- [Configuration](configuration.md) - Configure the server
+- [Troubleshooting](troubleshooting.md) - Solve common issues

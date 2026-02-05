@@ -2682,6 +2682,592 @@ EOF
 }
 
 #############################################################################
+# STAGE 6: DOCUMENTATION PROMPTS
+#############################################################################
+
+create_prompt_docs_user() {
+    cat > "$PROMPTS_DIR/docs-user.md" <<'EOF'
+# Task: Write User Documentation
+
+**Task ID**: docs-user
+**Phase**: Documentation
+**Agent Type**: Documentation (Claude preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: All Stages 1-5 complete
+
+## Objective
+Create comprehensive user-facing documentation for installing, configuring, and using the Conductor Loop system.
+
+## Required Documentation
+
+### 1. README.md (Project Root)
+Update the main README with:
+- Project overview and features
+- Quick start guide (5 minutes to first run)
+- Architecture diagram (text-based)
+- Link to detailed documentation
+- Build status badges
+- License information
+
+### 2. docs/user/installation.md
+**Installation Guide**:
+- Prerequisites (Go 1.21+, Docker, Git)
+- Installation from source
+- Installation via Docker
+- Binary releases (future)
+- Platform-specific notes (macOS, Linux, Windows)
+- Verifying installation
+- Troubleshooting common installation issues
+
+### 3. docs/user/quick-start.md
+**Quick Start Tutorial**:
+- First run: "Hello World" task
+- Running with different agents (Claude, Codex)
+- Viewing logs in real-time
+- Checking run status
+- Parent-child task example
+- Accessing the web UI
+
+### 4. docs/user/configuration.md
+**Configuration Reference**:
+- config.yaml structure and all fields
+- Agent configuration (tokens, timeouts)
+- API configuration (host, port, CORS)
+- Storage configuration (runs directory)
+- Environment variable overrides
+- Token management (token vs token_file)
+- Example configurations for common scenarios
+
+### 5. docs/user/cli-reference.md
+**CLI Command Reference**:
+```
+conductor - Main CLI
+  task    - Run a task
+  job     - Run a job
+  version - Show version
+  help    - Show help
+
+run-agent - Low-level agent runner (internal use)
+```
+
+Document all flags and options for each command.
+
+### 6. docs/user/api-reference.md
+**REST API Reference**:
+Document all endpoints with examples:
+- POST /api/v1/tasks - Create task
+- GET /api/v1/runs - List runs
+- GET /api/v1/runs/:id - Get run details
+- GET /api/v1/runs/:id/stream - Stream logs (SSE)
+- GET /api/v1/messages - Get message bus
+- GET /api/v1/health - Health check
+
+Include curl examples for each endpoint.
+
+### 7. docs/user/web-ui.md
+**Web UI Guide**:
+- Accessing the UI (http://localhost:3000)
+- Task list view
+- Run detail view
+- Live log streaming
+- Message bus viewer
+- Run tree visualization
+- Keyboard shortcuts
+
+### 8. docs/user/troubleshooting.md
+**Troubleshooting Guide**:
+- Common issues and solutions
+- Agent not found errors
+- Token authentication errors
+- Port already in use
+- Performance issues
+- Log file locations
+- Debug mode
+- Getting help
+
+### 9. docs/user/faq.md
+**Frequently Asked Questions**:
+- What agents are supported?
+- How do I add a new agent?
+- Can I run multiple tasks in parallel?
+- How does the Ralph Loop work?
+- What is the message bus?
+- How do I monitor long-running tasks?
+- Can I use this in production?
+- What are the performance limits?
+
+## Documentation Style Guide
+
+**Tone**: Clear, concise, friendly
+**Format**: Markdown with code examples
+**Structure**:
+- Start with the problem/goal
+- Show the solution with example
+- Explain the result
+- Link to related docs
+
+**Code Examples**:
+- Use realistic scenarios
+- Include expected output
+- Show error cases
+- Add comments for clarity
+
+**Screenshots** (describe, don't create):
+- Mention where screenshots would be helpful
+- Describe what they should show
+- Note: "Screenshot: [description]"
+
+## Success Criteria
+- All user documentation complete
+- Clear installation instructions
+- Working code examples
+- Comprehensive CLI/API reference
+- Troubleshooting guide
+- FAQ answers common questions
+- Documentation is easy to navigate
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: User documentation complete
+- FACT: Installation guide written
+- FACT: Quick start tutorial created
+- FACT: Configuration reference documented
+- FACT: API reference complete
+EOF
+}
+
+create_prompt_docs_dev() {
+    cat > "$PROMPTS_DIR/docs-dev.md" <<'EOF'
+# Task: Write Developer Documentation
+
+**Task ID**: docs-dev
+**Phase**: Documentation
+**Agent Type**: Documentation (Claude preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: All Stages 1-5 complete
+
+## Objective
+Create comprehensive developer documentation for understanding the architecture, contributing code, and extending the system.
+
+## Required Documentation
+
+### 1. docs/dev/architecture.md
+**Architecture Overview**:
+- System architecture diagram (text-based)
+- Component overview (8 subsystems)
+- Data flow diagrams
+- Process lifecycle
+- Message bus architecture
+- Storage layout
+- Key design decisions
+- Performance considerations
+
+### 2. docs/dev/subsystems.md
+**Subsystem Deep-Dives**:
+
+For each subsystem, document:
+- Purpose and responsibilities
+- Key interfaces and types
+- Implementation details
+- Dependencies
+- Testing strategy
+
+Subsystems:
+1. Storage Layer (internal/storage)
+2. Configuration (internal/config)
+3. Message Bus (internal/messagebus)
+4. Agent Protocol (internal/agent)
+5. Agent Backends (internal/agent/*)
+6. Runner Orchestration (internal/runner)
+7. API Server (internal/api)
+8. Frontend UI (frontend/)
+
+### 3. docs/dev/agent-protocol.md
+**Agent Protocol Specification**:
+- Agent interface contract
+- RunContext structure
+- Execution lifecycle
+- Stdio handling
+- Exit codes
+- Error handling
+- Adding new agent backends
+
+### 4. docs/dev/ralph-loop.md
+**Ralph Loop (Root Agent Loop) Specification**:
+- Loop algorithm
+- DONE file detection
+- Child process waiting
+- Restart logic
+- Timeout handling
+- Process group management
+- Wait-without-restart pattern
+
+### 5. docs/dev/message-bus.md
+**Message Bus Protocol**:
+- O_APPEND + flock design
+- Message ID generation
+- Concurrency guarantees
+- Fsync for durability
+- Message format
+- Read/write operations
+- Race condition handling
+
+### 6. docs/dev/storage-layout.md
+**Storage Layout Specification**:
+- Run directory structure
+- run-info.yaml schema
+- Atomic write pattern (temp + fsync + rename)
+- Parent-child relationships
+- File locking
+- Cleanup and retention
+
+### 7. docs/dev/contributing.md
+**Contributing Guide**:
+- Code of conduct
+- How to contribute
+- Development setup
+- Running tests
+- Code style (Go conventions, linting)
+- Commit message format
+- Pull request process
+- Review guidelines
+
+### 8. docs/dev/testing.md
+**Testing Guide**:
+- Test structure (unit, integration, e2e)
+- Running tests locally
+- Writing new tests
+- Test coverage requirements (>80%)
+- Mock usage
+- Integration test patterns
+- Performance testing
+- CI/CD pipeline
+
+### 9. docs/dev/development-setup.md
+**Development Environment Setup**:
+- Prerequisites
+- Cloning the repository
+- Installing dependencies
+- Building from source
+- Running locally
+- Hot reload for development
+- Debugging techniques
+- IDE setup (VS Code, GoLand)
+
+### 10. docs/dev/adding-agents.md
+**Adding New Agent Backends**:
+Step-by-step guide:
+1. Create new package (internal/agent/newagent)
+2. Implement Agent interface
+3. Add configuration schema
+4. Add integration tests
+5. Update documentation
+6. Submit PR
+
+Include template code for a new agent.
+
+### 11. docs/dev/performance.md
+**Performance Optimization**:
+- Performance targets
+- Profiling techniques
+- Benchmarking
+- Optimization opportunities
+- Scaling considerations
+- Resource limits
+
+### 12. docs/dev/release-process.md
+**Release Process**:
+- Version numbering (semantic versioning)
+- Changelog generation
+- Building releases
+- Docker images
+- GitHub releases
+- Announcement process
+
+## Documentation Standards
+
+**Code Documentation**:
+- All public functions have godoc comments
+- Complex algorithms have inline comments
+- Examples for key functions
+- Package-level documentation
+
+**Diagrams**:
+Use text-based diagrams (ASCII art, mermaid):
+```
+┌─────────────┐
+│   Caller    │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│   Runner    │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│    Agent    │
+└─────────────┘
+```
+
+**Examples**:
+- Real, working code
+- Explain the "why" not just the "what"
+- Show error handling
+- Include test examples
+
+## Success Criteria
+- Architecture clearly explained
+- All subsystems documented
+- Contributing guide complete
+- Testing guide comprehensive
+- New developers can onboard quickly
+- Code patterns are documented
+- Design decisions are justified
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: Developer documentation complete
+- FACT: Architecture documented
+- FACT: All subsystems explained
+- FACT: Contributing guide written
+- FACT: Testing guide created
+EOF
+}
+
+create_prompt_docs_examples() {
+    cat > "$PROMPTS_DIR/docs-examples.md" <<'EOF'
+# Task: Create Documentation Examples
+
+**Task ID**: docs-examples
+**Phase**: Documentation
+**Agent Type**: Documentation (Claude preferred)
+**Project Root**: ~/Work/conductor-loop
+**Dependencies**: All Stages 1-5 complete
+
+## Objective
+Create practical examples, templates, and tutorial projects that demonstrate real-world usage of Conductor Loop.
+
+## Required Examples
+
+### 1. examples/README.md
+**Examples Overview**:
+- List all examples
+- What each example demonstrates
+- How to run each example
+- Prerequisites for each
+
+### 2. examples/hello-world/
+**Simple Hello World Example**:
+```
+examples/hello-world/
+├── README.md
+├── config.yaml
+├── prompt.md
+└── run.sh
+```
+
+Demonstrates:
+- Basic task execution
+- Single agent (Codex)
+- Simple prompt
+- Viewing results
+
+### 3. examples/multi-agent/
+**Multi-Agent Comparison**:
+Run the same task with different agents (Claude, Codex, Gemini) and compare results.
+
+Demonstrates:
+- Running multiple agents
+- Comparing outputs
+- Agent-specific behavior
+
+### 4. examples/parent-child/
+**Parent-Child Task Hierarchy**:
+Parent task spawns 3 child tasks, each doing different work.
+
+Demonstrates:
+- run-agent task command
+- Parent-child relationships
+- Run tree visualization
+- Waiting for children
+
+### 5. examples/ralph-loop/
+**Ralph Loop Wait Pattern**:
+Task creates DONE file but has long-running children.
+
+Demonstrates:
+- DONE file usage
+- Wait-without-restart
+- Child process management
+- Ralph Loop behavior
+
+### 6. examples/message-bus/
+**Message Bus Communication**:
+Multiple agents writing to message bus concurrently.
+
+Demonstrates:
+- Message bus usage
+- Inter-agent communication
+- Race-free concurrent writes
+- Message ordering
+
+### 7. examples/rest-api/
+**REST API Usage**:
+Scripts showing all API endpoints with curl examples.
+
+Demonstrates:
+- Creating tasks via API
+- Polling for completion
+- Streaming logs via SSE
+- Error handling
+
+### 8. examples/web-ui-demo/
+**Web UI Demo Scenario**:
+Long-running task with progress updates visible in UI.
+
+Demonstrates:
+- Real-time log streaming
+- Status updates
+- UI features
+- Live monitoring
+
+### 9. examples/docker-deployment/
+**Docker Deployment**:
+Complete Docker setup for production deployment.
+
+Files:
+- docker-compose.yml (production-ready)
+- config.yaml (production config)
+- nginx.conf (reverse proxy)
+- README.md (deployment guide)
+
+Demonstrates:
+- Docker deployment
+- Reverse proxy setup
+- Environment variables
+- Production configuration
+- Health checks
+
+### 10. examples/ci-integration/
+**CI/CD Integration**:
+GitHub Actions workflow using Conductor Loop.
+
+Demonstrates:
+- CI/CD usage
+- Automated testing
+- Multi-agent validation
+- Result aggregation
+
+### 11. examples/custom-agent/
+**Custom Agent Backend**:
+Template for implementing a custom agent.
+
+Demonstrates:
+- Agent interface implementation
+- Configuration
+- Integration testing
+- Registration
+
+### 12. Configuration Templates
+
+Create templates in examples/configs/:
+- config.basic.yaml (minimal config)
+- config.production.yaml (production-ready)
+- config.multi-agent.yaml (all agents configured)
+- config.docker.yaml (Docker-optimized)
+- config.development.yaml (dev environment)
+
+### 13. Workflow Templates
+
+Create workflow templates in examples/workflows/:
+- code-review.md (use Claude for code review)
+- documentation.md (generate docs with agents)
+- testing.md (run tests with multiple agents)
+- refactoring.md (automated refactoring workflow)
+
+### 14. Tutorial Project
+
+Create examples/tutorial/:
+A complete step-by-step tutorial that builds a real project using Conductor Loop.
+
+**Tutorial: Building a Multi-Agent Code Analyzer**
+
+Steps:
+1. Setup and installation
+2. Create first task (analyze single file)
+3. Add parent task (analyze multiple files)
+4. Compare agent results
+5. Aggregate findings
+6. Generate report
+7. View in Web UI
+
+Each step has:
+- Clear instructions
+- Working code
+- Expected output
+- Troubleshooting tips
+
+### 15. Best Practices Guide
+
+Create docs/examples/best-practices.md:
+- Task design patterns
+- Prompt engineering tips
+- Error handling strategies
+- Performance optimization
+- Security considerations
+- Production deployment checklist
+
+### 16. Common Patterns
+
+Create docs/examples/patterns.md:
+- Fan-out pattern (1 parent, N children)
+- Sequential pipeline (task1 → task2 → task3)
+- Map-reduce pattern
+- Retry with exponential backoff
+- Health monitoring pattern
+- Rolling deployment pattern
+
+## Example Standards
+
+**All examples must**:
+- Be self-contained and runnable
+- Include clear README with instructions
+- Show expected output
+- Include error handling
+- Be tested and verified
+- Have inline comments explaining key parts
+
+**File structure**:
+```
+examples/example-name/
+├── README.md          # What it does, how to run
+├── config.yaml        # Configuration
+├── prompt.md          # Task prompt (if applicable)
+├── run.sh            # Script to run the example
+└── expected-output/   # What success looks like
+```
+
+## Success Criteria
+- All examples working and tested
+- Configuration templates provided
+- Tutorial project complete
+- Best practices documented
+- Common patterns explained
+- Examples cover all major features
+- New users can learn from examples
+
+## Output
+Log to MESSAGE-BUS.md:
+- FACT: All examples created and tested
+- FACT: Configuration templates complete
+- FACT: Tutorial project working
+- FACT: Best practices guide written
+- FACT: Common patterns documented
+EOF
+}
+
+#############################################################################
 # CREATE ALL PROMPTS
 #############################################################################
 
@@ -2724,8 +3310,10 @@ create_all_prompts() {
     create_prompt_test_performance
     create_prompt_test_acceptance
 
-    # TODO: Add remaining prompts for:
-    # - Documentation (3 prompts)
+    # Documentation prompts
+    create_prompt_docs_user
+    create_prompt_docs_dev
+    create_prompt_docs_examples
 
     log "FACT: Task prompts created in $PROMPTS_DIR/"
 }
@@ -3040,6 +3628,45 @@ run_stage_5_testing() {
     log_success "STAGE 5 COMPLETE: All tests passed"
 }
 
+run_stage_6_documentation() {
+    log "=========================================="
+    log "STAGE 6: DOCUMENTATION"
+    log "=========================================="
+
+    # All 3 documentation tasks in parallel
+    log "Starting documentation tasks in parallel..."
+    run_agent_task "docs-user" "claude" "$PROMPTS_DIR/docs-user.md"
+    run_agent_task "docs-dev" "claude" "$PROMPTS_DIR/docs-dev.md"
+    run_agent_task "docs-examples" "claude" "$PROMPTS_DIR/docs-examples.md"
+
+    log "PROGRESS: Waiting for 3 documentation tasks to complete (timeout: ${STAGE_TIMEOUT}s)..."
+    wait_for_tasks "docs-user" "docs-dev" "docs-examples"
+
+    # Check each task
+    local failed=0
+    if ! check_task_success "docs-user"; then
+        log_error "Task docs-user failed"
+        failed=1
+    fi
+
+    if ! check_task_success "docs-dev"; then
+        log_error "Task docs-dev failed"
+        failed=1
+    fi
+
+    if ! check_task_success "docs-examples"; then
+        log_error "Task docs-examples failed"
+        failed=1
+    fi
+
+    if [ $failed -eq 1 ]; then
+        log_error "Stage 6 failed: One or more documentation tasks failed"
+        return 1
+    fi
+
+    log_success "STAGE 6 COMPLETE: Documentation finished"
+}
+
 #############################################################################
 # MAIN EXECUTION
 #############################################################################
@@ -3087,8 +3714,10 @@ main() {
         exit 1
     fi
 
-    # TODO: Add remaining stages:
-    # run_stage_6_documentation
+    if ! run_stage_6_documentation; then
+        log_error "FATAL: Stage 6 (Documentation) failed"
+        exit 1
+    fi
 
     log "======================================================================"
     log_success "IMPLEMENTATION COMPLETE"

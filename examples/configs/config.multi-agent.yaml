@@ -1,0 +1,53 @@
+# Multi-Agent Configuration Template
+# All agent backends configured
+
+agents:
+  # Anthropic Claude
+  claude:
+    type: claude
+    token_file: ~/.secrets/anthropic-api-key.txt
+    timeout: 300
+
+  # OpenAI Codex
+  codex:
+    type: codex
+    token_file: ~/.secrets/openai-api-key.txt
+    timeout: 300
+
+  # Google Gemini
+  gemini:
+    type: gemini
+    token_file: ~/.secrets/gemini-api-key.txt
+    timeout: 300
+
+  # Perplexity AI
+  perplexity:
+    type: perplexity
+    token_file: ~/.secrets/perplexity-api-key.txt
+    timeout: 300
+
+  # xAI Grok
+  xai:
+    type: xai
+    token_file: ~/.secrets/xai-api-key.txt
+    timeout: 300
+
+defaults:
+  agent: claude  # Change based on your preference
+  timeout: 300
+
+storage:
+  runs_dir: ./runs
+
+api:
+  host: localhost
+  port: 8080
+  cors_origins:
+    - http://localhost:3000
+
+# Agent selection guide:
+# - Claude: Best for analysis, security review, comprehensive tasks
+# - Codex: Best for code generation, practical solutions
+# - Gemini: Balanced, research-backed recommendations
+# - Perplexity: Research-focused, search-aware
+# - xAI: Latest Grok model access

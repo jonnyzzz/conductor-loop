@@ -1,0 +1,14 @@
+# Basic Configuration Template
+# Minimal setup for getting started with Conductor Loop
+
+agents:
+  codex:
+    type: codex
+    timeout: 300
+
+defaults:
+  agent: codex
+  timeout: 300
+
+storage:
+  runs_dir: ./runs
