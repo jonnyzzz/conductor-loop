@@ -244,3 +244,6 @@ There should be a dedicated process in the system, that can be started explicitl
 
 NEW: we need to introduce global location for facts. So there must be a process to promote facts from the project to the global location.
 
+
+
+NEW 2026-02-11: Make sure we are reporting progress output from each agent. That may require to play more with console options. We need to see the output to fine if an agent is alive or not.
