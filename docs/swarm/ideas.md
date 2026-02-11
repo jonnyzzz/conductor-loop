@@ -246,4 +246,4 @@ NEW: we need to introduce global location for facts. So there must be a process 
 
 
 
-NEW 2026-02-11: Make sure we are reporting progress output from each agent. That may require to play more with console options. We need to see the output to fine if an agent is alive or not.
+NEW 2026-02-11: Make sure we are reporting progress output from each agent. That may require to play more with console options. We need to see the output to fine if an agent is alive or not. Review how ~/Work/mcp-steroid/test-helper does for Docker*Session classes.
