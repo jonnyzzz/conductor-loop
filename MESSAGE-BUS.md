@@ -319,3 +319,47 @@
 [2026-02-20 15:42:00] PENDING: Stale Docker container blocking docker tests (pre-existing)
 [2026-02-20 15:42:00] PENDING: Remaining CRITICAL: no fully open CRITICALs (ISSUE-002/004 partially resolved)
 [2026-02-20 15:42:00] PENDING: 6 HIGH issues still open (ISSUE-003, 005, 006, 007, 008, 009, 010)
+
+[2026-02-20 15:45:00] ==========================================
+[2026-02-20 15:45:00] SESSION #5: HIGH Issues + Pending QUESTIONS
+[2026-02-20 15:45:00] ==========================================
+
+[2026-02-20 15:45:00] DECISION: Rebuild binaries with latest code, verify conductor server still running
+[2026-02-20 15:45:00] FACT: Committed env_contract_test.go (6 tests, all pass) — was untracked from session #4
+
+[2026-02-20 15:46:00] DECISION: ISSUE-008 already resolved — integration smoke tests exist across 3 test files:
+[2026-02-20 15:46:00] FACT: test/integration/messagebus_concurrent_test.go: 10 agents × 100 msgs concurrent write
+[2026-02-20 15:46:00] FACT: test/integration/messagebus_test.go: cross-process concurrent append, lock timeout, crash recovery
+[2026-02-20 15:46:00] FACT: test/integration/orchestration_test.go: RunJob, RunTask, parent-child, nested, bus ordering
+[2026-02-20 15:46:00] FACT: Marked ISSUE-008 as RESOLVED
+
+[2026-02-20 15:46:58] FACT: Launched sub-agent for ISSUE-007 (messagebus retry) via bin/run-agent job --agent claude
+[2026-02-20 15:47:00] FACT: Launched sub-agent for ISSUE-010 (error context) via bin/run-agent job --agent claude
+[2026-02-20 15:47:30] FACT: Answered 2 remaining pending QUESTIONS while agents work:
+[2026-02-20 15:47:30] FACT: - perplexity-QUESTIONS: YAML is authoritative, @file shorthand NOT needed
+[2026-02-20 15:47:30] FACT: - env-contract-QUESTIONS Q1: inject RUNS_DIR/MESSAGE_BUS as informational, don't block overrides
+
+[2026-02-20 15:49:52] FACT: Agent ISSUE-007 COMPLETED (exit 0): retry loop, exponential backoff, WithMaxRetries/WithRetryBackoff options, ContentionStats(), 5 new tests
+[2026-02-20 15:50:03] FACT: Agent ISSUE-010 COMPLETED (exit 0): tailFile, classifyExitCode, ErrorSummary in RunInfo, stderr in RUN_STOP, 11 new tests
+
+[2026-02-20 15:50:30] QUALITY: go build ./... PASS
+[2026-02-20 15:50:30] QUALITY: go vet ./... PASS
+[2026-02-20 15:50:30] QUALITY: go test ./internal/messagebus/ PASS (20 tests)
+[2026-02-20 15:50:30] QUALITY: go test ./internal/runner/ PASS (all tests)
+[2026-02-20 15:50:30] QUALITY: go test ./internal/storage/ PASS
+[2026-02-20 15:50:30] QUALITY: go test -race — PASS on messagebus, runner, storage
+[2026-02-20 15:51:00] FIX: TestLockTimeout integration test — added WithMaxRetries(1) to preserve original lock timeout semantics with new retry logic
+[2026-02-20 15:51:44] QUALITY: go test ./... — 17/18 packages PASS (docker test still fails: pre-existing stale container)
+
+[2026-02-20 15:52:00] ==========================================
+[2026-02-20 15:52:00] SESSION #5 SUMMARY
+[2026-02-20 15:52:00] ==========================================
+[2026-02-20 15:52:00] SUCCESS: ISSUE-007 RESOLVED — message bus retry with exponential backoff (3 attempts, configurable)
+[2026-02-20 15:52:00] SUCCESS: ISSUE-008 RESOLVED — integration smoke tests already comprehensive
+[2026-02-20 15:52:00] SUCCESS: ISSUE-010 PARTIALLY RESOLVED — stderr excerpt in RUN_STOP, exit code classification, ErrorSummary in RunInfo
+[2026-02-20 15:52:00] SUCCESS: All spec QUESTIONS now answered (0 pending)
+[2026-02-20 15:52:00] FACT: Commits: 3 (env_contract_test, feat code, docs update)
+[2026-02-20 15:52:00] FACT: Files changed: 9 files, +419 insertions, -53 deletions
+[2026-02-20 15:52:00] FACT: Issue tracker: 12 open, 3 partially resolved, 6 resolved
+[2026-02-20 15:52:00] PENDING: HIGH issues remaining: ISSUE-003 (Windows process groups), ISSUE-005 (runner bottleneck), ISSUE-006 (storage-bus dep), ISSUE-009 (token expiration)
+[2026-02-20 15:52:00] PENDING: Docker test still blocked by stale container
