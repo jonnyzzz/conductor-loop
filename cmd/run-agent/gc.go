@@ -124,7 +124,7 @@ func gcRun(runDir string, cutoff time.Time, dryRun, keepFailed bool) (deleted bo
 	infoPath := filepath.Join(runDir, "run-info.yaml")
 	info, readErr := storage.ReadRunInfo(infoPath)
 	if readErr != nil {
-		if os.IsNotExist(readErr) {
+		if errors.Is(readErr, os.ErrNotExist) {
 			return false, 0, nil // skip: may be active or mid-creation
 		}
 		return false, 0, fmt.Errorf("skip %s: read run-info: %w", runDir, readErr)
