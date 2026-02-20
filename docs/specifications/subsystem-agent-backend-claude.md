@@ -13,7 +13,7 @@ Defines how the Go `run-agent` binary invokes the Claude CLI for a single agent 
 
 ## Invocation (CLI)
 - Command (used by run-agent):
-  - `claude -p --input-format text --output-format text --tools default --permission-mode bypassPermissions < <prompt.md>`
+  - `claude -C <cwd> -p --input-format text --output-format text --tools default --permission-mode bypassPermissions < <prompt.md>`
 - Prompt input is provided via stdin from the run folder prompt file.
 - Working directory is set by run-agent based on task/sub-agent context.
 
@@ -28,13 +28,15 @@ Defines how the Go `run-agent` binary invokes the Claude CLI for a single agent 
 - Tokens/credentials configured in `config.hcl`:
   ```hcl
   agent "claude" {
-    token_file = "~/.config/claude/token"  # Recommended: file-based
-    # OR: token = "sk-ant-..."              # Inline value
+    token = "sk-ant-..."                   # Inline token
+    # OR: token = "@/path/to/token.txt"     # @file reference (preferred)
+    # OR: token_file = "~/.config/claude/token"  # File-based field (alternative)
   }
   ```
 - Runner automatically injects token as `ANTHROPIC_API_KEY` environment variable (hardcoded mapping).
 - Runner sets working directory and handles all CLI flags automatically (hardcoded: `--tools default --permission-mode bypassPermissions`).
 - Model selection uses CLI defaults (not overridden by runner).
+- When config is loaded, run-agent validates agent types and rejects unknown backends.
 
 ## Related Files
 - subsystem-runner-orchestration.md

@@ -9,6 +9,15 @@
 
 ---
 
+## Open Questions
+
+### Q1 (Re-opened): Perplexity output.md generation responsibility
+**Issue**: The current spec states that the runner generates output.md from stdout, but the resolution below says the adapter writes output.md on completion.
+
+**Question**: Should the Perplexity adapter write output.md directly, or should the runner always generate output.md from stdout (current spec)?
+
+**Answer**: (Pending - user)
+
 ## Resolved Questions
 
 ### Q1: Perplexity output.md Behavior Conflict
@@ -17,7 +26,7 @@
 **ROUND-6-SUMMARY.md:48** says:
 > "Perplexity output convention: uses stdout (agent-stdout.txt), no output.md for Perplexity"
 
-**Current subsystem-agent-backend-perplexity.md:14** says:
+**Previous subsystem-agent-backend-perplexity.md (2026-02-04)** said:
 > "The adapter writes the final response to BOTH stdout (captured to agent-stdout.txt) AND output.md"
 
 **Question**: Which is correct for the Perplexity REST adapter?
@@ -28,12 +37,14 @@
 - Update ROUND-6-SUMMARY.md to reflect current decision (BOTH files)
 - Or update current spec to clarify which approach is correct
 
-**Answer**: Perplexity tool creates stdout and stderr files. It only creates the output.md file if that API clearly tells the difference between streamging and progress and the final answer.
+**Answer**: Perplexity tool creates stdout and stderr files. It only creates the output.md file if that API clearly tells the difference between streaming and progress and the final answer.
 
 **Resolution** (2026-02-04):
 - Updated subsystem-agent-backend-perplexity.md I/O Contract section
 - Clarified that adapter writes both stdout (streaming) and output.md (at completion)
 - SSE format distinguishes streaming chunks from completion, enabling output.md creation
+
+**Update (2026-02-05)**: Current spec now says the runner generates output.md from stdout; see the open question above to confirm whether this supersedes the 2026-02-04 resolution.
 
 ---
 
@@ -60,3 +71,8 @@
   - run_20260204-203710-54667 (claude): HTTP format and headers
   - run_20260204-203955-55799 (codex): SSE event parsing and delta extraction
   - run_20260204-204303-56723 (gemini): Error handling and timeout configuration
+
+---
+
+- Q: Config format/token syntax mismatch: specs reference config.hcl with inline or `@file` token values, but code currently loads YAML with `token`/`token_file` fields and no `@file` shorthand. Which format is authoritative, and should `@file` be supported by the runner?
+  Answer: (Pending - user)

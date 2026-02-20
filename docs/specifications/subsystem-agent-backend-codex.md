@@ -28,14 +28,16 @@ Defines how the Go `run-agent` binary invokes the Codex CLI for a single agent r
 - Tokens/credentials configured in `config.hcl`:
   ```hcl
   agent "codex" {
-    token_file = "~/.config/openai/token"  # Recommended: file-based
-    # OR: token = "sk-..."                 # Inline value
+    token = "sk-..."                       # Inline token
+    # OR: token = "@/path/to/token.txt"    # @file reference (preferred)
+    # OR: token_file = "~/.config/openai/token"  # File-based field (alternative)
   }
   ```
 - Runner automatically injects token as `OPENAI_API_KEY` environment variable (hardcoded mapping).
 - Runner sets working directory and handles all CLI flags automatically (hardcoded for unrestricted mode).
 - No sandboxing; full tool access enabled by runner.
 - Model/reasoning settings use CLI defaults (not overridden by runner).
+- When config is loaded, run-agent validates agent types and rejects unknown backends.
 
 ## Related Files
 - subsystem-runner-orchestration.md

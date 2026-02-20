@@ -66,9 +66,9 @@ conductor-loop/
 ### AI Agents (CLI)
 - **claude**: `claude` (from PATH, Claude CLI)
 - **codex**: `codex` (from PATH, OpenAI Codex CLI)
-- **gemini**: TBD (API-based)
-- **perplexity**: TBD (API-based via HTTP)
-- **xai**: TBD (API-based)
+- **gemini**: `gemini` (from PATH, Gemini CLI)
+- **perplexity**: REST (API-based via HTTP, no CLI)
+- **xai**: REST (API-based via HTTP, no CLI)
 
 ### Version Control
 - **git**: `/usr/bin/git` (version 2.30+)
@@ -226,7 +226,12 @@ bin/run-agent task stop <run_id>
 
 ---
 
-## Message Bus Commands (when CLI is built)
+## Message Bus Commands (planned; not implemented yet)
+
+The current `run-agent` binary exposes only `task` and `job` commands. The `bus` subcommands below are planned but not implemented yet. Until they exist, use the REST API served by `run-agent serve`:
+
+- `GET /api/v1/messages?project_id=<id>&task_id=<id>&after=<msg_id>`
+- `GET /api/v1/messages/stream?project_id=<id>&task_id=<id>`
 
 ### Post Message
 ```bash

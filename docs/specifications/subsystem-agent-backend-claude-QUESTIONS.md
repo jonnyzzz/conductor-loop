@@ -12,9 +12,10 @@
   - `-p` - prompt mode
   - `--input-format text --output-format text` - text I/O for simplicity
 
-  Integrated into subsystem-agent-backend-claude.md.
+Integrated into subsystem-agent-backend-claude.md.
 
-No open questions at this time. 
+- Q: Should Claude output be markdown (if CLI supports) or keep text output as-is?
+  Answer: (Pending - user)
 
-
-COMMENT_UPDATE: Use markdown output in Claude, or just fallback to defaults.
+- Q: Config format/token syntax mismatch: specs reference config.hcl with inline or `@file` token values, but code currently loads YAML with `token`/`token_file` fields and no `@file` shorthand. Which format is authoritative, and should `@file` be supported by the runner?
+  Answer: (Pending - user)

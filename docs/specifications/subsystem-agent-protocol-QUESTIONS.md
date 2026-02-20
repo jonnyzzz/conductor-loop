@@ -1,5 +1,28 @@
 # Agent Protocol & Governance - Questions
 
+## Open Questions
+
+### Q2: Restart Prompt Prefix Enforcement
+**Issue**: Protocol now requires run-agent to prefix restarts with `Continue working on the following`, but the runner always uses the same prompt text.
+
+**Code Evidence**:
+- `internal/runner/orchestrator.go` `buildPrompt()` always uses a fixed preamble.
+- `internal/runner/task.go` passes the same prompt on every restart.
+
+**Question**: Should run-agent inject the restart prefix only after the first attempt, and if so, should it be inserted before or after the TASK_FOLDER/RUN_FOLDER preamble?
+
+**Answer**: (Pending - user)
+
+### Q3: Delegation Depth Enforcement
+**Issue**: Protocol specifies a max delegation depth of 16, but there is no runtime enforcement.
+
+**Code Evidence**:
+- No depth checks exist in `internal/runner/` or `internal/agent/`.
+
+**Question**: Where should depth be tracked and enforced (runner spawn, CLI flags, or prompt-level convention only)?
+
+**Answer**: (Pending - user)
+
 ## Resolved Questions
 
 ### Q1: output.md Generation Responsibility
@@ -47,5 +70,3 @@ about the target files to it's output to help the parent agent know what to do.
 - All specs now consistent: prompt instructs output.md creation, runner captures stdout/stderr independently
 
 ---
-
-No other open questions at this time. All previous questions have been resolved and integrated into subsystem-agent-protocol.md and subsystem-runner-orchestration.md.

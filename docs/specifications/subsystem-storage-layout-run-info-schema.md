@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document defines the schema for `run-info.yaml`, the canonical metadata file for each agent run. The file is located at `~/run-agent/<project>/task-<timestamp>-<slug>/runs/<run_id>/run-info.yaml`.
+This document defines the schema for `run-info.yaml`, the canonical metadata file for each agent run. The file is located at `~/run-agent/<project>/<task_id>/runs/<run_id>/run-info.yaml`.
 
 ## Goals
 
@@ -27,33 +27,33 @@ This document defines the schema for `run-info.yaml`, the canonical metadata fil
 version: 1
 ```
 
-Required integer field for schema evolution tracking.
+Optional integer field for schema evolution tracking. If omitted, readers MUST assume version 1.
 
 ### Required Fields
 
-All fields below are required and must be present in every run-info.yaml file.
+All fields below are required for run-agent-emitted run-info.yaml files. Readers SHOULD tolerate missing optional fields from legacy producers.
 
 #### Identity Fields
 
 ```yaml
-run_id: "20260204-183042569-12345"
+run_id: "20260204-1830425699-12345"
 project_id: "swarm"
 task_id: "20260131-205800-planning"
 ```
 
-- `run_id` (string): Unique run identifier in format `YYYYMMDD-HHMMSSMMMM-PID`
-- `project_id` (string): Project identifier (Java Identifier rules; no length limit)
-- `task_id` (string): Task identifier (timestamp-slug format from task folder name)
+- `run_id` (string): Unique run identifier in format `YYYYMMDD-HHMMSSffff-PID` (Go layout `20060102-1504050000`)
+- `project_id` (string): Project identifier (recommended Java Identifier rules; no length limit)
+- `task_id` (string): Task identifier (folder name; recommended `task-<timestamp>-<slug>` pattern)
 
 #### Lineage Fields
 
 ```yaml
-parent_run_id: "20260204-183000123-12340"
-previous_run_id: "20260204-182500456-12330"
+parent_run_id: "20260204-1830001234-12340"
+previous_run_id: "20260204-1825004567-12330"
 ```
 
-- `parent_run_id` (string): ID of the parent run that spawned this run; empty string "" for root runs
-- `previous_run_id` (string): ID of the previous run in the Ralph restart chain; empty string "" for first run
+- `parent_run_id` (string): ID of the parent run that spawned this run; empty string "" or omitted for root runs
+- `previous_run_id` (string): ID of the previous run in the Ralph restart chain; empty string "" or omitted for first run
 
 #### Agent Fields
 
@@ -67,6 +67,14 @@ pgid: 12345
 - `pid` (integer): Process ID of the agent
 - `pgid` (integer): Process group ID (for signal management)
 
+#### Status Field
+
+```yaml
+status: "running"
+```
+
+- `status` (string): Current status of the run: `running`, `completed`, `failed`
+
 #### Timing Fields
 
 ```yaml
@@ -76,17 +84,17 @@ exit_code: 0
 ```
 
 - `start_time` (string): ISO-8601 UTC timestamp when run started
-- `end_time` (string): ISO-8601 UTC timestamp when run ended; empty string "" while running
-- `exit_code` (integer): Process exit code; -1 while running, 0 for success, non-zero for failure
+- `end_time` (string): ISO-8601 UTC timestamp when run ended; omitted while running
+- `exit_code` (integer): Process exit code; -1 while running, non-zero for failure; omitted when 0 (success)
 
 #### Path Fields
 
 ```yaml
 cwd: "/Users/user/projects/swarm"
-prompt_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-183042569-12345/prompt.md"
-output_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-183042569-12345/output.md"
-stdout_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-183042569-12345/agent-stdout.txt"
-stderr_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-183042569-12345/agent-stderr.txt"
+prompt_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/prompt.md"
+output_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/output.md"
+stdout_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stdout.txt"
+stderr_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stderr.txt"
 ```
 
 - `cwd` (string): Current working directory where agent was executed (absolute path, OS-native)
@@ -95,7 +103,7 @@ stderr_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/202
 - `stdout_path` (string): Absolute path to agent-stdout.txt
 - `stderr_path` (string): Absolute path to agent-stderr.txt
 
-All paths use OS-native format (normalized via Go filepath.Clean).
+All paths use OS-native format (normalized via Go filepath.Clean). These path fields are required for run-agent output, but legacy producers may omit them; readers should tolerate missing values.
 
 ### Optional Fields
 
@@ -111,7 +119,7 @@ backend_endpoint: "https://api.anthropic.com/v1/messages"
 - `backend_model` (string): Specific model used for this run
 - `backend_endpoint` (string): API endpoint URL (no secrets; for observability only)
 
-These fields should be omitted if not applicable (e.g., for CLI-based agents where model is implicit).
+These fields should be omitted if not applicable (e.g., for CLI-based agents where model is implicit). The current run-agent implementation does not emit these fields yet.
 
 #### Command Line
 
@@ -128,23 +136,24 @@ May be omitted if the command contains sensitive information or is too long.
 ### Required Field Behavior
 
 - Missing required fields → run-agent must fail with clear error message
-- Empty string "" is valid for:
+- Empty string "" or omission is valid for:
   - `parent_run_id` (root runs)
   - `previous_run_id` (first run in chain)
   - `end_time` (while running)
+- `exit_code` may be omitted when 0 (success)
 - All other required fields must have non-empty values
 
 ### Timing Invariants
 
 - `start_time` must be set when file is created
 - `end_time` and `exit_code` updated when run completes
-- While running: `end_time = ""` and `exit_code = -1`
+- While running: `status = "running"`, `end_time` omitted, `exit_code = -1`
 
 ### Path Invariants
 
 - All paths must be absolute (no relative paths)
 - Paths must use OS-native separators (Go filepath.Clean normalization)
-- Paths must exist at time of writing (except output_path may not exist yet)
+- Paths must exist at time of writing (except output_path may not exist yet), if those fields are present
 
 ## Schema Evolution
 
@@ -177,33 +186,35 @@ Do NOT increment version for:
 
 ```
 MUST validate:
-- version = 1
-- run_id matches YYYYMMDD-HHMMSSMMMM-PID format
+- version = 1 (if present)
+- run_id matches YYYYMMDD-HHMMSSffff-PID format
 - project_id is non-empty
 - task_id is non-empty
 - agent is non-empty and in supported list
 - pid > 0
 - pgid > 0
 - start_time is valid ISO-8601
-- end_time = ""
-- exit_code = -1
-- All path fields are absolute paths
-- cwd, prompt_path, stdout_path, stderr_path exist
+- status = "running"
+- end_time is omitted
+- exit_code = -1 (if present)
+- All path fields are absolute paths (if present)
+- cwd, prompt_path, stdout_path, stderr_path exist (if present)
 ```
 
 ### At File Update (run-agent job completion)
 
 ```
 MUST validate:
-- end_time is valid ISO-8601 and >= start_time
-- exit_code is integer (0 for success, non-zero for failure)
+- end_time is valid ISO-8601 and >= start_time (if present)
+- status is "completed" or "failed"
+- exit_code is integer (non-zero for failure; 0 or omitted for success)
 ```
 
 ## Example Complete File
 
 ```yaml
 version: 1
-run_id: "20260204-183042569-12345"
+run_id: "20260204-1830425699-12345"
 project_id: "swarm"
 task_id: "20260131-205800-planning"
 parent_run_id: ""
@@ -213,12 +224,12 @@ pid: 12345
 pgid: 12345
 start_time: "2026-02-04T18:30:42.569Z"
 end_time: "2026-02-04T18:35:12.789Z"
-exit_code: 0
+status: "completed"
 cwd: "/Users/user/projects/swarm"
-prompt_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-183042569-12345/prompt.md"
-output_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-183042569-12345/output.md"
-stdout_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-183042569-12345/agent-stdout.txt"
-stderr_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-183042569-12345/agent-stderr.txt"
+prompt_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/prompt.md"
+output_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/output.md"
+stdout_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stdout.txt"
+stderr_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stderr.txt"
 backend_provider: "anthropic"
 backend_model: "claude-sonnet-4-5"
 backend_endpoint: "https://api.anthropic.com/v1/messages"
@@ -231,27 +242,28 @@ commandline: "claude -p --input-format text --output-format text --tools default
 
 ```go
 type RunInfo struct {
-    Version         int    `yaml:"version"`
-    RunID           string `yaml:"run_id"`
-    ProjectID       string `yaml:"project_id"`
-    TaskID          string `yaml:"task_id"`
-    ParentRunID     string `yaml:"parent_run_id"`
-    PreviousRunID   string `yaml:"previous_run_id"`
-    Agent           string `yaml:"agent"`
-    PID             int    `yaml:"pid"`
-    PGID            int    `yaml:"pgid"`
-    StartTime       string `yaml:"start_time"`
-    EndTime         string `yaml:"end_time"`
-    ExitCode        int    `yaml:"exit_code"`
-    CWD             string `yaml:"cwd"`
-    PromptPath      string `yaml:"prompt_path"`
-    OutputPath      string `yaml:"output_path"`
-    StdoutPath      string `yaml:"stdout_path"`
-    StderrPath      string `yaml:"stderr_path"`
-    BackendProvider string `yaml:"backend_provider,omitempty"`
-    BackendModel    string `yaml:"backend_model,omitempty"`
-    BackendEndpoint string `yaml:"backend_endpoint,omitempty"`
-    CommandLine     string `yaml:"commandline,omitempty"`
+    Version         int       `yaml:"version,omitempty"`
+    RunID           string    `yaml:"run_id"`
+    ProjectID       string    `yaml:"project_id"`
+    TaskID          string    `yaml:"task_id"`
+    ParentRunID     string    `yaml:"parent_run_id,omitempty"`
+    PreviousRunID   string    `yaml:"previous_run_id,omitempty"`
+    Agent           string    `yaml:"agent"`
+    PID             int       `yaml:"pid"`
+    PGID            int       `yaml:"pgid"`
+    StartTime       time.Time `yaml:"start_time"`
+    EndTime         time.Time `yaml:"end_time,omitempty"`
+    ExitCode        int       `yaml:"exit_code,omitempty"`
+    Status          string    `yaml:"status"`
+    CWD             string    `yaml:"cwd,omitempty"`
+    PromptPath      string    `yaml:"prompt_path,omitempty"`
+    OutputPath      string    `yaml:"output_path,omitempty"`
+    StdoutPath      string    `yaml:"stdout_path,omitempty"`
+    StderrPath      string    `yaml:"stderr_path,omitempty"`
+    BackendProvider string    `yaml:"backend_provider,omitempty"`
+    BackendModel    string    `yaml:"backend_model,omitempty"`
+    BackendEndpoint string    `yaml:"backend_endpoint,omitempty"`
+    CommandLine     string    `yaml:"commandline,omitempty"`
 }
 ```
 
@@ -265,6 +277,7 @@ type RunInfo struct {
 ### Reading
 
 - Validate version field first
+- If version is missing, assume 1
 - Reject if version > 1 (unsupported future version)
 - Ignore unknown fields (forward compatibility)
 - Validate required fields after parsing

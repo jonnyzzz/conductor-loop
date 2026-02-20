@@ -1,35 +1,59 @@
 # Frontend-Backend API Contract Subsystem
 
 ## Overview
-
-Defines the REST/JSON + SSE API contract between the React monitoring UI (frontend) and the Go run-agent serve backend. This API provides read-only access to project/task/run data, message bus streaming, and task creation capabilities.
+Defines the REST/JSON + SSE API contract between the React monitoring UI (frontend) and the Go run-agent serve backend. This API provides read access to project/task/run data, message bus streaming and posting, and task creation capabilities.
 
 ## Goals
-
-- Provide a stable API for the monitoring UI
-- Enable TypeScript type safety through integration tests
-- Support efficient streaming of logs and message bus updates
-- Enable task creation and management from the UI
+- Provide a stable API for the monitoring UI.
+- Enable TypeScript type safety through integration tests.
+- Support efficient streaming of logs and message bus updates.
+- Enable task creation and message posting from the UI.
+- Support selecting a backend host (single active host at a time).
 
 ## Non-Goals
-
-- Remote multi-user access (localhost only in MVP)
-- Write operations beyond task creation and message posting
-- Authentication/authorization (localhost assumes trust)
-- Global search across all projects/tasks
+- Remote multi-user access (localhost only in MVP).
+- Write operations beyond task creation and message posting.
+- Authentication/authorization in MVP.
+- Global search across all projects/tasks.
+- Cross-host aggregation (user picks one host at a time).
 
 ## Technology Stack
+- Protocol: REST (HTTP/1.1 or HTTP/2) + Server-Sent Events (SSE).
+- Format: JSON for REST; text/event-stream for SSE.
+- Base path: `/api/v1`.
+- Host: localhost only for MVP, optional remote host for future.
+- Port: configurable (default 8080).
 
-- **Protocol**: REST (HTTP/1.1 or HTTP/2) + Server-Sent Events (SSE)
-- **Format**: JSON for REST; text/event-stream for SSE
-- **Host**: localhost only (no remote access in MVP)
-- **Port**: Configurable (default 8080)
+## Host Selection
+- UI can store multiple backend base URLs (local storage or config).
+- UI uses `GET /api/v1/health` and `GET /api/v1/version` to validate a host.
+- UI shows the active host label in the header.
 
 ## API Endpoints
 
+### Health & Version
+
+#### GET /api/v1/health
+
+**Response**:
+```json
+{
+  "status": "ok"
+}
+```
+
+#### GET /api/v1/version
+
+**Response**:
+```json
+{
+  "version": "v1"
+}
+```
+
 ### Project Management
 
-#### GET /api/projects
+#### GET /api/v1/projects
 
 List all projects.
 
@@ -46,7 +70,7 @@ List all projects.
 }
 ```
 
-#### GET /api/projects/:project_id
+#### GET /api/v1/projects/:project_id
 
 Get project details.
 
@@ -72,7 +96,7 @@ Get project details.
 
 ### Task Management
 
-#### GET /api/projects/:project_id/tasks
+#### GET /api/v1/projects/:project_id/tasks
 
 List all tasks for a project.
 
@@ -91,7 +115,7 @@ List all tasks for a project.
 }
 ```
 
-#### GET /api/projects/:project_id/tasks/:task_id
+#### GET /api/v1/projects/:project_id/tasks/:task_id
 
 Get task details.
 
@@ -119,17 +143,21 @@ Get task details.
 }
 ```
 
-#### POST /api/projects/:project_id/tasks
+#### POST /api/v1/projects/:project_id/tasks
 
-Create a new task or restart existing task.
+Create a new task or restart an existing task.
 
 **Request**:
 ```json
 {
   "task_id": "20260204-180000-newfeature",
   "prompt": "Add feature X to the system...",
+  "agent_type": "codex",
   "project_root": "/Users/user/projects/myproject",
-  "attach_mode": "restart"  // or "new"
+  "attach_mode": "restart",
+  "config": {
+    "JRUN_PARENT_ID": "20260204-170000-11111"
+  }
 }
 ```
 
@@ -144,7 +172,7 @@ Create a new task or restart existing task.
 
 ### Run Management
 
-#### GET /api/projects/:project_id/tasks/:task_id/runs/:run_id
+#### GET /api/v1/projects/:project_id/tasks/:task_id/runs/:run_id
 
 Get run metadata.
 
@@ -171,12 +199,12 @@ Get run metadata.
 
 ### File Access
 
-#### GET /api/projects/:project_id/tasks/:task_id/file
+#### GET /api/v1/projects/:project_id/tasks/:task_id/file
 
 Read task-level files (TASK.md, TASK_STATE.md).
 
-**Query Parameters**:
-- `name`: File name (e.g., "TASK.md", "TASK_STATE.md")
+Query parameters:
+- `name`: file name (e.g., `TASK.md`, `TASK_STATE.md`).
 
 **Response**:
 ```json
@@ -187,13 +215,13 @@ Read task-level files (TASK.md, TASK_STATE.md).
 }
 ```
 
-#### GET /api/projects/:project_id/tasks/:task_id/runs/:run_id/file
+#### GET /api/v1/projects/:project_id/tasks/:task_id/runs/:run_id/file
 
 Read run-level files (prompt.md, output.md, agent-stdout.txt, agent-stderr.txt).
 
-**Query Parameters**:
-- `name`: File name (e.g., "output.md", "agent-stdout.txt")
-- `tail`: Optional, number of lines to tail (default: all)
+Query parameters:
+- `name`: file name (e.g., `output.md`, `agent-stdout.txt`).
+- `tail`: optional number of lines to tail (default: all).
 
 **Response**:
 ```json
@@ -205,19 +233,33 @@ Read run-level files (prompt.md, output.md, agent-stdout.txt, agent-stderr.txt).
 }
 ```
 
-**Security**: Backend validates that `name` parameter is one of the allowed files and prevents path traversal.
+Security: backend validates that `name` is one of the allowed files and prevents path traversal.
 
 ### Message Bus
 
-#### POST /api/projects/:project_id/bus
+#### GET /api/v1/projects/:project_id/bus
 
-Post a message to project message bus.
+Read the project message bus.
+
+Query parameters:
+- `after`: optional message id to start after.
+
+#### GET /api/v1/projects/:project_id/tasks/:task_id/bus
+
+Read the task message bus.
+
+Query parameters:
+- `after`: optional message id to start after.
+
+#### POST /api/v1/projects/:project_id/bus
+
+Post a message to the project message bus.
 
 **Request**:
 ```json
 {
   "type": "USER",
-  "message": "Please clarify the requirements...",
+  "body": "Please clarify the requirements...",
   "parents": ["MSG-20260204-173000-1"]
 }
 ```
@@ -229,64 +271,52 @@ Post a message to project message bus.
 }
 ```
 
-#### POST /api/projects/:project_id/tasks/:task_id/bus
+#### POST /api/v1/projects/:project_id/tasks/:task_id/bus
 
-Post a message to task message bus.
+Post a message to the task message bus (same payload as project bus).
 
-(Same format as project bus post)
-
-#### GET /api/projects/:project_id/bus/stream
+#### GET /api/v1/projects/:project_id/bus/stream
 
 Stream project message bus via SSE.
 
-**Query Parameters**:
-- `since`: Optional ISO-8601 timestamp to start streaming from
+Query parameters:
+- `after`: optional message id to start after.
 
-**SSE Events**:
+SSE events:
 ```
 event: message
-data: {"msg_id": "MSG-20260204-173100-2", "ts": "2026-02-04T17:31:00Z", "type": "USER", "message": "..."}
-
-event: message
-data: {"msg_id": "MSG-20260204-173200-3", "ts": "2026-02-04T17:32:00Z", "type": "ANSWER", "parents": ["MSG-20260204-173100-2"], "message": "..."}
+data: {"msg_id": "MSG-20260204-173100-2", "ts": "2026-02-04T17:31:00Z", "type": "USER", "project_id": "swarm", "body": "..."}
 ```
 
-#### GET /api/projects/:project_id/tasks/:task_id/bus/stream
+#### GET /api/v1/projects/:project_id/tasks/:task_id/bus/stream
 
-Stream task message bus via SSE.
-
-(Same format as project bus stream)
+Stream task message bus via SSE (same payload as project bus stream).
 
 ### Log Streaming
 
-#### GET /api/projects/:project_id/tasks/:task_id/logs/stream
+#### GET /api/v1/runs/stream/all
 
-Stream all run logs (stdout/stderr) for a task via SSE.
+Stream stdout/stderr for all runs via SSE.
 
-**Query Parameters**:
-- `since`: Optional ISO-8601 timestamp
-- `run_id`: Optional run ID filter (default: all runs)
+#### GET /api/v1/runs/:run_id/stream
 
-**SSE Events**:
+Stream stdout/stderr for a single run via SSE.
+
+SSE events:
 ```
-event: run_start
-data: {"run_id": "20260204-173042-12345", "agent": "claude", "start_time": "2026-02-04T17:30:42Z"}
-
 event: log
-data: {"run_id": "20260204-173042-12345", "stream": "stdout", "line": "Starting agent..."}
+data: {"run_id": "20260204-173042-12345", "stream": "stdout", "line": "Starting agent...", "timestamp": "2026-02-04T17:30:43Z"}
 
-event: log
-data: {"run_id": "20260204-173042-12345", "stream": "stderr", "line": "[Warning] ..."}
+event: status
+data: {"run_id": "20260204-173042-12345", "status": "completed", "exit_code": 0}
 
-event: run_end
-data: {"run_id": "20260204-173042-12345", "exit_code": 0, "end_time": "2026-02-04T17:31:55Z"}
+event: heartbeat
+data: {}
 ```
 
-**Behavior**:
-- Streams from all runs in chronological order
-- New runs automatically included (discovery polling interval: 1s)
-- Each log line tagged with run_id and stream (stdout/stderr)
-- Client-side filtering by run_id or stream
+SSE cursor behavior:
+- Clients may send `Last-Event-ID` with a cursor value to resume.
+- Cursor format is `s=<stdout_lines>;e=<stderr_lines>` (single integer applies to both).
 
 ## Error Handling
 
@@ -304,28 +334,32 @@ data: {"run_id": "20260204-173042-12345", "exit_code": 0, "end_time": "2026-02-0
 
 ### HTTP Status Codes
 
-- `200 OK`: Success
-- `201 Created`: Task created
-- `400 Bad Request`: Invalid request parameters
-- `404 Not Found`: Resource not found
-- `500 Internal Server Error`: Backend error
+- `200 OK`: success.
+- `201 Created`: task created.
+- `202 Accepted`: async stop accepted.
+- `400 Bad Request`: invalid request parameters.
+- `401 Unauthorized`: missing/invalid auth (if enabled).
+- `404 Not Found`: resource not found.
+- `405 Method Not Allowed`: wrong HTTP method.
+- `409 Conflict`: ambiguous identifiers or already-finished runs.
+- `500 Internal Server Error`: backend error.
 
 ## TypeScript Type Generation
 
 ### Integration Tests
 
 Create Node.js or browser-based integration tests that:
-1. Start a test instance of run-agent serve
-2. Make API requests using fetch or axios
-3. Validate response structure against TypeScript interfaces
-4. Fail if types don't match
+1. Start a test instance of run-agent serve.
+2. Make API requests using fetch or axios.
+3. Validate response structure against TypeScript interfaces.
+4. Fail if types don't match.
 
 ### Type Definition Example
 
 ```typescript
 interface Project {
   id: string;
-  last_activity: string;  // ISO-8601
+  last_activity: string;
   task_count: number;
 }
 
@@ -343,8 +377,8 @@ interface RunInfo {
   agent: string;
   pid: number;
   pgid: number;
-  start_time: string;  // ISO-8601
-  end_time: string;    // ISO-8601
+  start_time: string;
+  end_time: string;
   exit_code: number;
   cwd: string;
   backend_provider?: string;
@@ -356,42 +390,42 @@ interface RunInfo {
 
 ### OpenAPI Consideration
 
-Future: Generate OpenAPI 3.0 specification and use openapi-generator or similar to auto-generate TypeScript types.
+Future: generate an OpenAPI 3.0 specification and use openapi-generator (or similar) to auto-generate TypeScript types.
 
 ## Performance Considerations
 
 ### Caching
 
-- File content responses: no caching (files may change)
-- Metadata responses: short-lived cache (2s) for repeated requests
+- File content responses: no caching (files may change).
+- Metadata responses: short-lived cache (2s) for repeated requests.
 
 ### Streaming
 
-- SSE connections kept alive with periodic ping (every 30s)
-- Reconnection supported via `since` parameter
+- SSE connections kept alive with periodic ping (every 30s).
+- Reconnection supported via `Last-Event-ID`.
 
 ### Rate Limiting
 
-- No rate limiting in MVP (localhost only)
+- No rate limiting in MVP (localhost only).
 
 ## CORS
 
-- Disabled (localhost only; same-origin)
-- Enable CORS if remote access added post-MVP
+- Disabled by default (localhost only; same-origin).
+- Enable CORS if remote access is added post-MVP.
 
 ## Security
 
 ### Path Traversal Prevention
 
-- Backend validates file names against allowed list
-- No user-specified file paths accepted
-- All file access rooted at ~/run-agent
+- Backend validates file names against allowed list.
+- No user-specified file paths accepted.
+- All file access rooted at `~/run-agent`.
 
 ### Input Validation
 
-- All JSON payloads validated against schemas
-- String length limits: message body 64KB (same as message bus)
-- Reject invalid UTF-8
+- All JSON payloads validated against schemas.
+- String length limits: message body 64KB (same as message bus).
+- Reject invalid UTF-8.
 
 ## Related Files
 

@@ -63,6 +63,80 @@ invocation in a shell script, which is started with the correct working director
 
 ---
 
+## New Questions (2026-02-05)
+
+### Q3: Config Format and Default Location
+**Issue**: The runner spec now targets HCL at ~/run-agent/config.hcl, but the current implementation loads YAML via internal/config and only when --config is provided.
+
+**Question**: Should HCL be the single source of truth, with YAML deprecated? If yes, should run-agent default to ~/run-agent/config.hcl when --config is omitted?
+
+**Answer**: (Pending - user)
+
+---
+
+### Q4: run-agent CLI Surface Area
+**Issue**: The spec includes run-agent serve, bus, and stop. cmd/run-agent currently exposes only task and job.
+
+**Question**: Should serve, bus, and stop be implemented now, or should the docs mark them as planned only?
+
+**Answer**: (Pending - user)
+
+---
+
+### Q5: Agent Selection Strategy
+**Issue**: The spec calls for round-robin or weighted selection and an I'm lucky random mode with cooldown on failures. The current code picks the configured default or the first agent alphabetically.
+
+**Question**: Which selection algorithm should be considered authoritative, and how should cooldown or degradation be modeled?
+
+**Answer**: (Pending - user)
+
+---
+
+### Q6: Delegation Depth Limit
+**Issue**: The spec sets a default delegation depth limit of 16, but there is no enforcement or tracking in the runner.
+
+**Question**: Where should depth be tracked (env var, run-info, or prompt), and what should run-agent do when the limit is exceeded?
+
+**Answer**: (Pending - user)
+
+---
+
+### Q7: Restart Prompt Prefix
+**Issue**: The spec requires prefixing restarts with "Continue working on the following:", but the current runner does not modify prompts on restart.
+
+**Question**: Should the runner add this prefix, and should it also include previous output or TASK_STATE.md context?
+
+**Answer**: (Pending - user)
+
+---
+
+### Q8: Environment Safety for Runner-Owned Variables
+**Issue**: The spec reserves JRUN_* variables and disallows overrides, but the current runner merges caller-provided environment values after setting JRUN_*.
+
+**Question**: Should the runner drop or overwrite reserved keys from caller-provided environment maps and inherited env?
+
+**Answer**: (Pending - user)
+
+---
+
+### Q9: Start/Stop Event Detail
+**Issue**: Ideas call for a dedicated start/stop log and richer metadata, while the current implementation posts RUN_START/RUN_STOP messages with minimal body content.
+
+**Question**: Should start/stop events include pid, prompt path, and output path in the message bus, and should a dedicated event log file be added?
+
+**Answer**: (Pending - user)
+
+---
+
+### Q10: Task Folder Naming and Creation
+**Issue**: The storage spec expects task-<timestamp>-<slug> folders and TASK.md to exist, but run-agent task uses raw task IDs and does not create TASK.md.
+
+**Question**: Should run-agent generate task IDs and write TASK.md when starting a task, or keep the current behavior and require pre-created task directories?
+
+**Answer**: (Pending - user)
+
+---
+
 All previously resolved questions:
 - Config validation: Addressed in subsystem-runner-orchestration-config-schema.md
-- Binary updates: Manual install/rebuild for MVP All previous questions have been resolved and integrated into subsystem-runner-orchestration.md and subsystem-runner-orchestration-config-schema.md (to be created).
+- Binary updates: Manual install/rebuild for MVP

@@ -17,12 +17,21 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 - Agents MUST work on a scoped task and exit when done.
 - Agents MUST delegate if a task is too large or outside their folder context.
 - Agents SHOULD scope work to a single module/folder and delegate other folders to sub-agents.
+- Agents MUST NOT communicate directly with other agents or users; all coordination happens via the message bus and output.md.
 - Agents MUST read TASK_STATE.md and message bus on start.
 - Root agents SHOULD read PROJECT-MESSAGE-BUS.md and project FACT files on start.
-- Agents MUST write updates to TASK_STATE.md each cycle (root only).
+- Root agents MUST write updates to TASK_STATE.md each cycle and before exit.
+- TASK_STATE.md MUST stay short (status + next step, no logs).
 - Agents SHOULD write final results to output.md in their run folder (best-effort; runner creates output.md from stdout if missing).
 - Agents MUST use run-agent bus tooling; direct file appends are disallowed.
 - Agents SHOULD log progress to stderr during long operations.
+
+## Ownership & Delegation
+- Every run has a single owner (the agent executing that run).
+- The parent/root agent owns coordination and must define clear scope when delegating (module/folder + expected output).
+- Delegated tasks MUST NOT overlap in file ownership; if overlap is needed, the parent agent must serialize the work.
+- Sub-agents MUST NOT modify sibling run folders or parent run files (except via message bus).
+- Parents may read child output/TASK_STATE for monitoring; policy does not restrict this.
 
 ## Run Folder Ownership
 - No OWNERSHIP.md file.
@@ -31,7 +40,6 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 - This is a best-effort instruction; agents should attempt to create output.md, but if missing, the runner creates it from stdout.
 - Agents write prompts/outputs/temporary files only inside RUN_FOLDER.
 - Ownership is conceptual (prompt-guided), not enforced by files.
-- Parents may read child output/TASK_STATE for monitoring; policy does not restrict this.
 
 ## Output Files & I/O Capture
 - **output.md**: The final result file
@@ -59,6 +67,7 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 ## Task State
 - TASK_STATE.md is free text written by root agent.
 - No strict schema; keep it short and current.
+- On restarts, the new root agent MUST read TASK_STATE.md and continue from it.
 
 ## Facts
 - FACT files are Markdown with YAML front matter.
@@ -69,6 +78,10 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 ## Delegation & Depth
 - Max delegation depth: 16 (configurable in global settings).
 - run-agent task should fail new spawn attempts beyond the limit.
+
+## Restarts & Continuation
+- On root-agent restart, run-agent MUST prefix the prompt with `Continue working on the following` before the original task prompt.
+- The prefix must be added for every restart attempt to reinforce continuity.
 
 ## CWD Guidance
 - Root agent runs in task folder.

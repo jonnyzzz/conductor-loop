@@ -5,8 +5,7 @@
 
   Confirmed details:
   - Environment variable: `OPENAI_API_KEY`
-  - Config key in config.hcl: `openai_api_key`
-  - Support @file reference for token file paths (e.g., `openai_api_key = "@/path/to/key.txt"`)
+  - Config naming is inconsistent across docs: older notes referenced `openai_api_key`, while the current spec uses `agent "codex"` fields (`token`, `token_file`, optional `@file` value like `token = "@/path/to/key.txt"`). See open question below.
   - CLI invocation from run-agent.sh:
     ```bash
     codex exec --dangerously-bypass-approvals-and-sandbox -C "$CWD" -
@@ -15,7 +14,7 @@
     - `-C "$CWD"` - sets working directory
     - `-` - reads prompt from stdin
 
-  Integrated into subsystem-agent-backend-codex.md.
+Integrated into subsystem-agent-backend-codex.md.
 
-No open questions at this time.
-
+- Q: Config key + token format mismatch: older notes reference `openai_api_key` in config.hcl, while current specs use `agent "codex"` with `token`/`token_file` (and optional `@file` value). Which format is authoritative, and should `@file` be supported by the runner?
+  Answer: (Pending - user)
