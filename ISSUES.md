@@ -139,7 +139,7 @@ Claude CLI and Codex CLI are evolving rapidly. Flag changes, output format chang
 - [ ] Maintain compatibility matrix in config.hcl (config override for min_version — deferred)
 - [ ] Add integration test suite for multiple CLI versions (deferred)
 - [ ] Document supported versions in README (deferred)
-- [ ] Add `run-agent validate` subcommand (deferred)
+- [x] `run-agent validate` subcommand — IMPLEMENTED in cmd/run-agent/validate.go (checks CLI PATH, version, token availability for all configured agents)
 - [ ] Persist agent_version in run-info.yaml (deferred)
 
 **Resolution**:
@@ -228,7 +228,8 @@ Full analysis: `/tmp/issue-005-analysis.md`
 
 ### ISSUE-006: Storage-MessageBus Dependency Inversion in Phase 1
 **Severity**: HIGH
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-21 (Session #25)
 **Blocking**: Phase 1 parallelism
 
 **Description**:
@@ -254,6 +255,22 @@ Make infra-storage, infra-messagebus, infra-config ALL PARALLEL (no dependencies
 
 **Dependencies**:
 - THE_PLAN_v5.md updates
+
+**Resolution Notes** (2026-02-21, Session #25):
+
+This was a **development planning** concern about Phase 1 implementation parallelism, not a
+runtime architectural issue. The code is now fully implemented.
+
+The actual dependency direction is **one-directional and correct**:
+- `internal/storage/atomic.go` imports `internal/messagebus` (uses `messagebus.LockExclusive` for run-info.yaml locking — added in ISSUE-019 fix)
+- `internal/messagebus` does **NOT** import `internal/storage` (confirmed by grep)
+
+This means:
+- No circular dependency exists
+- `messagebus` is a primitive that storage builds on — the correct layering
+- The planning concern about Phase 1 parallelism is moot since all code is implemented
+
+**Dependency graph**: `internal/storage` → `internal/messagebus` (one direction only)
 
 ---
 
@@ -766,7 +783,8 @@ TASK-MESSAGE-BUS.md is append-only with no rotation. Long-running tasks with cha
 
 ### ISSUE-017: xAI Backend Included in MVP Plan But Should Be Post-MVP
 **Severity**: LOW
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-21 (Session #25)
 
 **Description**:
 Phase 2 lists xAI as parallel implementation, but specifications note "xAI integration is deferred post-MVP".
@@ -776,14 +794,16 @@ Phase 2 lists xAI as parallel implementation, but specifications note "xAI integ
 - docs/specifications/subsystem-runner-orchestration.md
 
 **Resolution**:
-- Remove agent-xai from Phase 2 parallel execution
-- Mark as post-MVP in THE_PLAN_v5.md
+Planning artifact — moot. xAI backend IS implemented: `internal/agent/xai/xai.go` + `xai_test.go`.
+The MVP/post-MVP distinction was a planning sequencing concern; the full implementation is complete.
+The `isValidateRestAgent()` function in `cmd/run-agent/validate.go` includes "xai" as a supported REST agent type.
 
 ---
 
 ### ISSUE-018: Frontend Complexity May Be Underestimated
 **Severity**: LOW
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-21 (Session #25)
 
 **Description**:
 Monitoring UI includes React + TypeScript + SSE + terminal rendering + multiple views. Single 3-5 day task may be optimistic.
@@ -792,8 +812,11 @@ Monitoring UI includes React + TypeScript + SSE + terminal rendering + multiple 
 - Implementation Strategy Validator (Agent #4), Assumption 5.3
 
 **Resolution**:
-- Split into parallel sub-tasks (ui-scaffold, ui-sse-client, ui-components, ui-visualization)
-- Allocate 3-4 days with parallelism
+Planning artifact — moot. React + TypeScript frontend is fully implemented and functional:
+- `frontend/` — React 18 + TypeScript + Ring UI (built: `frontend/dist/`)
+- Live log streaming (SSE), task creation dialog, message bus panel, TASK.md viewer, stop button
+- Implemented across sessions #21–#22 in parallel sub-agent tasks (matching the recommended split approach)
+- Conductor serves `frontend/dist/` at `/ui/` with `web/src/` as fallback
 
 ---
 
@@ -832,10 +855,30 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 | Severity | Open | Partially Resolved | Resolved |
 |----------|------|-------------------|----------|
 | CRITICAL | 0 | 2 | 4 |
-| HIGH | 1 | 3 | 4 |
+| HIGH | 0 | 3 | 5 |
 | MEDIUM | 1 | 0 | 5 |
-| LOW | 2 | 0 | 0 |
-| **Total** | **4** | **5** | **13** |
+| LOW | 0 | 0 | 2 |
+| **Total** | **1** | **5** | **16** |
+
+### Session #25 Changes (2026-02-21)
+
+**ISSUE-006** (HIGH): OPEN → RESOLVED — planning artifact.
+`internal/storage/atomic.go` imports `internal/messagebus` (one-directional, not circular).
+`internal/messagebus` has no import of `internal/storage`. Dependency layering is correct.
+The Phase 1 parallelism concern is moot since all code is implemented.
+Summary: HIGH open 1 → 0, HIGH resolved 4 → 5.
+
+**ISSUE-004** (HIGH PARTIALLY RESOLVED): Checked off `run-agent validate` subcommand —
+fully implemented in `cmd/run-agent/validate.go` with CLI path detection, version check,
+and token validation for all agent types.
+
+**ISSUE-017** (LOW): OPEN → RESOLVED — xAI backend implemented in `internal/agent/xai/`.
+Summary: LOW open 2 → 1.
+
+**ISSUE-018** (LOW): OPEN → RESOLVED — React frontend fully functional as of Session #22.
+Summary: LOW open 1 → 0, LOW resolved 0 → 2.
+
+Total: open 4 → 1, resolved 13 → 16.
 
 ### Session #24 Changes (2026-02-20)
 
@@ -952,4 +995,4 @@ New features implemented (from QUESTIONS.md decisions):
 
 *This document is maintained as part of the Conductor Loop project. Update as issues are resolved or new issues discovered.*
 
-*Last updated: 2026-02-20 Session #24*
+*Last updated: 2026-02-21 Session #25*
