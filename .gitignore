@@ -7,7 +7,7 @@ dist/
 *.dll
 *.so
 *.dylib
-conductor
+/conductor
 
 # Test outputs
 cover.out
