@@ -45,6 +45,8 @@ type Server struct {
 	handler    http.Handler
 	server     *http.Server
 
+	mu sync.Mutex
+
 	sseOnce        sync.Once
 	sseManagerInst *StreamManager
 	sseErr         error
@@ -109,6 +111,7 @@ func (s *Server) ListenAndServe() error {
 	if s == nil {
 		return errors.New("server is nil")
 	}
+	s.mu.Lock()
 	if s.server == nil {
 		addr := net.JoinHostPort(s.apiConfig.Host, intToString(s.apiConfig.Port))
 		s.server = &http.Server{
@@ -116,15 +119,23 @@ func (s *Server) ListenAndServe() error {
 			Handler: s.handler,
 		}
 	}
-	return s.server.ListenAndServe()
+	srv := s.server
+	s.mu.Unlock()
+	return srv.ListenAndServe()
 }
 
 // Shutdown gracefully stops the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
-	if s == nil || s.server == nil {
+	if s == nil {
 		return nil
 	}
-	return s.server.Shutdown(ctx)
+	s.mu.Lock()
+	srv := s.server
+	s.mu.Unlock()
+	if srv == nil {
+		return nil
+	}
+	return srv.Shutdown(ctx)
 }
 
 func resolveRootDir(root string) (string, error) {
