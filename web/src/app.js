@@ -219,9 +219,15 @@ async function loadTabContent() {
         `/api/v1/messages?project_id=${enc(state.selectedProject)}&task_id=${enc(state.selectedTask)}`
       );
       const msgs = (data.messages || []).slice(-50);
-      el.textContent = msgs.length
-        ? msgs.map(m => `[${shortTime(m.timestamp)}] [${m.type}] ${m.body}`).join('\n')
-        : '(no messages)';
+      if (msgs.length) {
+        el.innerHTML = msgs.map(m => {
+          const cls  = msgTypeClass(m.type);
+          const text = `[${h(shortTime(m.timestamp))}] [${h(m.type)}] ${h(m.body || m.content || '')}`;
+          return cls ? `<span class="${cls}">${text}</span>` : text;
+        }).join('\n');
+      } else {
+        el.textContent = '(no messages)';
+      }
     } else {
       const data = await apiFetch(
         `${prefix}/runs/${enc(state.selectedRun)}/file?name=${enc(tab)}`
@@ -254,6 +260,82 @@ function closeRun() {
   state.selectedRun = null;
   hideRunDetail();
   renderMainPanel();
+}
+
+// ── New Task modal ─────────────────────────────────────────────────────────────
+
+function openNewTaskModal() {
+  if (state.selectedProject) {
+    document.getElementById('nt-project-id').value = state.selectedProject;
+  }
+  document.getElementById('nt-error').classList.add('hidden');
+  document.getElementById('new-task-dialog').showModal();
+}
+
+function closeNewTaskModal() {
+  document.getElementById('new-task-dialog').close();
+}
+
+function generateTaskId() {
+  const now = new Date();
+  const p = (n, w = 2) => String(n).padStart(w, '0');
+  const date = `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}`;
+  const time = `${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+  const rand = Math.random().toString(36).slice(2, 7);
+  return `task-${date}-${time}-${rand}`;
+}
+
+async function submitNewTask() {
+  const projectId   = document.getElementById('nt-project-id').value.trim();
+  const taskIdVal   = document.getElementById('nt-task-id').value.trim();
+  const agentType   = document.getElementById('nt-agent-type').value;
+  const prompt      = document.getElementById('nt-prompt').value.trim();
+  const projectRoot = document.getElementById('nt-project-root').value.trim();
+  const attachMode  = document.getElementById('nt-attach-mode').value;
+  const errEl       = document.getElementById('nt-error');
+
+  errEl.classList.add('hidden');
+  if (!projectId) {
+    errEl.textContent = 'Project ID is required';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (!prompt) {
+    errEl.textContent = 'Prompt is required';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const taskId = taskIdVal || generateTaskId();
+  const body = { project_id: projectId, task_id: taskId, agent_type: agentType, prompt, attach_mode: attachMode };
+  if (projectRoot) body.project_root = projectRoot;
+
+  try {
+    const resp = await fetch(API_BASE + '/api/v1/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${text}`);
+    }
+    const data = await resp.json();
+    closeNewTaskModal();
+    showToast(`Task created: ${data.task_id}`);
+    await fullRefresh();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
+  }
+}
+
+function showToast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast${isError ? ' toast-error' : ''}`;
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.className = 'toast hidden'; }, 4000);
 }
 
 // ── SSE live updates ──────────────────────────────────────────────────────────
@@ -316,6 +398,17 @@ function stIcon(status) {
     case 'completed': return '<span class="st-ok">✓</span>';
     case 'failed':    return '<span class="st-err">✗</span>';
     default:          return '<span class="st-idle">○</span>';
+  }
+}
+
+function msgTypeClass(type) {
+  if (!type) return '';
+  switch (type.toUpperCase()) {
+    case 'RUN_CRASH':    return 'msg-crash';
+    case 'RUN_START':
+    case 'RUN_COMPLETE': return 'msg-run';
+    case 'TASK_DONE':    return 'msg-ok';
+    default:             return '';
   }
 }
 

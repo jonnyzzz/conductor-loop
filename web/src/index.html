@@ -24,7 +24,7 @@
 
     <!-- Left sidebar: projects -->
     <div id="sidebar">
-      <div class="panel-hdr">Projects</div>
+      <div class="panel-hdr">Projects <button onclick="openNewTaskModal()" title="New Task">+</button></div>
       <div id="project-list" class="scroll-list">
         <p class="empty">Loading...</p>
       </div>
@@ -61,6 +61,58 @@
 
     </div><!-- /content -->
   </div><!-- /workspace -->
+
+  <!-- New Task Modal -->
+  <dialog id="new-task-dialog">
+    <div class="dialog-hdr">
+      <span>NEW TASK</span>
+      <button onclick="closeNewTaskModal()" title="Close">✕</button>
+    </div>
+    <form id="new-task-form" onsubmit="submitNewTask(); return false;">
+      <div class="form-row">
+        <label for="nt-project-id">Project ID *</label>
+        <input type="text" id="nt-project-id" required placeholder="my-project">
+      </div>
+      <div class="form-row">
+        <label for="nt-task-id">Task ID</label>
+        <input type="text" id="nt-task-id" placeholder="auto-generated">
+      </div>
+      <div class="form-row">
+        <label for="nt-agent-type">Agent</label>
+        <select id="nt-agent-type">
+          <option value="claude">claude</option>
+          <option value="codex">codex</option>
+          <option value="gemini">gemini</option>
+          <option value="perplexity">perplexity</option>
+          <option value="xai">xai</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="nt-prompt">Prompt *</label>
+        <textarea id="nt-prompt" required rows="6" placeholder="Describe the task..."></textarea>
+      </div>
+      <div class="form-row">
+        <label for="nt-project-root">Project Root</label>
+        <input type="text" id="nt-project-root" placeholder="server's working directory">
+      </div>
+      <div class="form-row">
+        <label for="nt-attach-mode">Attach Mode</label>
+        <select id="nt-attach-mode">
+          <option value="create">create</option>
+          <option value="attach">attach</option>
+          <option value="resume">resume</option>
+        </select>
+      </div>
+      <div id="nt-error" class="form-error hidden"></div>
+      <div class="form-actions">
+        <button type="button" onclick="closeNewTaskModal()" class="btn-cancel">Cancel</button>
+        <button type="submit" class="btn-submit">Create Task</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast hidden"></div>
 
   <script src="app.js"></script>
 </body>
