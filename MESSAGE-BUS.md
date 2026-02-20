@@ -1990,3 +1990,85 @@ This is a sign of a mature, complete codebase.
 - 3c9854e: docs(issues): resolve ISSUE-011..014 planning artifacts and run gc
 - 180a1a2: feat(messagebus,cli): add ReadLastN for efficient tail reads + output command
 
+
+---
+msg_id: MSG-20260221-SESSION25-START
+ts: 2026-02-21T00:30:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 00:30:00] ==========================================
+[2026-02-21 00:30:00] SESSION #25: Auto-Rotation + Webhooks + Housekeeping
+[2026-02-21 00:30:00] ==========================================
+
+[2026-02-21 00:30:00] PROGRESS: Starting session #25 — read all required docs, assessed state
+[2026-02-21 00:30:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-21 00:30:00] FACT: go test ./internal/... ./cmd/... — ALL 13 packages green (cached)
+[2026-02-21 00:30:00] FACT: MESSAGE-BUS.md at 1992 lines; all CRITICAL/HIGH issues resolved
+[2026-02-21 00:30:00] FACT: ISSUE-006 technically OPEN (planning artifact); ISSUE-016 partially resolved
+[2026-02-21 00:30:00] FACT: SSE streaming handles bus rotation gracefully (ErrSinceIDNotFound resets lastID)
+[2026-02-21 00:30:00] DECISION: Session #25 focus:
+[2026-02-21 00:30:00]   (1) issues-housekeeping-25: Close ISSUE-006 (planning artifact), audit open issues
+[2026-02-21 00:30:00]   (2) auto-rotate-bus: Add WithAutoRotate() option to MessageBus (complete ISSUE-016)
+[2026-02-21 00:30:00]   (3) webhook-notifications: Implement webhook notifications for run completion events
+
+[2026-02-21 01:00:00] PROGRESS: All 3 parallel agents completed (exit code 0, DONE files created)
+[2026-02-21 01:00:00] FACT: Agent task-20260220-232009-xmlk65 (housekeeping): ISSUE-006/017/018 RESOLVED, ISSUE-004 updated — committed 46c7cff
+[2026-02-21 01:00:00] FACT: Agent task-20260220-232010-jn981v (auto-rotate-bus): WithAutoRotate() implemented, ISSUE-016 RESOLVED — committed afa9673
+[2026-02-21 01:00:00] FACT: Agent task-20260220-232013-wgf1ws (webhook-notifications): webhook package created, 11 tests, wired into runner — committed 905b05c
+[2026-02-21 01:00:00] QUALITY: go build ./... PASS
+[2026-02-21 01:00:00] QUALITY: go test -race ./internal/... ./cmd/... ALL 14 packages PASS (no races)
+[2026-02-21 01:00:00] QUALITY: New internal/webhook package PASS
+
+[2026-02-21 01:01:00] ==========================================
+[2026-02-21 01:01:00] SESSION #25 SUMMARY
+[2026-02-21 01:01:00] ==========================================
+
+## Completed Tasks (3 sub-agents via bin/run-agent job)
+
+### task-20260220-232009-xmlk65 (Issues Housekeeping)
+- ISSUE-006 (HIGH): RESOLVED — storage→messagebus dependency is one-directional (correct layering)
+- ISSUE-017 (LOW): RESOLVED — xAI backend fully implemented in internal/agent/xai/
+- ISSUE-018 (LOW): RESOLVED — React frontend fully functional since Session #22
+- ISSUE-004: Updated to check off run-agent validate subcommand (already implemented)
+- Issue table: open 4→1, resolved 13→16
+- Committed: 46c7cff
+
+### task-20260220-232010-jn981v (Auto-Rotate Message Bus)
+- Added WithAutoRotate(maxBytes int64) option to MessageBus
+- Rotation triggered atomically in tryAppend() when file exceeds threshold
+- Archives old file to <path>.YYYYMMDD-HHMMSS.archived
+- 3 new tests: TestAutoRotation, TestAutoRotationDisabled, TestWithAutoRotateOption
+- ISSUE-016: RESOLVED
+- Committed: afa9673
+
+### task-20260220-232013-wgf1ws (Webhook Notifications)
+- NEW: internal/webhook/webhook.go — Notifier with SendRunStop, HMAC signing, async retry
+- NEW: internal/webhook/webhook_test.go — 11 tests
+- MODIFIED: internal/config/config.go — WebhookConfig struct added
+- MODIFIED: internal/config/validation.go — webhook URL/timeout validation
+- MODIFIED: internal/runner/job.go — webhook fired after run completion (CLI + REST paths)
+- MODIFIED: docs/user/configuration.md — webhook config docs
+- Committed: 905b05c
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go test -race ./internal/... ./cmd/...: ALL 14 packages PASS (no races)
+- New packages: internal/webhook PASS
+
+## Dog-Food Success
+- All 3 tasks orchestrated via ./bin/run-agent job (auto-generated task IDs)
+- DONE files created by all 3 agents ✓
+
+## Current Issue Status
+- CRITICAL: 0 open, 2 partially resolved, 4 resolved
+- HIGH: 0 open, 3 partially resolved, 5 resolved
+- MEDIUM: 0 open (ISSUE-016 now RESOLVED), 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+- Total: 0 fully open, 5 partially resolved, 17 resolved
+
+## Commits This Session
+- 46c7cff: docs(issues): close ISSUE-006 planning artifact + audit open issues
+- afa9673: feat(messagebus): add WithAutoRotate option for automatic bus file rotation
+- 905b05c: feat(webhook): add run completion webhook notifications
