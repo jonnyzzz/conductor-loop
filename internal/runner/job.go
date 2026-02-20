@@ -259,10 +259,14 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 	} else {
 		info.Status = storage.StatusFailed
 	}
+	if info.Status == storage.StatusFailed {
+		info.ErrorSummary = classifyExitCode(exitCode)
+	}
 	if err := storage.UpdateRunInfo(filepath.Join(runDir, "run-info.yaml"), func(update *storage.RunInfo) error {
 		update.ExitCode = info.ExitCode
 		update.EndTime = info.EndTime
 		update.Status = info.Status
+		update.ErrorSummary = info.ErrorSummary
 		return nil
 	}); err != nil {
 		return errors.Wrap(err, "update run-info")
@@ -270,7 +274,13 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 	if _, err := agent.CreateOutputMD(runDir, ""); err != nil {
 		return errors.Wrap(err, "ensure output.md")
 	}
-	if err := postRunEvent(busPath, info, "RUN_STOP", fmt.Sprintf("run stopped with code %d", info.ExitCode)); err != nil {
+	stopBody := fmt.Sprintf("run stopped with code %d", info.ExitCode)
+	if info.Status == storage.StatusFailed {
+		if excerpt := tailFile(info.StderrPath, 50); excerpt != "" {
+			stopBody += "\n\n## stderr (last 50 lines)\n" + excerpt
+		}
+	}
+	if err := postRunEvent(busPath, info, "RUN_STOP", stopBody); err != nil {
 		return err
 	}
 	if waitErr != nil || exitCode != 0 {
@@ -337,6 +347,11 @@ func finalizeRun(runDir, busPath string, info *storage.RunInfo, execErr error) e
 	if execErr != nil {
 		info.ExitCode = 1
 		info.Status = storage.StatusFailed
+		errMsg := execErr.Error()
+		if len(errMsg) > 200 {
+			errMsg = errMsg[:200]
+		}
+		info.ErrorSummary = errMsg
 	} else {
 		info.ExitCode = 0
 		info.Status = storage.StatusCompleted
@@ -345,6 +360,7 @@ func finalizeRun(runDir, busPath string, info *storage.RunInfo, execErr error) e
 		update.ExitCode = info.ExitCode
 		update.EndTime = info.EndTime
 		update.Status = info.Status
+		update.ErrorSummary = info.ErrorSummary
 		return nil
 	}); err != nil {
 		return errors.Wrap(err, "update run-info")
@@ -352,7 +368,13 @@ func finalizeRun(runDir, busPath string, info *storage.RunInfo, execErr error) e
 	if _, err := agent.CreateOutputMD(runDir, ""); err != nil {
 		return errors.Wrap(err, "ensure output.md")
 	}
-	if err := postRunEvent(busPath, info, "RUN_STOP", fmt.Sprintf("run stopped with code %d", info.ExitCode)); err != nil {
+	stopBody := fmt.Sprintf("run stopped with code %d", info.ExitCode)
+	if info.Status == storage.StatusFailed {
+		if excerpt := tailFile(info.StderrPath, 50); excerpt != "" {
+			stopBody += "\n\n## stderr (last 50 lines)\n" + excerpt
+		}
+	}
+	if err := postRunEvent(busPath, info, "RUN_STOP", stopBody); err != nil {
 		return err
 	}
 	if execErr != nil {
@@ -444,6 +466,49 @@ func envMap(env []string) map[string]string {
 		values[key] = value
 	}
 	return values
+}
+
+// tailFile reads the last N lines from a file. Returns empty string if file doesn't exist or is empty.
+func tailFile(path string, maxLines int) string {
+	if maxLines <= 0 {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	content := string(data)
+	if content == "" {
+		return ""
+	}
+	lines := strings.Split(content, "\n")
+	// Remove trailing empty line from final newline
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// classifyExitCode returns a one-line error summary for a non-zero exit code.
+func classifyExitCode(exitCode int) string {
+	switch exitCode {
+	case 1:
+		return "agent reported failure"
+	case 2:
+		return "agent usage error"
+	case 137:
+		return "agent killed (OOM or signal)"
+	case 143:
+		return "agent terminated (SIGTERM)"
+	default:
+		return fmt.Sprintf("agent exited with code %d", exitCode)
+	}
 }
 
 func ctxOrBackground() context.Context {

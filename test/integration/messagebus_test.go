@@ -145,7 +145,7 @@ func TestLockTimeout(t *testing.T) {
 		t.Fatalf("wait for lock helper: %v\n%s", err, out.String())
 	}
 
-	bus, err := messagebus.NewMessageBus(path, messagebus.WithLockTimeout(100*time.Millisecond))
+	bus, err := messagebus.NewMessageBus(path, messagebus.WithLockTimeout(100*time.Millisecond), messagebus.WithMaxRetries(1))
 	if err != nil {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()

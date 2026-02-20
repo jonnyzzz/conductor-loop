@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -18,6 +19,8 @@ import (
 const (
 	defaultLockTimeout  = 10 * time.Second
 	defaultPollInterval = 200 * time.Millisecond
+	defaultMaxRetries   = 3
+	defaultRetryBackoff = 100 * time.Millisecond
 	messageBusFileMode  = 0o644
 )
 
@@ -43,6 +46,11 @@ type MessageBus struct {
 	now          func() time.Time
 	lockTimeout  time.Duration
 	pollInterval time.Duration
+	maxRetries   int
+	retryBackoff time.Duration
+
+	attempts int64
+	retries  int64
 }
 
 // Option configures a MessageBus.
@@ -69,6 +77,28 @@ func WithClock(now func() time.Time) Option {
 	}
 }
 
+// WithMaxRetries sets the maximum number of append attempts. Minimum 1.
+func WithMaxRetries(n int) Option {
+	return func(bus *MessageBus) {
+		if n < 1 {
+			n = 1
+		}
+		bus.maxRetries = n
+	}
+}
+
+// WithRetryBackoff sets the base backoff duration between retries.
+func WithRetryBackoff(d time.Duration) Option {
+	return func(bus *MessageBus) {
+		bus.retryBackoff = d
+	}
+}
+
+// ContentionStats returns the total append attempts and lock contention retries.
+func (mb *MessageBus) ContentionStats() (attempts, retries int64) {
+	return atomic.LoadInt64(&mb.attempts), atomic.LoadInt64(&mb.retries)
+}
+
 // NewMessageBus creates a MessageBus for the provided path.
 func NewMessageBus(path string, opts ...Option) (*MessageBus, error) {
 	clean := filepath.Clean(strings.TrimSpace(path))
@@ -80,6 +110,8 @@ func NewMessageBus(path string, opts ...Option) (*MessageBus, error) {
 		now:          time.Now,
 		lockTimeout:  defaultLockTimeout,
 		pollInterval: defaultPollInterval,
+		maxRetries:   defaultMaxRetries,
+		retryBackoff: defaultRetryBackoff,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -129,23 +161,45 @@ func (mb *MessageBus) AppendMessage(msg *Message) (string, error) {
 		return "", errors.Wrap(err, "validate message bus path")
 	}
 
+	var lastErr error
+	for attempt := 0; attempt < mb.maxRetries; attempt++ {
+		atomic.AddInt64(&mb.attempts, 1)
+
+		if attempt > 0 {
+			atomic.AddInt64(&mb.retries, 1)
+			backoff := mb.retryBackoff * (1 << (attempt - 1))
+			time.Sleep(backoff)
+		}
+
+		lastErr = mb.tryAppend(data)
+		if lastErr == nil {
+			return msg.MsgID, nil
+		}
+		if !stderrors.Is(lastErr, ErrLockTimeout) {
+			return "", lastErr
+		}
+	}
+	return "", fmt.Errorf("append failed after %d attempts: %w", mb.maxRetries, lastErr)
+}
+
+func (mb *MessageBus) tryAppend(data []byte) error {
 	file, err := os.OpenFile(mb.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, messageBusFileMode)
 	if err != nil {
-		return "", errors.Wrap(err, "open message bus")
+		return errors.Wrap(err, "open message bus")
 	}
 	defer file.Close()
 
 	if err := LockExclusive(file, mb.lockTimeout); err != nil {
-		return "", fmt.Errorf("lock message bus: %w", err)
+		return fmt.Errorf("lock message bus: %w", err)
 	}
 	defer func() {
 		_ = Unlock(file)
 	}()
 
 	if err := appendEntry(file, data); err != nil {
-		return "", errors.Wrap(err, "write message")
+		return errors.Wrap(err, "write message")
 	}
-	return msg.MsgID, nil
+	return nil
 }
 
 // ReadMessages reads messages after sinceID. If sinceID is empty, returns all messages.

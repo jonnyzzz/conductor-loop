@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -230,6 +231,170 @@ func TestValidateBusPathDirectory(t *testing.T) {
 	}
 	if err := validateBusPath(dir); err == nil {
 		t.Fatalf("expected error for directory path")
+	}
+}
+
+func TestAppendRetryOnLockContention(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path,
+		WithLockTimeout(50*time.Millisecond),
+		WithMaxRetries(3),
+		WithRetryBackoff(10*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+
+	// Hold an exclusive lock on the file, then release after a short delay.
+	lockFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, messageBusFileMode)
+	if err != nil {
+		t.Fatalf("open lock file: %v", err)
+	}
+	if err := LockExclusive(lockFile, time.Second); err != nil {
+		lockFile.Close()
+		t.Fatalf("acquire lock: %v", err)
+	}
+
+	var released int32
+	go func() {
+		// Release after enough time for first attempt to fail but second to succeed.
+		time.Sleep(80 * time.Millisecond)
+		_ = Unlock(lockFile)
+		lockFile.Close()
+		atomic.StoreInt32(&released, 1)
+	}()
+
+	msgID, err := bus.AppendMessage(&Message{Type: "FACT", ProjectID: "project", Body: "retry-test"})
+	if err != nil {
+		t.Fatalf("AppendMessage should have succeeded after retry: %v", err)
+	}
+	if msgID == "" {
+		t.Fatalf("expected non-empty message id")
+	}
+
+	// Verify the message was written.
+	messages, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("ReadMessages: %v", err)
+	}
+	if len(messages) != 1 || messages[0].Body != "retry-test" {
+		t.Fatalf("expected message with body 'retry-test', got %v", messages)
+	}
+
+	// Verify retries were triggered.
+	attempts, retries := bus.ContentionStats()
+	if retries == 0 {
+		t.Fatalf("expected retries > 0, got attempts=%d retries=%d", attempts, retries)
+	}
+}
+
+func TestAppendExhaustsRetries(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path,
+		WithLockTimeout(20*time.Millisecond),
+		WithMaxRetries(2),
+		WithRetryBackoff(10*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+
+	// Hold lock for the entire duration.
+	lockFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, messageBusFileMode)
+	if err != nil {
+		t.Fatalf("open lock file: %v", err)
+	}
+	defer func() {
+		_ = Unlock(lockFile)
+		lockFile.Close()
+	}()
+	if err := LockExclusive(lockFile, time.Second); err != nil {
+		t.Fatalf("acquire lock: %v", err)
+	}
+
+	_, err = bus.AppendMessage(&Message{Type: "FACT", ProjectID: "project", Body: "fail"})
+	if err == nil {
+		t.Fatalf("expected error after exhausting retries")
+	}
+	if !errors.Is(err, ErrLockTimeout) {
+		t.Fatalf("expected ErrLockTimeout in error chain, got: %v", err)
+	}
+
+	attempts, retries := bus.ContentionStats()
+	if attempts != 2 {
+		t.Fatalf("expected 2 attempts, got %d", attempts)
+	}
+	if retries != 1 {
+		t.Fatalf("expected 1 retry, got %d", retries)
+	}
+}
+
+func TestContentionStats(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+
+	attempts, retries := bus.ContentionStats()
+	if attempts != 0 || retries != 0 {
+		t.Fatalf("expected zero stats initially, got attempts=%d retries=%d", attempts, retries)
+	}
+
+	for i := 0; i < 5; i++ {
+		_, err := bus.AppendMessage(&Message{Type: "FACT", ProjectID: "project", Body: "msg"})
+		if err != nil {
+			t.Fatalf("AppendMessage: %v", err)
+		}
+	}
+
+	attempts, retries = bus.ContentionStats()
+	if attempts != 5 {
+		t.Fatalf("expected 5 attempts, got %d", attempts)
+	}
+	if retries != 0 {
+		t.Fatalf("expected 0 retries, got %d", retries)
+	}
+}
+
+func TestWithMaxRetriesOption(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+
+	// Verify custom max retries is applied.
+	bus, err := NewMessageBus(path, WithMaxRetries(5))
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	if bus.maxRetries != 5 {
+		t.Fatalf("expected maxRetries=5, got %d", bus.maxRetries)
+	}
+
+	// Verify minimum of 1 is enforced.
+	bus2, err := NewMessageBus(path, WithMaxRetries(0))
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	if bus2.maxRetries != 1 {
+		t.Fatalf("expected maxRetries=1 (minimum), got %d", bus2.maxRetries)
+	}
+
+	bus3, err := NewMessageBus(path, WithMaxRetries(-1))
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	if bus3.maxRetries != 1 {
+		t.Fatalf("expected maxRetries=1 (minimum), got %d", bus3.maxRetries)
+	}
+}
+
+func TestWithRetryBackoffOption(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path, WithRetryBackoff(500*time.Millisecond))
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	if bus.retryBackoff != 500*time.Millisecond {
+		t.Fatalf("expected retryBackoff=500ms, got %v", bus.retryBackoff)
 	}
 }
 

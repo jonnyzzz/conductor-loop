@@ -32,5 +32,6 @@ type RunInfo struct {
 	OutputPath    string    `yaml:"output_path,omitempty"`
 	StdoutPath    string    `yaml:"stdout_path,omitempty"`
 	StderrPath    string    `yaml:"stderr_path,omitempty"`
-	CommandLine   string    `yaml:"commandline,omitempty"`
+	CommandLine  string `yaml:"commandline,omitempty"`
+	ErrorSummary string `yaml:"error_summary,omitempty"`
 }

@@ -468,3 +468,84 @@ func TestFinalizeRunNilInfo(t *testing.T) {
 		t.Fatalf("expected error for nil run info")
 	}
 }
+
+func TestTailFile(t *testing.T) {
+	t.Run("missing file", func(t *testing.T) {
+		result := tailFile(filepath.Join(t.TempDir(), "nope.txt"), 50)
+		if result != "" {
+			t.Fatalf("expected empty string for missing file, got %q", result)
+		}
+	})
+
+	t.Run("empty file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "empty.txt")
+		if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		result := tailFile(path, 50)
+		if result != "" {
+			t.Fatalf("expected empty string for empty file, got %q", result)
+		}
+	})
+
+	t.Run("short file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "short.txt")
+		if err := os.WriteFile(path, []byte("line1\nline2\nline3\n"), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		result := tailFile(path, 50)
+		if result != "line1\nline2\nline3" {
+			t.Fatalf("unexpected result: %q", result)
+		}
+	})
+
+	t.Run("long file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "long.txt")
+		var lines []string
+		for i := 1; i <= 100; i++ {
+			lines = append(lines, fmt.Sprintf("line %d", i))
+		}
+		content := strings.Join(lines, "\n") + "\n"
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		result := tailFile(path, 5)
+		expected := "line 96\nline 97\nline 98\nline 99\nline 100"
+		if result != expected {
+			t.Fatalf("expected %q, got %q", expected, result)
+		}
+	})
+
+	t.Run("zero maxLines", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "file.txt")
+		if err := os.WriteFile(path, []byte("data\n"), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		result := tailFile(path, 0)
+		if result != "" {
+			t.Fatalf("expected empty for zero maxLines, got %q", result)
+		}
+	})
+}
+
+func TestErrorSummaryClassification(t *testing.T) {
+	tests := []struct {
+		exitCode int
+		expected string
+	}{
+		{1, "agent reported failure"},
+		{2, "agent usage error"},
+		{137, "agent killed (OOM or signal)"},
+		{143, "agent terminated (SIGTERM)"},
+		{42, "agent exited with code 42"},
+		{255, "agent exited with code 255"},
+	}
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("exit_%d", tc.exitCode), func(t *testing.T) {
+			got := classifyExitCode(tc.exitCode)
+			if got != tc.expected {
+				t.Fatalf("classifyExitCode(%d) = %q, want %q", tc.exitCode, got, tc.expected)
+			}
+		})
+	}
+}
