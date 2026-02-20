@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -9,6 +10,8 @@ import (
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 	"github.com/pkg/errors"
 )
+
+const restartPrefix = "Continue working on the following:\n\n"
 
 // TaskOptions controls execution for the run-agent task command.
 type TaskOptions struct {
@@ -47,13 +50,27 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 		return errors.Wrap(err, "ensure task dir")
 	}
 
-	taskPrompt, err := readFileTrimmed(filepath.Join(taskDir, "TASK.md"))
-	if err != nil {
-		return errors.Wrap(err, "read TASK.md")
-	}
+	taskMDPath := filepath.Join(taskDir, "TASK.md")
 	prompt := strings.TrimSpace(opts.Prompt)
-	if prompt == "" {
-		prompt = taskPrompt
+
+	taskPrompt, err := readFileTrimmed(taskMDPath)
+	if err != nil {
+		if !os.IsNotExist(errors.Cause(err)) && !os.IsNotExist(err) {
+			return errors.Wrap(err, "read TASK.md")
+		}
+		// TASK.md doesn't exist
+		if prompt == "" {
+			return errors.New("TASK.md not found and no prompt provided")
+		}
+		// Write the provided prompt to TASK.md for future restarts
+		if writeErr := os.WriteFile(taskMDPath, []byte(prompt+"\n"), 0o644); writeErr != nil {
+			return errors.Wrap(writeErr, "write TASK.md")
+		}
+	} else {
+		// TASK.md exists — use it if no explicit prompt given
+		if prompt == "" {
+			prompt = taskPrompt
+		}
 	}
 
 	busPath := strings.TrimSpace(opts.MessageBusPath)
@@ -67,11 +84,15 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 
 	previousRunID := ""
 	runnerFn := func(ctx context.Context, attempt int) error {
+		jobPrompt := prompt
+		if attempt > 0 {
+			jobPrompt = restartPrefix + prompt
+		}
 		jobOpts := JobOptions{
 			RootDir:        opts.RootDir,
 			ConfigPath:     opts.ConfigPath,
 			Agent:          opts.Agent,
-			Prompt:         prompt,
+			Prompt:         jobPrompt,
 			WorkingDir:     opts.WorkingDir,
 			MessageBusPath: busPath,
 			PreviousRunID:  previousRunID,
