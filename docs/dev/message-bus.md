@@ -10,7 +10,7 @@ This document provides a comprehensive specification of the message bus implemen
 4. [O_APPEND + flock Design](#o_append--flock-design)
 5. [Message ID Generation](#message-id-generation)
 6. [Concurrency Guarantees](#concurrency-guarantees)
-7. [Fsync for Durability](#fsync-for-durability)
+7. [Write Durability Model](#write-durability-model)
 8. [Message Format](#message-format)
 9. [Read Operations](#read-operations)
 10. [Write Operations](#write-operations)
@@ -24,13 +24,13 @@ This document provides a comprehensive specification of the message bus implemen
 
 ## Overview
 
-The message bus is an **append-only event log** that enables multi-agent coordination, event streaming, and task monitoring in conductor-loop. It provides a durable, ordered stream of messages with strong consistency guarantees.
+The message bus is an **append-only event log** that enables multi-agent coordination, event streaming, and task monitoring in conductor-loop. It provides an ordered stream of messages with strong inter-process consistency guarantees.
 
 **Key Features:**
 - Append-only log (messages never modified or deleted)
 - Lockless reads (readers never block writers or other readers)
-- Exclusive writes (one writer at a time)
-- Fsync durability (guaranteed persistence on disk)
+- Exclusive writes (one writer at a time via flock)
+- High-throughput OS-cached writes (~37,000+ msg/sec measured)
 - Lexically sortable message IDs
 - Human-readable YAML format
 - Platform-specific optimizations (Unix/Windows)
@@ -48,7 +48,7 @@ The message bus is an **append-only event log** that enables multi-agent coordin
 
 ## Design Philosophy
 
-The message bus design prioritizes **simplicity**, **durability**, and **debuggability** over maximum throughput.
+The message bus design prioritizes **simplicity**, **throughput**, and **debuggability** over disk-level durability.
 
 ### Core Principles
 
@@ -57,10 +57,10 @@ The message bus design prioritizes **simplicity**, **durability**, and **debugga
    - YAML format for human readability
    - Standard library + minimal dependencies
 
-2. **Strong Durability**
-   - Every write is followed by `fsync()`
-   - Atomic appends via `O_APPEND`
-   - Messages are never lost after successful write
+2. **High Throughput via OS Cache**
+   - Writes go to OS page cache (no fsync)
+   - OS guarantees immediate read-after-write visibility across processes
+   - Atomic appends via `O_APPEND` + `flock`
 
 3. **Simple Concurrency Model**
    - Lockless reads: Readers never block
@@ -83,13 +83,13 @@ The message bus design prioritizes **simplicity**, **durability**, and **debugga
 - Simple implementation (~500 lines of code)
 - No database setup/maintenance
 - Easy to debug (human-readable files)
-- Strong durability guarantees
+- High throughput (~37,000+ writes/sec measured)
 - Lockless reads for high read throughput
 
 **Disadvantages:**
 - File size grows unbounded (need rotation)
 - No complex queries (linear scan)
-- Single-file limits write throughput (~1000 writes/sec)
+- Not durable against OS crash (messages may be lost before page-cache flush)
 - Network filesystems may have issues (use local storage)
 
 ---
@@ -234,10 +234,9 @@ defer func() {
 ```
 1. Open file with O_APPEND
 2. Acquire exclusive lock (flock with timeout)
-3. Write message (header + body separator)
-4. fsync() - Force to disk
-5. Release lock
-6. Close file
+3. Write message (header + body separator) to OS page cache
+4. Release lock
+5. Close file
 ```
 
 **Key invariant:** Only one writer can hold the lock at a time, ensuring messages are written atomically.
@@ -443,11 +442,11 @@ Messages are **totally ordered** by the order in which writes complete.
 **Happens-before relationship:**
 
 ```
-Write1.lock → Write1.write → Write1.fsync → Write1.unlock
+Write1.lock → Write1.write → Write1.unlock
   ↓
   happens-before
   ↓
-Write2.lock → Write2.write → Write2.fsync → Write2.unlock
+Write2.lock → Write2.write → Write2.unlock
 ```
 
 **Guarantee:** If `Write1` completes before `Write2` starts, `Message1` appears before `Message2` in the log.
@@ -465,81 +464,50 @@ messages, err := bus.ReadMessages("")    // Read
 
 **Answer:** **Yes**, because:
 
-1. `AppendMessage()` calls `fsync()` before returning
-2. `fsync()` ensures data is on disk
-3. `ReadMessages()` reads from disk
-4. Filesystem guarantees read-after-write consistency
+1. `AppendMessage()` writes to the OS page cache while holding `flock`
+2. OS page cache is shared across all processes on the same host
+3. `ReadMessages()` reads from the same OS page cache
+4. Read-after-write consistency is guaranteed within a single host
 
 **Exception:** Network filesystems (NFS, SMB) may have weaker consistency. Use local storage for message bus.
 
 ---
 
-## Fsync for Durability
+## Write Durability Model
 
-Every write is followed by `fsync()` to ensure **durability**.
+Writes go to the OS page cache and are **not fsynced**. This is an intentional performance trade-off.
 
-### Why Fsync?
+### Design Decision: No fsync
 
-**Problem:** Operating systems buffer writes in memory (page cache) for performance. Without `fsync()`, data may be lost on crash/power failure.
+**Problem:** `fsync()` serializes writes to disk, limiting throughput to ~50–1000 writes/sec on typical hardware.
 
-**Solution:** `fsync()` forces buffered data to disk.
+**Solution:** Skip `fsync()`. Writes are held in the OS page cache and flushed asynchronously. The OS guarantees that all processes reading the same file path see the written data immediately (read-after-write consistency within the same host).
 
-**Reference:** `internal/messagebus/messagebus.go:148-150`
-
-```go
-if err := file.Sync(); err != nil {
-    return "", errors.Wrap(err, "fsync message bus")
-}
-```
-
-**Guarantee:** After `fsync()` returns, data is **guaranteed on disk** (barring hardware failure).
-
-### Write-Ahead Log Pattern
-
-The message bus follows the **Write-Ahead Log (WAL)** pattern:
+**Write sequence:**
 
 ```
-1. Write data to file
-2. fsync() - Force to disk
-3. Unlock file
-4. Return success
+1. Open file (O_WRONLY|O_APPEND|O_CREATE)
+2. flock() — acquire exclusive lock
+3. Write data (to OS page cache)
+4. Unlock
+5. Return success
 ```
 
-**Critical order:** `fsync()` must complete **before** returning success.
+**Throughput:** ~37,000+ messages/sec measured with 10 concurrent writers on macOS.
 
-### Performance Impact
+### Consistency Guarantees
 
-**fsync() latency:**
-- **HDD**: 5-20ms (due to disk rotation)
-- **SSD**: 0.1-1ms (faster, but still measurable)
-- **NVMe**: 0.05-0.5ms (fastest, but not free)
+- **Visibility**: Other processes reading the same file will see new messages immediately (OS page cache is shared).
+- **Ordering**: `flock` ensures messages are appended in a serialized, total order.
+- **Durability**: Messages survive process crashes but **may be lost** on OS crash or power failure before the page cache is flushed (typically within seconds).
 
-**Throughput impact:**
+### When Does Data Reach Disk?
 
-- **Without fsync**: ~10,000+ writes/sec (memory-buffered)
-- **With fsync**: ~50-1000 writes/sec (disk-limited)
+The OS flushes dirty pages on a configurable schedule (typically every 5–30 seconds) or when memory pressure triggers a flush. For the message bus use case (agent coordination and logging), this is acceptable — transient message loss on hard crash is recoverable since agents can re-post their state.
 
-**Trade-off:** Durability vs. performance. Conductor-loop chooses **durability**.
+### Network Filesystem Warning
 
-### Optimization: Batch Writes
-
-**Potential optimization (not implemented):**
-
-```go
-// Append multiple messages in one fsync()
-func (mb *MessageBus) AppendMessages(messages []*Message) error {
-    // ... lock ...
-    for _, msg := range messages {
-        // ... write message ...
-    }
-    file.Sync()  // Single fsync for all messages
-    // ... unlock ...
-}
-```
-
-**Benefit:** Amortize fsync cost across multiple messages (~10x throughput improvement).
-
-**Trade-off:** Increased latency for individual messages (batch delay).
+On NFS, SMB, or other network filesystems, read-after-write consistency is **not guaranteed** without additional synchronization. Use local storage for the message bus.
 
 ---
 
@@ -883,11 +851,10 @@ Write operations acquire an **exclusive lock** for the entire write.
 5. Validate bus path (no symlinks)
 6. Open file (O_WRONLY | O_APPEND | O_CREATE)
 7. LockExclusive (flock with timeout)
-8. Append message data
-9. fsync() - Force to disk
-10. Unlock
-11. Close file
-12. Return MsgID
+8. Append message data to OS page cache
+9. Unlock
+10. Close file
+11. Return MsgID
 ```
 
 **Code:**
@@ -941,19 +908,14 @@ func (mb *MessageBus) AppendMessage(msg *Message) (string, error) {
         _ = Unlock(file)
     }()
 
-    // 8. Append
+    // 8. Append (to OS page cache)
     if err := appendEntry(file, data); err != nil {
         return "", errors.Wrap(err, "write message")
     }
 
-    // 9. Fsync
-    if err := file.Sync(); err != nil {
-        return "", errors.Wrap(err, "fsync message bus")
-    }
+    // 9-10. Unlock and close (deferred)
 
-    // 10-11. Unlock and close (deferred)
-
-    // 12. Return MsgID
+    // 11. Return MsgID
     return msg.MsgID, nil
 }
 ```
@@ -1036,13 +998,11 @@ Writer B: AppendMessage(msg2)
 ```
 Timeline:
 t0: A locks file
-t1: A writes msg1
-t2: A fsync()
-t3: A unlocks file
-t4: B locks file (was blocked at t0)
-t5: B writes msg2
-t6: B fsync()
-t7: B unlocks file
+t1: A writes msg1 (to OS page cache)
+t2: A unlocks file
+t3: B locks file (was blocked at t0)
+t4: B writes msg2 (to OS page cache)
+t5: B unlocks file
 ```
 
 **Result:** `msg1` appears before `msg2` in file (total order).

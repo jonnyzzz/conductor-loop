@@ -154,7 +154,7 @@ type Config struct {
 **Architecture:**
 - O_APPEND for atomic writes
 - flock for exclusive write lock
-- fsync for durability
+- OS page cache (no fsync) for high throughput
 - Lockless reads for performance
 
 ### 4. Agent Protocol (`internal/agent/`)
@@ -438,7 +438,7 @@ The message bus uses an **append-only file** with **O_APPEND + flock** for safe 
 
 - **Lockless Reads**: Readers don't block writers
 - **Exclusive Writes**: Only one writer at a time (via flock)
-- **Durability**: fsync after each write
+- **High Throughput**: OS-cached writes without fsync (~37,000+ msg/sec)
 - **Ordering**: Messages are totally ordered by timestamp
 
 ### Message Structure
@@ -701,18 +701,18 @@ syscall.Kill(-pgid, syscall.SIGTERM)
 ### 1. Message Bus
 
 **Current Performance:**
-- Write latency: ~1-5ms (with fsync)
+- Write latency: <0.1ms (OS-cached, no fsync)
 - Read latency: ~0.1-1ms (lockless)
-- Throughput: ~200-1000 writes/sec (single file)
+- Throughput: ~37,000+ writes/sec measured with 10 concurrent writers
 
 **Bottlenecks:**
-- fsync() on write (durability vs. performance trade-off)
-- Lock contention with 50+ concurrent writers
+- flock contention under very high concurrent load
+- Linear scan on read (no indexing)
 
 **Optimizations:**
 - Lockless reads (no read blocking)
-- Batch writes (multiple messages per fsync)
 - Per-task message buses (reduce contention)
+- Message indexing for large files
 
 ### 2. Storage Layer
 

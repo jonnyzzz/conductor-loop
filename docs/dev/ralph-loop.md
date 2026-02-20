@@ -60,43 +60,37 @@ The Ralph Loop is the restart manager for root agent processes. It automatically
 │     restartCount = 0                                        │
 │     maxRestarts = 100 (default)                             │
 │                                                             │
-│  2. Restart Loop                                            │
+│  2. Restart Loop (infinite)                                 │
 │     ┌────────────────────────────────────────┐             │
-│     │ while restartCount < maxRestarts:      │             │
+│     │ loop:                                  │             │
 │     │                                        │             │
-│     │   a. Run agent process (attempt N)     │             │
+│     │   a. Check for DONE file (pre-run)     │             │
+│     │      - If exists → STOP (success)      │             │
 │     │                                        │             │
-│     │   b. Wait for completion               │             │
-│     │      - waitpid() or equivalent         │             │
-│     │      - Capture exit code               │             │
+│     │   b. Check max restarts                │             │
+│     │      - If restartCount >= max → FAIL   │             │
 │     │                                        │             │
-│     │   c. Check for DONE file               │             │
-│     │      - If exists → STOP                │             │
+│     │   c. Run agent process (attempt N)     │             │
+│     │      - Logs failure as WARNING         │             │
+│     │      - Continues regardless of exit    │             │
 │     │                                        │             │
-│     │   d. Check exit code                   │             │
-│     │      - If 0 → STOP (success)           │             │
-│     │      - If non-zero → continue          │             │
+│     │   d. Increment restartCount            │             │
 │     │                                        │             │
-│     │   e. Check for fatal errors            │             │
-│     │      - If fatal → STOP                 │             │
+│     │   e. Check for DONE file (post-run)    │             │
+│     │      - If exists → STOP (success)      │             │
 │     │                                        │             │
-│     │   f. Check for wait-without-restart    │             │
-│     │      - If signaled → STOP              │             │
-│     │                                        │             │
-│     │   g. Delay before restart              │             │
+│     │   f. Delay before restart              │             │
 │     │      - sleep(restartDelay)             │             │
-│     │                                        │             │
-│     │   h. Increment restartCount            │             │
 │     │                                        │             │
 │     └────────────────────────────────────────┘             │
 │                                                             │
-│  3. Cleanup                                                 │
-│     - Kill process group (if still running)                 │
-│     - Close file descriptors                                │
-│     - Return final status                                   │
+│  3. Exit                                                    │
+│     - Return status (success or failure)                   │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Note:** The loop only stops via: DONE file detection, max restarts exceeded, or context cancellation. Agent exit code 0 does NOT stop the loop — task completion is signaled exclusively via the DONE file.
 
 ### Pseudocode
 
@@ -106,38 +100,30 @@ def ralph_loop():
     max_restarts = 100
     restart_delay = 1  # second
 
-    while restart_count < max_restarts:
-        # 1. Run agent
-        exit_code = run_agent_process(attempt=restart_count)
-
-        # 2. Check DONE file
+    while True:
+        # 1. Check DONE file BEFORE running agent
         if done_file_exists():
-            log("DONE file detected, stopping")
+            wait_for_children()
             return SUCCESS
 
-        # 3. Check exit code
-        if exit_code == 0:
-            log("Agent succeeded, stopping")
-            return SUCCESS
-
-        # 4. Check for fatal error
-        if is_fatal_error(exit_code):
-            log("Fatal error, stopping")
+        # 2. Check max restarts
+        if restart_count >= max_restarts:
+            log("Max restarts exceeded, stopping")
             return FAILURE
 
-        # 5. Check wait-without-restart signal
-        if wait_without_restart_signaled():
-            log("Wait-without-restart, stopping")
-            return STOPPED
-
-        # 6. Restart
-        log(f"Agent failed (exit {exit_code}), restarting (attempt {restart_count+1}/{max_restarts})")
-        sleep(restart_delay)
+        # 3. Run agent (failure is logged but not fatal)
+        err = run_agent_process(attempt=restart_count)
+        if err:
+            log(f"WARNING: agent failed on restart #{restart_count}: {err}")
         restart_count += 1
 
-    # Max restarts exceeded
-    log("Max restarts exceeded, stopping")
-    return FAILURE
+        # 4. Check DONE file AFTER agent exits
+        if done_file_exists():
+            wait_for_children()
+            return SUCCESS
+
+        # 5. Restart delay
+        sleep(restart_delay)
 ```
 
 ---
