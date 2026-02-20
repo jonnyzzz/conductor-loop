@@ -1491,3 +1491,94 @@ project_id: conductor-loop
 6. ISSUE-015 RESOLVED — gc command documented as implemented
 7. Spec question implementation notes added for message bus tools
 
+
+---
+msg_id: MSG-20260220-SESSION19-START
+ts: 2026-02-20T21:58:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 21:58:00] ==========================================
+[2026-02-20 21:58:00] SESSION #19: TASK.md Viewer + Port Fix + Project Messages UI
+[2026-02-20 21:58:00] ==========================================
+
+[2026-02-20 21:58:00] PROGRESS: Starting session #19 — read all required docs, assessed state
+[2026-02-20 21:58:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-20 21:58:00] FACT: go test ./... — ALL 18 packages green (inherited from session #18)
+[2026-02-20 21:58:00] FACT: All CRITICAL/HIGH issues resolved, all QUESTIONS.md answered
+[2026-02-20 21:58:00] FACT: System assessment complete — 3 improvement areas identified:
+[2026-02-20 21:58:00]   (1) TASK.md content not viewable in web UI — add task-level file endpoint + tab
+[2026-02-20 21:58:00]   (2) conductor binary has no --host/--port CLI flags, port defaults unclear
+[2026-02-20 21:58:00]   (3) Project-level message bus (PROJECT-MESSAGE-BUS.md) not shown in web UI
+[2026-02-20 21:58:00] DECISION: Launching 3 parallel sub-agents via bin/run-agent job
+
+[2026-02-20 21:58:30] PROGRESS: Launched 3 parallel sub-agents via bin/run-agent job:
+[2026-02-20 21:58:30] FACT: Agent task-20260220-205839-tvnijy (task-md-viewer): TASK.md API endpoint + web UI tab
+[2026-02-20 21:58:30] FACT: Agent task-20260220-205854-nq6r89 (conductor-port): --host/--port flags + port docs
+[2026-02-20 21:58:30] FACT: Agent task-20260220-205902-yeeh4n (project-message-bus-ui): Project message bus panel
+
+[2026-02-20 22:05:00] FACT: All 3 parallel agents COMPLETED (exit 0) with DONE files created
+[2026-02-20 22:05:00] FACT: Agent task-20260220-205839-tvnijy (task-md-viewer): TASK.md API endpoint + UI tab — IMPLEMENTED
+[2026-02-20 22:05:00] FACT: Agent task-20260220-205854-nq6r89 (conductor-port): --host/--port flags + docs — IMPLEMENTED
+[2026-02-20 22:05:00] FACT: Agent task-20260220-205902-yeeh4n (project-message-bus-ui): Project message bus panel — IMPLEMENTED
+[2026-02-20 22:05:00] QUALITY: go build ./... PASS
+[2026-02-20 22:05:00] QUALITY: go test -count=1 ./... (18 packages) ALL PASS
+[2026-02-20 22:05:00] QUALITY: go test -race ./internal/... ./cmd/... ALL PASS (no data races)
+[2026-02-20 22:05:00] FACT: Binaries rebuilt: conductor (14MB), run-agent (14MB)
+[2026-02-20 22:05:00] FACT: Committed: 6403283 feat(api,ui): add task.md viewer endpoint and web UI tab
+[2026-02-20 22:05:00] FACT: Committed: 611da81 feat(ui): add project-level message bus panel
+[2026-02-20 22:05:00] FACT: Committed: cc62206 fix(conductor): add --host/--port flags and fix default port config
+
+[2026-02-20 22:06:00] ==========================================
+[2026-02-20 22:06:00] SESSION #19 SUMMARY
+[2026-02-20 22:06:00] ==========================================
+
+## Completed Tasks (3 sub-agents via bin/run-agent job)
+
+### task-20260220-205839-tvnijy (TASK.md Viewer Endpoint + Web UI Tab)
+- Added `GET /api/projects/{p}/tasks/{t}/file?name=TASK.md` task-scoped endpoint
+- Only allows `TASK.md` name; returns 404 for missing file or unknown names
+- Added "TASK.MD" as the first tab in run detail panel (task-scoped, not run-scoped)
+- Shows "No TASK.md found" when endpoint returns 404
+- 4 files changed: handlers_projects.go, handlers_projects_test.go, app.js, index.html
+- Committed: 6403283
+
+### task-20260220-205902-yeeh4n (Project-Level Message Bus Panel)
+- Added project-level message bus display in left panel below project name
+- SSE-connected: live streaming from `GET /api/v1/messages/stream?project_id=P`
+- Compact format: `[HH:MM:SS] [TYPE] content` with type-based coloring
+- `connectProjectSSE()` called on project selection; auto-reconnects
+- 2 files changed: app.js, index.html
+- Committed: 611da81
+
+### task-20260220-205854-nq6r89 (Conductor --host/--port Flags + Docs)
+- Added `--host` (default `0.0.0.0`) and `--port` (default `8080`) CLI flags to conductor binary
+- CLI flags override config file when explicitly set; config takes precedence otherwise
+- Updated `docs/user/cli-reference.md` with new flags and run-agent serve section
+- Updated `Instructions.md` server flags table
+- 4 files changed: cmd/conductor/main.go, main_test.go, cli-reference.md, Instructions.md
+- Committed: cc62206
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (14MB each)
+- go test -count=1 ./... (18 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## Dog-Food Success
+- All 3 tasks orchestrated via ./bin/run-agent job (auto-generated task IDs)
+- DONE files created by all 3 agents ✓
+- No merge conflicts despite 2 agents modifying app.js
+- All changes committed with proper format
+
+## Current Issue Status
+- CRITICAL: 0 open (all resolved)
+- HIGH: 0 open (all resolved or deferred)
+- MEDIUM: 5 open (ISSUE-011..014, ISSUE-016 planning notes — mostly moot)
+- LOW: 2 open (ISSUE-017 xAI deferred, ISSUE-018 frontend estimate)
+
+## What Was Added in Session #19
+1. TASK.md viewer — `GET /api/projects/{p}/tasks/{t}/file?name=TASK.md` endpoint + web UI tab
+2. Project message bus panel — live SSE stream of PROJECT-MESSAGE-BUS.md in left panel
+3. conductor --host/--port — CLI flags for conductor binary + docs updated
