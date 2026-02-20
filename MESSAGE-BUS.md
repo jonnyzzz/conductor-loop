@@ -1393,3 +1393,101 @@ project_id: conductor-loop
 2. Web UI stop button — browser-accessible task termination
 3. output.md fallback — OUTPUT tab always shows content (stdout fallback)
 4. run-agent task resume — continue a failed/stopped task from same directory
+
+---
+msg_id: MSG-20260220-SESSION18-START
+ts: 2026-02-20T23:55:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 23:55:00] ==========================================
+[2026-02-20 23:55:00] SESSION #18: Live Message Bus Streaming + Web UI Message Posting + Housekeeping
+[2026-02-20 23:55:00] ==========================================
+
+[2026-02-20 23:55:00] PROGRESS: Starting session #18 — read all required docs, assessed state
+[2026-02-20 23:55:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-20 23:55:00] FACT: go test -count=1 ./... — ALL 18 packages green (inherited from session #17)
+[2026-02-20 23:55:00] FACT: All CRITICAL/HIGH issues resolved, all QUESTIONS.md answered
+[2026-02-20 23:55:00] FACT: Assessment complete — POST /api/v1/messages, SSE message stream, stop API all implemented
+[2026-02-20 23:55:00] FACT: Gap found: MESSAGES tab in web UI does one-time fetch, not live SSE streaming
+[2026-02-20 23:55:00] FACT: Gap found: No web UI form for posting messages to task bus from browser
+[2026-02-20 23:55:00] FACT: Gap found: ISSUES.md shows ISSUE-015 as OPEN but gc command was implemented (per MEMORY.md)
+[2026-02-20 23:55:00] DECISION: Session #18 focus:
+[2026-02-20 23:55:00]   (1) Live MESSAGES tab: Replace one-time API fetch with SSE streaming via /api/v1/messages/stream
+[2026-02-20 23:55:00]   (2) Web UI message posting: Add form/button to post USER messages to task message bus from browser
+[2026-02-20 23:55:00]   (3) Housekeeping: Mark ISSUE-015 RESOLVED, update QUESTIONS.md/docs
+[2026-02-20 23:55:00] DECISION: Launching 3 parallel sub-agents via bin/run-agent job
+
+[2026-02-20 23:58:00] PROGRESS: Launched 3 parallel sub-agents via bin/run-agent job:
+[2026-02-20 23:58:00] FACT: Agent task-20260220-203627-5948vy (webui-messages-live): Live MESSAGES tab SSE + message posting
+[2026-02-20 23:58:00] FACT: Agent task-20260220-203630-brbq21 (issues-housekeeping): ISSUES.md/QUESTIONS.md cleanup
+[2026-02-20 23:58:00] FACT: Agent task-20260220-203633-8ht7mn (webui-autorefresh-nav): Web UI auto-refresh + run display
+
+[2026-02-21 00:30:00] FACT: All 3 parallel agents COMPLETED (exit 0) with DONE files created
+[2026-02-21 00:30:00] FACT: Agent task-20260220-203627-5948vy (webui-messages-live): live MESSAGES SSE + posting — IMPLEMENTED
+[2026-02-21 00:30:00] FACT: Agent task-20260220-203630-brbq21 (issues-housekeeping): ISSUES.md + QUESTIONS.md cleaned up — DONE
+[2026-02-21 00:30:00] FACT: Agent task-20260220-203633-8ht7mn (webui-autorefresh-nav): auto-refresh + run display — IMPLEMENTED
+[2026-02-21 00:30:00] NOTE: Agents 1+3 both modified app.js concurrently; all changes correctly captured in commit 18ecaef
+[2026-02-21 00:30:00] QUALITY: go build ./... PASS
+[2026-02-21 00:30:00] QUALITY: go test -count=1 ./... (18 packages) ALL PASS
+[2026-02-21 00:30:00] QUALITY: go test -race ./internal/... ./cmd/... ALL PASS (no data races)
+[2026-02-21 00:30:00] FACT: Committed: 18ecaef feat(ui): add live SSE streaming and message posting to MESSAGES tab
+[2026-02-21 00:30:00] FACT: Committed: 5957960 docs(issues): mark ISSUE-015 resolved and update spec question notes
+
+[2026-02-21 00:35:00] ==========================================
+[2026-02-21 00:35:00] SESSION #18 SUMMARY
+[2026-02-21 00:35:00] ==========================================
+
+## Completed Tasks (3 sub-agents via bin/run-agent job)
+
+### task-20260220-203627-5948vy (Live MESSAGES Tab + Message Posting)
+- Replaced one-time API fetch in MESSAGES tab with SSE streaming
+- SSE connects to `/api/v1/messages/stream?project_id=P&task_id=T`
+- Task-scoped SSE: persists when switching runs within same task
+- Each `message` event appended as `[HH:MM:SS] [TYPE] content` line
+- Added `#msg-compose` form: type selector (USER/QUESTION/ANSWER/INFO) + textarea + Send button
+- `postMessage()` POSTs to `/api/v1/messages` with project_id, task_id, type, body
+- CSS classes for message type coloring (`msg-user` for USER/QUESTION)
+- Committed: 18ecaef
+
+### task-20260220-203633-8ht7mn (Web UI Auto-Refresh + Run Display)  
+- Added `taskRefreshTimer` — task list auto-refreshes every 5s when project is selected
+- `selectProject()` cancels pending timer on project switch
+- Running tasks show elapsed time (e.g. "3m12s") instead of "running"
+- Selected task header shows "N runs, M running" or "N runs"
+- Changes captured in: 18ecaef (same commit as agent 1, both modified app.js concurrently)
+
+### task-20260220-203630-brbq21 (ISSUES.md + QUESTIONS.md Housekeeping)
+- ISSUE-015: Status OPEN → RESOLVED (gc command implemented in cmd/run-agent/gc.go)
+- Summary table: MEDIUM open 6→5, MEDIUM resolved 0→1, Total open 9→8, Total resolved 7→8
+- message-bus-tools-QUESTIONS: implementation notes for Q2/Q4/Q5 (POST, RUN_CRASH, SSE id)
+- env-contract-QUESTIONS: CLAUDECODE note + Docker env test deferral note
+- Committed: 5957960
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (14MB each)
+- go test -count=1 ./... (18 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## Dog-Food Success
+- All 3 tasks orchestrated via ./bin/run-agent job (auto-generated task IDs)
+- DONE files created by all 3 agents ✓
+- Both app.js-modifying agents (1+3) correctly merged changes, no conflicts
+
+## Current Issue Status
+- CRITICAL: 0 open (all resolved)
+- HIGH: 0 open (all resolved or deferred)
+- MEDIUM: 5 open (ISSUE-011..014, ISSUE-016 planning notes — mostly moot)
+- LOW: 2 open (ISSUE-017 xAI deferred, ISSUE-018 frontend estimate)
+
+## What Was Added in Session #18
+1. Live MESSAGES tab — SSE streaming from /api/v1/messages/stream (was one-time fetch)
+2. Message posting form — type+body textarea in UI, POSTs to /api/v1/messages
+3. Auto-refresh task list — every 5s when a project is selected
+4. Elapsed time for running tasks — shows "3m12s" instead of "running"
+5. Run count in task header — "N runs, M running" for expanded tasks
+6. ISSUE-015 RESOLVED — gc command documented as implemented
+7. Spec question implementation notes added for message bus tools
+
