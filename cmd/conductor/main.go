@@ -54,25 +54,6 @@ func newRootCmd() *cobra.Command {
 	return cmd
 }
 
-func newTaskCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "task",
-		Short: "Manage tasks",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("task command not implemented yet")
-		},
-	}
-}
-
-func newJobCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "job",
-		Short: "Manage jobs",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("job command not implemented yet")
-		},
-	}
-}
 
 func runServer(configPath, rootDir string, disableTaskStart bool) error {
 	logger := log.New(os.Stdout, "conductor ", log.LstdFlags)
