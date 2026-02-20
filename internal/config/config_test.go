@@ -235,6 +235,70 @@ func TestResolveStoragePaths(t *testing.T) {
 	}
 }
 
+func TestFindDefaultConfig_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	path, err := FindDefaultConfigIn(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if path != "" {
+		t.Fatalf("expected empty path, got %q", path)
+	}
+}
+
+func TestFindDefaultConfig_FoundYaml(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("agents: {}\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	path, err := FindDefaultConfigIn(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if path != configPath {
+		t.Fatalf("expected %q, got %q", configPath, path)
+	}
+}
+
+func TestFindDefaultConfig_FoundHome(t *testing.T) {
+	dir := t.TempDir()
+	homeConfigDir := filepath.Join(dir, ".config", "conductor")
+	if err := os.MkdirAll(homeConfigDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	configPath := filepath.Join(homeConfigDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("agents: {}\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	// Use a separate baseDir with no local config so home path is reached.
+	baseDir := t.TempDir()
+
+	// Temporarily override HOME so FindDefaultConfigIn picks up our fake home.
+	t.Setenv("HOME", dir)
+
+	path, err := FindDefaultConfigIn(baseDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if path != configPath {
+		t.Fatalf("expected %q, got %q", configPath, path)
+	}
+}
+
+func TestFindDefaultConfig_HCLError(t *testing.T) {
+	dir := t.TempDir()
+	hclPath := filepath.Join(dir, "config.hcl")
+	if err := os.WriteFile(hclPath, []byte("# hcl config\n"), 0o600); err != nil {
+		t.Fatalf("write hcl: %v", err)
+	}
+	_, err := FindDefaultConfigIn(dir)
+	if err == nil {
+		t.Fatalf("expected error for HCL config, got nil")
+	}
+}
+
 func TestLoadConfigErrors(t *testing.T) {
 	if _, err := LoadConfig(""); err == nil {
 		t.Fatalf("expected error for empty path")

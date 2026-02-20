@@ -89,6 +89,18 @@ func runServer(configPath, rootDir string, disableTaskStart bool) error {
 		disableTaskStart = parseBool(envDisable)
 	}
 
+	if configPath == "" {
+		found, err := config.FindDefaultConfig()
+		if err != nil {
+			return err
+		}
+		if found == "" {
+			return fmt.Errorf("no config file found; use --config to specify one")
+		}
+		logger.Printf("Using config: %s", found)
+		configPath = found
+	}
+
 	var (
 		apiConfig config.APIConfig
 		cfg       *config.Config

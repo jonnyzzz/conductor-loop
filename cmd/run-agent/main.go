@@ -6,7 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/runner"
+	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -48,8 +50,20 @@ func newTaskCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectID = strings.TrimSpace(projectID)
 			taskID = strings.TrimSpace(taskID)
-			if projectID == "" || taskID == "" {
-				return fmt.Errorf("project and task are required")
+			if projectID == "" {
+				return fmt.Errorf("project is required")
+			}
+			var err error
+			taskID, err = resolveTaskID(taskID)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(opts.ConfigPath) == "" && strings.TrimSpace(opts.Agent) == "" {
+				found, err := config.FindDefaultConfig()
+				if err != nil {
+					return err
+				}
+				opts.ConfigPath = found
 			}
 			return runner.RunTask(projectID, taskID, opts)
 		},
@@ -84,8 +98,20 @@ func newJobCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectID = strings.TrimSpace(projectID)
 			taskID = strings.TrimSpace(taskID)
-			if projectID == "" || taskID == "" {
-				return fmt.Errorf("project and task are required")
+			if projectID == "" {
+				return fmt.Errorf("project is required")
+			}
+			var err error
+			taskID, err = resolveTaskID(taskID)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(opts.ConfigPath) == "" && strings.TrimSpace(opts.Agent) == "" {
+				found, err := config.FindDefaultConfig()
+				if err != nil {
+					return err
+				}
+				opts.ConfigPath = found
 			}
 			return runner.RunJob(projectID, taskID, opts)
 		},
@@ -104,4 +130,17 @@ func newJobCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.PreviousRunID, "previous-run-id", "", "previous run id")
 
 	return cmd
+}
+
+// resolveTaskID returns a valid task ID. If taskID is empty, a new ID is
+// auto-generated. If taskID is provided, it is validated against the required
+// format; an error is returned if validation fails.
+func resolveTaskID(taskID string) (string, error) {
+	if taskID == "" {
+		return storage.GenerateTaskID(""), nil
+	}
+	if err := storage.ValidateTaskID(taskID); err != nil {
+		return "", err
+	}
+	return taskID, nil
 }

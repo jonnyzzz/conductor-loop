@@ -40,6 +40,59 @@ type StorageConfig struct {
 	ExtraRoots []string `yaml:"extra_roots,omitempty"`
 }
 
+// FindDefaultConfig searches for a config file in default locations.
+// Returns the path if found, empty string if not found.
+// Search order:
+//  1. ./config.yaml
+//  2. ./config.yml
+//  3. ./config.hcl (returns error — HCL not yet supported)
+//  4. $HOME/.config/conductor/config.yaml
+//  5. $HOME/.config/conductor/config.yml
+//  6. $HOME/.config/conductor/config.hcl (returns error — HCL not yet supported)
+func FindDefaultConfig() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("get working directory: %w", err)
+	}
+	return FindDefaultConfigIn(cwd)
+}
+
+// FindDefaultConfigIn searches for a config file starting from baseDir.
+// This variant is provided for testability without os.Chdir.
+func FindDefaultConfigIn(baseDir string) (string, error) {
+	home, _ := os.UserHomeDir()
+
+	type candidate struct {
+		path  string
+		isHCL bool
+	}
+
+	candidates := []candidate{
+		{filepath.Join(baseDir, "config.yaml"), false},
+		{filepath.Join(baseDir, "config.yml"), false},
+		{filepath.Join(baseDir, "config.hcl"), true},
+	}
+	if home != "" {
+		candidates = append(candidates,
+			candidate{filepath.Join(home, ".config", "conductor", "config.yaml"), false},
+			candidate{filepath.Join(home, ".config", "conductor", "config.yml"), false},
+			candidate{filepath.Join(home, ".config", "conductor", "config.hcl"), true},
+		)
+	}
+
+	for _, c := range candidates {
+		if _, err := os.Stat(c.path); err != nil {
+			continue
+		}
+		if c.isHCL {
+			return "", fmt.Errorf("HCL config format not yet supported: %s", c.path)
+		}
+		return c.path, nil
+	}
+
+	return "", nil
+}
+
 // LoadConfig loads and validates configuration from a YAML file.
 func LoadConfig(path string) (*Config, error) {
 	if path == "" {
