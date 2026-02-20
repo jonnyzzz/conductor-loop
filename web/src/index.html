@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Conductor Loop</title>
   <link rel="stylesheet" href="styles.css">
+  <style>
+    #proj-messages { border-top: 1px solid var(--border); flex-shrink: 0; }
+    .proj-messages { max-height: 200px; overflow-y: auto; font-size: 0.75em; color: #888; padding: 4px 8px; white-space: pre-wrap; word-break: break-all; line-height: 1.4; }
+  </style>
 </head>
 <body>
 
@@ -28,6 +32,7 @@
       <div id="project-list" class="scroll-list">
         <p class="empty">Loading...</p>
       </div>
+      <div id="proj-messages" style="display:none;"></div>
     </div>
 
     <!-- Right content: tasks + run detail -->

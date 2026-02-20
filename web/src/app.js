@@ -1,7 +1,9 @@
 'use strict';
 
-// When served via file:// (opened directly), point at the conductor server.
-// When served from the conductor server itself (/ui/), use relative paths.
+// When opened via file://, connect to the conductor server (default port 8080).
+// When served by the conductor server itself (/ui/), use relative paths automatically.
+// Note: run-agent serve uses a different default port (14355); use its --host/--port flags
+// to change it, and update this URL accordingly if opening the UI via file://.
 const API_BASE = window.location.protocol === 'file:'
   ? 'http://localhost:8080'
   : '';
@@ -26,6 +28,7 @@ let sseSource        = null;
 let tabSseSource     = null;
 let tabSseRunId      = null;
 let tabSseTab        = null;
+let projSseSource    = null;
 
 // ── API ──────────────────────────────────────────────────────────────────────
 
@@ -93,7 +96,51 @@ async function selectProject(id) {
   state.taskRuns        = [];
   renderProjectList();
   hideRunDetail();
+  connectProjectSSE(id);
   await loadTasks();
+}
+
+function connectProjectSSE(projectId) {
+  if (projSseSource) {
+    projSseSource.close();
+    projSseSource = null;
+  }
+  const section = document.getElementById('proj-messages');
+  if (!section) return;
+  if (!projectId) {
+    section.style.display = 'none';
+    section.innerHTML = '';
+    return;
+  }
+  section.style.display = '';
+  section.innerHTML =
+    '<div style="padding:3px 8px;font-size:10px;color:var(--text-dim);text-transform:uppercase;' +
+    'letter-spacing:0.5px;background:var(--bg3);border-bottom:1px solid var(--border)">Project Messages</div>';
+  const msgArea = document.createElement('div');
+  msgArea.className = 'proj-messages';
+  section.appendChild(msgArea);
+
+  const sseUrl = `${API_BASE}/api/v1/messages/stream?project_id=${enc(projectId)}`;
+  const source = new EventSource(sseUrl);
+  projSseSource = source;
+
+  source.addEventListener('message', (event) => {
+    try {
+      const m = JSON.parse(event.data);
+      const cls  = msgTypeClass(m.type);
+      const text = `[${h(shortTime(m.timestamp))}] [${h(m.type)}] ${h(m.content || '')}`;
+      const line = cls ? `<span class="${cls}">${text}</span>` : text;
+      msgArea.innerHTML += (msgArea.innerHTML ? '\n' : '') + line;
+      msgArea.scrollTop = msgArea.scrollHeight;
+    } catch { /* ignore parse errors */ }
+  });
+
+  source.addEventListener('heartbeat', () => { /* keep-alive */ });
+
+  source.onerror = () => {
+    if (projSseSource !== source) return;
+    // browser auto-reconnects EventSource
+  };
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
