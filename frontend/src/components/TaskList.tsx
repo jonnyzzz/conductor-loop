@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react'
+import { type FormEvent, useMemo, useState } from 'react'
 import Button from '@jetbrains/ring-ui-built/components/button/button'
+import Dialog from '@jetbrains/ring-ui-built/components/dialog/dialog'
 import clsx from 'clsx'
 import type { Project, TaskSummary } from '../types'
+import { useStartTask } from '../hooks/useAPI'
+import type { TaskStartRequest } from '../api/client'
 
 const statusFilters = ['all', 'running', 'completed', 'failed'] as const
 export type StatusFilter = (typeof statusFilters)[number]
@@ -12,6 +15,22 @@ function parseDate(value?: string) {
   }
   return new Date(value).getTime()
 }
+
+function generateTaskId(): string {
+  const now = new Date()
+  const date = now.toISOString().slice(0, 10).replace(/-/g, '')
+  const time = now.toTimeString().slice(0, 8).replace(/:/g, '')
+  const rand = Math.random().toString(36).slice(2, 8)
+  return `task-${date}-${time}-${rand}`
+}
+
+const emptyForm = (): TaskStartRequest => ({
+  task_id: generateTaskId(),
+  prompt: '',
+  project_root: '',
+  attach_mode: 'create',
+  agent_type: 'claude',
+})
 
 export function TaskList({
   projects,
@@ -31,11 +50,38 @@ export function TaskList({
   onRefresh?: () => void
 }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [showCreate, setShowCreate] = useState(false)
+  const [form, setForm] = useState<TaskStartRequest>(emptyForm)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const startTaskMutation = useStartTask(selectedProjectId)
 
   const filteredTasks = useMemo(() => {
     const filtered = statusFilter === 'all' ? tasks : tasks.filter((task) => task.status === statusFilter)
     return [...filtered].sort((a, b) => parseDate(b.last_activity) - parseDate(a.last_activity))
   }, [statusFilter, tasks])
+
+  const openDialog = () => {
+    setForm({ ...emptyForm(), task_id: generateTaskId() })
+    setSubmitError(null)
+    setShowCreate(true)
+  }
+
+  const closeDialog = () => {
+    setShowCreate(false)
+    setSubmitError(null)
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setSubmitError(null)
+    try {
+      await startTaskMutation.mutateAsync(form)
+      closeDialog()
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to create task')
+    }
+  }
 
   return (
     <div className="panel panel-scroll">
@@ -72,6 +118,15 @@ export function TaskList({
           <div className="panel-title">Tasks</div>
           <div className="panel-subtitle">Filter by status</div>
         </div>
+        <Button
+          inline
+          onClick={openDialog}
+          disabled={!selectedProjectId}
+          aria-label="Create new task"
+          title={selectedProjectId ? 'Create new task' : 'Select a project first'}
+        >
+          + New Task
+        </Button>
       </div>
       <div className="panel-section filters">
         {statusFilters.map((filter) => (
@@ -106,6 +161,116 @@ export function TaskList({
           {filteredTasks.length === 0 && <div className="empty-state">No tasks match the filter.</div>}
         </div>
       </div>
+
+      <Dialog
+        show={showCreate}
+        label="Create new task"
+        showCloseButton
+        onCloseAttempt={closeDialog}
+      >
+        <div style={{ padding: '20px 24px', minWidth: '420px', maxWidth: '560px' }}>
+          <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px' }}>
+            New Task — {selectedProjectId}
+          </div>
+          <form onSubmit={handleSubmit}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--app-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Task ID
+                </span>
+                <input
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={form.task_id}
+                  onChange={(e) => setForm((f) => ({ ...f, task_id: e.target.value }))}
+                  required
+                  placeholder="task-20260220-120000-my-task"
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--app-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Agent
+                </span>
+                <select
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={form.agent_type ?? 'claude'}
+                  onChange={(e) => setForm((f) => ({ ...f, agent_type: e.target.value }))}
+                >
+                  <option value="claude">claude</option>
+                  <option value="codex">codex</option>
+                  <option value="gemini">gemini</option>
+                </select>
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--app-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Prompt *
+                </span>
+                <textarea
+                  className="input"
+                  style={{ width: '100%', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit' }}
+                  value={form.prompt}
+                  onChange={(e) => setForm((f) => ({ ...f, prompt: e.target.value }))}
+                  required
+                  placeholder="Describe what the agent should do..."
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--app-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Project Root
+                </span>
+                <input
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={form.project_root}
+                  onChange={(e) => setForm((f) => ({ ...f, project_root: e.target.value }))}
+                  placeholder="/path/to/project"
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--app-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Attach Mode
+                </span>
+                <select
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={form.attach_mode}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, attach_mode: e.target.value as TaskStartRequest['attach_mode'] }))
+                  }
+                >
+                  <option value="create">create</option>
+                  <option value="attach">attach</option>
+                  <option value="resume">resume</option>
+                </select>
+              </label>
+
+              {submitError && (
+                <div style={{ fontSize: '12px', color: 'var(--status-failed)', padding: '8px', background: 'rgba(240,123,123,0.1)', borderRadius: '8px' }}>
+                  {submitError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                <Button inline onClick={closeDialog} type="button">
+                  Cancel
+                </Button>
+                <Button
+                  primary
+                  type="submit"
+                  disabled={startTaskMutation.isPending}
+                >
+                  {startTaskMutation.isPending ? 'Creating…' : 'Create Task'}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </Dialog>
     </div>
   )
 }
