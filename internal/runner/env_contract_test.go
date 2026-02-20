@@ -232,6 +232,41 @@ func TestEnvContractJRunVars(t *testing.T) {
 	}
 }
 
+func TestEnvContractTaskFolderAndRunFolder(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	createEnvDumpCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	info, err := runJob("my-project", "my-task", JobOptions{
+		RootDir: root,
+		Agent:   "codex",
+		Prompt:  "hello",
+	})
+	if err != nil {
+		t.Fatalf("runJob: %v", err)
+	}
+
+	stdout, err := os.ReadFile(info.StdoutPath)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	envVars := parseEnvOutput(string(stdout))
+
+	expectedTaskFolder := filepath.Join(root, "my-project", "my-task")
+	if got := envVars["TASK_FOLDER"]; got != expectedTaskFolder {
+		t.Errorf("expected TASK_FOLDER=%q, got %q", expectedTaskFolder, got)
+	}
+
+	expectedRunFolder := filepath.Join(root, "my-project", "my-task", "runs", info.RunID)
+	if got := envVars["RUN_FOLDER"]; got != expectedRunFolder {
+		t.Errorf("expected RUN_FOLDER=%q, got %q", expectedRunFolder, got)
+	}
+}
+
 func TestEnvContractCLAUDECODERemoved(t *testing.T) {
 	root := t.TempDir()
 	binDir := filepath.Join(root, "bin")
