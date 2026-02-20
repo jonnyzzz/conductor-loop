@@ -226,30 +226,35 @@ bin/run-agent task stop <run_id>
 
 ---
 
-## Message Bus Commands (planned; not implemented yet)
+## Message Bus Commands
 
-The current `run-agent` binary exposes only `task` and `job` commands. The `bus` subcommands below are planned but not implemented yet. Until they exist, use the REST API served by `run-agent serve`:
-
-- `GET /api/v1/messages?project_id=<id>&task_id=<id>&after=<msg_id>`
-- `GET /api/v1/messages/stream?project_id=<id>&task_id=<id>`
+The `run-agent` binary exposes `bus post` and `bus read` subcommands. The `--bus` flag is optional when the `MESSAGE_BUS` environment variable is set (which `run-agent job` injects automatically into sub-agent environments).
 
 ### Post Message
 ```bash
+# With explicit --bus flag
 bin/run-agent bus post \
-  --type FACT \
-  --content "Tests passed: 42/42" \
-  --run-id <run_id>
+  --bus /path/to/TASK-MESSAGE-BUS.md \
+  --type INFO \
+  --body "Tests passed: 42/42"
+
+# Using $MESSAGE_BUS env var (set automatically by run-agent job)
+bin/run-agent bus post --type INFO --body "Tests passed: 42/42"
+
+# From stdin
+echo "Tests passed" | bin/run-agent bus post --type INFO
 ```
 
 ### Read Messages
 ```bash
-bin/run-agent bus read --scope task
-bin/run-agent bus read --scope project
-```
+# With explicit --bus flag
+bin/run-agent bus read --bus /path/to/TASK-MESSAGE-BUS.md --tail 20
 
-### Watch Message Bus (Live)
-```bash
-bin/run-agent bus watch --scope task
+# Using $MESSAGE_BUS env var
+bin/run-agent bus read --tail 20
+
+# Follow mode (watch for new messages)
+bin/run-agent bus read --follow
 ```
 
 ---
