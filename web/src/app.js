@@ -17,7 +17,7 @@ const state = {
   taskRuns:        [],   // runs for the currently selected task
   projects:        [],
   tasks:           [],
-  activeTab:       'stdout',
+  activeTab:       'output.md',
 };
 
 let refreshTimer = null;
