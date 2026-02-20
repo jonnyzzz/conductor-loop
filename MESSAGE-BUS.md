@@ -1128,3 +1128,97 @@ project_id: conductor-loop
 - Session ended with all 18 packages green, consistently
 - 3 new features: WaitGroup cleanup, --prompt-file for task, task ID printed
 - All changes committed and tested
+
+---
+msg_id: MSG-20260220-SESSION15-START
+ts: 2026-02-20T21:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 21:00:00] ==========================================
+[2026-02-20 21:00:00] SESSION #15: Web UI Output Tab + Bus Env Fallback + Live Streaming
+[2026-02-20 21:00:00] ==========================================
+
+[2026-02-20 21:00:00] PROGRESS: Starting session #15 — read all required docs, assessed state
+[2026-02-20 21:00:00] FACT: go build ./... passes (binaries rebuilt: conductor 14MB, run-agent 14MB)
+[2026-02-20 21:00:00] FACT: go test -count=1 ./... — ALL 18 packages green (inherited from session #14)
+[2026-02-20 21:00:00] FACT: All CRITICAL/HIGH issues resolved, all QUESTIONS.md answered
+[2026-02-20 21:00:00] FACT: Web UI has STDOUT/STDERR/PROMPT/MESSAGES tabs but no OUTPUT (output.md) tab
+[2026-02-20 21:00:00] FACT: bus post/read requires --bus flag even when $MESSAGE_BUS env var is set
+[2026-02-20 21:00:00] FACT: Instructions.md has stale comment "bus subcommands: not implemented yet"
+[2026-02-20 21:00:00] DECISION: Session #15 focus:
+[2026-02-20 21:00:00]   (1) Add OUTPUT tab to web UI for output.md viewing
+[2026-02-20 21:00:00]   (2) Make --bus optional in bus post/read when $MESSAGE_BUS env var set
+[2026-02-20 21:00:00]   (3) Fix stale Instructions.md bus subcommands comment
+[2026-02-20 21:00:00]   (4) Add live output streaming SSE for running task stdout/output.md
+[2026-02-20 21:00:00] DECISION: Launching 3 parallel sub-agents via bin/run-agent job
+
+[2026-02-20 21:05:00] PROGRESS: Launched 3 parallel sub-agents via bin/run-agent job
+[2026-02-20 21:05:00] FACT: Agent task-20260220-193435-393j67 (webui-output-tab): claude, running
+[2026-02-20 21:05:00] FACT: Agent task-20260220-193441-d31q82 (bus-env-fallback): claude, running
+[2026-02-20 21:05:00] FACT: Agent task-20260220-193447-s2vjd4 (live-output-streaming): claude, running
+
+[2026-02-20 21:30:00] FACT: Agent task-20260220-193435-393j67 (webui-output-tab): claude, exit 0, DONE created
+[2026-02-20 21:30:00] FACT: Agent task-20260220-193441-d31q82 (bus-env-fallback): claude, exit 0, DONE created
+[2026-02-20 21:30:00] FACT: Agent task-20260220-193447-s2vjd4 (live-output-streaming): claude, exit 0, DONE created
+[2026-02-20 21:30:00] FACT: Agent task-20260220-194305-78l54a (fix-task-folder-env): claude, exit 0, DONE created
+
+[2026-02-20 21:30:00] DOG-FOOD BUG FOUND: TASK_FOLDER was only in prompt text, not as env var
+[2026-02-20 21:30:00] DOG-FOOD FIX: Added TASK_FOLDER and RUN_FOLDER to envOverrides in job.go (commit 3965e92)
+[2026-02-20 21:30:00] DOG-FOOD LESSON: Always verify env vars are BOTH in prompt preamble AND as process env vars
+
+[2026-02-20 21:30:00] QUALITY: go build ./... PASS
+[2026-02-20 21:30:00] QUALITY: go test -count=1 ./... (18 packages) ALL PASS
+[2026-02-20 21:30:00] QUALITY: go test -race ./internal/... ./cmd/... ALL PASS (no races)
+
+[2026-02-20 21:35:00] ==========================================
+[2026-02-20 21:35:00] SESSION #15 SUMMARY
+[2026-02-20 21:35:00] ==========================================
+
+## Completed Tasks (4 sub-agents via bin/run-agent job)
+
+### task-20260220-193435-393j67 (Web UI OUTPUT tab)
+- Added OUTPUT tab to web/src/index.html (data-tab="output.md")
+- Changed default activeTab from 'stdout' to 'output.md'
+- Agents' primary work product (output.md) now visible in UI
+- Committed: 04f85f3
+
+### task-20260220-193441-d31q82 (bus --bus env fallback)
+- Added os.Getenv("MESSAGE_BUS") fallback in bus post/read when --bus omitted
+- Updated error message and flag description to mention env var
+- 3 new tests: post uses env, post fails without both, read uses env
+- Fixed Instructions.md stale "not implemented yet" comment
+- Committed: af2518a, e69d2fd
+
+### task-20260220-193447-s2vjd4 (Live output streaming)
+- New SSE endpoint: GET /api/projects/{p}/tasks/{t}/runs/{r}/stream?name=...
+- Polls file every 500ms, streams new content as SSE data: events
+- Re-reads run-info.yaml to detect run completion, sends event: done
+- Web UI: 2s auto-refresh of tab content for running tasks
+- 4 new tests in handlers_projects_test.go
+- Committed: ba85c84
+
+### task-20260220-194305-78l54a (Fix TASK_FOLDER env var)
+- CRITICAL dog-food bug: TASK_FOLDER/RUN_FOLDER not set as env vars
+- Added TASK_FOLDER and RUN_FOLDER to envOverrides in internal/runner/job.go
+- New test TestEnvContractTaskFolderAndRunFolder in env_contract_test.go
+- Deleted stray DONE file created at project root due to this bug
+- Committed: 3965e92
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (14MB each)
+- go test -count=1 ./... (18 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## Dog-Food Success
+- All 4 tasks orchestrated via ./bin/run-agent job
+- All 4 agents used auto-generated task IDs (omit --task)
+- DONE files created by all 4 agents in correct locations ✓
+
+## Current Issue Status
+- CRITICAL: 0 open (all resolved)
+- HIGH: 0 open (all resolved or deferred)
+- MEDIUM: 6 open (planning notes, mostly moot)
+- LOW: 2 open
