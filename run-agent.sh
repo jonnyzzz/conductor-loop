@@ -9,6 +9,9 @@ MESSAGE_BUS="${MESSAGE_BUS:-$BASE_DIR/MESSAGE-BUS.md}"
 export RUNS_DIR
 export MESSAGE_BUS
 
+# Allow nested agent invocation from within Claude Code sessions
+unset CLAUDECODE
+
 AGENT="${1:-codex}"
 CWD="${2:-$BASE_DIR}"
 PROMPT_FILE="${3:-$BASE_DIR/prompt.md}"
