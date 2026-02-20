@@ -1,0 +1,325 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jonnyzzz/conductor-loop/internal/storage"
+)
+
+// makeRunWithEnd creates a run directory with a run-info.yaml including EndTime.
+func makeRunWithEnd(t *testing.T, root, project, task, runID, status string, exitCode int, started, ended time.Time) {
+	t.Helper()
+	runDir := filepath.Join(root, project, task, "runs", runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", runDir, err)
+	}
+	info := &storage.RunInfo{
+		RunID:     runID,
+		ProjectID: project,
+		TaskID:    task,
+		AgentType: "claude",
+		Status:    status,
+		ExitCode:  exitCode,
+		StartTime: started,
+		EndTime:   ended,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+}
+
+func TestListProjects(t *testing.T) {
+	root := t.TempDir()
+
+	for _, proj := range []string{"alpha", "beta", "gamma"} {
+		if err := os.MkdirAll(filepath.Join(root, proj), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// create a file — should be ignored
+	if err := os.WriteFile(filepath.Join(root, "not-a-dir.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := listProjects(&buf, root, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 projects, got %d: %v", len(lines), lines)
+	}
+	for i, want := range []string{"alpha", "beta", "gamma"} {
+		if lines[i] != want {
+			t.Errorf("line %d: got %q, want %q", i, lines[i], want)
+		}
+	}
+}
+
+func TestListProjectsJSON(t *testing.T) {
+	root := t.TempDir()
+	for _, proj := range []string{"proj-a", "proj-b"} {
+		if err := os.MkdirAll(filepath.Join(root, proj), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := listProjects(&buf, root, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out map[string][]string
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if len(out["projects"]) != 2 {
+		t.Errorf("expected 2 projects in JSON, got %d", len(out["projects"]))
+	}
+}
+
+func TestListProjectsMissingRoot(t *testing.T) {
+	err := listProjects(&bytes.Buffer{}, "/nonexistent/path/12345", false)
+	if err == nil {
+		t.Fatal("expected error for missing root, got nil")
+	}
+}
+
+func TestListTasks(t *testing.T) {
+	root := t.TempDir()
+	project := "my-project"
+	now := time.Now().UTC().Truncate(time.Second)
+
+	// task-1: 2 runs, latest completed, DONE file
+	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusCompleted, now.Add(-10*time.Minute), 0)
+	makeRun(t, root, project, "task-20260101-000001-aa", "run-002", storage.StatusCompleted, now.Add(-4*time.Minute), 0)
+	if err := os.WriteFile(filepath.Join(root, project, "task-20260101-000001-aa", "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// task-2: 1 run, failed, no DONE
+	makeRun(t, root, project, "task-20260101-000002-bb", "run-001", storage.StatusFailed, now.Add(-20*time.Minute), 1)
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "task-20260101-000001-aa") {
+		t.Error("missing task-20260101-000001-aa in output")
+	}
+	if !strings.Contains(output, "task-20260101-000002-bb") {
+		t.Error("missing task-20260101-000002-bb in output")
+	}
+	if !strings.Contains(output, "completed") {
+		t.Error("missing 'completed' status in output")
+	}
+	if !strings.Contains(output, "failed") {
+		t.Error("missing 'failed' status in output")
+	}
+}
+
+func TestListTasksEmpty(t *testing.T) {
+	root := t.TempDir()
+	project := "empty-project"
+	if err := os.MkdirAll(filepath.Join(root, project), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, false); err != nil {
+		t.Fatalf("unexpected error for empty project: %v", err)
+	}
+
+	// Should just have header, no data rows
+	output := buf.String()
+	if !strings.Contains(output, "TASK_ID") {
+		t.Error("missing header in output")
+	}
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) != 1 {
+		t.Errorf("expected 1 line (header only), got %d: %v", len(lines), lines)
+	}
+}
+
+func TestListTasksMissingProject(t *testing.T) {
+	root := t.TempDir()
+	err := listTasks(&bytes.Buffer{}, root, "nonexistent-project", false)
+	if err == nil {
+		t.Fatal("expected error for missing project directory, got nil")
+	}
+}
+
+func TestListTasksDoneDetection(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000001-aa"
+	now := time.Now()
+
+	makeRun(t, root, project, task, "run-001", storage.StatusCompleted, now.Add(-time.Minute), 0)
+
+	// Without DONE file — check the data row is NOT marked DONE
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	for _, line := range lines[1:] {
+		if strings.Contains(line, task) {
+			if strings.Contains(line, "DONE") {
+				t.Errorf("task should not show DONE when no DONE file: %q", line)
+			}
+		}
+	}
+
+	// Add DONE file and check it shows up
+	if err := os.WriteFile(filepath.Join(root, project, task, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	buf.Reset()
+	if err := listTasks(&buf, root, project, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	lines = strings.Split(strings.TrimSpace(buf.String()), "\n")
+	found := false
+	for _, line := range lines[1:] {
+		if strings.Contains(line, task) {
+			if !strings.Contains(line, "DONE") {
+				t.Errorf("task line should contain DONE: %q", line)
+			}
+			found = true
+		}
+	}
+	if !found {
+		t.Error("task row not found in output")
+	}
+}
+
+func TestListTasksJSON(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	now := time.Now().UTC()
+
+	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusCompleted, now.Add(-time.Minute), 0)
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out map[string][]taskRow
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if len(out["tasks"]) != 1 {
+		t.Errorf("expected 1 task in JSON, got %d", len(out["tasks"]))
+	}
+	if out["tasks"][0].TaskID != "task-20260101-000001-aa" {
+		t.Errorf("wrong task_id: %q", out["tasks"][0].TaskID)
+	}
+	if out["tasks"][0].Runs != 1 {
+		t.Errorf("expected 1 run, got %d", out["tasks"][0].Runs)
+	}
+	if out["tasks"][0].LatestStatus != storage.StatusCompleted {
+		t.Errorf("expected 'completed', got %q", out["tasks"][0].LatestStatus)
+	}
+}
+
+func TestListRuns(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000001-aa"
+	now := time.Now().UTC().Truncate(time.Second)
+
+	makeRunWithEnd(t, root, project, task, "run-001", storage.StatusCompleted, 0, now.Add(-5*time.Minute), now.Add(-4*time.Minute))
+	makeRunWithEnd(t, root, project, task, "run-002", storage.StatusFailed, 1, now.Add(-3*time.Minute), now.Add(-2*time.Minute))
+	makeRunWithEnd(t, root, project, task, "run-003", storage.StatusRunning, -1, now.Add(-time.Minute), time.Time{})
+
+	var buf bytes.Buffer
+	if err := listRuns(&buf, root, project, task, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	for _, want := range []string{"run-001", "run-002", "run-003", "completed", "failed", "running"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("missing %q in output:\n%s", want, output)
+		}
+	}
+}
+
+func TestListRunsMissingTask(t *testing.T) {
+	root := t.TempDir()
+	err := listRuns(&bytes.Buffer{}, root, "proj", "task-nonexistent", false)
+	if err == nil {
+		t.Fatal("expected error for missing task, got nil")
+	}
+}
+
+func TestListRunsJSON(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000001-aa"
+	now := time.Now().UTC()
+
+	makeRunWithEnd(t, root, project, task, "run-001", storage.StatusCompleted, 0, now.Add(-time.Minute), now)
+
+	var buf bytes.Buffer
+	if err := listRuns(&buf, root, project, task, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out map[string][]runRow
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if len(out["runs"]) != 1 {
+		t.Errorf("expected 1 run in JSON, got %d", len(out["runs"]))
+	}
+	if out["runs"][0].RunID != "run-001" {
+		t.Errorf("wrong run_id: %q", out["runs"][0].RunID)
+	}
+	if out["runs"][0].Status != storage.StatusCompleted {
+		t.Errorf("expected 'completed', got %q", out["runs"][0].Status)
+	}
+}
+
+func TestListRunsDuration(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000001-aa"
+	now := time.Now().UTC().Truncate(time.Second)
+	start := now.Add(-65 * time.Second)
+
+	makeRunWithEnd(t, root, project, task, "run-001", storage.StatusCompleted, 0, start, now)
+
+	var buf bytes.Buffer
+	if err := listRuns(&buf, root, project, task, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "1m5s") {
+		t.Errorf("expected duration 1m5s in output:\n%s", output)
+	}
+}
+
+func TestListRequiresProjectForTask(t *testing.T) {
+	var buf bytes.Buffer
+	err := runList(&buf, "./runs", "", "some-task", false)
+	if err == nil {
+		t.Fatal("expected error when --task given without --project")
+	}
+	if !strings.Contains(err.Error(), "--task requires --project") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
