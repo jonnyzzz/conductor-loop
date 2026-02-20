@@ -817,6 +817,103 @@ func TestReadLastNLargeFile(t *testing.T) {
 	}
 }
 
+func TestAutoRotation(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.md")
+
+	// Create bus with 1KB auto-rotate threshold.
+	bus, err := NewMessageBus(path, WithAutoRotate(1024))
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+
+	// Write messages until rotation is triggered.
+	var rotated bool
+	for i := 0; i < 100; i++ {
+		_, err := bus.AppendMessage(&Message{
+			Type:      "TEST",
+			ProjectID: "project",
+			Body:      strings.Repeat("x", 100),
+		})
+		if err != nil {
+			t.Fatalf("AppendMessage %d: %v", i, err)
+		}
+
+		entries, _ := os.ReadDir(dir)
+		for _, e := range entries {
+			if strings.HasSuffix(e.Name(), ".archived") {
+				rotated = true
+			}
+		}
+		if rotated {
+			break
+		}
+	}
+
+	if !rotated {
+		t.Fatal("expected auto-rotation to have occurred")
+	}
+
+	// Verify new file is smaller than threshold.
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat new bus file: %v", err)
+	}
+	if fi.Size() >= 1024 {
+		t.Errorf("new bus file size %d should be under threshold 1024", fi.Size())
+	}
+}
+
+func TestAutoRotationDisabled(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.md")
+
+	// No auto-rotate (default).
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+
+	// Write many messages.
+	for i := 0; i < 50; i++ {
+		_, err := bus.AppendMessage(&Message{
+			Type:      "TEST",
+			ProjectID: "project",
+			Body:      strings.Repeat("x", 100),
+		})
+		if err != nil {
+			t.Fatalf("AppendMessage %d: %v", i, err)
+		}
+	}
+
+	// No archive file should exist.
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".archived") {
+			t.Errorf("unexpected archive file: %s", e.Name())
+		}
+	}
+}
+
+func TestWithAutoRotateOption(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bus.md")
+	bus, err := NewMessageBus(path, WithAutoRotate(5*1024*1024))
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	if bus.autoRotateBytes != 5*1024*1024 {
+		t.Fatalf("expected autoRotateBytes=5MB, got %d", bus.autoRotateBytes)
+	}
+
+	bus2, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	if bus2.autoRotateBytes != 0 {
+		t.Fatalf("expected autoRotateBytes=0 (disabled) by default, got %d", bus2.autoRotateBytes)
+	}
+}
+
 type shortWriter struct{}
 
 func (w *shortWriter) Write(p []byte) (int, error) { return 0, nil }

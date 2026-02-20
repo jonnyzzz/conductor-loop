@@ -741,7 +741,8 @@ Implemented `run-agent gc` command in `cmd/run-agent/gc.go` with full flag set:
 
 ### ISSUE-016: Message Bus File Size Growth
 **Severity**: MEDIUM
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-21 (Session #25)
 **Blocking**: Scalability
 
 **Description**:
@@ -772,6 +773,7 @@ TASK-MESSAGE-BUS.md is append-only with no rotation. Long-running tasks with cha
 - [x] `run-agent gc --rotate-bus` archives bus file when it exceeds threshold (Session #23)
 - [x] Efficient `ReadLastN()` method for tail-based reads without loading full file (Session #24)
 - [x] `bus read --tail N` uses `ReadLastN` for O(log n) read complexity (Session #24)
+- [x] `WithAutoRotate(maxBytes int64)` option triggers rotation on write when file exceeds threshold (Session #25)
 
 **Dependencies**:
 - infra-messagebus implementation

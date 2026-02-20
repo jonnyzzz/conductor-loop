@@ -108,13 +108,14 @@ func parseParents(node yaml.Node) []Parent {
 
 // MessageBus manages append-only message bus files.
 type MessageBus struct {
-	path         string
-	now          func() time.Time
-	lockTimeout  time.Duration
-	pollInterval time.Duration
-	maxRetries   int
-	retryBackoff time.Duration
-	fsync        bool
+	path             string
+	now              func() time.Time
+	lockTimeout      time.Duration
+	pollInterval     time.Duration
+	maxRetries       int
+	retryBackoff     time.Duration
+	fsync            bool
+	autoRotateBytes  int64
 
 	attempts int64
 	retries  int64
@@ -168,6 +169,17 @@ func WithRetryBackoff(d time.Duration) Option {
 func WithFsync(enabled bool) Option {
 	return func(bus *MessageBus) {
 		bus.fsync = enabled
+	}
+}
+
+// WithAutoRotate configures automatic rotation when the bus file exceeds maxBytes.
+// When the file size reaches or exceeds maxBytes, it is renamed to
+// <path>.YYYYMMDD-HHMMSS.archived and a fresh bus file is started.
+// Rotation occurs atomically inside the write lock.
+// Set to 0 to disable (default).
+func WithAutoRotate(maxBytes int64) Option {
+	return func(bus *MessageBus) {
+		bus.autoRotateBytes = maxBytes
 	}
 }
 
@@ -267,11 +279,35 @@ func (mb *MessageBus) tryAppend(data []byte) error {
 	if err != nil {
 		return errors.Wrap(err, "open message bus")
 	}
-	defer file.Close()
 
 	if err := LockExclusive(file, mb.lockTimeout); err != nil {
+		file.Close()
 		return fmt.Errorf("lock message bus: %w", err)
 	}
+
+	// Auto-rotation: if file exceeds threshold, rename to archive and create fresh file.
+	// We hold the exclusive lock while renaming, so no other writer can interleave.
+	if mb.autoRotateBytes > 0 {
+		if fi, statErr := file.Stat(); statErr == nil && fi.Size() >= mb.autoRotateBytes {
+			_ = Unlock(file)
+			file.Close()
+
+			archivePath := mb.path + "." + mb.now().UTC().Format("20060102-150405") + ".archived"
+			_ = os.Rename(mb.path, archivePath) // best-effort; new file created on next open
+
+			// Open (or create) the fresh bus file.
+			file, err = os.OpenFile(mb.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, messageBusFileMode)
+			if err != nil {
+				return errors.Wrap(err, "open new message bus after rotation")
+			}
+			if err := LockExclusive(file, mb.lockTimeout); err != nil {
+				file.Close()
+				return fmt.Errorf("lock new message bus after rotation: %w", err)
+			}
+		}
+	}
+
+	defer file.Close()
 	defer func() {
 		_ = Unlock(file)
 	}()
