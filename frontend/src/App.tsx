@@ -25,27 +25,22 @@ export function App() {
   const effectiveRunId = selectedRunId ?? taskQuery.data?.runs?.[taskQuery.data.runs.length - 1]?.id
 
   const runInfoQuery = useRunInfo(effectiveProjectId, effectiveTaskId, effectiveRunId)
-  const taskStateQuery = useTaskFile(effectiveProjectId, effectiveTaskId, 'TASK_STATE.md')
+  const taskStateQuery = useTaskFile(effectiveProjectId, effectiveTaskId, 'TASK.md')
   const runFileQuery = useRunFile(effectiveProjectId, effectiveTaskId, effectiveRunId, runFileName, 5000)
 
-  const logStreamUrl = useMemo(() => {
-    if (!effectiveProjectId || !effectiveTaskId) {
-      return undefined
-    }
-    return `/api/projects/${effectiveProjectId}/tasks/${effectiveTaskId}/logs/stream`
-  }, [effectiveProjectId, effectiveTaskId])
+  const logStreamUrl = undefined  // task-level log streaming not yet implemented
 
   const busStreamUrl = useMemo(() => {
     if (!effectiveProjectId) {
       return undefined
     }
     if (busScope === 'project') {
-      return `/api/projects/${effectiveProjectId}/bus/stream`
+      return `/api/projects/${effectiveProjectId}/messages/stream`
     }
     if (!effectiveTaskId) {
       return undefined
     }
-    return `/api/projects/${effectiveProjectId}/tasks/${effectiveTaskId}/bus/stream`
+    return `/api/projects/${effectiveProjectId}/tasks/${effectiveTaskId}/messages/stream`
   }, [busScope, effectiveProjectId, effectiveTaskId])
 
   return (

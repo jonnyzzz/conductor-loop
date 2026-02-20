@@ -44,7 +44,8 @@ func (s *Server) routes() http.Handler {
 	return handler
 }
 
-// findWebDir searches for the web/src directory containing index.html.
+// findWebDir searches for the web UI directory containing index.html.
+// frontend/dist (built React app) is preferred over web/src (simple UI fallback).
 // It checks relative to the executable and to the current working directory.
 func findWebDir() (string, bool) {
 	var candidates []string
@@ -53,6 +54,9 @@ func findWebDir() (string, bool) {
 	if exe, err := os.Executable(); err == nil {
 		base := filepath.Dir(exe)
 		candidates = append(candidates,
+			filepath.Join(base, "frontend", "dist"),
+			filepath.Join(base, "..", "frontend", "dist"),
+			filepath.Join(base, "..", "..", "frontend", "dist"),
 			filepath.Join(base, "web", "src"),
 			filepath.Join(base, "..", "web", "src"),
 			filepath.Join(base, "..", "..", "web", "src"),
@@ -61,7 +65,10 @@ func findWebDir() (string, bool) {
 
 	// Relative to current working directory (handles go run from project root)
 	if cwd, err := os.Getwd(); err == nil {
-		candidates = append(candidates, filepath.Join(cwd, "web", "src"))
+		candidates = append(candidates,
+			filepath.Join(cwd, "frontend", "dist"),
+			filepath.Join(cwd, "web", "src"),
+		)
 	}
 
 	for _, dir := range candidates {

@@ -239,7 +239,11 @@ type RalphConfig struct {
 - Message Bus: Read/write messages, streaming
 - Logs: Real-time log streaming
 
-### 8. Frontend UI (`web/src/`)
+### 8. Frontend UI
+
+Two UIs are available; the conductor server serves whichever is present at startup.
+
+#### Active (simple) UI — `web/src/`
 
 **Technology Stack:**
 - Plain HTML/CSS/JS (vanilla JavaScript, no framework)
@@ -255,6 +259,26 @@ type RalphConfig struct {
 - Run detail display
 - Real-time log streaming via SSE
 - Message bus feed
+
+#### Advanced React UI — `frontend/`
+
+**Technology Stack:**
+- React 18 + TypeScript
+- Vite build tool
+- Ring UI (JetBrains) component library
+
+**Build:**
+```bash
+cd frontend && npm install && npm run build
+# Output: frontend/dist/
+```
+
+**Key Features:**
+- LogViewer with filtering
+- RunTree visualization
+- TypeScript type-safe API client
+
+**Priority:** When `frontend/dist/index.html` is present, the conductor server serves it instead of `web/src/`. Delete or move `frontend/dist/` to fall back to the simple UI.
 
 ---
 

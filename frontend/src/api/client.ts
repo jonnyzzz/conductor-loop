@@ -18,6 +18,8 @@ export interface TaskStartRequest {
   prompt: string
   project_root: string
   attach_mode: 'restart' | 'new'
+  project_id?: string  // injected by startTask
+  agent_type?: string  // set to 'claude' as default
 }
 
 export class APIClient {
@@ -117,13 +119,13 @@ export class APIClient {
   async getMessages(projectId: string, taskId: string): Promise<BusMessage[]> {
     // Note: SSE is the primary path; this expects a list endpoint if added by backend.
     const data = await this.request<{ messages: BusMessage[] }>(
-      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/bus`
+      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/messages`
     )
     return data.messages
   }
 
   async postProjectMessage(projectId: string, body: Omit<BusMessage, 'msg_id' | 'ts'>): Promise<MessageResponse> {
-    return this.request<MessageResponse>(`/api/projects/${encodeURIComponent(projectId)}/bus`, {
+    return this.request<MessageResponse>(`/api/projects/${encodeURIComponent(projectId)}/messages`, {
       method: 'POST',
       body,
     })
@@ -135,15 +137,15 @@ export class APIClient {
     body: Omit<BusMessage, 'msg_id' | 'ts'>
   ): Promise<MessageResponse> {
     return this.request<MessageResponse>(
-      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/bus`,
+      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/messages`,
       { method: 'POST', body }
     )
   }
 
   async startTask(projectId: string, payload: TaskStartRequest): Promise<{ task_id: string; status: string; run_id: string }> {
-    return this.request(`/api/projects/${encodeURIComponent(projectId)}/tasks`, {
+    return this.request(`/api/v1/tasks`, {
       method: 'POST',
-      body: payload,
+      body: { ...payload, project_id: projectId },
     })
   }
 
