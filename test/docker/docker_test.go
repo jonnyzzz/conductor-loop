@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -54,6 +55,7 @@ func TestDockerBuild(t *testing.T) {
 func TestDockerRun(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
+	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 
@@ -68,6 +70,7 @@ func TestDockerRun(t *testing.T) {
 func TestDockerPersistence(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
+	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 
@@ -91,6 +94,7 @@ func TestDockerPersistence(t *testing.T) {
 func TestDockerNetworkIsolation(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
+	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 
@@ -106,6 +110,7 @@ func TestDockerNetworkIsolation(t *testing.T) {
 func TestDockerVolumes(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
+	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 
@@ -129,6 +134,7 @@ func TestDockerVolumes(t *testing.T) {
 func TestDockerLogs(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
+	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 
@@ -150,6 +156,7 @@ func TestDockerLogs(t *testing.T) {
 func TestDockerMultiContainer(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
+	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 	buildDockerImage(t, root)
@@ -207,6 +214,15 @@ func ensureDocker(t *testing.T) {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Skipf("docker not running: %v (%s)", err, strings.TrimSpace(string(output)))
 	}
+}
+
+func checkPortAvailable(t *testing.T, port string) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:"+port)
+	if err != nil {
+		t.Skipf("port %s already in use, skipping docker test (is conductor server running?)", port)
+	}
+	ln.Close()
 }
 
 func buildDockerImage(t *testing.T, root string) {
