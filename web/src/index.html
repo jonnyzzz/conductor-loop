@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conductor Loop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <div id="header">
+    <span class="title">CONDUCTOR LOOP</span>
+    <span class="separator">|</span>
+    <span id="health-indicator">
+      <span id="health-dot" class="dot warn">●</span>
+      <span id="health-label">Connecting...</span>
+    </span>
+    <span id="status-uptime"></span>
+  </div>
+
+  <!-- Workspace: sidebar + content -->
+  <div id="workspace">
+
+    <!-- Left sidebar: projects -->
+    <div id="sidebar">
+      <div class="panel-hdr">Projects</div>
+      <div id="project-list" class="scroll-list">
+        <p class="empty">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Right content: tasks + run detail -->
+    <div id="content">
+
+      <!-- Tasks panel -->
+      <div id="tasks-area" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+        <div class="panel-hdr">
+          <span id="main-header">Tasks</span>
+        </div>
+        <div id="main-panel" class="scroll-list">
+          <p class="empty">Select a project</p>
+        </div>
+      </div>
+
+      <!-- Run detail panel (hidden until run selected) -->
+      <div id="run-detail" class="hidden">
+        <div class="panel-hdr">
+          Run Detail
+          <button onclick="closeRun()" title="Close">✕</button>
+        </div>
+        <div id="run-meta" class="run-meta-bar"></div>
+        <div class="tab-bar">
+          <button class="tab-btn active" data-tab="stdout">STDOUT</button>
+          <button class="tab-btn" data-tab="stderr">STDERR</button>
+          <button class="tab-btn" data-tab="prompt">PROMPT</button>
+          <button class="tab-btn" data-tab="messages">MESSAGES</button>
+        </div>
+        <pre id="tab-content"></pre>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /workspace -->
+
+  <script src="app.js"></script>
+</body>
+</html>
