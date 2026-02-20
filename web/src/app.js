@@ -20,8 +20,9 @@ const state = {
   activeTab:       'output.md',
 };
 
-let refreshTimer = null;
-let sseSource    = null;
+let refreshTimer  = null;
+let sseSource     = null;
+let tabRefreshTimer = null;
 
 // ── API ──────────────────────────────────────────────────────────────────────
 
@@ -238,6 +239,15 @@ async function loadTabContent() {
   } catch (e) {
     el.textContent = (e.status === 404) ? `(${tab} not available)` : `Error: ${e.message}`;
   }
+
+  // For running tasks: auto-refresh the active tab every 2 seconds.
+  clearTimeout(tabRefreshTimer);
+  if (tab !== 'messages') {
+    const run = state.taskRuns.find(r => r.id === state.selectedRun);
+    if (run && run.status === 'running') {
+      tabRefreshTimer = setTimeout(loadTabContent, 2000);
+    }
+  }
 }
 
 function switchTab(name) {
@@ -253,6 +263,7 @@ function showRunDetail() {
 }
 
 function hideRunDetail() {
+  clearTimeout(tabRefreshTimer);
   document.getElementById('run-detail').classList.add('hidden');
 }
 

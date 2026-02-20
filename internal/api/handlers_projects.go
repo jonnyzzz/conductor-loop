@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -228,6 +230,10 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 		if len(parts) >= 6 && parts[5] == "file" {
 			return s.serveRunFile(w, r, found)
 		}
+		// stream endpoint
+		if len(parts) >= 6 && parts[5] == "stream" {
+			return s.serveRunFileStream(w, r, found)
+		}
 		// run info
 		return writeJSON(w, http.StatusOK, runInfoToProjectRun(found))
 	}
@@ -287,6 +293,109 @@ func (s *Server) serveRunFile(w http.ResponseWriter, r *http.Request, run *stora
 		"modified":   modified,
 		"size_bytes": len(data),
 	})
+}
+
+// serveRunFileStream streams a growing file using SSE (text/event-stream).
+// It tails the file from the beginning, sending new content every 500ms.
+func (s *Server) serveRunFileStream(w http.ResponseWriter, r *http.Request, run *storage.RunInfo) *apiError {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		name = "stdout"
+	}
+
+	var filePath string
+	switch name {
+	case "stdout":
+		filePath = run.StdoutPath
+	case "stderr":
+		filePath = run.StderrPath
+	case "prompt":
+		filePath = run.PromptPath
+	case "output.md":
+		if run.StdoutPath != "" {
+			filePath = filepath.Join(filepath.Dir(run.StdoutPath), "output.md")
+		}
+	default:
+		return apiErrorNotFound("unknown file: " + name)
+	}
+
+	if filePath == "" {
+		return apiErrorNotFound("file path not set for " + name)
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return nil
+	}
+
+	// Derive run-info.yaml path for live status re-checks.
+	runInfoPath := ""
+	if run.StdoutPath != "" {
+		runInfoPath = filepath.Join(filepath.Dir(run.StdoutPath), "run-info.yaml")
+	}
+
+	var offset int64
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return nil
+		case <-ticker.C:
+			var fileSize int64
+			f, err := os.Open(filePath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					continue // file not yet created
+				}
+				fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
+				flusher.Flush()
+				return nil
+			}
+
+			fi, _ := f.Stat()
+			if fi != nil {
+				fileSize = fi.Size()
+			}
+			if fi != nil && fileSize > offset {
+				if _, err := f.Seek(offset, io.SeekStart); err == nil {
+					buf := make([]byte, fileSize-offset)
+					n, _ := f.Read(buf)
+					if n > 0 {
+						chunk := string(buf[:n])
+						offset += int64(n)
+						for _, line := range strings.Split(chunk, "\n") {
+							fmt.Fprintf(w, "data: %s\n", line)
+						}
+						fmt.Fprintf(w, "\n")
+						flusher.Flush()
+					}
+				}
+			}
+			f.Close()
+
+			// Re-read run-info.yaml to detect completion.
+			currentStatus := run.Status
+			if runInfoPath != "" {
+				if current, err := storage.ReadRunInfo(runInfoPath); err == nil {
+					currentStatus = current.Status
+				}
+			}
+			if currentStatus == storage.StatusCompleted || currentStatus == storage.StatusFailed {
+				if fileSize <= offset {
+					fmt.Fprintf(w, "event: done\ndata: run %s\n\n", currentStatus)
+					flusher.Flush()
+					return nil
+				}
+			}
+		}
+	}
 }
 
 // allRunInfos collects RunInfo from the primary root and all extra roots.
