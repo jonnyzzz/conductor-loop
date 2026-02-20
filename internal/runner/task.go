@@ -22,6 +22,7 @@ type TaskOptions struct {
 	ConfigPath     string
 	Agent          string
 	Prompt         string
+	PromptPath     string // path to a file containing the prompt
 	WorkingDir     string
 	MessageBusPath string
 	MaxRestarts    int
@@ -52,6 +53,15 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 	}
 	if err := ensureDir(taskDir); err != nil {
 		return errors.Wrap(err, "ensure task dir")
+	}
+
+	// Resolve prompt from file if PromptPath is set
+	if path := strings.TrimSpace(opts.PromptPath); path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return errors.Wrap(err, "read prompt file")
+		}
+		opts.Prompt = strings.TrimSpace(string(data))
 	}
 
 	taskMDPath := filepath.Join(taskDir, "TASK.md")

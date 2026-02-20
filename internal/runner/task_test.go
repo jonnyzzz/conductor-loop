@@ -66,6 +66,40 @@ func TestRunTask_CreatesTaskMD(t *testing.T) {
 	}
 }
 
+func TestRunTask_WithPromptFile(t *testing.T) {
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "project", "task")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task: %v", err)
+	}
+	// Create DONE so the loop exits immediately without running the agent
+	if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write DONE: %v", err)
+	}
+
+	promptFile := filepath.Join(t.TempDir(), "prompt.md")
+	promptContent := "prompt from file"
+	if err := os.WriteFile(promptFile, []byte(promptContent), 0o644); err != nil {
+		t.Fatalf("write prompt file: %v", err)
+	}
+
+	if err := RunTask("project", "task", TaskOptions{
+		RootDir:    root,
+		Agent:      "codex",
+		PromptPath: promptFile,
+	}); err != nil {
+		t.Fatalf("RunTask: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(taskDir, "TASK.md"))
+	if err != nil {
+		t.Fatalf("read TASK.md: %v", err)
+	}
+	if strings.TrimSpace(string(data)) != promptContent {
+		t.Fatalf("TASK.md content = %q, want %q", strings.TrimSpace(string(data)), promptContent)
+	}
+}
+
 func TestRunTask_UsesExistingTaskMD(t *testing.T) {
 	root := t.TempDir()
 	taskDir := filepath.Join(root, "project", "task")

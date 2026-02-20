@@ -77,6 +77,7 @@ func newTaskCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "config file path")
 	cmd.Flags().StringVar(&opts.Agent, "agent", "", "agent type")
 	cmd.Flags().StringVar(&opts.Prompt, "prompt", "", "prompt override")
+	cmd.Flags().StringVar(&opts.PromptPath, "prompt-file", "", "prompt file path")
 	cmd.Flags().StringVar(&opts.WorkingDir, "cwd", "", "working directory")
 	cmd.Flags().StringVar(&opts.MessageBusPath, "message-bus", "", "message bus path")
 	cmd.Flags().IntVar(&opts.MaxRestarts, "max-restarts", 0, "max restarts")
