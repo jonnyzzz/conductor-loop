@@ -159,7 +159,8 @@ CLI versions: claude=2.1.49, codex=0.104.0, gemini=0.28.2.
 
 ### ISSUE-005: Phase 3 Runner Implementation is Monolithic Bottleneck
 **Severity**: HIGH
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-20
 **Blocking**: Timeline optimization
 
 **Description**:
@@ -189,6 +190,39 @@ Split runner-orchestration into parallel components:
 **Dependencies**:
 - THE_PLAN_v5.md updates
 - Phase 3 task decomposition
+
+**Resolution Notes** (2026-02-20, task-20260220-200003-runner-analysis):
+
+ISSUE-005 was a **development planning** bottleneck, not a runtime performance bottleneck.
+The "7-10 days" referred to developer-days for serial implementation tasks. The code is now
+implemented and the proposed decomposition has been achieved organically:
+
+| Proposed Component | Actual File | Lines |
+|---|---|---|
+| runner-process | `internal/runner/process.go` | 145 |
+| runner-ralph | `internal/runner/ralph.go` | 293 |
+| runner-cli | `internal/runner/job.go:commandForAgent()` + `validate.go` | ~160 |
+| runner-metadata | `internal/storage/` package | separate package |
+| runner-integration | `internal/runner/task.go` | 131 |
+
+`job.go` (552 lines total) contains 14 well-factored functions averaging ~40 lines each.
+`runJob()` itself is ~143 lines. The "monolith" description was based on total file size,
+not function complexity.
+
+**Runtime sequential execution is correct by design**: within a single job, every step
+depends on the prior step (create dir → write prompt → spawn agent → wait → finalize).
+The blocking wait is for the agent process itself (minutes to hours). No parallelism
+opportunity exists within a single job execution; parallelism across tasks is achieved
+by running separate `RunTask` goroutines.
+
+**No data race risk**: run-info.yaml uses file locking (ISSUE-019), message bus uses
+flock+retry (ISSUE-007). No intra-job concurrency exists to introduce races.
+
+Minor cleanup deferred (low priority): merge duplicate finalization logic in
+`executeCLI` with `finalizeRun()` (removes ~30 lines of duplication). Full package
+decomposition NOT recommended — over-engineering for a well-factored codebase.
+
+Full analysis: `/tmp/issue-005-analysis.md`
 
 ---
 
@@ -765,10 +799,20 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 | Severity | Open | Partially Resolved | Resolved |
 |----------|------|-------------------|----------|
 | CRITICAL | 0 | 2 | 3 |
-| HIGH | 2 | 3 | 3 |
+| HIGH | 1 | 3 | 4 |
 | MEDIUM | 6 | 0 | 0 |
 | LOW | 2 | 0 | 0 |
-| **Total** | **10** | **5** | **7** |
+| **Total** | **9** | **5** | **7** |
+
+### Session #12 Changes (2026-02-20)
+
+**ISSUE-005**: RESOLVED — runner decomposition analysis complete.
+The proposed component decomposition already exists in the implementation:
+`process.go` (runner-process), `ralph.go` (runner-ralph), `task.go` (runner-integration),
+`internal/storage/` (runner-metadata), `job.go` + `validate.go` (runner-cli + execution).
+The "bottleneck" was a development planning concern, not a runtime issue.
+`job.go` contains 14 well-factored functions; `runJob()` itself is ~143 lines.
+Summary table updated: HIGH open 2 → 1, HIGH resolved 3 → 4, Total open 10 → 9.
 
 ### Session #11 Changes (2026-02-20)
 
@@ -855,4 +899,4 @@ New features implemented (from QUESTIONS.md decisions):
 
 *This document is maintained as part of the Conductor Loop project. Update as issues are resolved or new issues discovered.*
 
-*Last updated: 2026-02-20 Session #11*
+*Last updated: 2026-02-20 Session #12*
