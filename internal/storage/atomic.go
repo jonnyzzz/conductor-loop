@@ -4,7 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
@@ -45,11 +47,31 @@ func ReadRunInfo(path string) (*RunInfo, error) {
 	return &info, nil
 }
 
+const updateRunInfoLockTimeout = 5 * time.Second
+
 // UpdateRunInfo applies updates to run-info.yaml and rewrites it atomically.
+// A file lock is held for the duration of the read-modify-write cycle to
+// prevent concurrent updates from losing data (ISSUE-019).
 func UpdateRunInfo(path string, update func(*RunInfo) error) error {
 	if update == nil {
 		return errors.New("update function is nil")
 	}
+
+	lockPath := path + ".lock"
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return errors.Wrap(err, "open run-info lock file")
+	}
+	defer func() {
+		_ = messagebus.Unlock(lockFile)
+		_ = lockFile.Close()
+		_ = os.Remove(lockPath)
+	}()
+
+	if err := messagebus.LockExclusive(lockFile, updateRunInfoLockTimeout); err != nil {
+		return errors.Wrap(err, "acquire run-info lock")
+	}
+
 	info, err := ReadRunInfo(path)
 	if err != nil {
 		return errors.Wrap(err, "read run-info for update")

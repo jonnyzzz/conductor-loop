@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 	"github.com/jonnyzzz/conductor-loop/internal/runner"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 )
@@ -253,6 +254,76 @@ func TestNestedRuns(t *testing.T) {
 		if err := <-childErr; err != nil {
 			t.Fatalf("child run failed: %v", err)
 		}
+	}
+}
+
+// TestRunJobMessageBusEventOrdering verifies that RUN_START is written to the
+// message bus before the agent completes and RUN_STOP is written after, in the
+// correct order (ISSUE-020).
+func TestRunJobMessageBusEventOrdering(t *testing.T) {
+	root := t.TempDir()
+	projectID := "project"
+	taskID := "task-bus-order"
+	taskDir := filepath.Join(root, projectID, taskID)
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte("bus ordering test"), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+
+	stubDir := t.TempDir()
+	stubPath := buildCodexStub(t, stubDir)
+	t.Setenv("PATH", prependPath(filepath.Dir(stubPath)))
+
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
+	opts := runner.JobOptions{
+		RootDir:        root,
+		Agent:          "codex",
+		Prompt:         "test ordering",
+		WorkingDir:     taskDir,
+		MessageBusPath: busPath,
+		Environment: map[string]string{
+			envOrchStubStdout: "ordering output",
+		},
+	}
+
+	if err := runner.RunJob(projectID, taskID, opts); err != nil {
+		t.Fatalf("RunJob: %v", err)
+	}
+
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	msgs, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("ReadMessages: %v", err)
+	}
+
+	var startIdx, stopIdx int
+	startIdx, stopIdx = -1, -1
+	for i, m := range msgs {
+		switch m.Type {
+		case "RUN_START":
+			if startIdx == -1 {
+				startIdx = i
+			}
+		case "RUN_STOP":
+			if stopIdx == -1 {
+				stopIdx = i
+			}
+		}
+	}
+
+	if startIdx == -1 {
+		t.Fatalf("RUN_START event not found in message bus")
+	}
+	if stopIdx == -1 {
+		t.Fatalf("RUN_STOP event not found in message bus")
+	}
+	if startIdx >= stopIdx {
+		t.Fatalf("RUN_START (index %d) must appear before RUN_STOP (index %d)", startIdx, stopIdx)
 	}
 }
 
