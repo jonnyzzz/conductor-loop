@@ -1810,3 +1810,94 @@ project_id: conductor-loop
 - DONE files created by both agents
 - No merge conflicts
 
+---
+msg_id: MSG-20260220-SESSION23-START
+ts: 2026-02-20T22:28:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 22:28:00] ==========================================
+[2026-02-20 22:28:00] SESSION #23: Message Bus Rotation + Project Stats API + Doc Accuracy
+[2026-02-20 22:28:00] ==========================================
+
+[2026-02-20 22:28:00] PROGRESS: Starting session #23 — read all required docs, assessed state
+[2026-02-20 22:28:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-20 22:28:00] FACT: go test -count=1 ./internal/... ./cmd/... — ALL 13 packages green
+[2026-02-20 22:28:00] FACT: go test -race ./internal/... ./cmd/... — no data races
+[2026-02-20 22:28:00] FACT: Integration tests pass: go test ./test/integration/... — PASS (24s)
+[2026-02-20 22:28:00] FACT: React frontend dist present: frontend/dist/assets/ (196KB CSS + 325KB JS)
+[2026-02-20 22:28:00] FACT: All CRITICAL/HIGH issues resolved, all QUESTIONS.md answered
+[2026-02-20 22:28:00] FACT: 49 task runs accumulated in runs/conductor-loop/ from sessions 11-22
+[2026-02-20 22:28:00] DECISION: Session #23 focus:
+[2026-02-20 22:28:00]   (1) ISSUE-016: Add message bus rotation to gc command
+[2026-02-20 22:28:00]   (2) New endpoint: GET /api/projects/{p}/stats (project statistics)
+[2026-02-20 22:28:00]   (3) Documentation accuracy pass for React frontend changes
+
+[2026-02-20 22:28:30] PROGRESS: Launched 3 parallel sub-agents via bin/run-agent job:
+[2026-02-20 22:28:30] FACT: Agent task-20260220-222812-7ubhzp (message-bus-rotation): add --rotate-bus to gc
+[2026-02-20 22:28:30] FACT: Agent task-20260220-222815-g9wu4n (project-stats-api): add /stats endpoint
+[2026-02-20 22:28:30] FACT: Agent task-20260220-222817-n2kreq (docs-accuracy): fix documentation inaccuracies
+
+[2026-02-20 22:40:00] FACT: All 3 parallel agents COMPLETED (exit code 0) with DONE files created
+
+[2026-02-20 22:40:00] QUALITY: go build ./... PASS
+[2026-02-20 22:40:00] QUALITY: go test -count=1 ./internal/... ./cmd/... ALL PASS (13 packages)
+[2026-02-20 22:40:00] QUALITY: go test -race ./internal/... ./cmd/... ALL PASS (no data races)
+[2026-02-20 22:40:00] FACT: Binaries rebuilt: conductor (14MB), run-agent (14MB)
+[2026-02-20 22:40:00] FACT: Committed: fc7501d feat(gc,api,docs): add bus rotation, project stats endpoint, and doc fixes
+
+[2026-02-20 22:41:00] ==========================================
+[2026-02-20 22:41:00] SESSION #23 SUMMARY
+[2026-02-20 22:41:00] ==========================================
+
+## Completed Tasks (3 sub-agents via bin/run-agent job)
+
+### task-20260220-222812-7ubhzp (Message Bus Rotation — ISSUE-016)
+- Added --rotate-bus flag to run-agent gc (enables bus file rotation)
+- Added --bus-max-size flag (default 10MB; parses 10MB/5MB/100KB/1GB/512B formats)
+- rotateBusFile(): renames to <name>.YYYYMMDD-HHMMSS.archived when above threshold
+- Scans PROJECT-MESSAGE-BUS.md (per project) and TASK-MESSAGE-BUS.md (per task)
+- Respects --dry-run (reports without renaming) and --project filter
+- 7 new tests: large rotated, small skipped, dry-run, threshold, project bus, flag absent, parseSizeBytes
+- Committed: fc7501d
+
+### task-20260220-222815-g9wu4n (Project Statistics API)
+- Added GET /api/projects/{p}/stats endpoint in handlers_projects.go
+- Returns: total_tasks, total_runs, running/completed/failed/crashed run counts
+- Returns: message_bus_files count, message_bus_total_bytes
+- Returns 404 if project doesn't exist
+- isTaskID() helper validates task ID format
+- 5 new tests: NotFound, MethodNotAllowed, WithTasksAndRuns, EmptyProject, NonTaskDirsNotCounted
+- Committed: fc7501d
+
+### task-20260220-222817-n2kreq (Documentation Accuracy)
+- docs/user/web-ui.md: primary UI is React 18 (frontend/dist/), not plain HTML; /ui/ URL path
+- docs/dev/architecture.md: updated System Overview and Key Statistics for dual-UI
+- README.md: fixed web UI URL to /ui/ path
+- docs/user/api-reference.md: added /tasks/{t}/runs/stream endpoint
+- docs/user/quick-start.md: fixed task creation API fields (agent_type, project_root); endpoint paths
+- Committed: fc7501d
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (14MB each)
+- go test -count=1 ./internal/... ./cmd/... (13 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## Dog-Food Success
+- All 3 tasks orchestrated via ./bin/run-agent job (auto-generated task IDs)
+- DONE files created by all 3 agents ✓
+- No merge conflicts
+
+## Current Issue Status
+- CRITICAL: 0 open (all resolved)
+- HIGH: 0 open (all resolved or deferred)
+- MEDIUM: 5 open (ISSUE-011..014, ISSUE-016 NOW PARTIALLY RESOLVED)
+- LOW: 2 open (ISSUE-017 xAI deferred, ISSUE-018 frontend estimate)
+
+## What Was Added in Session #23
+1. run-agent gc --rotate-bus — operational command to manage message bus file growth (ISSUE-016)
+2. GET /api/projects/{p}/stats — new endpoint for project statistics
+3. Documentation fixes — React UI accurately described, API endpoints complete, quick-start corrected
+
