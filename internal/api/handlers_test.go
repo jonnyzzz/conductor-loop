@@ -120,6 +120,113 @@ func TestFindRunInfoPathAmbiguous(t *testing.T) {
 	}
 }
 
+func TestHandleStatus(t *testing.T) {
+	root := t.TempDir()
+	fixedTime := time.Date(2026, 2, 20, 12, 0, 0, 0, time.UTC)
+	callCount := 0
+	fakeClock := func() time.Time {
+		callCount++
+		if callCount <= 1 {
+			return fixedTime
+		}
+		return fixedTime.Add(42 * time.Second)
+	}
+
+	server, err := NewServer(Options{
+		RootDir:          root,
+		DisableTaskStart: true,
+		AgentNames:       []string{"claude", "codex"},
+		Version:          "v1.2.3",
+		Now:              fakeClock,
+	})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	// Create a running run and a completed run.
+	runDir1 := filepath.Join(root, "project", "task", "runs", "run-1")
+	runDir2 := filepath.Join(root, "project", "task", "runs", "run-2")
+	if err := os.MkdirAll(runDir1, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.MkdirAll(runDir2, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	running := &storage.RunInfo{RunID: "run-1", ProjectID: "project", TaskID: "task", Status: storage.StatusRunning, StartTime: fixedTime}
+	if err := storage.WriteRunInfo(filepath.Join(runDir1, "run-info.yaml"), running); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+	completed := &storage.RunInfo{RunID: "run-2", ProjectID: "project", TaskID: "task", Status: storage.StatusCompleted, StartTime: fixedTime, EndTime: fixedTime.Add(10 * time.Second)}
+	if err := storage.WriteRunInfo(filepath.Join(runDir2, "run-info.yaml"), completed); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp StatusResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.ActiveRunsCount != 1 {
+		t.Fatalf("expected 1 active run, got %d", resp.ActiveRunsCount)
+	}
+	if resp.UptimeSeconds != 42 {
+		t.Fatalf("expected 42s uptime, got %f", resp.UptimeSeconds)
+	}
+	if len(resp.ConfiguredAgents) != 2 || resp.ConfiguredAgents[0] != "claude" || resp.ConfiguredAgents[1] != "codex" {
+		t.Fatalf("unexpected agents: %v", resp.ConfiguredAgents)
+	}
+	if resp.Version != "v1.2.3" {
+		t.Fatalf("expected version v1.2.3, got %s", resp.Version)
+	}
+}
+
+func TestHandleStatusMethodNotAllowed(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/status", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+}
+
+func TestHandleStatusNoAgents(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var resp StatusResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.ActiveRunsCount != 0 {
+		t.Fatalf("expected 0 active runs, got %d", resp.ActiveRunsCount)
+	}
+	if len(resp.ConfiguredAgents) != 0 {
+		t.Fatalf("expected empty agents, got %v", resp.ConfiguredAgents)
+	}
+}
+
 func TestHandleTaskCreate(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true, APIConfig: config.APIConfig{}})

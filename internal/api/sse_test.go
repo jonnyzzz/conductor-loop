@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -67,8 +68,8 @@ func TestSSEWriterSend(t *testing.T) {
 	if err := writer.Send(SSEEvent{Event: "log", Data: "payload"}); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
-	if !bytes.Contains(rw.buf.Bytes(), []byte("event: log")) {
-		t.Fatalf("missing event in output: %q", rw.buf.String())
+	if !bytes.Contains(rw.Bytes(), []byte("event: log")) {
+		t.Fatalf("missing event in output: %q", string(rw.Bytes()))
 	}
 }
 
@@ -198,7 +199,7 @@ func TestStreamRunCancel(t *testing.T) {
 	}
 	deadline := time.After(500 * time.Millisecond)
 	for {
-		if bytes.Contains(rec.buf.Bytes(), []byte("event: log")) {
+		if bytes.Contains(rec.Bytes(), []byte("event: log")) {
 			break
 		}
 		select {
@@ -262,7 +263,7 @@ func TestStreamAllRunsCancel(t *testing.T) {
 	}
 	deadline := time.After(500 * time.Millisecond)
 	for {
-		if bytes.Contains(rec.buf.Bytes(), []byte("event: log")) {
+		if bytes.Contains(rec.Bytes(), []byte("event: log")) {
 			break
 		}
 		select {
@@ -294,6 +295,7 @@ func appendLine(path, line string) error {
 
 type recordingWriter struct {
 	header http.Header
+	mu     sync.Mutex
 	buf    bytes.Buffer
 	status int
 }
@@ -302,6 +304,19 @@ func (r *recordingWriter) Header() http.Header { return r.header }
 
 func (r *recordingWriter) WriteHeader(status int) { r.status = status }
 
-func (r *recordingWriter) Write(data []byte) (int, error) { return r.buf.Write(data) }
+func (r *recordingWriter) Write(data []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.buf.Write(data)
+}
+
+func (r *recordingWriter) Bytes() []byte {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b := r.buf.Bytes()
+	cp := make([]byte, len(b))
+	copy(cp, b)
+	return cp
+}
 
 func (r *recordingWriter) Flush() {}

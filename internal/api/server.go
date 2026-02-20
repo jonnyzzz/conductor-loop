@@ -24,6 +24,7 @@ type Options struct {
 	ConfigPath       string
 	APIConfig        config.APIConfig
 	Version          string
+	AgentNames       []string
 	Logger           *log.Logger
 	DisableTaskStart bool
 	Now              func() time.Time
@@ -36,6 +37,8 @@ type Server struct {
 	extraRoots []string
 	configPath string
 	version    string
+	agentNames []string
+	startTime  time.Time
 	logger     *log.Logger
 	now        func() time.Time
 	startTasks bool
@@ -83,6 +86,8 @@ func NewServer(opts Options) (*Server, error) {
 		extraRoots: opts.ExtraRoots,
 		configPath: strings.TrimSpace(opts.ConfigPath),
 		version:    version,
+		agentNames: opts.AgentNames,
+		startTime:  now(),
 		logger:     logger,
 		now:        now,
 		startTasks: !opts.DisableTaskStart,

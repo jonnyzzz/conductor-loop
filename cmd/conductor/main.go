@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -113,12 +114,21 @@ func runServer(configPath, rootDir string, disableTaskStart bool) error {
 		extraRoots = cfg.Storage.ExtraRoots
 	}
 
+	var agentNames []string
+	if cfg != nil {
+		for name := range cfg.Agents {
+			agentNames = append(agentNames, name)
+		}
+		sort.Strings(agentNames)
+	}
+
 	server, err := api.NewServer(api.Options{
 		RootDir:          rootDir,
 		ExtraRoots:       extraRoots,
 		ConfigPath:       configPath,
 		APIConfig:        apiConfig,
 		Version:          version,
+		AgentNames:       agentNames,
 		Logger:           logger,
 		DisableTaskStart: disableTaskStart,
 	})

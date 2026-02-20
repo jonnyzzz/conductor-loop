@@ -97,6 +97,55 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) *apiError
 	return writeJSON(w, http.StatusOK, map[string]string{"version": s.version})
 }
 
+// StatusResponse defines the payload for the /api/v1/status endpoint.
+type StatusResponse struct {
+	ActiveRunsCount  int      `json:"active_runs_count"`
+	UptimeSeconds    float64  `json:"uptime_seconds"`
+	ConfiguredAgents []string `json:"configured_agents"`
+	Version          string   `json:"version"`
+}
+
+func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) *apiError {
+	if r.Method != http.MethodGet {
+		return apiErrorMethodNotAllowed()
+	}
+
+	runs, err := listRunResponses(s.rootDir)
+	if err != nil {
+		return apiErrorInternal("list runs", err)
+	}
+	for _, extra := range s.extraRoots {
+		extraRuns, err := listRunResponsesFlat(extra)
+		if err != nil {
+			s.logger.Printf("warn: scan extra root %s: %v", extra, err)
+			continue
+		}
+		runs = append(runs, extraRuns...)
+	}
+
+	activeCount := 0
+	for _, run := range runs {
+		if run.EndTime.IsZero() {
+			activeCount++
+		}
+	}
+
+	agents := s.agentNames
+	if agents == nil {
+		agents = []string{}
+	}
+
+	uptime := s.now().Sub(s.startTime).Seconds()
+
+	resp := StatusResponse{
+		ActiveRunsCount:  activeCount,
+		UptimeSeconds:    uptime,
+		ConfiguredAgents: agents,
+		Version:          s.version,
+	}
+	return writeJSON(w, http.StatusOK, resp)
+}
+
 func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) *apiError {
 	switch r.Method {
 	case http.MethodGet:

@@ -6,6 +6,7 @@ func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/health", s.wrap(s.handleHealth))
 	mux.Handle("/api/v1/version", s.wrap(s.handleVersion))
+	mux.Handle("/api/v1/status", s.wrap(s.handleStatus))
 
 	mux.Handle("/api/v1/runs/stream/all", s.wrap(s.handleAllRunsStream))
 
