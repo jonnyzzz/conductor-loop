@@ -2,9 +2,11 @@
 
 ## Open Questions
 
-TODO: Research about CLAUDECODE environment variable. 
+TODO: Research about CLAUDECODE environment variable.
+Note (2026-02-20): CLAUDECODE is set by the Claude CLI when it runs as an agent. Sub-agents launched via `run-agent job` inherit all parent environment variables including CLAUDECODE. No special handling is needed in run-agent — the variable passes through automatically via the inherited environment.
 
 TODO2: We need integration tests with all agents to log environment variables difference between the agent environment and the sub-task environment. Just create test-task.sh that captures enviroments, ask an agent (in Docker) to start it and let's see how env changes. For all supported agents.
+Note (2026-02-20): Docker-based cross-agent env comparison tests are deferred. The JRUN_* and RUNS_DIR/MESSAGE_BUS injection is already validated by 6 integration tests in `internal/runner/env_contract_test.go`. Full Docker multi-agent env diff testing can be added as a separate issue if needed.
 
 
 ### Q1: RUNS_DIR and MESSAGE_BUS Environment Variables

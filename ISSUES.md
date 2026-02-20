@@ -662,7 +662,8 @@ Extract all research into parallel "Research Sprint" (Stage 1.5):
 
 ### ISSUE-015: Run Directory Accumulation Without Cleanup
 **Severity**: MEDIUM
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-20
 **Blocking**: Operational stability
 
 **Description**:
@@ -687,6 +688,17 @@ Each Ralph restart creates a new run directory. No cleanup mechanism means disk 
 **Recommended Action**:
 - Add retention policy to config.hcl
 - Implement auto-archival in Phase 4 (when UI added)
+
+**Resolution**:
+Implemented `run-agent gc` command in `cmd/run-agent/gc.go` with full flag set:
+- [x] `--root` — root runs directory (default: `./runs` or `$RUNS_DIR`)
+- [x] `--older-than` — duration cutoff (default: 168h / 7 days)
+- [x] `--dry-run` — print what would be deleted without deleting
+- [x] `--project` — limit gc to a specific project
+- [x] `--keep-failed` — preserve runs with non-zero exit codes
+- [x] Skips active (running) runs; only deletes completed/failed
+- [x] Reports freed disk space in MB
+- [x] Tests in `cmd/run-agent/gc_test.go`
 
 **Dependencies**:
 - infra-storage implementation
@@ -800,9 +812,18 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 |----------|------|-------------------|----------|
 | CRITICAL | 0 | 2 | 3 |
 | HIGH | 1 | 3 | 4 |
-| MEDIUM | 6 | 0 | 0 |
+| MEDIUM | 5 | 0 | 1 |
 | LOW | 2 | 0 | 0 |
-| **Total** | **9** | **5** | **7** |
+| **Total** | **8** | **5** | **8** |
+
+### Session #18 Changes (2026-02-20)
+
+**ISSUE-015**: RESOLVED — `run-agent gc` command verified implemented with full flag set.
+`cmd/run-agent/gc.go` implements `--root`, `--older-than`, `--dry-run`, `--project`, `--keep-failed`.
+Skips active runs; only deletes completed/failed runs older than cutoff.
+Summary table updated: MEDIUM open 6 → 5, MEDIUM resolved 0 → 1, Total open 9 → 8, Total resolved 7 → 8.
+
+---
 
 ### Session #12 Changes (2026-02-20)
 
@@ -899,4 +920,4 @@ New features implemented (from QUESTIONS.md decisions):
 
 *This document is maintained as part of the Conductor Loop project. Update as issues are resolved or new issues discovered.*
 
-*Last updated: 2026-02-20 Session #12*
+*Last updated: 2026-02-20 Session #18*
