@@ -36,20 +36,42 @@ func TestResolvePrompt(t *testing.T) {
 }
 
 func TestCommandForAgent(t *testing.T) {
-	cmd, args, err := commandForAgent("codex", "/tmp")
-	if err != nil || cmd == "" || len(args) == 0 {
-		t.Fatalf("codex command error: %v", err)
+	tests := []struct {
+		name      string
+		agentType string
+		wantCmd   string
+		wantErr   bool
+	}{
+		{name: "codex", agentType: "codex", wantCmd: "codex"},
+		{name: "claude", agentType: "claude", wantCmd: "claude"},
+		{name: "gemini", agentType: "gemini", wantCmd: "gemini"},
+		{name: "unknown", agentType: "unknown", wantErr: true},
 	}
-	cmd, args, err = commandForAgent("claude", "/tmp")
-	if err != nil || cmd != "claude" || len(args) == 0 {
-		t.Fatalf("claude command error: %v", err)
-	}
-	cmd, args, err = commandForAgent("gemini", "")
-	if err != nil || cmd != "gemini" || len(args) == 0 {
-		t.Fatalf("gemini command error: %v", err)
-	}
-	if _, _, err := commandForAgent("unknown", ""); err == nil {
-		t.Fatalf("expected error for unknown agent")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd, args, err := commandForAgent(tc.agentType)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for agent type %q", tc.agentType)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if cmd != tc.wantCmd {
+				t.Fatalf("expected command %q, got %q", tc.wantCmd, cmd)
+			}
+			if len(args) == 0 {
+				t.Fatalf("expected non-empty args")
+			}
+			// working directory is handled by SpawnOptions.Dir, not CLI flags
+			for _, arg := range args {
+				if arg == "-C" {
+					t.Fatalf("args should not contain -C flag, got %v", args)
+				}
+			}
+		})
 	}
 }
 
@@ -238,14 +260,14 @@ func createFakeCLI(t *testing.T, dir, name string) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		path := filepath.Join(dir, name+".bat")
-		content := "@echo off\r\nmore >nul\r\necho stdout\r\n"
+		content := "@echo off\r\nif \"%1\"==\"--version\" (\r\n  echo " + name + " 1.0.0\r\n  exit /b 0\r\n)\r\nmore >nul\r\necho stdout\r\n"
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			t.Fatalf("write bat: %v", err)
 		}
 		return
 	}
 	path := filepath.Join(dir, name)
-	content := "#!/bin/sh\ncat >/dev/null\necho stdout\n"
+	content := "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo '" + name + " 1.0.0'; exit 0; fi\ncat >/dev/null\necho stdout\n"
 	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
 		t.Fatalf("write script: %v", err)
 	}
@@ -255,14 +277,14 @@ func createFailingCLI(t *testing.T, dir, name string) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		path := filepath.Join(dir, name+".bat")
-		content := "@echo off\r\nexit /b 1\r\n"
+		content := "@echo off\r\nif \"%1\"==\"--version\" (\r\n  echo " + name + " 1.0.0\r\n  exit /b 0\r\n)\r\nexit /b 1\r\n"
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			t.Fatalf("write bat: %v", err)
 		}
 		return
 	}
 	path := filepath.Join(dir, name)
-	content := "#!/bin/sh\nexit 1\n"
+	content := "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo '" + name + " 1.0.0'; exit 0; fi\nexit 1\n"
 	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
 		t.Fatalf("write script: %v", err)
 	}
@@ -409,6 +431,35 @@ func TestFinalizeRunFailure(t *testing.T) {
 	}
 	if updated.Status != storage.StatusFailed || updated.ExitCode != 1 {
 		t.Fatalf("unexpected status: %+v", updated)
+	}
+}
+
+func TestRemoveEnvKeys(t *testing.T) {
+	env := []string{"A=1", "CLAUDECODE=1", "B=2", "PATH=/usr/bin"}
+	filtered := removeEnvKeys(env, "CLAUDECODE")
+	for _, entry := range filtered {
+		if strings.HasPrefix(entry, "CLAUDECODE=") {
+			t.Fatalf("CLAUDECODE should have been removed, got %q", entry)
+		}
+	}
+	if len(filtered) != 3 {
+		t.Fatalf("expected 3 entries, got %d: %v", len(filtered), filtered)
+	}
+}
+
+func TestRemoveEnvKeysMultiple(t *testing.T) {
+	env := []string{"A=1", "CLAUDECODE=1", "B=2", "SECRET=x"}
+	filtered := removeEnvKeys(env, "CLAUDECODE", "SECRET")
+	if len(filtered) != 2 {
+		t.Fatalf("expected 2 entries, got %d: %v", len(filtered), filtered)
+	}
+}
+
+func TestRemoveEnvKeysEmpty(t *testing.T) {
+	env := []string{"A=1", "B=2"}
+	filtered := removeEnvKeys(env, "CLAUDECODE")
+	if len(filtered) != 2 {
+		t.Fatalf("expected 2 entries, got %d: %v", len(filtered), filtered)
 	}
 }
 

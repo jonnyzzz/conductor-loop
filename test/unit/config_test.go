@@ -167,15 +167,6 @@ func TestConfigValidationErrors(t *testing.T) {
 			},
 		},
 		{
-			name: "missing token",
-			cfg: config.Config{
-				Agents: map[string]config.AgentConfig{
-					"claude": {Type: "claude"},
-				},
-				Defaults: config.DefaultConfig{Timeout: 1},
-			},
-		},
-		{
 			name: "both token and token_file",
 			cfg: config.Config{
 				Agents: map[string]config.AgentConfig{

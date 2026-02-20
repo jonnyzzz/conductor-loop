@@ -101,6 +101,18 @@ func TestValidateConfigErrors(t *testing.T) {
 	}
 }
 
+func TestValidateConfigNoToken(t *testing.T) {
+	cfg := &Config{
+		Agents: map[string]AgentConfig{
+			"claude": {Type: "claude"},
+		},
+		Defaults: DefaultConfig{Timeout: 1},
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatalf("expected no error for agent without token, got %v", err)
+	}
+}
+
 func TestResolveTokensFromFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "token.txt")
 	if err := os.WriteFile(path, []byte("secret"), 0o600); err != nil {

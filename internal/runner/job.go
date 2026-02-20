@@ -77,8 +77,17 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		return nil, err
 	}
 
+	parentRunID := strings.TrimSpace(opts.ParentRunID)
+
 	promptPath := filepath.Join(runDir, "prompt.md")
-	promptContent := buildPrompt(taskDir, runDir, promptText)
+	promptContent := buildPrompt(PromptParams{
+		TaskDir:     taskDir,
+		RunDir:      runDir,
+		ProjectID:   projectID,
+		TaskID:      taskID,
+		RunID:       runID,
+		ParentRunID: parentRunID,
+	}, promptText)
 	if err := os.WriteFile(promptPath, []byte(promptContent), 0o644); err != nil {
 		return nil, errors.Wrap(err, "write prompt")
 	}
@@ -99,11 +108,13 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		return nil, errors.New("agent type is empty")
 	}
 
+	warnJRunEnvMismatch(projectID, taskID, runID, parentRunID)
+
 	envOverrides := map[string]string{
 		"JRUN_PROJECT_ID": projectID,
 		"JRUN_TASK_ID":    taskID,
 		"JRUN_ID":         runID,
-		"JRUN_PARENT_ID":  strings.TrimSpace(opts.ParentRunID),
+		"JRUN_PARENT_ID":  parentRunID,
 	}
 	if tokenVar := tokenEnvVar(agentType); tokenVar != "" {
 		if token := strings.TrimSpace(selection.Config.Token); token != "" {
@@ -121,6 +132,7 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	}
 
 	env := mergeEnv(os.Environ(), envOverrides)
+	env = removeEnvKeys(env, "CLAUDECODE")
 
 	runDirAbs, err := absPath(runDir)
 	if err != nil {
@@ -134,7 +146,7 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	info := &storage.RunInfo{
 		Version:       1,
 		RunID:         runID,
-		ParentRunID:   strings.TrimSpace(opts.ParentRunID),
+		ParentRunID:   parentRunID,
 		PreviousRunID: strings.TrimSpace(opts.PreviousRunID),
 		ProjectID:     projectID,
 		TaskID:        taskID,
@@ -182,7 +194,7 @@ func isRestAgent(agentType string) bool {
 }
 
 func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, env []string, runDir, busPath string, info *storage.RunInfo) error {
-	command, args, err := commandForAgent(agentType, workingDir)
+	command, args, err := commandForAgent(agentType)
 	if err != nil {
 		return err
 	}
@@ -371,28 +383,20 @@ func postRunEvent(busPath string, info *storage.RunInfo, msgType, body string) e
 	return nil
 }
 
-func commandForAgent(agentType, workingDir string) (string, []string, error) {
+// commandForAgent returns the CLI command and arguments for the given agent type.
+// Working directory is handled by SpawnOptions.Dir, not by CLI flags.
+func commandForAgent(agentType string) (string, []string, error) {
 	switch strings.ToLower(agentType) {
 	case "codex":
 		args := []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "-"}
-		if strings.TrimSpace(workingDir) != "" {
-			args = []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "-C", workingDir, "-"}
-		}
 		return "codex", args, nil
 	case "claude":
 		args := []string{
 			"-p",
-			"--input-format",
-			"text",
-			"--output-format",
-			"text",
-			"--tools",
-			"default",
-			"--permission-mode",
-			"bypassPermissions",
-		}
-		if strings.TrimSpace(workingDir) != "" {
-			args = append([]string{"-C", workingDir}, args...)
+			"--input-format", "text",
+			"--output-format", "text",
+			"--tools", "default",
+			"--permission-mode", "bypassPermissions",
 		}
 		return "claude", args, nil
 	case "gemini":
@@ -401,6 +405,23 @@ func commandForAgent(agentType, workingDir string) (string, []string, error) {
 	default:
 		return "", nil, fmt.Errorf("unsupported agent type %q", agentType)
 	}
+}
+
+// removeEnvKeys returns a copy of env with the given keys removed.
+func removeEnvKeys(env []string, keys ...string) []string {
+	remove := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		remove[k] = struct{}{}
+	}
+	result := make([]string, 0, len(env))
+	for _, entry := range env {
+		parts := strings.SplitN(entry, "=", 2)
+		if _, ok := remove[parts[0]]; ok {
+			continue
+		}
+		result = append(result, entry)
+	}
+	return result
 }
 
 func envMap(env []string) map[string]string {

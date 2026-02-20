@@ -48,9 +48,8 @@ func ValidateConfig(cfg *Config) error {
 			return fmt.Errorf("agent %q has invalid type %q", name, agent.Type)
 		}
 
-		if agent.Token == "" && agent.TokenFile == "" {
-			return fmt.Errorf("agent %q must set token or token_file", name)
-		}
+		// token/token_file are optional — CLI agents (claude, codex, gemini)
+		// can authenticate via their own mechanisms.
 
 		if agent.Token != "" && agent.TokenFile != "" && !agent.tokenFromFile {
 			return fmt.Errorf("agent %q cannot set both token and token_file", name)

@@ -26,7 +26,15 @@ type TaskOptions struct {
 }
 
 // RunTask starts the root agent and enforces the Ralph loop.
+// It validates the agent CLI binary at startup before entering the loop.
 func RunTask(projectID, taskID string, opts TaskOptions) error {
+	agentType := strings.ToLower(strings.TrimSpace(opts.Agent))
+	if agentType != "" {
+		if err := ValidateAgent(context.Background(), agentType); err != nil {
+			return errors.Wrap(err, "validate agent")
+		}
+	}
+
 	rootDir, err := resolveRootDir(opts.RootDir)
 	if err != nil {
 		return err
