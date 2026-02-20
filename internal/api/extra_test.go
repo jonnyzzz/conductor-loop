@@ -29,7 +29,7 @@ func TestStartTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
-	server.startTask(TaskCreateRequest{ProjectID: "project", TaskID: "task", AgentType: "codex", Prompt: "prompt"})
+	server.startTask(TaskCreateRequest{ProjectID: "project", TaskID: "task", AgentType: "codex", Prompt: "prompt"}, "", "prompt")
 }
 
 func TestStopTaskRuns(t *testing.T) {

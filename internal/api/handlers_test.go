@@ -322,9 +322,176 @@ func TestHandleTaskCreate(t *testing.T) {
 	resp := httptest.NewRecorder()
 	server.Handler().ServeHTTP(resp, req)
 	if resp.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d", resp.Code)
+		t.Fatalf("expected 201, got %d: %s", resp.Code, resp.Body.String())
 	}
 	if _, err := os.Stat(filepath.Join(root, "project", "task", "TASK.md")); err != nil {
 		t.Fatalf("expected TASK.md: %v", err)
+	}
+	var createResp TaskCreateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if createResp.RunID == "" {
+		t.Fatalf("expected non-empty run_id in response")
+	}
+	if createResp.ProjectID != "project" {
+		t.Fatalf("expected project_id=project, got %s", createResp.ProjectID)
+	}
+	if createResp.TaskID != "task" {
+		t.Fatalf("expected task_id=task, got %s", createResp.TaskID)
+	}
+	// Verify the pre-allocated run directory exists.
+	runDir := filepath.Join(root, "project", "task", "runs", createResp.RunID)
+	if _, err := os.Stat(runDir); err != nil {
+		t.Fatalf("expected run directory %s to exist: %v", runDir, err)
+	}
+}
+
+func TestHandleTaskCreate_ProjectRoot_Invalid(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	payload := TaskCreateRequest{
+		ProjectID:   "project",
+		TaskID:      "task",
+		AgentType:   "codex",
+		Prompt:      "hello",
+		ProjectRoot: "/nonexistent/path/that/does/not/exist",
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid project_root, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestHandleTaskCreate_ProjectRoot_Valid(t *testing.T) {
+	root := t.TempDir()
+	projectRoot := t.TempDir() // valid existing directory
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	payload := TaskCreateRequest{
+		ProjectID:   "project",
+		TaskID:      "task",
+		AgentType:   "codex",
+		Prompt:      "hello",
+		ProjectRoot: projectRoot,
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for valid project_root, got %d: %s", resp.Code, resp.Body.String())
+	}
+	var createResp TaskCreateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if createResp.RunID == "" {
+		t.Fatalf("expected non-empty run_id")
+	}
+}
+
+func TestHandleTaskCreate_AttachMode_Invalid(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	payload := TaskCreateRequest{
+		ProjectID:  "project",
+		TaskID:     "task",
+		AgentType:  "codex",
+		Prompt:     "hello",
+		AttachMode: "badmode",
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid attach_mode, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestHandleTaskCreate_AttachMode_Values(t *testing.T) {
+	for _, mode := range []string{"create", "attach", "resume"} {
+		t.Run(mode, func(t *testing.T) {
+			root := t.TempDir()
+			server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+			if err != nil {
+				t.Fatalf("NewServer: %v", err)
+			}
+			payload := TaskCreateRequest{
+				ProjectID:  "project",
+				TaskID:     "task",
+				AgentType:  "codex",
+				Prompt:     "hello",
+				AttachMode: mode,
+			}
+			data, _ := json.Marshal(payload)
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+			resp := httptest.NewRecorder()
+			server.Handler().ServeHTTP(resp, req)
+			if resp.Code != http.StatusCreated {
+				t.Fatalf("mode=%s: expected 201, got %d: %s", mode, resp.Code, resp.Body.String())
+			}
+			var createResp TaskCreateResponse
+			if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
+				t.Fatalf("mode=%s: decode response: %v", mode, err)
+			}
+			if createResp.RunID == "" {
+				t.Fatalf("mode=%s: expected non-empty run_id", mode)
+			}
+		})
+	}
+}
+
+func TestHandleTaskCreate_Attach_DoesNotOverwriteTaskMD(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	// Pre-create task dir with existing TASK.md.
+	taskDir := filepath.Join(root, "project", "task")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	original := "original prompt\n"
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte(original), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+
+	payload := TaskCreateRequest{
+		ProjectID:  "project",
+		TaskID:     "task",
+		AgentType:  "codex",
+		Prompt:     "new prompt",
+		AttachMode: "attach",
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// TASK.md must remain unchanged.
+	content, err := os.ReadFile(filepath.Join(taskDir, "TASK.md"))
+	if err != nil {
+		t.Fatalf("read TASK.md: %v", err)
+	}
+	if string(content) != original {
+		t.Fatalf("TASK.md was overwritten: got %q, want %q", string(content), original)
 	}
 }

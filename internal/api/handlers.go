@@ -22,17 +22,20 @@ const maxJSONBodySize = 1 << 20
 
 // TaskCreateRequest defines the payload for task creation.
 type TaskCreateRequest struct {
-	ProjectID string            `json:"project_id"`
-	TaskID    string            `json:"task_id"`
-	AgentType string            `json:"agent_type"`
-	Prompt    string            `json:"prompt"`
-	Config    map[string]string `json:"config,omitempty"`
+	ProjectID   string            `json:"project_id"`
+	TaskID      string            `json:"task_id"`
+	AgentType   string            `json:"agent_type"`
+	Prompt      string            `json:"prompt"`
+	Config      map[string]string `json:"config,omitempty"`
+	ProjectRoot string            `json:"project_root,omitempty"` // working directory for the task
+	AttachMode  string            `json:"attach_mode,omitempty"`  // "create" | "attach" | "resume"
 }
 
 // TaskCreateResponse defines the response for task creation.
 type TaskCreateResponse struct {
 	ProjectID string `json:"project_id"`
 	TaskID    string `json:"task_id"`
+	RunID     string `json:"run_id"` // the run ID that was allocated
 	Status    string `json:"status"`
 }
 
@@ -370,25 +373,76 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 		return apiErrorBadRequest("prompt is required")
 	}
 
+	// Validate project_root if provided.
+	projectRoot := strings.TrimSpace(req.ProjectRoot)
+	if projectRoot != "" {
+		if _, err := os.Stat(projectRoot); err != nil {
+			if os.IsNotExist(err) {
+				return apiErrorBadRequest(fmt.Sprintf("project_root does not exist: %s", projectRoot))
+			}
+			return apiErrorInternal("stat project_root", err)
+		}
+	}
+
+	// Validate and normalise attach_mode.
+	attachMode := strings.TrimSpace(req.AttachMode)
+	if attachMode == "" {
+		attachMode = "create"
+	}
+	switch attachMode {
+	case "create", "attach", "resume":
+	default:
+		return apiErrorBadRequest(fmt.Sprintf("invalid attach_mode %q: must be create, attach, or resume", attachMode))
+	}
+
 	taskDir := filepath.Join(s.rootDir, req.ProjectID, req.TaskID)
 	if err := os.MkdirAll(taskDir, 0o755); err != nil {
 		return apiErrorInternal("create task directory", err)
 	}
+
 	prompt := strings.TrimSpace(req.Prompt)
 	if !strings.HasSuffix(prompt, "\n") {
 		prompt += "\n"
 	}
-	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte(prompt), 0o644); err != nil {
-		return apiErrorInternal("write TASK.md", err)
+
+	// Write TASK.md: always for "create"; only if absent for "attach"/"resume".
+	taskMDPath := filepath.Join(taskDir, "TASK.md")
+	writeTaskMD := attachMode == "create"
+	if !writeTaskMD {
+		if _, err := os.Stat(taskMDPath); os.IsNotExist(err) {
+			writeTaskMD = true
+		}
+	}
+	if writeTaskMD {
+		if err := os.WriteFile(taskMDPath, []byte(prompt), 0o644); err != nil {
+			return apiErrorInternal("write TASK.md", err)
+		}
+	}
+
+	// For "resume" mode, prepend the restart prefix so the first run continues the task.
+	runPrompt := prompt
+	if attachMode == "resume" {
+		runPrompt = runner.RestartPrefix + prompt
+	}
+
+	// Pre-allocate a run directory so we can return the run_id immediately.
+	runsDir := filepath.Join(taskDir, "runs")
+	if err := os.MkdirAll(runsDir, 0o755); err != nil {
+		return apiErrorInternal("create runs directory", err)
+	}
+	runID, runDir, err := runner.AllocateRunDir(runsDir)
+	if err != nil {
+		return apiErrorInternal("allocate run directory", err)
 	}
 
 	if s.startTasks {
-		go s.startTask(req)
+		go s.startTask(req, runDir, runPrompt)
 	}
 
 	resp := TaskCreateResponse{
 		ProjectID: req.ProjectID,
 		TaskID:    req.TaskID,
+		RunID:     runID,
 		Status:    "started",
 	}
 	return writeJSON(w, http.StatusCreated, resp)
@@ -536,13 +590,15 @@ func (s *Server) handleRunStop(w http.ResponseWriter, r *http.Request, runID str
 	return writeJSON(w, http.StatusAccepted, map[string]string{"status": "stopping"})
 }
 
-func (s *Server) startTask(req TaskCreateRequest) {
+func (s *Server) startTask(req TaskCreateRequest, firstRunDir, prompt string) {
 	opts := runner.TaskOptions{
 		RootDir:     s.rootDir,
 		ConfigPath:  s.configPath,
 		Agent:       req.AgentType,
-		Prompt:      req.Prompt,
+		Prompt:      prompt,
+		WorkingDir:  strings.TrimSpace(req.ProjectRoot),
 		Environment: req.Config,
+		FirstRunDir: firstRunDir,
 	}
 	if err := runner.RunTask(req.ProjectID, req.TaskID, opts); err != nil {
 		s.logger.Printf("task %s/%s failed: %v", req.ProjectID, req.TaskID, err)
@@ -791,6 +847,10 @@ func listTaskRuns(taskPath string) ([]RunResponse, error) {
 		path := filepath.Join(runsDir, entry.Name(), "run-info.yaml")
 		info, err := storage.ReadRunInfo(path)
 		if err != nil {
+			if os.IsNotExist(errors.Cause(err)) || os.IsNotExist(err) {
+				// Pre-allocated run directory without run-info.yaml yet; skip it.
+				continue
+			}
 			return nil, errors.Wrapf(err, "read run-info for run %s", entry.Name())
 		}
 		responses = append(responses, runInfoToResponse(info))
@@ -935,6 +995,10 @@ func listTaskRunInfos(taskPath string) ([]*storage.RunInfo, error) {
 		path := filepath.Join(runsDir, entry.Name(), "run-info.yaml")
 		info, err := storage.ReadRunInfo(path)
 		if err != nil {
+			if os.IsNotExist(errors.Cause(err)) || os.IsNotExist(err) {
+				// Pre-allocated run directory without run-info.yaml yet; skip it.
+				continue
+			}
 			return nil, errors.Wrapf(err, "read run-info for run %s", entry.Name())
 		}
 		infos = append(infos, info)

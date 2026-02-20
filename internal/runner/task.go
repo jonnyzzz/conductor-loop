@@ -11,7 +11,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-const restartPrefix = "Continue working on the following:\n\n"
+// RestartPrefix is prepended to the prompt when restarting a task (resume mode or Ralph loop restart).
+const RestartPrefix = "Continue working on the following:\n\n"
+
+const restartPrefix = RestartPrefix
 
 // TaskOptions controls execution for the run-agent task command.
 type TaskOptions struct {
@@ -26,6 +29,7 @@ type TaskOptions struct {
 	PollInterval   time.Duration
 	RestartDelay   time.Duration
 	Environment    map[string]string
+	FirstRunDir    string // optional: pre-allocated run directory used for the first run attempt
 }
 
 // RunTask starts the root agent and enforces the Ralph loop.
@@ -97,6 +101,9 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 			MessageBusPath: busPath,
 			PreviousRunID:  previousRunID,
 			Environment:    opts.Environment,
+		}
+		if attempt == 0 && strings.TrimSpace(opts.FirstRunDir) != "" {
+			jobOpts.PreallocatedRunDir = opts.FirstRunDir
 		}
 		info, err := runJob(projectID, taskID, jobOpts)
 		if info != nil {

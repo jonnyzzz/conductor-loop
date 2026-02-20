@@ -19,16 +19,17 @@ import (
 
 // JobOptions controls execution for a single run-agent job.
 type JobOptions struct {
-	RootDir        string
-	ConfigPath     string
-	Agent          string
-	Prompt         string
-	PromptPath     string
-	WorkingDir     string
-	MessageBusPath string
-	ParentRunID    string
-	PreviousRunID  string
-	Environment    map[string]string
+	RootDir            string
+	ConfigPath         string
+	Agent              string
+	Prompt             string
+	PromptPath         string
+	WorkingDir         string
+	MessageBusPath     string
+	ParentRunID        string
+	PreviousRunID      string
+	Environment        map[string]string
+	PreallocatedRunDir string // optional: pre-created run directory; skip createRunDir if set
 }
 
 // RunJob starts a single agent run and waits for completion.
@@ -73,9 +74,16 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	if err := ensureDir(runsDir); err != nil {
 		return nil, errors.Wrap(err, "ensure runs dir")
 	}
-	runID, runDir, err := createRunDir(runsDir)
-	if err != nil {
-		return nil, err
+	var runID, runDir string
+	if preallocated := strings.TrimSpace(opts.PreallocatedRunDir); preallocated != "" {
+		runDir = preallocated
+		runID = filepath.Base(runDir)
+	} else {
+		var allocErr error
+		runID, runDir, allocErr = createRunDir(runsDir)
+		if allocErr != nil {
+			return nil, allocErr
+		}
 	}
 
 	parentRunID := strings.TrimSpace(opts.ParentRunID)

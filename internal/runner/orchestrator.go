@@ -128,6 +128,12 @@ func createRunDir(runsDir string) (string, string, error) {
 	return filepath.Base(fallback), fallback, nil
 }
 
+// AllocateRunDir pre-creates a new run directory under runsDir and returns its ID and path.
+// This allows callers to obtain a run ID before the agent process starts.
+func AllocateRunDir(runsDir string) (runID, runDir string, err error) {
+	return createRunDir(runsDir)
+}
+
 // PromptParams holds the values used to build the agent prompt preamble.
 type PromptParams struct {
 	TaskDir     string
