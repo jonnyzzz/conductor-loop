@@ -315,6 +315,34 @@ Fixes: #45
 
 ## Testing Standards
 
+### Mandatory Testing Policy
+
+**NEVER skip tests.** All tests must pass before committing. There are no exceptions.
+
+- `go build ./...` must succeed
+- `go test ./...` must pass (all non-infrastructure tests)
+- If a test fails, fix the code — do not skip or exclude the test
+- Tests marked as skipped (via `t.Skip`) require explicit documented justification
+
+### Port Conflict Policy
+
+**Never hard-code ports.** If a port is busy, select another free port automatically.
+
+- Use `:0` for test listeners to get an OS-assigned free port
+- For test servers: `net.Listen("tcp", ":0")` then read the assigned port
+- Never retry on a fixed port — always find a free one
+- Prefer `httptest.NewServer` / `httptest.NewUnstartedServer` for HTTP test servers
+- Conductor server in tests: start on `:0` and read the bound address
+
+```go
+// Correct: OS picks a free port
+ln, err := net.Listen("tcp", ":0")
+port := ln.Addr().(*net.TCPAddr).Port
+
+// Incorrect: hard-coded port that may conflict
+ln, err := net.Listen("tcp", ":8080")
+```
+
 ### Unit Tests
 - Coverage target: >80% per package
 - Use table-driven tests for multiple inputs
