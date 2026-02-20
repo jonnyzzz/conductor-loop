@@ -858,9 +858,15 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 |----------|------|-------------------|----------|
 | CRITICAL | 0 | 2 | 4 |
 | HIGH | 0 | 3 | 5 |
-| MEDIUM | 1 | 0 | 5 |
+| MEDIUM | 0 | 0 | 6 |
 | LOW | 0 | 0 | 2 |
-| **Total** | **1** | **5** | **16** |
+| **Total** | **0** | **5** | **17** |
+
+### Session #26 Changes (2026-02-21)
+
+**ISSUE-016** (MEDIUM): Table corrected — ISSUE-016 was RESOLVED in Session #25 (WithAutoRotate
+implemented in afa9673) but the summary table was not updated. Correcting: MEDIUM open 1 → 0,
+MEDIUM resolved 5 → 6, Total open 1 → 0, Total resolved 16 → 17.
 
 ### Session #25 Changes (2026-02-21)
 
@@ -997,4 +1003,4 @@ New features implemented (from QUESTIONS.md decisions):
 
 *This document is maintained as part of the Conductor Loop project. Update as issues are resolved or new issues discovered.*
 
-*Last updated: 2026-02-21 Session #25*
+*Last updated: 2026-02-21 Session #26*

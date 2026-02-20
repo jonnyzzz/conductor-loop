@@ -91,7 +91,7 @@ Conductor Loop is an AI agent orchestration system that manages multi-agent work
 
 ## Component Overview
 
-The system is organized into 8 major subsystems:
+The system is organized into 9 major subsystems:
 
 ### 1. Storage Layer (`internal/storage/`)
 
@@ -240,7 +240,27 @@ type RalphConfig struct {
 - Message Bus: Read/write messages, streaming
 - Logs: Real-time log streaming
 
-### 8. Frontend UI
+### 8. Webhook Notifications (`internal/webhook/`)
+
+**Responsibilities:**
+- Deliver run completion notifications to external HTTP endpoints
+- HMAC-SHA256 signed payloads for authenticity
+- Async delivery with retry (3 attempts, exponential backoff)
+
+**Key Files:**
+- `webhook.go` - Notifier and HTTP delivery logic
+- `config.go` - Webhook configuration types
+
+**Configuration:**
+```yaml
+webhook:
+  url: https://your-endpoint.example.com/hook
+  events: [run_completed]
+  secret: your-hmac-secret
+  timeout: 10s
+```
+
+### 9. Frontend UI
 
 Two UIs are available; the conductor server serves whichever is present at startup.
 
@@ -651,7 +671,7 @@ syscall.Kill(-pgid, syscall.SIGTERM)
 - Human-readable: YAML format for debugging
 
 **Trade-offs:**
-- File size grows (mitigation: log rotation)
+- File size grows (mitigation: `WithAutoRotate` option and `run-agent gc --rotate-bus`)
 - No complex queries (mitigation: simple filtering in code)
 - Network filesystems may have issues (mitigation: local storage only)
 

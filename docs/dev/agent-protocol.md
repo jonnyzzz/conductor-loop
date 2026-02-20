@@ -157,9 +157,12 @@ runCtx := &agent.RunContext{
     StdoutPath: "/home/user/run-agent/.../stdout",
     StderrPath: "/home/user/run-agent/.../stderr",
     Environment: map[string]string{
-        "ANTHROPIC_API_KEY": "sk-...",
-        "TASK_FOLDER": "/home/user/run-agent/my-project/task-001",
-        "RUN_FOLDER": "/home/user/run-agent/.../runs/20260205-150405123-12345",
+        "ANTHROPIC_API_KEY":  "sk-...",
+        "TASK_FOLDER":        "/home/user/run-agent/my-project/task-001",
+        "RUN_FOLDER":         "/home/user/run-agent/.../runs/20260205-150405123-12345",
+        "JRUN_PROJECT_ID":    "my-project",
+        "JRUN_TASK_ID":       "task-001",
+        "JRUN_ID":            "20260205-150405123-12345",
     },
 }
 ```
@@ -483,6 +486,9 @@ Environment variables pass configuration to agents:
 - `TASK_FOLDER` - Task directory
 - `RUN_FOLDER` - Run directory
 - `PATH` - Executable search path
+- `JRUN_PROJECT_ID` - Project identifier
+- `JRUN_TASK_ID` - Task identifier
+- `JRUN_ID` - Run identifier
 
 **Custom:**
 - Agent-specific configuration

@@ -633,7 +633,7 @@ func Unlock(file *os.File) error {
 1. **Windows:** Mandatory locks may block readers
 2. **Network Filesystems:** O_APPEND may not be atomic (use local storage only)
 3. **Scaling:** Single file limits throughput (~1000 writes/sec)
-4. **File Size:** Unbounded growth (no automatic rotation)
+4. **File Size:** Use `WithAutoRotate(maxBytes)` option or `run-agent gc --rotate-bus` to manage bus file growth
 
 ---
 
@@ -1543,6 +1543,62 @@ http://localhost:8080/ui/
 
 1. **No Offline Support:** Requires active server connection
 2. **No Mobile Optimization:** Desktop-focused UI
+
+---
+
+## 9. Webhook Notifications
+
+**Package:** `internal/webhook/`
+
+### Purpose
+
+The webhook package delivers run completion notifications to external HTTP endpoints. It enables:
+- Integration with CI/CD pipelines and external services
+- HMAC-SHA256 signed payloads for authenticity verification
+- Async delivery with automatic retry on failure
+
+### Key Files
+
+- `webhook.go` - Notifier implementation and HTTP delivery
+- `config.go` - Webhook configuration types
+- `webhook_test.go` - Unit tests (11 tests)
+
+### Configuration
+
+```yaml
+webhook:
+  url: https://your-endpoint.example.com/hook
+  events:
+    - run_completed
+  secret: your-hmac-secret
+  timeout: 10s
+```
+
+### Signature Header
+
+Every POST includes an HMAC-SHA256 signature:
+```
+X-Conductor-Signature: sha256=<hex>
+```
+
+### Delivery
+
+- **Trigger:** Fires async POST after each run finalization (in `internal/runner/job.go`)
+- **Retry:** 3 attempts with exponential backoff
+- **Events:** Configurable; currently supports `run_completed`
+
+### Dependencies
+
+- Standard library: `net/http`, `crypto/hmac`, `crypto/sha256`
+
+### Testing Strategy
+
+**Unit Tests:** `internal/webhook/webhook_test.go` (11 tests)
+
+- Test HMAC signature generation
+- Test HTTP delivery success/failure
+- Test retry logic
+- Test configuration validation
 
 ---
 

@@ -1229,13 +1229,11 @@ Screenshot of error
 
 ### Current Policy
 
-**No automatic cleanup or retention policies are enforced.**
+**Automatic cleanup is available via `run-agent gc`:**
 
-All data is kept indefinitely:
-- Run directories: Never deleted
-- Message bus files: No rotation
-- Task state files: Never deleted
-- Attachments: Never deleted
+- **Run directories:** `run-agent gc --root <root> --older-than 168h` deletes runs older than the specified duration. Use `--dry-run` to preview.
+- **Message bus files:** `run-agent gc --rotate-bus --bus-max-size 10MB --root <root>` rotates bus files exceeding the size threshold. `WithAutoRotate(maxBytes)` also auto-rotates on each write when the threshold is exceeded.
+- **Task state files and attachments:** No automatic cleanup; delete manually.
 
 ### Disk Space Monitoring
 
@@ -1288,12 +1286,13 @@ retention:
   keep_running_runs: true
 ```
 
-2. **Automatic rotation:**
-```yaml
-# Future config option
-messagebus:
-  max_size_mb: 100
-  rotation_policy: daily
+2. **Automatic rotation (implemented):**
+```bash
+# Rotate bus files exceeding 10MB in a single pass
+run-agent gc --rotate-bus --bus-max-size 10MB --root runs
+
+# Or use WithAutoRotate for per-write automatic rotation
+bus, _ := NewMessageBus(path, WithAutoRotate(10*1024*1024))
 ```
 
 3. **Compression:**

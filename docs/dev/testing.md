@@ -67,7 +67,7 @@ conductor-loop/
 │       ├── handlers_test.go
 │       ├── sse.go
 │       └── sse_test.go
-├── tests/
+├── test/
 │   ├── integration/
 │   │   ├── storage_integration_test.go
 │   │   ├── messagebus_integration_test.go
@@ -139,7 +139,7 @@ go test -v ./internal/storage/ -run TestCreateRun
 
 ```bash
 # Run integration tests
-go test ./tests/integration/
+go test ./test/integration/
 
 # Run with tags
 go test -tags=integration ./...
@@ -149,7 +149,7 @@ go test -tags=integration ./...
 
 ```bash
 # Run end-to-end tests
-go test ./tests/e2e/
+go test ./test/e2e/
 
 # Run with tags
 go test -tags=e2e ./...

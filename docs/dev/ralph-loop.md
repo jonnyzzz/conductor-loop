@@ -90,7 +90,7 @@ The Ralph Loop is the restart manager for root agent processes. It automatically
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Note:** The loop only stops via: DONE file detection, max restarts exceeded, or context cancellation. Agent exit code 0 does NOT stop the loop — task completion is signaled exclusively via the DONE file.
+**Note:** The loop stops via: exit code 0 (success), DONE file detection, max restarts exceeded, or context cancellation. See the [Exit Conditions](#exit-conditions) section for the complete list of stop conditions.
 
 ### Pseudocode
 

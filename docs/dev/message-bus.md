@@ -1294,16 +1294,25 @@ func unlockFile(file *os.File) error {
 - Disk space usage
 - Eventually hits filesystem limits
 
-**Mitigation:**
+**Implemented Mitigations:**
 - Per-task message buses (limits individual file size)
-- Manual log rotation (archive old files)
-- **Not implemented**: Automatic rotation
+- `WithAutoRotate(maxBytes int64)` option: automatically renames the bus file to
+  `<path>.YYYYMMDD-HHMMSS.archived` when a write would exceed the threshold;
+  the next write creates a fresh file. SSE streaming handles rotation via
+  `ErrSinceIDNotFound` reset.
+- `run-agent gc --rotate-bus --bus-max-size 10MB --root runs`: rotate all bus
+  files exceeding the threshold in a single pass.
+- `ReadLastN(n int)` method: efficient tail-only reads using a 64KB seek window
+  (doubles up to 3× before falling back to a full read) — avoids loading the
+  entire file for small queries.
 
-**Workaround:**
-```bash
-# Rotate message bus manually
-mv project/task/messagebus.yaml project/task/messagebus.yaml.1
-# New messages will create new file
+**Usage:**
+```go
+// Automatic rotation on write
+bus, _ := NewMessageBus(path, WithAutoRotate(10*1024*1024))
+
+// Read last N messages efficiently
+messages, _ := bus.ReadLastN(100)
 ```
 
 ### 2. No Complex Queries
