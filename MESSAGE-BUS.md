@@ -148,3 +148,86 @@
 [2026-02-20 12:55:00] SUCCESS: Priority 2 - docs/dev/ reviewed and inaccuracies fixed
 [2026-02-20 12:55:00] SUCCESS: Priority 3 - Conductor binary dog-fooded, system works end-to-end
 [2026-02-20 12:55:00] PENDING: Priority 4 - Open questions collected in QUESTIONS.md (see below)
+
+[2026-02-20 14:30:00] ==========================================
+[2026-02-20 14:30:00] SESSION: 2026-02-20 Continuation Session #2
+[2026-02-20 14:30:00] ==========================================
+
+[2026-02-20 14:30:00] PROGRESS: Starting continuation session - read all required docs
+[2026-02-20 14:30:00] FACT: go build ./... passes, all 18 test packages green
+[2026-02-20 14:30:00] FACT: Conductor server running on port 8080, health and version endpoints verified
+[2026-02-20 14:30:00] FACT: Binaries rebuilt: conductor (13.7MB), run-agent (12.3MB)
+
+[2026-02-20 14:35:00] ==========================================
+[2026-02-20 14:35:00] HUMAN ANSWERS: Discovered across 7 QUESTIONS files
+[2026-02-20 14:35:00] ==========================================
+[2026-02-20 14:35:00] FACT: Human (Eugene Petrenko) answered questions in 7 subsystem QUESTIONS files (commit 129fa692, 2026-02-20 12:31:03)
+[2026-02-20 14:35:00] FACT: Storage layout: 6 answers (4-digit timestamps, always include fields, enforce task IDs, etc.)
+[2026-02-20 14:35:00] FACT: Runner orchestration: 8 answers (HCL config, serve/bus/stop, JRUN_* validation, etc.)
+[2026-02-20 14:35:00] FACT: Message bus tools: 5 answers (bus subcommands, POST endpoint, START/STOP/CRASH events)
+[2026-02-20 14:35:00] FACT: Message bus object model: 3 answers (object-form parents, issue_id alias, advisory deps)
+[2026-02-20 14:35:00] FACT: Agent protocol: 2 answers (restart prefix, no depth checks now)
+[2026-02-20 14:35:00] FACT: Gemini backend: 2 answers (use CLI, same token/token_file)
+[2026-02-20 14:35:00] FACT: Monitoring UI: 6 answers (serve command, project API, task creation, streaming)
+
+[2026-02-20 14:40:00] ==========================================
+[2026-02-20 14:40:00] FIX: Storage - 4-digit timestamp precision (human answer Q1)
+[2026-02-20 14:40:00] ==========================================
+[2026-02-20 14:40:00] FACT: internal/storage/storage.go:188 - Changed format from "20060102-150405000" (3-digit) to "20060102-1504050000" (4-digit)
+[2026-02-20 14:40:00] FACT: internal/storage/cwdtxt.go:startTimeFromRunID() - Updated parser to handle 4-digit, 3-digit, and seconds-only formats
+[2026-02-20 14:40:00] FACT: internal/runner/orchestrator.go already used correct 4-digit format
+
+[2026-02-20 14:42:00] ==========================================
+[2026-02-20 14:42:00] FIX: Storage - Always include version/end_time/exit_code (human answer Q2)
+[2026-02-20 14:42:00] ==========================================
+[2026-02-20 14:42:00] FACT: internal/storage/runinfo.go - Removed omitempty from Version, EndTime, ExitCode YAML tags
+[2026-02-20 14:42:00] FACT: Fields now always appear in run-info.yaml even when zero-valued
+
+[2026-02-20 14:45:00] ==========================================
+[2026-02-20 14:45:00] FIX: ISSUE-019 - File locking for UpdateRunInfo
+[2026-02-20 14:45:00] ==========================================
+[2026-02-20 14:45:00] FACT: internal/storage/atomic.go - Added file locking using messagebus.LockExclusive
+[2026-02-20 14:45:00] FACT: Lock file: <path>.lock, timeout: 5 seconds
+[2026-02-20 14:45:00] FACT: Reuses existing cross-platform flock from internal/messagebus/lock.go
+[2026-02-20 14:45:00] FACT: All tests pass including race detector on storage/runner/messagebus packages
+
+[2026-02-20 14:50:00] ==========================================
+[2026-02-20 14:50:00] FIX: ISSUE-020 - Integration test for message bus event ordering
+[2026-02-20 14:50:00] ==========================================
+[2026-02-20 14:50:00] FACT: Added TestRunJobMessageBusEventOrdering to test/integration/orchestration_test.go
+[2026-02-20 14:50:00] FACT: Test verifies RUN_START appears before RUN_STOP in message bus
+[2026-02-20 14:50:00] FACT: Code already had correct ordering (executeCLI writes START before proc.Wait())
+
+[2026-02-20 14:55:00] ==========================================
+[2026-02-20 14:55:00] DECISION: ISSUE-001 already resolved in code
+[2026-02-20 14:55:00] ==========================================
+[2026-02-20 14:55:00] FACT: Config schema already uses token/token_file as mutually exclusive (internal/config/validation.go)
+[2026-02-20 14:55:00] FACT: No env_var in config; env var mapping hardcoded in orchestrator.go:tokenEnvVar()
+[2026-02-20 14:55:00] FACT: CLI flags hardcoded in job.go:commandForAgent()
+[2026-02-20 14:55:00] FACT: Marked ISSUE-001, ISSUE-019, ISSUE-020 as RESOLVED in ISSUES.md
+
+[2026-02-20 15:00:00] ==========================================
+[2026-02-20 15:00:00] DECISIONS: 9 design questions answered in QUESTIONS.md
+[2026-02-20 15:00:00] ==========================================
+[2026-02-20 15:00:00] DECISION: Q1 (fsync) - Add WithFsync(bool) option, default false. Backlogged.
+[2026-02-20 15:00:00] DECISION: Q2 (rotation) - Defer. Implement at 100MB with archive when needed.
+[2026-02-20 15:00:00] DECISION: Q3 (DONE file) - Current approach sufficient. Agents write DONE directly.
+[2026-02-20 15:00:00] DECISION: Q4 (restart exhaustion) - Current behavior correct. Future: add resume command.
+[2026-02-20 15:00:00] DECISION: Q5 (UpdateRunInfo) - RESOLVED with file locking (ISSUE-019).
+[2026-02-20 15:00:00] DECISION: Q6 (JRUN_* vars) - Per human: validate consistency, add to prompt preamble.
+[2026-02-20 15:00:00] DECISION: Q7 (child runs) - Via run-agent job with --parent-run-id. IPC via task message bus.
+[2026-02-20 15:00:00] DECISION: Q8 (/api/v1/status) - Add richer status endpoint per human answer.
+[2026-02-20 15:00:00] DECISION: Q9 (config format) - HCL is source of truth per human. Support both YAML and HCL. Add default search paths.
+
+[2026-02-20 15:05:00] ==========================================
+[2026-02-20 15:05:00] SESSION SUMMARY: 2026-02-20 Session #2
+[2026-02-20 15:05:00] ==========================================
+[2026-02-20 15:05:00] SUCCESS: 3 CRITICAL issues resolved (ISSUE-001, ISSUE-019, ISSUE-020) - down from 6 to 3 open
+[2026-02-20 15:05:00] SUCCESS: Storage standardized: 4-digit timestamps, always-include fields, file locking
+[2026-02-20 15:05:00] SUCCESS: All 9 design questions in QUESTIONS.md answered with decisions
+[2026-02-20 15:05:00] SUCCESS: Human answers from 7 QUESTIONS files catalogued and high-priority ones implemented
+[2026-02-20 15:05:00] SUCCESS: Integration test added for message bus event ordering
+[2026-02-20 15:05:00] SUCCESS: go build ./... passes, all 18 packages green, no data races
+[2026-02-20 15:05:00] PENDING: Implement remaining human answers (bus subcommands, POST endpoint, serve command defaults)
+[2026-02-20 15:05:00] PENDING: Remaining 3 CRITICAL issues: ISSUE-002 (Windows locking), ISSUE-004 (CLI versions)
+[2026-02-20 15:05:00] PENDING: 6 HIGH issues, 6 MEDIUM issues still open

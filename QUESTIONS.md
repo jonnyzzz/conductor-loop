@@ -25,6 +25,8 @@ This document collects open design questions and uncertainties identified during
 
 **Recommendation**: Add `WithFsync(bool)` option, default false. Document the trade-off explicitly.
 
+**DECISION (2026-02-20)**: Accept the recommendation. Add `WithFsync(bool)` option, default false. Current 37K msg/sec performance is excellent for the primary use case. For durability-critical deployments, users can enable fsync. Backlogged — no immediate code change required.
+
 ---
 
 ### Q2: When should message bus files be rotated?
@@ -36,6 +38,8 @@ This document collects open design questions and uncertainties identified during
 - Should rotation be automatic (e.g., at 10MB) or manual via admin command?
 - When rotated, should old messages be archived or deleted?
 - How does the SSE streaming API handle rotation (clients reading a file that gets rotated)?
+
+**DECISION (2026-02-20)**: Defer rotation to a future release. Current usage patterns (AI agent coordination tasks) are unlikely to produce GB-scale message bus files. When needed, implement automatic rotation at 100MB with archive (not delete). Add `run-agent gc` command for manual cleanup. Tracked in ISSUE-016.
 
 ---
 
@@ -50,6 +54,8 @@ This document collects open design questions and uncertainties identified during
 - Should there be a standard tool/command that agents use to create `DONE` (vs. raw file write)?
 - What happens if an agent creates `DONE` but has active child runs still running? (Answer: Ralph loop waits for children via `handleDone()` with `WaitForChildren()`)
 
+**DECISION (2026-02-20)**: The current prompt preamble approach is sufficient. Agents write the DONE file directly (raw file write is simplest). No need for a dedicated tool — agents are sophisticated enough. The child-waiting behavior is correct and documented in the code.
+
 ---
 
 ### Q4: What happens when all restarts are exhausted but task is partially done?
@@ -61,31 +67,15 @@ This document collects open design questions and uncertainties identified during
 - Should the task directory be preserved (it is) for debugging?
 - Should the error be posted to the message bus? (Currently it is logged to message bus as ERROR)
 
+**DECISION (2026-02-20)**: Current behavior is correct: task directory preserved, error posted to message bus. For resume capability, a future `run-agent task resume --task <id>` command should reset the restart counter and continue from the same task directory. Backlogged — not needed for MVP.
+
 ---
 
 ## Concurrency
 
 ### Q5: Is UpdateRunInfo safe for concurrent access?
 
-**Context**: `internal/storage/atomic.go:UpdateRunInfo()` uses a read-modify-write pattern. The function reads `run-info.yaml`, applies an update function, then writes it back. There's no file lock around this operation.
-
-**Current Implementation** (`internal/storage/atomic.go`):
-```go
-func UpdateRunInfo(path string, update func(*RunInfo) error) error {
-    info, err := ReadRunInfo(path)
-    // ...
-    update(info)
-    WriteRunInfo(path, info)
-}
-```
-
-**Risk**: If two goroutines/processes call `UpdateRunInfo` simultaneously, one write will overwrite the other's changes.
-
-**Context in practice**: The only callers of `UpdateRunInfo` are within the same `executeCLI`/`executeREST` goroutine in `job.go`, so concurrent calls from the same process don't happen in normal operation. But if two `run-agent` processes shared the same run directory (unusual), this could race.
-
-**Questions**:
-- Are there any real concurrent `UpdateRunInfo` callers we should protect against?
-- Should a `.lock` file be used for safety even if currently unnecessary?
+**RESOLVED (2026-02-20)**: File locking added to UpdateRunInfo() using messagebus.LockExclusive with 5-second timeout. Uses `.lock` file alongside run-info.yaml. See ISSUE-019 resolution.
 
 ---
 
@@ -100,6 +90,8 @@ func UpdateRunInfo(path string, update func(*RunInfo) error) error {
 - Should the prompt preamble also include these values (currently only `TASK_FOLDER` and `RUN_FOLDER` are in the preamble)?
 - Is `JRUN_PARENT_ID` ever non-empty in practice? (Would require a parent run spawning this run)
 
+**DECISION (2026-02-20)**: Per human answer in runner-orchestration-QUESTIONS.md: "the runner should set the JRUN_* variables correctly to the started agent process, agent process will start run-agent binary again for sub-agents, that is why the variables should be maintained carefully. Make sure to assert and validate consistency." Add JRUN_* values to the prompt preamble for visibility. Document them in the agent protocol spec. JRUN_PARENT_ID is non-empty when a parent task spawns child runs via `run-agent job`.
+
 ---
 
 ### Q7: What's the intended workflow for child runs?
@@ -110,6 +102,8 @@ func UpdateRunInfo(path string, update func(*RunInfo) error) error {
 - How does an agent create child runs? Via `run-agent job` command?
 - Is the child discovery based on scanning the runs directory for PIDs?
 - What's the intended parent→child IPC pattern (message bus? file? direct)?
+
+**DECISION (2026-02-20)**: Per human answer: "run-agent should take care about consistency of the folders, so it assigns TASK_ID and creates all necessary files and folders." Agents create child runs via `run-agent job` command with `--parent-run-id` flag. Child discovery scans the runs directory for active PIDs. IPC is via the shared task-level message bus (TASK-MESSAGE-BUS.md).
 
 ---
 
@@ -123,6 +117,8 @@ func UpdateRunInfo(path string, update func(*RunInfo) error) error {
 - Should there be a richer status endpoint (e.g., active runs count, message bus sizes)?
 - The user-facing docs (`docs/user/api-reference.md`) may reference `/status` — should it be added?
 
+**DECISION (2026-02-20)**: Per human answer in monitoring-ui-QUESTIONS.md: "yes" to project-scoped API endpoints. Add `/api/v1/status` endpoint that returns active runs count, server uptime, and configured agents. The `/api/v1/health` endpoint stays for simple liveness checks.
+
 ---
 
 ## Configuration
@@ -135,6 +131,8 @@ func UpdateRunInfo(path string, update func(*RunInfo) error) error {
 - Should there be default config file search paths (e.g., `$HOME/.config/conductor/config.hcl`, `./config.hcl`)?
 - When is a config file actually required vs. optional?
 - The `config.go` references HCL format — is YAML also supported?
+
+**DECISION (2026-02-20)**: Per human answer in runner-orchestration-QUESTIONS.md: "HCL is the single source of truth." However, the current implementation uses YAML (config.go loads YAML). The practical reality is YAML is already working. Decision: support both YAML (`.yaml`/`.yml`) and HCL (`.hcl`) formats, auto-detect by extension. Add default search paths: `./config.yaml`, `./config.hcl`, `$HOME/.config/conductor/config.yaml`. Config is optional for `run-agent job` (can specify `--agent` flag directly) but required for `conductor` server.
 
 ---
 

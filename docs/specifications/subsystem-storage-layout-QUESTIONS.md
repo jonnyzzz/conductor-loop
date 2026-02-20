@@ -22,3 +22,4 @@ Answer: This is implementation detail of the run-agent, keep 1 files for now.
 ## Resolved Questions
 - UTF-8 encoding: Strict UTF-8 without BOM (integrated into spec)
 - Schema versioning: run-info.yaml v1 defined in subsystem-storage-layout-run-info-schema.md
+x
