@@ -272,16 +272,31 @@ func (s *Server) streamMessages(w http.ResponseWriter, r *http.Request) *apiErro
 				if ts.IsZero() {
 					ts = time.Now().UTC()
 				}
+				// Build parent msg_id list for JSON (extract from Parents slice).
+				var parentIDs []string
+				for _, p := range msg.Parents {
+					if p.MsgID != "" {
+						parentIDs = append(parentIDs, p.MsgID)
+					}
+				}
 				payload := messagePayload{
 					MsgID:     msg.MsgID,
-					Content:   msg.Body,
 					Timestamp: ts.Format(time.RFC3339Nano),
+					Type:      msg.Type,
+					ProjectID: msg.ProjectID,
+					TaskID:    msg.TaskID,
+					RunID:     msg.RunID,
+					IssueID:   msg.IssueID,
+					Parents:   parentIDs,
+					Meta:      msg.Meta,
+					Content:   msg.Body,
 				}
 				data, err := json.Marshal(payload)
 				if err != nil {
 					continue
 				}
 				ev := SSEEvent{
+					ID:    msg.MsgID, // set SSE id for resumable clients
 					Event: "message",
 					Data:  string(data),
 				}
@@ -363,10 +378,18 @@ type statusPayload struct {
 	ExitCode int    `json:"exit_code"`
 }
 
+// messagePayload is the JSON payload for a message SSE event.
 type messagePayload struct {
-	MsgID     string `json:"msg_id"`
-	Content   string `json:"content"`
-	Timestamp string `json:"timestamp"`
+	MsgID     string            `json:"msg_id"`
+	Timestamp string            `json:"timestamp"`
+	Type      string            `json:"type,omitempty"`
+	ProjectID string            `json:"project_id,omitempty"`
+	TaskID    string            `json:"task_id,omitempty"`
+	RunID     string            `json:"run_id,omitempty"`
+	IssueID   string            `json:"issue_id,omitempty"`
+	Parents   []string          `json:"parents,omitempty"` // msg_id strings for JSON simplicity
+	Meta      map[string]string `json:"meta,omitempty"`
+	Content   string            `json:"content"` // Body text
 }
 
 // Cursor tracks last-seen stdout/stderr line counts.

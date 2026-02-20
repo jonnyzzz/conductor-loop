@@ -14,14 +14,14 @@ import (
 
 // projectRun is the run summary shape the project API returns.
 type projectRun struct {
-	ID            string    `json:"id"`
-	Agent         string    `json:"agent"`
-	Status        string    `json:"status"`
-	ExitCode      int       `json:"exit_code"`
-	StartTime     time.Time `json:"start_time"`
+	ID            string     `json:"id"`
+	Agent         string     `json:"agent"`
+	Status        string     `json:"status"`
+	ExitCode      int        `json:"exit_code"`
+	StartTime     time.Time  `json:"start_time"`
 	EndTime       *time.Time `json:"end_time,omitempty"`
-	ParentRunID   string    `json:"parent_run_id,omitempty"`
-	PreviousRunID string    `json:"previous_run_id,omitempty"`
+	ParentRunID   string     `json:"parent_run_id,omitempty"`
+	PreviousRunID string     `json:"previous_run_id,omitempty"`
 }
 
 // projectTask is the task shape the project API returns.

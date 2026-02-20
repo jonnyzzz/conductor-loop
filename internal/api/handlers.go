@@ -58,17 +58,17 @@ type RunResponse struct {
 
 // MessageResponse defines the message bus entry payload.
 type MessageResponse struct {
-	MsgID     string                    `json:"msg_id"`
-	Timestamp time.Time                 `json:"timestamp"`
-	Type      string                    `json:"type"`
-	ProjectID string                    `json:"project_id"`
-	TaskID    string                    `json:"task_id,omitempty"`
-	RunID     string                    `json:"run_id,omitempty"`
-	IssueID   string                    `json:"issue_id,omitempty"`
-	Parents   []messagebus.Parent       `json:"parents,omitempty"`
-	Links     []messagebus.Link         `json:"links,omitempty"`
-	Meta      map[string]string         `json:"meta,omitempty"`
-	Body      string                    `json:"body"`
+	MsgID     string              `json:"msg_id"`
+	Timestamp time.Time           `json:"timestamp"`
+	Type      string              `json:"type"`
+	ProjectID string              `json:"project_id"`
+	TaskID    string              `json:"task_id,omitempty"`
+	RunID     string              `json:"run_id,omitempty"`
+	IssueID   string              `json:"issue_id,omitempty"`
+	Parents   []messagebus.Parent `json:"parents,omitempty"`
+	Links     []messagebus.Link   `json:"links,omitempty"`
+	Meta      map[string]string   `json:"meta,omitempty"`
+	Body      string              `json:"body"`
 }
 
 type handlerFunc func(http.ResponseWriter, *http.Request) *apiError
