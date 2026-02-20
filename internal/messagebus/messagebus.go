@@ -145,9 +145,6 @@ func (mb *MessageBus) AppendMessage(msg *Message) (string, error) {
 	if err := appendEntry(file, data); err != nil {
 		return "", errors.Wrap(err, "write message")
 	}
-	if err := file.Sync(); err != nil {
-		return "", errors.Wrap(err, "fsync message bus")
-	}
 	return msg.MsgID, nil
 }
 
