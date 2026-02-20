@@ -96,11 +96,26 @@ func ParseCwdTxt(path string) (*RunInfo, error) {
 	return info, nil
 }
 
-// startTimeFromRunID extracts a time from run IDs of the form run_YYYYMMDD-HHMMSS-PID.
+// startTimeFromRunID extracts a time from run IDs of the form
+// YYYYMMDD-HHMMSSffff-PID or run_YYYYMMDD-HHMMSS-PID (legacy).
 func startTimeFromRunID(runID string) time.Time {
 	// Strip leading "run_"
 	s := strings.TrimPrefix(runID, "run_")
-	// Parse YYYYMMDD-HHMMSS
+	// Try 4-digit fractional seconds first (YYYYMMDD-HHMMSSffff)
+	if len(s) >= 19 {
+		t, err := time.ParseInLocation("20060102-1504050000", s[:19], time.UTC)
+		if err == nil {
+			return t
+		}
+	}
+	// Fall back to 3-digit fractional seconds (YYYYMMDD-HHMMSSfff)
+	if len(s) >= 18 {
+		t, err := time.ParseInLocation("20060102-150405000", s[:18], time.UTC)
+		if err == nil {
+			return t
+		}
+	}
+	// Fall back to seconds only (YYYYMMDD-HHMMSS)
 	if len(s) >= 15 {
 		t, err := time.ParseInLocation("20060102-150405", s[:15], time.UTC)
 		if err == nil {

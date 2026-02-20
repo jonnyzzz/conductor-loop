@@ -185,7 +185,7 @@ func (s *FileStorage) lookupRun(runID string) (string, bool) {
 
 func (s *FileStorage) newRunID() string {
 	now := s.now().UTC()
-	stamp := now.Format("20060102-150405000")
+	stamp := now.Format("20060102-1504050000")
 	return fmt.Sprintf("%s-%d", stamp, s.pid())
 }
 

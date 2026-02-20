@@ -14,7 +14,7 @@ const (
 
 // RunInfo defines the persisted run metadata stored in run-info.yaml.
 type RunInfo struct {
-	Version       int       `yaml:"version,omitempty"`
+	Version       int       `yaml:"version"`
 	RunID         string    `yaml:"run_id"`
 	ParentRunID   string    `yaml:"parent_run_id,omitempty"`
 	PreviousRunID string    `yaml:"previous_run_id,omitempty"`
@@ -24,8 +24,8 @@ type RunInfo struct {
 	PID           int       `yaml:"pid"`
 	PGID          int       `yaml:"pgid"`
 	StartTime     time.Time `yaml:"start_time"`
-	EndTime       time.Time `yaml:"end_time,omitempty"`
-	ExitCode      int       `yaml:"exit_code,omitempty"`
+	EndTime       time.Time `yaml:"end_time"`
+	ExitCode      int       `yaml:"exit_code"`
 	Status        string    `yaml:"status"` // running, completed, failed
 	CWD           string    `yaml:"cwd,omitempty"`
 	PromptPath    string    `yaml:"prompt_path,omitempty"`
