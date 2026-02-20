@@ -309,6 +309,96 @@ func (mb *MessageBus) ReadMessages(sinceID string) ([]*Message, error) {
 	return filterSince(messages, sinceID)
 }
 
+const readLastNChunkSize = 64 * 1024 // 64KB initial seek window
+
+// ReadLastN returns the last n messages without loading the entire file into memory.
+// For n <= 0, returns all messages (same as ReadMessages("")).
+// For small files (≤64KB), falls back to a full read then trims to n.
+// For large files, uses a seek-based approach: reads a chunk from near the end,
+// parsing messages. Doubles the window up to 3 times if needed, then falls back.
+func (mb *MessageBus) ReadLastN(n int) ([]*Message, error) {
+	if mb == nil {
+		return nil, errors.New("message bus is nil")
+	}
+	if err := validateBusPath(mb.path); err != nil {
+		return nil, errors.Wrap(err, "validate message bus path")
+	}
+	if n <= 0 {
+		return mb.ReadMessages("")
+	}
+
+	f, err := os.Open(mb.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*Message{}, nil
+		}
+		return nil, errors.Wrap(err, "open message bus")
+	}
+	defer f.Close()
+
+	fileSize, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, errors.Wrap(err, "seek end of message bus")
+	}
+
+	if fileSize <= readLastNChunkSize {
+		// Small file: full read then trim.
+		return mb.readAllLastN(n)
+	}
+
+	// Initial chunk size: 64KB * ceil(n/10), minimum 64KB.
+	multiplier := (n + 9) / 10
+	if multiplier < 1 {
+		multiplier = 1
+	}
+	chunkSize := int64(readLastNChunkSize) * int64(multiplier)
+
+	for attempt := 0; attempt < 4; attempt++ {
+		if chunkSize >= fileSize {
+			break
+		}
+
+		offset := fileSize - chunkSize
+		if _, err := f.Seek(offset, io.SeekStart); err != nil {
+			return nil, errors.Wrap(err, "seek message bus")
+		}
+
+		data := make([]byte, chunkSize)
+		nRead, readErr := io.ReadFull(f, data)
+		if readErr != nil && readErr != io.ErrUnexpectedEOF {
+			return nil, errors.Wrap(readErr, "read message bus chunk")
+		}
+		data = data[:nRead]
+
+		messages, err := parseMessages(data)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(messages) >= n {
+			return messages[len(messages)-n:], nil
+		}
+
+		// Not enough messages: double the window and retry.
+		chunkSize *= 2
+	}
+
+	// Fall back to full read then trim.
+	return mb.readAllLastN(n)
+}
+
+// readAllLastN reads all messages and returns the last n.
+func (mb *MessageBus) readAllLastN(n int) ([]*Message, error) {
+	messages, err := mb.ReadMessages("")
+	if err != nil {
+		return nil, err
+	}
+	if len(messages) > n {
+		return messages[len(messages)-n:], nil
+	}
+	return messages, nil
+}
+
 // PollForNew blocks until new messages appear after lastID.
 func (mb *MessageBus) PollForNew(lastID string) ([]*Message, error) {
 	if mb == nil {

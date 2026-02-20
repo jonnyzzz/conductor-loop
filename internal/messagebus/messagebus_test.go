@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -605,6 +606,214 @@ func TestLinksRoundTrip(t *testing.T) {
 	}
 	if msgs[0].Links[0].Kind != "reference" {
 		t.Fatalf("expected Link.Kind %q, got %q", "reference", msgs[0].Links[0].Kind)
+	}
+}
+
+func TestReadLastNZero(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		if _, err := bus.AppendMessage(&Message{Type: "FACT", ProjectID: "p", Body: "msg"}); err != nil {
+			t.Fatalf("AppendMessage: %v", err)
+		}
+	}
+
+	msgs, err := bus.ReadLastN(0)
+	if err != nil {
+		t.Fatalf("ReadLastN(0): %v", err)
+	}
+	all, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("ReadMessages: %v", err)
+	}
+	if len(msgs) != len(all) {
+		t.Fatalf("ReadLastN(0) returned %d messages, want %d", len(msgs), len(all))
+	}
+}
+
+func TestReadLastNMoreThanCount(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	const total = 3
+	for i := 0; i < total; i++ {
+		if _, err := bus.AppendMessage(&Message{Type: "FACT", ProjectID: "p", Body: "msg"}); err != nil {
+			t.Fatalf("AppendMessage: %v", err)
+		}
+	}
+
+	msgs, err := bus.ReadLastN(100)
+	if err != nil {
+		t.Fatalf("ReadLastN(100): %v", err)
+	}
+	if len(msgs) != total {
+		t.Fatalf("expected %d messages, got %d", total, len(msgs))
+	}
+}
+
+func TestReadLastNFewerThanCount(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	const total = 10
+	var ids []string
+	for i := 0; i < total; i++ {
+		id, err := bus.AppendMessage(&Message{Type: "FACT", ProjectID: "p", Body: "msg"})
+		if err != nil {
+			t.Fatalf("AppendMessage: %v", err)
+		}
+		ids = append(ids, id)
+	}
+
+	const n = 3
+	msgs, err := bus.ReadLastN(n)
+	if err != nil {
+		t.Fatalf("ReadLastN(%d): %v", n, err)
+	}
+	if len(msgs) != n {
+		t.Fatalf("expected %d messages, got %d", n, len(msgs))
+	}
+	// Should be the last n messages.
+	for i, msg := range msgs {
+		expected := ids[total-n+i]
+		if msg.MsgID != expected {
+			t.Fatalf("msgs[%d].MsgID = %q, want %q", i, msg.MsgID, expected)
+		}
+	}
+}
+
+func TestReadLastNOne(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	var lastID string
+	for i := 0; i < 5; i++ {
+		id, err := bus.AppendMessage(&Message{Type: "FACT", ProjectID: "p", Body: "msg"})
+		if err != nil {
+			t.Fatalf("AppendMessage: %v", err)
+		}
+		lastID = id
+	}
+
+	msgs, err := bus.ReadLastN(1)
+	if err != nil {
+		t.Fatalf("ReadLastN(1): %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	if msgs[0].MsgID != lastID {
+		t.Fatalf("expected last message %q, got %q", lastID, msgs[0].MsgID)
+	}
+}
+
+func TestReadLastNEmptyFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+
+	msgs, err := bus.ReadLastN(5)
+	if err != nil {
+		t.Fatalf("ReadLastN on empty file: %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("expected 0 messages, got %d", len(msgs))
+	}
+}
+
+func TestReadLastNSmallFile(t *testing.T) {
+	// File below 64KB threshold should still return correct results via full read.
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	const total = 20
+	var ids []string
+	for i := 0; i < total; i++ {
+		id, err := bus.AppendMessage(&Message{Type: "FACT", ProjectID: "p", Body: "small file msg"})
+		if err != nil {
+			t.Fatalf("AppendMessage: %v", err)
+		}
+		ids = append(ids, id)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if info.Size() >= readLastNChunkSize {
+		t.Skip("file unexpectedly large; skip small-file test")
+	}
+
+	const n = 5
+	msgs, err := bus.ReadLastN(n)
+	if err != nil {
+		t.Fatalf("ReadLastN(%d): %v", n, err)
+	}
+	if len(msgs) != n {
+		t.Fatalf("expected %d messages, got %d", n, len(msgs))
+	}
+	for i, msg := range msgs {
+		expected := ids[total-n+i]
+		if msg.MsgID != expected {
+			t.Fatalf("msgs[%d].MsgID = %q, want %q", i, msg.MsgID, expected)
+		}
+	}
+}
+
+func TestReadLastNLargeFile(t *testing.T) {
+	// Large file (>64KB) triggers the seek-based path.
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+
+	// Write 100 messages with a 700-byte body to exceed 64KB.
+	body := strings.Repeat("x", 700)
+	const total = 100
+	var ids []string
+	for i := 0; i < total; i++ {
+		id, err := bus.AppendMessage(&Message{Type: "FACT", ProjectID: "p", Body: body})
+		if err != nil {
+			t.Fatalf("AppendMessage %d: %v", i, err)
+		}
+		ids = append(ids, id)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if info.Size() <= readLastNChunkSize {
+		t.Skipf("file size %d not large enough for seek test (need >%d)", info.Size(), readLastNChunkSize)
+	}
+
+	const n = 10
+	msgs, err := bus.ReadLastN(n)
+	if err != nil {
+		t.Fatalf("ReadLastN(%d): %v", n, err)
+	}
+	if len(msgs) != n {
+		t.Fatalf("expected %d messages, got %d", n, len(msgs))
+	}
+	for i, msg := range msgs {
+		expected := ids[total-n+i]
+		if msg.MsgID != expected {
+			t.Fatalf("msgs[%d].MsgID = %q, want %q", i, msg.MsgID, expected)
+		}
 	}
 }
 

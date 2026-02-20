@@ -345,6 +345,37 @@ All flags:
 
 ---
 
+## Output Commands
+
+### Print run output
+
+```bash
+# Print output from most recent run of a task
+./bin/run-agent output --project conductor-loop --task task-20260220-...-abc
+
+# Print specific file from a run
+./bin/run-agent output --project conductor-loop --task task-20260220-...-abc --file stdout
+
+# Print last 50 lines only
+./bin/run-agent output --project conductor-loop --task task-20260220-...-abc --tail 50
+
+# Direct path to run directory
+./bin/run-agent output --run-dir runs/conductor-loop/task-abc/runs/run-123/
+```
+
+All flags:
+```
+--root string       root directory (default: ./runs or RUNS_DIR env)
+--project string    project ID
+--task string       task ID
+--run string        run ID (uses most recent if omitted)
+--run-dir string    direct path to run directory
+--tail int          print last N lines (0 = all)
+--file string       file: output (default), stdout, stderr, prompt
+```
+
+---
+
 ## Validate Configuration
 
 ### Check config and agent availability

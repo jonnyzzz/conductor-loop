@@ -1901,3 +1901,26 @@ project_id: conductor-loop
 2. GET /api/projects/{p}/stats — new endpoint for project statistics
 3. Documentation fixes — React UI accurately described, API endpoints complete, quick-start corrected
 
+
+---
+msg_id: MSG-20260220-SESSION24-START
+ts: 2026-02-20T23:45:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 23:45:00] ==========================================
+[2026-02-20 23:45:00] SESSION #24: Message Bus Tail Reading + Issues Housekeeping + Output Command
+[2026-02-20 23:45:00] ==========================================
+
+[2026-02-20 23:45:00] PROGRESS: Starting session #24 — read all required docs, assessed state
+[2026-02-20 23:45:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-20 23:45:00] FACT: go test ./internal/... ./cmd/... — ALL 13 packages green
+[2026-02-20 23:45:00] FACT: /api/v1/status endpoint already implemented (Q8 done)
+[2026-02-20 23:45:00] FACT: buildPrompt() already includes JRUN_* in preamble (Q6 done)
+[2026-02-20 23:45:00] FACT: 50 accumulated test task runs in runs/conductor-loop/
+[2026-02-20 23:45:00] DECISION: Session #24 focus:
+[2026-02-20 23:45:00]   (1) message-bus-efficient-tail: Add ReadLastN() for O(1) tail reads (ISSUE-016)
+[2026-02-20 23:45:00]   (2) issues-housekeeping: Close ISSUE-011..014 (planning artifacts), run gc
+[2026-02-20 23:45:00]   (3) run-agent-output-cmd: Add 'run-agent output' CLI for quick run output access
+

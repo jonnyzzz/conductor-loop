@@ -102,12 +102,14 @@ func newBusReadCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			messages, err := bus.ReadMessages("")
+			var messages []*messagebus.Message
+			if tail > 0 {
+				messages, err = bus.ReadLastN(tail)
+			} else {
+				messages, err = bus.ReadMessages("")
+			}
 			if err != nil {
 				return err
-			}
-			if tail > 0 && len(messages) > tail {
-				messages = messages[len(messages)-tail:]
 			}
 			for _, msg := range messages {
 				printBusMessage(msg)

@@ -751,6 +751,11 @@ TASK-MESSAGE-BUS.md is append-only with no rotation. Long-running tasks with cha
 - Implement message bus indexing early (Phase 1.2)
 - Add rotation when >100MB (Phase 3)
 
+**Progress**:
+- [x] `run-agent gc --rotate-bus` archives bus file when it exceeds threshold (Session #23)
+- [x] Efficient `ReadLastN()` method for tail-based reads without loading full file (Session #24)
+- [x] `bus read --tail N` uses `ReadLastN` for O(log n) read complexity (Session #24)
+
 **Dependencies**:
 - infra-messagebus implementation
 - Performance optimization
