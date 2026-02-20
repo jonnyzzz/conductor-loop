@@ -139,10 +139,11 @@ func TestDockerLogs(t *testing.T) {
 
 	waitForHTTP(t, healthURL)
 
-	cmd := exec.Command("docker", "logs", "conductor")
+	args := append(compose[1:], "-p", project, "logs", "conductor")
+	cmd := exec.Command(compose[0], args...)
 	cmd.Dir = root
 	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("docker logs failed: %v (%s)", err, strings.TrimSpace(string(output)))
+		t.Fatalf("compose logs failed: %v (%s)", err, strings.TrimSpace(string(output)))
 	}
 }
 
