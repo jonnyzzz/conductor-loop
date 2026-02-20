@@ -28,7 +28,9 @@ export function App() {
   const taskStateQuery = useTaskFile(effectiveProjectId, effectiveTaskId, 'TASK.md')
   const runFileQuery = useRunFile(effectiveProjectId, effectiveTaskId, effectiveRunId, runFileName, 5000)
 
-  const logStreamUrl = undefined  // task-level log streaming not yet implemented
+  const logStreamUrl = effectiveProjectId && effectiveTaskId
+    ? `/api/projects/${effectiveProjectId}/tasks/${effectiveTaskId}/runs/stream`
+    : undefined
 
   const busStreamUrl = useMemo(() => {
     if (!effectiveProjectId) {

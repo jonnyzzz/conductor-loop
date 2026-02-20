@@ -567,6 +567,39 @@ func TestProjectMessages_StreamNotFound(t *testing.T) {
 	}
 }
 
+func TestTaskRunsStream_MethodNotAllowed(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "project", "task", "run-1", storage.StatusCompleted, "hello\n")
+
+	url := "/api/projects/project/tasks/task/runs/stream"
+	req := httptest.NewRequest(http.MethodPost, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+}
+
+func TestTaskRunsStream_NotFound(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	url := "/api/projects/nonexistent/tasks/nonexistent/runs/stream"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown project/task, got %d", rec.Code)
+	}
+}
+
 func TestTaskMessages_StreamMethodNotAllowed(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/runner"
@@ -241,6 +243,14 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 	}
 
 	if len(parts) >= 5 && parts[3] == "runs" {
+		// Task-level log stream: GET /api/projects/{p}/tasks/{t}/runs/stream
+		if len(parts) == 5 && parts[4] == "stream" {
+			if r.Method != http.MethodGet {
+				return apiErrorMethodNotAllowed()
+			}
+			return s.streamTaskRuns(w, r, projectID, taskID)
+		}
+
 		runID := parts[4]
 		// find the specific run
 		var found *storage.RunInfo
@@ -644,6 +654,127 @@ func runInfoToProjectRun(info *storage.RunInfo) projectRun {
 		r.EndTime = &t
 	}
 	return r
+}
+
+// streamTaskRuns fans in SSE log streams for all runs belonging to a project+task.
+// It subscribes to existing runs and discovers new ones while the client is connected.
+func (s *Server) streamTaskRuns(w http.ResponseWriter, r *http.Request, projectID, taskID string) *apiError {
+	// Collect initial run IDs for this project+task; also validate that the task exists.
+	allRuns, err := s.allRunInfos()
+	if err != nil {
+		return apiErrorInternal("list runs", err)
+	}
+	var initialRunIDs []string
+	taskKnown := false
+	for _, run := range allRuns {
+		if run.ProjectID == projectID && run.TaskID == taskID {
+			taskKnown = true
+			initialRunIDs = append(initialRunIDs, run.RunID)
+		}
+	}
+	if !taskKnown {
+		return apiErrorNotFound("project or task not found")
+	}
+
+	writer, err := newSSEWriter(w)
+	if err != nil {
+		return apiErrorBadRequest("sse not supported")
+	}
+	manager, err := s.sseManager()
+	if err != nil {
+		return apiErrorInternal("init sse manager", err)
+	}
+	cfg := s.sseConfig()
+	ctx := r.Context()
+	fan := newFanIn(ctx)
+	defer fan.Close()
+
+	subsMu := &sync.Mutex{}
+	subs := make(map[string]*Subscription)
+	addSub := func(runID string, sub *Subscription) {
+		subsMu.Lock()
+		defer subsMu.Unlock()
+		subs[runID] = sub
+		fan.Add(sub)
+	}
+	closeSubs := func() {
+		subsMu.Lock()
+		defer subsMu.Unlock()
+		for _, sub := range subs {
+			sub.Close()
+		}
+	}
+	defer closeSubs()
+
+	for _, runID := range initialRunIDs {
+		sub, subErr := manager.SubscribeRun(runID, Cursor{})
+		if subErr != nil {
+			continue
+		}
+		addSub(runID, sub)
+	}
+
+	discovery, discoveryErr := NewRunDiscovery(s.rootDir, cfg.DiscoveryInterval)
+	if discoveryErr != nil {
+		return apiErrorInternal("init discovery", discoveryErr)
+	}
+	discoveryCtx, cancelDiscovery := context.WithCancel(ctx)
+	defer cancelDiscovery()
+	go discovery.Poll(discoveryCtx, cfg.DiscoveryInterval)
+	go func() {
+		for {
+			select {
+			case <-discoveryCtx.Done():
+				return
+			case runID := <-discovery.NewRuns():
+				subsMu.Lock()
+				_, exists := subs[runID]
+				subsMu.Unlock()
+				if exists {
+					continue
+				}
+				// Only subscribe if this run belongs to our project+task.
+				latestRuns, latestErr := s.allRunInfos()
+				if latestErr != nil {
+					continue
+				}
+				match := false
+				for _, run := range latestRuns {
+					if run.RunID == runID && run.ProjectID == projectID && run.TaskID == taskID {
+						match = true
+						break
+					}
+				}
+				if !match {
+					continue
+				}
+				sub, subErr := manager.SubscribeRun(runID, Cursor{})
+				if subErr != nil {
+					continue
+				}
+				addSub(runID, sub)
+			}
+		}
+	}()
+
+	heartbeat := time.NewTicker(cfg.HeartbeatInterval)
+	defer heartbeat.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-heartbeat.C:
+			_ = writer.Send(SSEEvent{Event: "heartbeat", Data: "{}"})
+		case ev, ok := <-fan.Events():
+			if !ok {
+				return nil
+			}
+			if err := writer.Send(ev); err != nil {
+				return nil
+			}
+		}
+	}
 }
 
 // splitPath splits a URL path after trimming the given prefix, returning path segments.
