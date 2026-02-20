@@ -17,6 +17,7 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("/api/v1/runs/", s.wrap(s.handleRunByID))
 
 	mux.Handle("/api/v1/messages", s.wrap(s.handleMessages))
+	mux.Handle("POST /api/v1/messages", s.wrap(s.handlePostMessage))
 	mux.Handle("/api/v1/messages/stream", s.wrap(s.handleMessageStream))
 
 	// Project-centric API (used by the web UI)

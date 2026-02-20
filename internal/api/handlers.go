@@ -279,6 +279,75 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) *apiErro
 	return writeJSON(w, http.StatusOK, map[string][]MessageResponse{"messages": resp})
 }
 
+// PostMessageRequest defines the payload for posting a message to the bus.
+type PostMessageRequest struct {
+	ProjectID string `json:"project_id"`
+	TaskID    string `json:"task_id,omitempty"`
+	RunID     string `json:"run_id,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Body      string `json:"body"`
+}
+
+// PostMessageResponse defines the response for a posted message.
+type PostMessageResponse struct {
+	MsgID     string    `json:"msg_id"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) *apiError {
+	var req PostMessageRequest
+	if err := decodeJSON(r, &req); err != nil {
+		return err
+	}
+	if err := validateIdentifier(req.ProjectID, "project_id"); err != nil {
+		return err
+	}
+	if strings.TrimSpace(req.Body) == "" {
+		return apiErrorBadRequest("body is required")
+	}
+	taskID := strings.TrimSpace(req.TaskID)
+	if taskID != "" {
+		if err := validateIdentifier(taskID, "task_id"); err != nil {
+			return err
+		}
+	}
+
+	busPath := filepath.Join(s.rootDir, req.ProjectID, "PROJECT-MESSAGE-BUS.md")
+	if taskID != "" {
+		busPath = filepath.Join(s.rootDir, req.ProjectID, taskID, "TASK-MESSAGE-BUS.md")
+	}
+	if err := os.MkdirAll(filepath.Dir(busPath), 0o755); err != nil {
+		return apiErrorInternal("create message bus directory", err)
+	}
+
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		return apiErrorInternal("open message bus", err)
+	}
+
+	msgType := strings.TrimSpace(req.Type)
+	if msgType == "" {
+		msgType = "USER"
+	}
+
+	msg := &messagebus.Message{
+		Type:      msgType,
+		ProjectID: req.ProjectID,
+		TaskID:    taskID,
+		RunID:     strings.TrimSpace(req.RunID),
+		Body:      req.Body,
+	}
+	msgID, err := bus.AppendMessage(msg)
+	if err != nil {
+		return apiErrorInternal("append message", err)
+	}
+
+	return writeJSON(w, http.StatusCreated, PostMessageResponse{
+		MsgID:     msgID,
+		Timestamp: msg.Timestamp,
+	})
+}
+
 func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiError {
 	var req TaskCreateRequest
 	if err := decodeJSON(r, &req); err != nil {

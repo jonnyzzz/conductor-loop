@@ -227,6 +227,89 @@ func TestHandleStatusNoAgents(t *testing.T) {
 	}
 }
 
+func newTestServer(t *testing.T) (*Server, string) {
+	t.Helper()
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	return server, root
+}
+
+func TestPostMessage_Success(t *testing.T) {
+	server, root := newTestServer(t)
+	payload := PostMessageRequest{ProjectID: "myproject", Type: "USER", Body: "hello world"}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", bytes.NewBuffer(data))
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp PostMessageResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.MsgID == "" {
+		t.Fatalf("expected non-empty msg_id")
+	}
+	if resp.Timestamp.IsZero() {
+		t.Fatalf("expected non-zero timestamp")
+	}
+	busPath := filepath.Join(root, "myproject", "PROJECT-MESSAGE-BUS.md")
+	if _, err := os.Stat(busPath); err != nil {
+		t.Fatalf("expected PROJECT-MESSAGE-BUS.md to exist: %v", err)
+	}
+}
+
+func TestPostMessage_MissingProjectID(t *testing.T) {
+	server, _ := newTestServer(t)
+	payload := PostMessageRequest{Body: "hello world"}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", bytes.NewBuffer(data))
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPostMessage_EmptyBody(t *testing.T) {
+	server, _ := newTestServer(t)
+	payload := PostMessageRequest{ProjectID: "myproject", Type: "USER", Body: ""}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", bytes.NewBuffer(data))
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPostMessage_WithTaskID(t *testing.T) {
+	server, root := newTestServer(t)
+	payload := PostMessageRequest{ProjectID: "myproject", TaskID: "mytask", Type: "INFO", Body: "task message"}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", bytes.NewBuffer(data))
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp PostMessageResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.MsgID == "" {
+		t.Fatalf("expected non-empty msg_id")
+	}
+	busPath := filepath.Join(root, "myproject", "mytask", "TASK-MESSAGE-BUS.md")
+	if _, err := os.Stat(busPath); err != nil {
+		t.Fatalf("expected TASK-MESSAGE-BUS.md to exist: %v", err)
+	}
+}
+
 func TestHandleTaskCreate(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true, APIConfig: config.APIConfig{}})
