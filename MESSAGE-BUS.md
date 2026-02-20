@@ -686,3 +686,94 @@ project_id: conductor-loop
 [2026-02-20 18:35:00] FACT: Agent session9-fix-ordering (claude): fix flaky TestMessageBusOrdering concurrent ordering check
 [2026-02-20 18:35:00] FACT: Agent session9-extend-model (claude): extend message model with structured parents, meta, links, issue_id alias
 [2026-02-20 18:35:00] PENDING: Agent session9-sse-payload (claude): full SSE payload for message stream — will start after extend-model completes
+
+---
+msg_id: MSG-20260220-SESSION10-START
+ts: 2026-02-20T18:15:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 18:15:00] ==========================================
+[2026-02-20 18:15:00] SESSION #10: Complete Session #9 Agenda
+[2026-02-20 18:15:00] ==========================================
+
+[2026-02-20 18:15:00] PROGRESS: Starting session #10 — read all required docs, assessed state
+[2026-02-20 18:15:00] FACT: go build ./... passes, all 18 test packages green (inherited from session #9)
+[2026-02-20 18:15:00] FACT: Session #9 left 2 tasks incomplete: extend-model (Q3) and sse-payload (Q5)
+[2026-02-20 18:15:00] FACT: session9-fix-ordering was completed in commit 483459c
+[2026-02-20 18:15:00] DECISION: Session #10 focus: complete session #9 pending tasks plus CRASH event type (Q4)
+[2026-02-20 18:15:00] DECISION: Launching 2 parallel sub-agents (extend-model + crash-event), then sse-payload
+
+[2026-02-20 18:15:01] PROGRESS: Launched 2 parallel agents via Task tool:
+[2026-02-20 18:15:01] FACT: Agent session10-extend-model: extend Message struct with Parents, Links, Meta, IssueID + backward compat
+[2026-02-20 18:15:01] FACT: Agent session10-crash-event: add RUN_CRASH event type, EventType constants, 2 unit tests
+
+[2026-02-20 18:19:00] FACT: Both parallel agents COMPLETED (commit 4968fef)
+[2026-02-20 18:19:00] FACT: session10-extend-model: Parent+Link structs, Parents/Links/Meta/IssueID fields in Message, rawMessage+parseParents for backward compat, 5 new tests
+[2026-02-20 18:19:00] FACT: session10-crash-event: EventTypeRunStart/Stop/Crash constants, RUN_CRASH on non-zero exit in executeCLI+finalizeRun, 2 unit tests
+[2026-02-20 18:19:00] FACT: api/handlers.go MessageResponse updated with new fields; acceptance + integration tests updated
+[2026-02-20 18:19:00] QUALITY: go build ./... PASS; go test ./... 18/18 PASS; go test -race ./internal/... PASS
+
+[2026-02-20 18:19:01] PROGRESS: Launched session10-sse-payload agent via Task tool
+
+[2026-02-20 18:21:00] FACT: session10-sse-payload COMPLETED (commit 0db3e15)
+[2026-02-20 18:21:00] FACT: messagePayload struct expanded: type, project_id, task_id, run_id, issue_id, parents ([]string), meta, content
+[2026-02-20 18:21:00] FACT: streamMessages now sets ev.ID = msg.MsgID for resumable SSE clients
+[2026-02-20 18:21:00] FACT: Parents extracted as []string (msg_id only) for JSON simplicity
+
+[2026-02-20 18:22:00] ==========================================
+[2026-02-20 18:22:00] SESSION #10 SUMMARY
+[2026-02-20 18:22:00] ==========================================
+
+## Completed Tasks (3 sub-agents via Task tool)
+
+### session10-extend-model (Q3, message-bus-object-model)
+- Parent struct (msg_id, kind, meta) and Link struct (url, label, kind) added
+- Message struct: Parents []Parent, Links []Link, Meta map[string]string, IssueID string
+- Backward compat: old string-list parents parsed via rawMessage+parseParents (yaml.Node)
+- IssueID auto-set from MsgID for ISSUE-type messages in AppendMessage
+- 5 new tests: TestParentsObjectFormRoundTrip, TestParentsBackwardCompat, TestIssueIDAutoSet, TestMetaRoundTrip, TestLinksRoundTrip
+- Committed: 4968fef
+
+### session10-crash-event (Q4, message-bus-tools)
+- EventTypeRunStart, EventTypeRunStop, EventTypeRunCrash constants in messagebus package
+- executeCLI: posts RUN_CRASH (not RUN_STOP) when exit code != 0
+- finalizeRun (REST path): posts RUN_CRASH when execErr != nil
+- 2 new unit tests: TestRunJobCLIEmitsRunStop, TestRunJobCLIEmitsRunCrash
+- Committed: 4968fef (combined with extend-model)
+
+### session10-sse-payload (Q5, message-bus-tools)
+- messagePayload struct expanded to full message fields
+- streamMessages sets ev.ID = msg.MsgID for resumable SSE clients
+- Parents serialized as []string (msg_id values) for JSON simplicity
+- Committed: 0db3e15
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (binaries 13MB each)
+- go test -count=1 ./... (18 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## All Open Questions Resolved
+- Q1 (fsync): RESOLVED (WithFsync option, session #8)
+- Q2 (rotation): DEFERRED (tracked ISSUE-016)
+- Q3 (DONE file): RESOLVED (session #8)
+- Q4 (restart exhaustion): RESOLVED (session #8)
+- Q5 (UpdateRunInfo): RESOLVED (session #8, ISSUE-019)
+- Q6 (JRUN_* vars): RESOLVED (session #3)
+- Q7 (child runs): RESOLVED (session #8)
+- Q8 (/api/v1/status): RESOLVED (session #3)
+- Q9 (config search): RESOLVED (session #8)
+- message-bus-object-model Q1/Q2/Q3: RESOLVED (session #10)
+- message-bus-tools Q3 (structured model): RESOLVED (session #10)
+- message-bus-tools Q4 (CRASH event): RESOLVED (session #10)
+- message-bus-tools Q5 (full SSE payload): RESOLVED (session #10)
+
+## Remaining Open Items
+- ISSUE-003: Windows process groups (HIGH, deferred — platform-specific, stubs exist)
+- ISSUE-005: Runner bottleneck - single RunJob() serialization (architectural, lower priority)
+- ISSUE-006: Storage/messagebus circular dependency (architectural, not a real bug)
+- ISSUE-016: Message bus file rotation (MEDIUM, deferred to 100MB threshold)
+- Other MEDIUM/LOW issues: ISSUE-011 through ISSUE-018 (planning/optimization)
+
