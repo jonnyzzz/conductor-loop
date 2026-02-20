@@ -508,3 +508,66 @@ task_id: session7-run-agent-serve-bus
 run_id: 20260220-1603520000-36177
 ---
 run stopped with code 0
+
+---
+msg_id: MSG-20260220-SESSION7-SUMMARY
+ts: 2026-02-20T17:30:00Z
+type: SESSION_SUMMARY
+project_id: conductor-loop
+---
+SESSION #7 SUMMARY
+
+## Completed Tasks (6 sub-agents via bin/run-agent job)
+
+### session7-docker-fix
+- Added checkPortAvailable() using net.DialTimeout (connect, not Listen)
+- Docker tests now skip cleanly when conductor server is running on port 8080
+- Committed: 43212a8, e28b962
+
+### session7-restart-prefix
+- Added restartPrefix ("Continue working on the following:\n\n") prepended on attempt > 0
+- TASK.md auto-created from --prompt if file missing
+- Error if neither TASK.md nor --prompt provided
+- 4 new tests in task_test.go
+- Committed: 7e643cd
+
+### session7-token-validation
+- Added ValidateToken() in internal/runner/validate.go (warn-only)
+- Checks API key presence for CLI agents (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY)
+- Checks token field for REST agents (perplexity, xai)
+- 10 new tests in validate_test.go
+- ISSUE-009 → PARTIALLY RESOLVED
+- Committed: 4a0c1fc
+
+### session7-run-agent-serve-bus
+- run-agent serve: HTTP monitoring server (127.0.0.1:14355), DisableTaskStart=true, graceful shutdown
+- run-agent bus post: append message to bus file, stdin support
+- run-agent bus read: --tail N (default 20), --follow for live polling
+- Committed: 2a55253
+
+### session7-post-messages-api
+- POST /api/v1/messages: routes to PROJECT-MESSAGE-BUS.md or TASK-MESSAGE-BUS.md
+- Response 201 with {msg_id, timestamp}
+- 4 new tests
+- Committed: 0a2bb44
+
+### session7-run-event-enrichment (Q9)
+- RUN_START body: run_dir, prompt, stdout, stderr, output paths
+- RUN_STOP body: run_dir, output path (+ stderr excerpt on non-zero exit)
+- Committed: 6b74507
+
+## AGENTS.md Updates
+- Added Mandatory Testing Policy and Port Conflict Policy sections
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go test -p 1 ./... (18 packages): ALL PASS
+- go test -race ./internal/...: ALL PASS
+
+## Remaining Open Items
+- ISSUE-003: Windows process groups (LOW priority, platform-specific)
+- ISSUE-005: Runner bottleneck - single RunJob() serialization (architectural)
+- ISSUE-006: Storage/messagebus circular dependency (architectural)
+- monitoring-ui Q2/Q3/Q6: Project API endpoints, task creation, web UI
+- message-bus-tools Q3/Q5: Extended message model, full SSE payload
+- storage-layout Q4: Task ID format enforcement
