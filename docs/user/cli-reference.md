@@ -228,7 +228,7 @@ run-agent task --project <id> --task <id> [flags]
 # Basic task execution
 run-agent task \
   --project proj_abc123 \
-  --task task_001 \
+  --task task-20260220-140000-hello-world \
   --root /data \
   --config config.yaml \
   --agent codex \
@@ -238,7 +238,7 @@ run-agent task \
 # Task with restart limits
 run-agent task \
   --project proj_abc123 \
-  --task task_001 \
+  --task task-20260220-141500-flaky-test \
   --root /data \
   --config config.yaml \
   --agent codex \
@@ -249,7 +249,7 @@ run-agent task \
 # Task with child monitoring
 run-agent task \
   --project proj_abc123 \
-  --task task_001 \
+  --task task-20260220-143000-child-monitor \
   --root /data \
   --config config.yaml \
   --agent codex \
@@ -311,7 +311,7 @@ run-agent job --project <id> --task <id> [flags]
 # Basic job execution
 run-agent job \
   --project proj_abc123 \
-  --task task_001 \
+  --task task-20260220-150000-explain-ralph-loop \
   --root /data \
   --config config.yaml \
   --agent claude \
@@ -320,7 +320,7 @@ run-agent job \
 # Job with prompt from file
 run-agent job \
   --project proj_abc123 \
-  --task task_001 \
+  --task task-20260220-151500-file-processor \
   --root /data \
   --config config.yaml \
   --agent codex \
@@ -330,7 +330,7 @@ run-agent job \
 # Child job
 run-agent job \
   --project proj_abc123 \
-  --task task_002 \
+  --task task-20260220-152000-child-task \
   --root /data \
   --config config.yaml \
   --agent codex \
@@ -379,7 +379,7 @@ dev
    ```bash
    run-agent job \
      --project test \
-     --task test_001 \
+     --task task-20260220-160000-agent-test \
      --config config.yaml \
      --agent codex \
      --prompt "test prompt"
@@ -389,7 +389,7 @@ dev
    ```bash
    run-agent task \
      --project debug \
-     --task debug_001 \
+     --task task-20260220-161500-ralph-debug \
      --config config.yaml \
      --agent codex \
      --prompt "debug task" \
@@ -401,7 +401,7 @@ dev
    # When conductor server is not running
    run-agent job \
      --project manual \
-     --task manual_001 \
+     --task task-20260220-163000-manual-run \
      --config config.yaml \
      --agent codex \
      --prompt "manual task"
@@ -414,7 +414,7 @@ dev
    for file in *.txt; do
      run-agent job \
        --project batch \
-       --task "task_${file}" \
+       --task "task-$(date +%Y%m%d-%H%M%S)-${file%.*}" \
        --config config.yaml \
        --agent codex \
        --prompt "Process $file"
@@ -554,7 +554,7 @@ conductor --config config.yaml --disable-task-start
 ```bash
 run-agent job \
   --project debug \
-  --task test_001 \
+  --task task-20260220-165000-debug-test \
   --config config.yaml \
   --agent codex \
   --prompt "Debug test"
@@ -567,7 +567,7 @@ run-agent job \
 for i in {1..10}; do
   run-agent job \
     --project batch \
-    --task "task_${i}" \
+    --task "task-$(date +%Y%m%d-%H%M%S)-item-${i}" \
     --config config.yaml \
     --agent codex \
     --prompt "Process item $i"

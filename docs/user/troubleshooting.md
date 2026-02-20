@@ -409,7 +409,7 @@ cat runs/run_*/output.log
 ```bash
 run-agent job \
   --project test \
-  --task test_001 \
+  --task task-20260220-170000-agent-test \
   --config config.yaml \
   --agent codex \
   --prompt "test prompt"
@@ -807,7 +807,7 @@ CONDUCTOR_LOG_LEVEL=debug conductor --config config.yaml
 # Agent
 run-agent job \
   --project test \
-  --task test_001 \
+  --task task-20260220-171500-debug-run \
   --config config.yaml \
   --agent codex \
   --prompt "test" 2>&1 | tee debug.log

@@ -126,7 +126,7 @@ Or use `--max-restarts` flag with `run-agent task`:
 ```bash
 run-agent task \
   --project proj \
-  --task task-1 \
+  --task task-20260220-180000-my-task \
   --max-restarts 3 \
   ...
 ```
@@ -138,7 +138,7 @@ Yes, use `run-agent job` instead of `run-agent task`:
 ```bash
 run-agent job \
   --project proj \
-  --task task-1 \
+  --task task-20260220-180000-my-task \
   --config config.yaml \
   --agent codex \
   --prompt "Single execution"

@@ -255,12 +255,12 @@ npm run dev
 ./bin/run-agent \
   --config ~/.conductor/config.yaml \
   --project my-project \
-  --task my-task \
+  --task task-20260220-140000-my-task \
   --agent claude \
   --prompt "Your task prompt here"
 
 # Check results
-ls ~/run-agent/my-project/my-task/runs/
+ls ~/run-agent/my-project/task-20260220-140000-my-task/runs/
 ```
 
 ---

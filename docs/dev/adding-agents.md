@@ -671,13 +671,13 @@ EOF
 ./bin/run-agent \
   --config test-config.yaml \
   --project test-project \
-  --task test-task \
+  --task task-20260220-190000-hello-world \
   --agent newagent \
   --prompt "Write a hello world function"
 
 # 4. Check results
-cat /tmp/test-runs/test-project/test-task/runs/*/stdout
-cat /tmp/test-runs/test-project/test-task/runs/*/run-info.yaml
+cat /tmp/test-runs/test-project/task-20260220-190000-hello-world/runs/*/stdout
+cat /tmp/test-runs/test-project/task-20260220-190000-hello-world/runs/*/run-info.yaml
 ```
 
 ### Automated Testing
