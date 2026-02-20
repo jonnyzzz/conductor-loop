@@ -218,11 +218,14 @@ func ensureDocker(t *testing.T) {
 
 func checkPortAvailable(t *testing.T, port string) {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:"+port)
-	if err != nil {
-		t.Skipf("port %s already in use, skipping docker test (is conductor server running?)", port)
+	// Use Dial (connect) rather than Listen (bind) to detect whether any process is
+	// listening on the port. Conductor binds on IPv6 (::*:8080) which blocks Docker's
+	// IPv4 bind but does NOT prevent a Go IPv4 net.Listen to 127.0.0.1.
+	conn, err := net.DialTimeout("tcp", "127.0.0.1:"+port, 500*time.Millisecond)
+	if err == nil {
+		conn.Close()
+		t.Skipf("port %s already in use (is conductor server running?), skipping docker test", port)
 	}
-	ln.Close()
 }
 
 func buildDockerImage(t *testing.T, root string) {
