@@ -3,12 +3,25 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
+	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/spf13/cobra"
+)
+
+// followPollInterval, followFileWaitTimeout, and followNoDataTimeout control the
+// polling behaviour of --follow. They are package-level vars so tests can shorten them.
+var (
+	followPollInterval    = 500 * time.Millisecond
+	followFileWaitTimeout = 5 * time.Second
+	followNoDataTimeout   = 60 * time.Second
 )
 
 func newOutputCmd() *cobra.Command {
@@ -20,12 +33,16 @@ func newOutputCmd() *cobra.Command {
 		runDir    string
 		tail      int
 		file      string
+		follow    bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "output",
 		Short: "Print output from a completed run",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if follow {
+				return runFollowOutput(runDir, root, projectID, taskID, runID, file)
+			}
 			return runOutput(runDir, root, projectID, taskID, runID, file, tail)
 		},
 	}
@@ -37,6 +54,7 @@ func newOutputCmd() *cobra.Command {
 	cmd.Flags().StringVar(&runID, "run", "", "run id (uses most recent if omitted)")
 	cmd.Flags().IntVar(&tail, "tail", 0, "print last N lines only (0 = all)")
 	cmd.Flags().StringVar(&file, "file", "output", "file to print: output (default), stdout, stderr, prompt")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow output as it is written (for running jobs)")
 
 	return cmd
 }
@@ -53,6 +71,14 @@ func runOutput(runDir, root, projectID, taskID, runID, file string, tail int) er
 	}
 
 	return printFile(filePath, tail)
+}
+
+func runFollowOutput(runDir, root, projectID, taskID, runID, file string) error {
+	resolved, err := resolveOutputRunDir(runDir, root, projectID, taskID, runID)
+	if err != nil {
+		return err
+	}
+	return followOutput(resolved, file)
 }
 
 // resolveOutputRunDir resolves the run directory path.
@@ -192,4 +218,98 @@ func printFile(filePath string, tail int) error {
 		fmt.Println(lines[(start+i)%tail])
 	}
 	return nil
+}
+
+// followOutput tails the output file of a run in real-time.
+// If the run is already complete it prints all content and exits immediately.
+func followOutput(runDir, file string) error {
+	runInfoPath := filepath.Join(runDir, "run-info.yaml")
+
+	// If already complete, just print everything and exit.
+	if info, err := storage.ReadRunInfo(runInfoPath); err == nil && info.Status != storage.StatusRunning {
+		filePath, err := resolveOutputFile(runDir, file)
+		if err != nil {
+			return err
+		}
+		return printFile(filePath, 0)
+	}
+
+	// For a running job, follow agent-stdout.txt (or the appropriate live file).
+	outputPath := resolveFollowFilePath(runDir, file)
+
+	// Wait for the file to appear (it may not exist yet at run start).
+	deadline := time.Now().Add(followFileWaitTimeout)
+	for {
+		if _, err := os.Stat(outputPath); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("output file not found: %s", outputPath)
+		}
+		time.Sleep(followPollInterval)
+	}
+
+	// Handle Ctrl+C gracefully.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	offset := int64(0)
+	lastData := time.Now()
+
+	for {
+		select {
+		case <-sigCh:
+			fmt.Println()
+			return nil
+		default:
+		}
+
+		// Read and print any new content.
+		if n := drainNewContent(outputPath, offset); n > 0 {
+			offset += n
+			lastData = time.Now()
+		}
+
+		// Check if the run has completed.
+		if info, err := storage.ReadRunInfo(runInfoPath); err == nil && info.Status != storage.StatusRunning {
+			drainNewContent(outputPath, offset)
+			return nil
+		}
+
+		// Stop if no new data has arrived for too long.
+		if time.Since(lastData) > followNoDataTimeout {
+			return nil
+		}
+
+		time.Sleep(followPollInterval)
+	}
+}
+
+// drainNewContent reads bytes from path starting at offset, writes them to stdout,
+// and returns the byte count written.
+func drainNewContent(path string, offset int64) int64 {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
+		return 0
+	}
+	n, _ := io.Copy(os.Stdout, f)
+	return n
+}
+
+// resolveFollowFilePath returns the live file to tail for a running job.
+// For "output" or "stdout" it uses agent-stdout.txt (written in real-time).
+func resolveFollowFilePath(runDir, file string) string {
+	switch strings.ToLower(file) {
+	case "stderr":
+		return filepath.Join(runDir, "agent-stderr.txt")
+	case "prompt":
+		return filepath.Join(runDir, "prompt.md")
+	default: // output, stdout, ""
+		return filepath.Join(runDir, "agent-stdout.txt")
+	}
 }
