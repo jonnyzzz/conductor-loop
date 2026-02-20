@@ -16,6 +16,10 @@
 
 TODO: We are not using -C parameter, and we do not use - option. Instead we use JSON stream output, and make it create all the files necessary
 
+Implementation Note (2026-02-20, Session #20): JSON stream support for Codex is deferred.
+The Claude backend was updated to use --output-format stream-json --verbose in this session,
+but Codex stream-json integration has not yet been implemented.
+
 Integrated into subsystem-agent-backend-codex.md.
 
 - Q: Config key + token format mismatch: older notes reference `openai_api_key` in config.hcl, while current specs use `agent "codex"` with `token`/`token_file` (and optional `@file` value). Which format is authoritative, and should `@file` be supported by the runner?

@@ -93,28 +93,107 @@ conductor 2026/02/05 10:00:00 Task execution: enabled
 
 #### `conductor task`
 
-Manage tasks (placeholder - not yet implemented).
+Manage tasks via the conductor server API.
 
 ```bash
-conductor task [flags]
+conductor task <subcommand> [flags]
 ```
 
-**Note:** This command is reserved for future use. Currently returns:
+**Subcommands:**
+
+##### `conductor task status <task-id>`
+
+Get the status of a task.
+
+```bash
+conductor task status <task-id> [--server URL] [--project PROJECT] [--json]
 ```
-task command not implemented yet
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--project` | string | "" | Project ID (optional filter) |
+| `--json` | bool | false | Output raw JSON response |
+
+**Example:**
+```bash
+conductor task status task-20260220-140000-my-task --project my-project
+```
+
+**Output:**
+```
+Task:   my-project/task-20260220-140000-my-task
+Status: success
+Last activity: 2026-02-20T14:01:30Z
+
+RUN ID                          STATUS   START TIME             END TIME               EXIT CODE
+20260220-1400000000-abc12345    success  2026-02-20T14:00:00Z   2026-02-20T14:01:30Z   0
 ```
 
 #### `conductor job`
 
-Manage jobs (placeholder - not yet implemented).
+Manage jobs via the conductor server API.
 
 ```bash
-conductor job [flags]
+conductor job <subcommand> [flags]
 ```
 
-**Note:** This command is reserved for future use. Currently returns:
+**Subcommands:**
+
+##### `conductor job submit`
+
+Submit a new job to the conductor server.
+
+```bash
+conductor job submit --project PROJECT --task TASK --agent AGENT --prompt PROMPT [flags]
 ```
-job command not implemented yet
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--project` | string | "" | Project ID (required) |
+| `--task` | string | "" | Task ID (required) |
+| `--agent` | string | "" | Agent type, e.g. claude (required) |
+| `--prompt` | string | "" | Task prompt (required) |
+| `--project-root` | string | "" | Working directory for the task |
+| `--attach-mode` | string | "create" | Attach mode: create, attach, or resume |
+| `--wait` | bool | false | Wait for task completion by polling |
+| `--json` | bool | false | Output raw JSON response |
+
+**Example:**
+```bash
+conductor job submit \
+  --project my-project \
+  --task task-20260220-140000-hello \
+  --agent claude \
+  --prompt "Write hello world" \
+  --wait
+```
+
+##### `conductor job list`
+
+List tasks on the conductor server.
+
+```bash
+conductor job list [--server URL] [--project PROJECT] [--json]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--project` | string | "" | Filter by project ID |
+| `--json` | bool | false | Output raw JSON response |
+
+**Example:**
+```bash
+conductor job list --project my-project
+```
+
+**Output:**
+```
+PROJECT     TASK                              STATUS   LAST ACTIVITY
+my-project  task-20260220-140000-hello        success  2026-02-20T14:01:30Z
+my-project  task-20260220-150000-analysis     running  2026-02-20T15:02:00Z
 ```
 
 #### `conductor version`
@@ -283,6 +362,38 @@ run-agent task \
 | 1 | Failed (after all restarts) |
 | 2 | Configuration error |
 
+##### `run-agent task resume`
+
+Resume a stopped or failed task from its existing task directory.
+
+```bash
+run-agent task resume --project <id> --task <id> [flags]
+```
+
+**Required Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--project` | string | Project ID |
+| `--task` | string | Task ID (must already have a task directory with TASK.md) |
+
+**Optional Flags:** Same as `run-agent task`, except `--max-restarts` defaults to 3.
+
+**Example:**
+
+```bash
+run-agent task resume \
+  --project my-project \
+  --task task-20260220-140000-hello-world \
+  --root /data \
+  --config config.yaml
+```
+
+**Behavior:**
+- Validates that `<root>/<project>/<task>/TASK.md` exists
+- Resumes Ralph Loop execution without re-creating the task directory
+- Useful for re-running a task that previously stopped or failed
+
 #### `run-agent job`
 
 Run a single agent job (no restart logic).
@@ -397,6 +508,197 @@ run-agent serve --root ./runs --host 0.0.0.0 --port 14355
 **Note:** When opening the web UI via `file://`, the `API_BASE` in `web/src/app.js` defaults to
 `http://localhost:8080` (conductor's port). If using `run-agent serve`, either open the UI
 through the server at `http://127.0.0.1:14355/ui/` or update `API_BASE` manually.
+
+#### `run-agent stop`
+
+Stop a running task by sending SIGTERM to its process group.
+
+```bash
+run-agent stop [flags]
+```
+
+**Flags (choose one approach):**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--run-dir` | string | Path to run directory (alternative to --root/--project/--task) |
+| `--root` | string | Run-agent root directory |
+| `--project` | string | Project ID |
+| `--task` | string | Task ID |
+| `--run` | string | Run ID (optional, defaults to latest running run) |
+| `--force` | bool | Send SIGKILL if process does not stop within 30s timeout |
+
+**Examples:**
+
+```bash
+# Stop by project/task (stops the latest running run)
+run-agent stop --root ./runs --project my-project --task task-20260220-140000-hello
+
+# Stop by run directory
+run-agent stop --run-dir ./runs/my-project/task-20260220-140000-hello/runs/20260220-1400000000-abc12345
+
+# Force kill if SIGTERM doesn't work
+run-agent stop --root ./runs --project my-project --task task-20260220-140000-hello --force
+```
+
+**Behavior:**
+1. Resolves run directory (by `--run-dir` or latest running run under `--project/--task`)
+2. Reads `run-info.yaml` to get PGID/PID
+3. Sends SIGTERM to process group
+4. Polls for up to 30s for the process to exit
+5. If `--force` and still running after 30s: sends SIGKILL
+
+---
+
+#### `run-agent gc`
+
+Clean up old run directories to reclaim disk space.
+
+```bash
+run-agent gc [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--root` | string | "./runs" | Root runs directory |
+| `--older-than` | duration | 168h (7 days) | Delete runs older than this |
+| `--dry-run` | bool | false | Print what would be deleted without deleting |
+| `--project` | string | "" | Limit gc to a specific project |
+| `--keep-failed` | bool | false | Preserve runs with non-zero exit codes |
+
+**Examples:**
+
+```bash
+# Dry run to see what would be deleted
+run-agent gc --root ./runs --dry-run
+
+# Delete runs older than 7 days
+run-agent gc --root ./runs --older-than 168h
+
+# Clean only a specific project, keep failed runs
+run-agent gc --root ./runs --project my-project --keep-failed
+
+# Aggressive cleanup (1 day, including failed runs)
+run-agent gc --root ./runs --older-than 24h
+```
+
+**Behavior:**
+- Skips runs that are currently `running`
+- Reports freed disk space in MB
+- Only deletes completed or failed runs older than the cutoff
+
+---
+
+#### `run-agent validate`
+
+Validate conductor configuration and agent CLI availability.
+
+```bash
+run-agent validate [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--config` | string | "" | Config file path (auto-discovered if not set) |
+| `--root` | string | "" | Root directory to validate (checks writability) |
+| `--agent` | string | "" | Validate only this agent (default: all) |
+| `--check-network` | bool | false | Run network connectivity test for REST agents |
+
+**Example:**
+
+```bash
+# Validate config and all agents
+run-agent validate --config config.yaml
+
+# Validate a specific agent
+run-agent validate --config config.yaml --agent claude
+
+# Validate config and root directory
+run-agent validate --config config.yaml --root ./runs
+```
+
+**Output:**
+```
+Conductor Loop Configuration Validator
+
+Config: config.yaml
+
+Agents:
+  ✓ claude      2.1.49     (CLI found, token: ANTHROPIC_API_KEY set)
+  ✓ codex       0.104.0    (CLI found, token: OPENAI_API_KEY set)
+  ✗ gemini                 (CLI "gemini" not found in PATH, token: GEMINI_API_KEY not set)
+
+Validation: 2 OK, 1 WARNING
+```
+
+---
+
+#### `run-agent bus`
+
+Read from and post to message bus files.
+
+```bash
+run-agent bus <subcommand> [flags]
+```
+
+**Subcommands:**
+
+##### `run-agent bus post`
+
+Post a message to a message bus file.
+
+```bash
+run-agent bus post [--bus PATH] [--type TYPE] [--body BODY] [flags]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--bus` | string | "" | Path to message bus file (uses `$MESSAGE_BUS` env var if not set) |
+| `--type` | string | "INFO" | Message type |
+| `--project` | string | "" | Project ID |
+| `--task` | string | "" | Task ID |
+| `--run` | string | "" | Run ID |
+| `--body` | string | "" | Message body (reads stdin if not provided and stdin is a pipe) |
+
+**Examples:**
+
+```bash
+# Post a message
+run-agent bus post --bus ./task-bus.md --type INFO --body "Processing started"
+
+# Post from stdin
+echo "Done!" | run-agent bus post --bus ./task-bus.md --type DONE
+```
+
+##### `run-agent bus read`
+
+Read messages from a message bus file.
+
+```bash
+run-agent bus read [--bus PATH] [--tail N] [--follow]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--bus` | string | "" | Path to message bus file (uses `$MESSAGE_BUS` env var if not set) |
+| `--tail` | int | 20 | Print last N messages |
+| `--follow` | bool | false | Watch for new messages (Ctrl-C to exit) |
+
+**Examples:**
+
+```bash
+# Read last 20 messages
+run-agent bus read --bus ./task-bus.md
+
+# Follow new messages
+run-agent bus read --bus ./task-bus.md --follow
+```
+
+---
 
 #### `run-agent version`
 

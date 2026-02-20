@@ -13,7 +13,12 @@
   - `--input-format text --output-format text` - text I/O for simplicity
 
 TODO:: Review how ~/Work/mcp-steroid/test* integrates with agents, apparently, you need --verbose and --output-format stream-json to make claude return the progress messages,
-which are necessary for our work. So, we need to update all agents to JSON Stream APIs, and make necessary filtering where necessary. Same applies for Codex and Gemini. 
+which are necessary for our work. So, we need to update all agents to JSON Stream APIs, and make necessary filtering where necessary. Same applies for Codex and Gemini.
+
+Implementation Note (2026-02-20, Session #20): Claude backend updated to use
+--output-format stream-json --verbose. Added ParseStreamJSON() in stream_parser.go to extract
+final text from result events. Output.md is now created automatically from the parsed result
+if not already written by agent tools. Codex and Gemini stream-json support is deferred.
 
 TODO2: It has to be easily extensible, so we need to allow any files created.
 

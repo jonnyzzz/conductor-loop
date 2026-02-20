@@ -810,11 +810,16 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 
 | Severity | Open | Partially Resolved | Resolved |
 |----------|------|-------------------|----------|
-| CRITICAL | 0 | 2 | 3 |
+| CRITICAL | 0 | 2 | 4 |
 | HIGH | 1 | 3 | 4 |
 | MEDIUM | 5 | 0 | 1 |
 | LOW | 2 | 0 | 0 |
-| **Total** | **8** | **5** | **8** |
+| **Total** | **8** | **5** | **9** |
+
+### Session #20 Changes (2026-02-20)
+
+Summary table corrected: CRITICAL resolved 3 → 4 (ISSUE-000 was omitted from the count).
+Total resolved 8 → 9.
 
 ### Session #18 Changes (2026-02-20)
 
@@ -920,4 +925,4 @@ New features implemented (from QUESTIONS.md decisions):
 
 *This document is maintained as part of the Conductor Loop project. Update as issues are resolved or new issues discovered.*
 
-*Last updated: 2026-02-20 Session #18*
+*Last updated: 2026-02-20 Session #20*

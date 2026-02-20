@@ -23,6 +23,10 @@
 
 TODO: Use JSON streaming to read messages and progress infromation from the Gemini
 
+Implementation Note (2026-02-20, Session #20): JSON stream support for Gemini is deferred.
+The Claude backend was updated to use --output-format stream-json --verbose in this session,
+but Gemini stream-json integration has not yet been implemented.
+
 - Q: Should run-agent keep using the Gemini CLI, or switch to the REST adapter in `internal/agent/gemini`? If switching, what config keys (base_url/model) should be exposed for Gemini?
   A: Use GEMINI CLI. We prefern native tools.
 

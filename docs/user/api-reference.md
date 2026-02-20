@@ -2,6 +2,21 @@
 
 Complete REST API reference for Conductor Loop. The API provides endpoints for task management, run monitoring, log streaming, and message bus access.
 
+## API Surfaces
+
+There are two API surfaces:
+
+1. **`/api/v1/...`** — The primary REST API documented in this file, used for task creation, listing, and message bus access.
+2. **`/api/projects/...`** — A project-centric API used by the web UI. Provides endpoints like:
+   - `GET /api/projects` — list projects
+   - `GET /api/projects/{projectId}/tasks` — list tasks for a project
+   - `GET /api/projects/{projectId}/tasks/{taskId}` — task detail with run list
+   - `GET /api/projects/{projectId}/tasks/{taskId}/runs/{runId}` — run detail
+   - `GET /api/projects/{projectId}/tasks/{taskId}/runs/{runId}/file?name=output.md` — read run file (output.md, stdout, stderr, prompt)
+   - `GET /api/projects/{projectId}/tasks/{taskId}/runs/{runId}/stream?name=output.md` — SSE stream of growing file
+   - `POST /api/projects/{projectId}/tasks/{taskId}/runs/{runId}/stop` — stop a running run (202=SIGTERM sent, 409=not running)
+   - `GET /api/projects/{projectId}/tasks/{taskId}/file?name=TASK.md` — read TASK.md from task directory
+
 ## Base URL
 
 ```

@@ -1,6 +1,6 @@
 # Web UI Guide
 
-Conductor Loop includes a modern React-based web UI for monitoring and managing tasks, viewing logs in real-time, and visualizing the message bus.
+Conductor Loop includes a web UI for monitoring and managing tasks, viewing logs in real-time, and visualizing the message bus. The UI is served as a static HTML/JavaScript page (no framework dependency) from `web/src/index.html`.
 
 ## Accessing the Web UI
 
@@ -42,10 +42,33 @@ start http://localhost:8080
 
 The web UI provides several main views:
 
-1. **Task List** - Overview of all tasks and their status
-2. **Run Details** - Detailed view of a specific run with logs
+1. **Task List** - Overview of all tasks and their status (auto-refreshes every 5s)
+2. **Run Details** - Detailed view of a specific run with live-streaming file tabs
 3. **Message Bus** - Cross-task communication viewer
 4. **Run Tree** - Hierarchical visualization of parent-child tasks
+
+### Run Detail Tabs
+
+When viewing a run, the following tabs are available:
+
+| Tab | Description |
+|-----|-------------|
+| **TASK.MD** | Content of `TASK.md` from the task directory |
+| **OUTPUT** | Content of `output.md` (default tab; falls back to `agent-stdout.txt`) |
+| **STDOUT** | Raw agent stdout |
+| **STDERR** | Agent stderr |
+| **PROMPT** | The prompt used for this run |
+| **MESSAGES** | Task-level message bus (TASK-MESSAGE-BUS.md), live SSE stream |
+
+Tabs stream live via SSE while the run is active.
+
+### Stop Button
+
+Running tasks show a **■ Stop** button in the run detail panel header. Clicking it sends SIGTERM to the agent process via `POST /api/projects/{p}/tasks/{t}/runs/{r}/stop`.
+
+### Project Message Bus Panel
+
+When a project is selected, a compact live feed of `PROJECT-MESSAGE-BUS.md` appears in the left panel, showing recent project-level messages.
 
 Screenshot: [The main interface shows a clean, modern design with a task list on the left and log viewer on the right]
 

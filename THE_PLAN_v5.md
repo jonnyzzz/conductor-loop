@@ -410,3 +410,21 @@ Project ready when:
 - Decisions: `docs/decisions/CRITICAL-PROBLEMS-RESOLVED.md`
 - Workflow: `THE_PROMPT_v5.md`
 - Repository: https://github.com/jonnyzzz/conductor-loop
+
+---
+
+## Implementation Status (as of 2026-02-20)
+
+This section tracks actual completion against the plan. The original plan was written 2026-02-04.
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 0: Bootstrap | COMPLETE | All bootstrap tasks done; AGENTS.md, project structure, docs all in place |
+| Phase 1: Core Infrastructure | COMPLETE | Storage, MessageBus, Config all implemented; file locking, YAML, HCL all working |
+| Phase 2: Agent System | SUBSTANTIALLY COMPLETE | Claude, Codex, Gemini backends implemented; xAI deferred post-MVP as planned; Claude updated to stream-json output |
+| Phase 3: Runner Orchestration | COMPLETE | Ralph Loop, process management, job/task commands, stop command, gc command all implemented |
+| Phase 4: API and Frontend | SUBSTANTIALLY COMPLETE | REST API (`/api/v1/...`), project-centric API (`/api/projects/...`), SSE streaming, web UI all working; web UI is plain HTML/JS (not React) |
+| Phase 5: Integration and Testing | SUBSTANTIALLY COMPLETE | Unit tests, integration tests, docker tests all passing; `go test -race` clean; performance/acceptance tests deferred |
+| Phase 6: Documentation | IN PROGRESS | User docs, API reference, CLI reference, web UI guide in place; developer docs in progress |
+
+**Summary**: All core systems are implemented and working. The project is operational as of Session #20 (2026-02-20), with ongoing incremental improvements each session.
