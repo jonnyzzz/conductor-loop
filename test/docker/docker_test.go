@@ -21,12 +21,78 @@ import (
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 )
 
-const (
-	imageName = "conductor:test"
-)
+// testImage is unique per process — no collisions when multiple go test runs share a Docker daemon.
+var testImage = fmt.Sprintf("conductor:test-%d", os.Getpid())
 
 var buildOnce sync.Once
 var buildErr error
+
+// TestMain runs the test suite and removes the per-process image afterwards.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	// Best-effort cleanup — ignore errors (image may not exist if build was skipped).
+	_ = exec.Command("docker", "rmi", "-f", testImage).Run()
+	os.Exit(code)
+}
+
+// testEnv holds per-test isolation: unique project name, free port, temp dirs.
+// Every test gets its own data directory and config file so tests can run in parallel
+// on the same host without interfering with each other or dirtying the repository tree.
+type testEnv struct {
+	root       string
+	hostPort   int
+	dataDir    string // isolated /data/runs mount
+	configPath string // isolated config.yaml copy
+	project    string
+	compose    []string
+}
+
+func newTestEnv(t *testing.T) *testEnv {
+	t.Helper()
+	root := repoRoot(t)
+
+	// Isolated data directory — cleaned up automatically by t.Cleanup via t.TempDir.
+	dataDir := t.TempDir()
+
+	// Copy config.docker.yaml to an isolated temp file.
+	configDir := t.TempDir()
+	configPath := filepath.Join(configDir, "config.yaml")
+	data, err := os.ReadFile(filepath.Join(root, "config.docker.yaml"))
+	if err != nil {
+		t.Fatalf("read config.docker.yaml: %v", err)
+	}
+	if err := os.WriteFile(configPath, data, 0o644); err != nil {
+		t.Fatalf("write isolated config: %v", err)
+	}
+
+	return &testEnv{
+		root:       root,
+		hostPort:   findFreePort(t),
+		dataDir:    dataDir,
+		configPath: configPath,
+		project:    uniqueProjectName(t),
+		compose:    composeCommand(t),
+	}
+}
+
+// composeEnv returns the environment for all docker compose invocations.
+// All variable paths are unique to this testEnv — safe to run in parallel.
+func (e *testEnv) composeEnv() []string {
+	return append(os.Environ(),
+		fmt.Sprintf("CONDUCTOR_HOST_PORT=%d", e.hostPort),
+		fmt.Sprintf("CONDUCTOR_DATA_DIR=%s", e.dataDir),
+		fmt.Sprintf("CONDUCTOR_CONFIG_PATH=%s", e.configPath),
+		fmt.Sprintf("CONDUCTOR_IMAGE=%s", testImage),
+	)
+}
+
+func (e *testEnv) healthURL() string {
+	return fmt.Sprintf("http://localhost:%d/api/v1/health", e.hostPort)
+}
+
+func (e *testEnv) runsURL() string {
+	return fmt.Sprintf("http://localhost:%d/api/v1/runs/", e.hostPort)
+}
 
 // findFreePort asks the OS for an unused TCP port and returns it.
 func findFreePort(t *testing.T) int {
@@ -40,17 +106,12 @@ func findFreePort(t *testing.T) int {
 	return port
 }
 
-// healthURL returns the health endpoint URL for the given host port.
-func healthURL(port int) string {
-	return fmt.Sprintf("http://localhost:%d/api/v1/health", port)
-}
-
 func TestDockerBuild(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
 	buildDockerImage(t, root)
 
-	cmd := exec.Command("docker", "image", "inspect", imageName, "--format", "{{.Size}}")
+	cmd := exec.Command("docker", "image", "inspect", testImage, "--format", "{{.Size}}")
 	cmd.Dir = root
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -68,73 +129,51 @@ func TestDockerBuild(t *testing.T) {
 }
 
 func TestDockerRun(t *testing.T) {
-	root := repoRoot(t)
 	ensureDocker(t)
-	ensureDockerConfig(t, root)
-	ensureRunsDir(t, root)
-
-	port := findFreePort(t)
-	project := uniqueProjectName(t)
-	compose := composeCommand(t)
-	composeUp(t, root, project, compose, port, "conductor")
-	defer composeDown(t, root, project, compose)
-
-	waitForHTTP(t, healthURL(port))
+	env := newTestEnv(t)
+	buildDockerImage(t, env.root)
+	composeUp(t, env, "conductor")
+	defer composeDown(t, env)
+	waitForHTTP(t, env.healthURL())
 }
 
 func TestDockerPersistence(t *testing.T) {
-	root := repoRoot(t)
 	ensureDocker(t)
-	ensureDockerConfig(t, root)
-	ensureRunsDir(t, root)
+	env := newTestEnv(t)
+	buildDockerImage(t, env.root)
+	composeUp(t, env, "conductor")
+	defer composeDown(t, env)
 
-	port := findFreePort(t)
-	project := uniqueProjectName(t)
-	compose := composeCommand(t)
-	composeUp(t, root, project, compose, port, "conductor")
-	defer composeDown(t, root, project, compose)
-
-	waitForHTTP(t, healthURL(port))
+	waitForHTTP(t, env.healthURL())
 
 	runID := fmt.Sprintf("run-%d", time.Now().UnixNano())
-	writeRunInfo(t, root, "proj", "task-001", runID)
+	writeRunInfo(t, env.dataDir, "proj", "task-001", runID)
+	assertRunExists(t, runID, env.runsURL())
 
-	assertRunExists(t, runID, fmt.Sprintf("http://localhost:%d/api/v1/runs/", port))
-
-	composeRestart(t, root, project, compose, "conductor")
-	waitForHTTP(t, healthURL(port))
-	assertRunExists(t, runID, fmt.Sprintf("http://localhost:%d/api/v1/runs/", port))
+	composeRestart(t, env, "conductor")
+	waitForHTTP(t, env.healthURL())
+	assertRunExists(t, runID, env.runsURL())
 }
 
 func TestDockerNetworkIsolation(t *testing.T) {
-	root := repoRoot(t)
 	ensureDocker(t)
-	ensureDockerConfig(t, root)
-	ensureRunsDir(t, root)
+	env := newTestEnv(t)
+	buildDockerImage(t, env.root)
+	composeUp(t, env, "conductor")
+	defer composeDown(t, env)
 
-	port := findFreePort(t)
-	project := uniqueProjectName(t)
-	compose := composeCommand(t)
-	composeUp(t, root, project, compose, port, "conductor")
-	defer composeDown(t, root, project, compose)
-
-	waitForHTTP(t, healthURL(port))
-	composeExec(t, root, project, compose, "conductor", []string{"curl", "-f", "http://conductor:8080/api/v1/health"})
+	waitForHTTP(t, env.healthURL())
+	composeExec(t, env, "conductor", []string{"curl", "-f", "http://conductor:8080/api/v1/health"})
 }
 
 func TestDockerVolumes(t *testing.T) {
-	root := repoRoot(t)
 	ensureDocker(t)
-	ensureDockerConfig(t, root)
-	ensureRunsDir(t, root)
+	env := newTestEnv(t)
+	buildDockerImage(t, env.root)
+	composeUp(t, env, "conductor")
+	defer composeDown(t, env)
 
-	port := findFreePort(t)
-	project := uniqueProjectName(t)
-	compose := composeCommand(t)
-	composeUp(t, root, project, compose, port, "conductor")
-	defer composeDown(t, root, project, compose)
-
-	markerDir := filepath.Join(root, "data", "runs", "volume-test")
+	markerDir := filepath.Join(env.dataDir, "volume-test")
 	markerPath := filepath.Join(markerDir, "marker.txt")
 	if err := os.MkdirAll(markerDir, 0o755); err != nil {
 		t.Fatalf("mkdir marker dir: %v", err)
@@ -143,61 +182,51 @@ func TestDockerVolumes(t *testing.T) {
 		t.Fatalf("write marker file: %v", err)
 	}
 
-	composeExec(t, root, project, compose, "conductor", []string{"test", "-f", "/data/runs/volume-test/marker.txt"})
+	composeExec(t, env, "conductor", []string{"test", "-f", "/data/runs/volume-test/marker.txt"})
 }
 
 func TestDockerLogs(t *testing.T) {
-	root := repoRoot(t)
 	ensureDocker(t)
-	ensureDockerConfig(t, root)
-	ensureRunsDir(t, root)
+	env := newTestEnv(t)
+	buildDockerImage(t, env.root)
+	composeUp(t, env, "conductor")
+	defer composeDown(t, env)
 
-	port := findFreePort(t)
-	project := uniqueProjectName(t)
-	compose := composeCommand(t)
-	composeUp(t, root, project, compose, port, "conductor")
-	defer composeDown(t, root, project, compose)
+	waitForHTTP(t, env.healthURL())
 
-	waitForHTTP(t, healthURL(port))
-
-	args := append(compose[1:], "-p", project, "logs", "conductor")
-	cmd := exec.Command(compose[0], args...)
-	cmd.Dir = root
+	args := append(env.compose[1:], "-p", env.project, "logs", "conductor")
+	cmd := exec.Command(env.compose[0], args...)
+	cmd.Dir = env.root
+	cmd.Env = env.composeEnv()
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("compose logs failed: %v (%s)", err, strings.TrimSpace(string(output)))
 	}
 }
 
 func TestDockerMultiContainer(t *testing.T) {
-	root := repoRoot(t)
 	ensureDocker(t)
-	ensureDockerConfig(t, root)
-	ensureRunsDir(t, root)
-	buildDockerImage(t, root)
+	env := newTestEnv(t)
+	buildDockerImage(t, env.root)
+	composeUp(t, env, "conductor")
+	defer composeDown(t, env)
 
-	port := findFreePort(t)
+	waitForHTTP(t, env.healthURL())
+
 	secondaryPort := findFreePort(t)
-	project := uniqueProjectName(t)
-	compose := composeCommand(t)
-	composeUp(t, root, project, compose, port, "conductor")
-	defer composeDown(t, root, project, compose)
-
-	waitForHTTP(t, healthURL(port))
-
-	secondaryName := fmt.Sprintf("conductor-secondary-%s", project)
-	network := fmt.Sprintf("%s_conductor-net", project)
+	secondaryName := fmt.Sprintf("conductor-secondary-%s", env.project)
+	network := fmt.Sprintf("%s_conductor-net", env.project)
 	args := []string{
 		"run", "-d",
 		"--name", secondaryName,
 		"--network", network,
 		"-p", fmt.Sprintf("%d:8080", secondaryPort),
-		"-v", filepath.Join(root, "data", "runs") + ":/data/runs",
-		"-v", filepath.Join(root, "config.yaml") + ":/data/config/config.yaml:ro",
+		"-v", env.dataDir + ":/data/runs",
+		"-v", env.configPath + ":/data/config/config.yaml:ro",
 		"-e", "CONDUCTOR_CONFIG=/data/config/config.yaml",
-		imageName,
+		testImage,
 	}
 	cmd := exec.Command("docker", args...)
-	cmd.Dir = root
+	cmd.Dir = env.root
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("start secondary container: %v (%s)", err, strings.TrimSpace(string(output)))
 	}
@@ -205,21 +234,24 @@ func TestDockerMultiContainer(t *testing.T) {
 		_ = exec.Command("docker", "rm", "-f", secondaryName).Run()
 	}()
 
-	waitForHTTP(t, healthURL(secondaryPort))
+	secondaryRunsURL := fmt.Sprintf("http://localhost:%d/api/v1/runs/", secondaryPort)
+	waitForHTTP(t, fmt.Sprintf("http://localhost:%d/api/v1/health", secondaryPort))
 
 	runID := fmt.Sprintf("run-%d", time.Now().UnixNano())
-	writeRunInfo(t, root, "proj", "task-002", runID)
+	writeRunInfo(t, env.dataDir, "proj", "task-002", runID)
 
-	assertRunExists(t, runID, fmt.Sprintf("http://localhost:%d/api/v1/runs/", port))
-	assertRunExists(t, runID, fmt.Sprintf("http://localhost:%d/api/v1/runs/", secondaryPort))
+	assertRunExists(t, runID, env.runsURL())
+	assertRunExists(t, runID, secondaryRunsURL)
 
-	msgID := writeProjectMessage(t, root, "proj", "multi-container")
+	msgID := writeProjectMessage(t, env.dataDir, "proj", "multi-container")
 	if msgID == "" {
 		t.Fatalf("expected msg id")
 	}
-	assertMessageVisible(t, fmt.Sprintf("http://localhost:%d/api/v1/messages?project_id=proj", port), msgID)
+	assertMessageVisible(t, fmt.Sprintf("http://localhost:%d/api/v1/messages?project_id=proj", env.hostPort), msgID)
 	assertMessageVisible(t, fmt.Sprintf("http://localhost:%d/api/v1/messages?project_id=proj", secondaryPort), msgID)
 }
+
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 func ensureDocker(t *testing.T) {
 	if _, err := exec.LookPath("docker"); err != nil {
@@ -231,13 +263,12 @@ func ensureDocker(t *testing.T) {
 	}
 }
 
-
 func buildDockerImage(t *testing.T, root string) {
 	t.Helper()
 	buildOnce.Do(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "docker", "build", "-t", imageName, ".")
+		cmd := exec.CommandContext(ctx, "docker", "build", "-t", testImage, ".")
 		cmd.Dir = root
 		output, err := cmd.CombinedOutput()
 		if ctx.Err() != nil {
@@ -270,45 +301,48 @@ func composeCommand(t *testing.T) []string {
 	return nil
 }
 
-func composeUp(t *testing.T, root, project string, compose []string, hostPort int, services ...string) {
+func composeUp(t *testing.T, env *testEnv, services ...string) {
 	t.Helper()
-	args := append(compose[1:], "-p", project, "up", "-d")
+	args := append(env.compose[1:], "-p", env.project, "up", "-d")
 	args = append(args, services...)
-	cmd := exec.Command(compose[0], args...)
-	cmd.Dir = root
-	cmd.Env = append(os.Environ(), fmt.Sprintf("CONDUCTOR_HOST_PORT=%d", hostPort))
+	cmd := exec.Command(env.compose[0], args...)
+	cmd.Dir = env.root
+	cmd.Env = env.composeEnv()
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("compose up failed: %v (%s)", err, strings.TrimSpace(string(output)))
 	}
 }
 
-func composeDown(t *testing.T, root, project string, compose []string) {
+func composeDown(t *testing.T, env *testEnv) {
 	t.Helper()
-	args := append(compose[1:], "-p", project, "down", "-v", "--remove-orphans")
-	cmd := exec.Command(compose[0], args...)
-	cmd.Dir = root
+	args := append(env.compose[1:], "-p", env.project, "down", "-v", "--remove-orphans")
+	cmd := exec.Command(env.compose[0], args...)
+	cmd.Dir = env.root
+	cmd.Env = env.composeEnv()
 	_ = cmd.Run()
 }
 
-func composeRestart(t *testing.T, root, project string, compose []string, service string) {
+func composeRestart(t *testing.T, env *testEnv, service string) {
 	t.Helper()
-	args := append(compose[1:], "-p", project, "restart")
+	args := append(env.compose[1:], "-p", env.project, "restart")
 	if service != "" {
 		args = append(args, service)
 	}
-	cmd := exec.Command(compose[0], args...)
-	cmd.Dir = root
+	cmd := exec.Command(env.compose[0], args...)
+	cmd.Dir = env.root
+	cmd.Env = env.composeEnv()
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("compose restart failed: %v (%s)", err, strings.TrimSpace(string(output)))
 	}
 }
 
-func composeExec(t *testing.T, root, project string, compose []string, service string, cmdArgs []string) {
+func composeExec(t *testing.T, env *testEnv, service string, cmdArgs []string) {
 	t.Helper()
-	args := append(compose[1:], "-p", project, "exec", "-T", service)
+	args := append(env.compose[1:], "-p", env.project, "exec", "-T", service)
 	args = append(args, cmdArgs...)
-	cmd := exec.Command(compose[0], args...)
-	cmd.Dir = root
+	cmd := exec.Command(env.compose[0], args...)
+	cmd.Dir = env.root
+	cmd.Env = env.composeEnv()
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("compose exec failed: %v (%s)", err, strings.TrimSpace(string(output)))
 	}
@@ -336,42 +370,7 @@ func repoRoot(t *testing.T) string {
 
 func uniqueProjectName(t *testing.T) string {
 	t.Helper()
-	stamp := time.Now().UnixNano()
-	return fmt.Sprintf("conductor-test-%d", stamp)
-}
-
-func ensureDockerConfig(t *testing.T, root string) {
-	t.Helper()
-	src := filepath.Join(root, "config.docker.yaml")
-	dst := filepath.Join(root, "config.yaml")
-	data, err := os.ReadFile(src)
-	if err != nil {
-		t.Fatalf("read config.docker.yaml: %v", err)
-	}
-	if existing, err := os.ReadFile(dst); err == nil {
-		// Preserve original config.yaml
-		if err := os.WriteFile(dst, data, 0o644); err != nil {
-			t.Fatalf("write config.yaml: %v", err)
-		}
-		t.Cleanup(func() {
-			_ = os.WriteFile(dst, existing, 0o644)
-		})
-		return
-	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
-		t.Fatalf("write config.yaml: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Remove(dst)
-	})
-}
-
-func ensureRunsDir(t *testing.T, root string) {
-	t.Helper()
-	path := filepath.Join(root, "data", "runs")
-	if err := os.MkdirAll(path, 0o755); err != nil {
-		t.Fatalf("mkdir runs dir: %v", err)
-	}
+	return fmt.Sprintf("ctest-%d", time.Now().UnixNano())
 }
 
 func waitForHTTP(t *testing.T, url string) {
@@ -396,9 +395,9 @@ func waitForHTTP(t *testing.T, url string) {
 	t.Fatalf("timeout waiting for %s: %v", url, lastErr)
 }
 
-func writeRunInfo(t *testing.T, root, projectID, taskID, runID string) {
+func writeRunInfo(t *testing.T, dataDir, projectID, taskID, runID string) {
 	t.Helper()
-	runDir := filepath.Join(root, "data", "runs", projectID, taskID, "runs", runID)
+	runDir := filepath.Join(dataDir, projectID, taskID, "runs", runID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatalf("mkdir run dir: %v", err)
 	}
@@ -434,9 +433,9 @@ func assertRunExists(t *testing.T, runID, baseURL string) {
 	}
 }
 
-func writeProjectMessage(t *testing.T, root, projectID, body string) string {
+func writeProjectMessage(t *testing.T, dataDir, projectID, body string) string {
 	t.Helper()
-	busPath := filepath.Join(root, "data", "runs", projectID, "PROJECT-MESSAGE-BUS.md")
+	busPath := filepath.Join(dataDir, projectID, "PROJECT-MESSAGE-BUS.md")
 	if err := os.MkdirAll(filepath.Dir(busPath), 0o755); err != nil {
 		t.Fatalf("mkdir bus dir: %v", err)
 	}
