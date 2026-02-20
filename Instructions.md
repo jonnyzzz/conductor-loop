@@ -2,7 +2,7 @@
 
 **Project**: Conductor Loop
 **Repository**: https://github.com/jonnyzzz/conductor-loop
-**Last Updated**: 2026-02-04
+**Last Updated**: 2026-02-20
 
 ---
 
@@ -11,7 +11,8 @@
 ```
 conductor-loop/
 ├── cmd/                         # Command-line applications
-│   └── run-agent/              # Main runner CLI
+│   ├── run-agent/              # Agent runner CLI
+│   └── conductor/              # Conductor server CLI
 ├── internal/                    # Private application code
 │   ├── agent/                  # Agent backend implementations
 │   ├── runner/                 # Runner orchestration
@@ -88,11 +89,14 @@ make build
 go build ./...
 ```
 
-### Build Main CLI
+### Build Main CLIs
 ```bash
 make build-cli
 # OR
 go build -o bin/run-agent ./cmd/run-agent
+go build -o bin/conductor ./cmd/conductor
+# OR both at once:
+go build -o bin/conductor ./cmd/conductor && go build -o bin/run-agent ./cmd/run-agent
 ```
 
 ### Build with Race Detector (Development)
@@ -189,39 +193,92 @@ make check
 
 ---
 
-## Agent Runner Commands
+## run-agent Commands
 
-### Start Agent Run (via script)
-```bash
-./run-agent.sh <agent> <cwd> <prompt_file>
-```
+`run-agent` runs agent tasks locally (without a conductor server).
 
-Example:
-```bash
-./run-agent.sh claude /Users/jonnyzzz/Work/conductor-loop ./prompts/bootstrap-02.md
-```
+### Task ID Format
 
-### Start Agent Run (via CLI - when built)
+Task IDs must follow this format: `task-<YYYYMMDD>-<HHMMSS>-<slug>`
+
+Example: `task-20260220-190000-my-feature`
+
+Omit `--task` to get an auto-generated valid ID (printed to stderr).
+
+### run-agent task — Run a task with the Ralph loop
+
+Runs an agent in the "task" mode: the agent is restarted up to `--max-restarts` times if needed.
+
 ```bash
-bin/run-agent task start \
+./bin/run-agent task \
+  --project <project-id> \
   --agent claude \
   --cwd /path/to/project \
-  --prompt /path/to/prompt.md
+  --prompt-file /path/to/prompt.md \
+  --root ./runs
 ```
 
-### List Active Runs
-```bash
-bin/run-agent task list
+All flags:
+```
+--project string                project id (required)
+--task string                   task id (auto-generated if omitted)
+--agent string                  agent type (e.g. claude, codex, gemini)
+--config string                 config file path (auto-detected if omitted)
+--cwd string                    working directory for the agent
+--root string                   run-agent root directory
+--prompt string                 prompt text (inline)
+--prompt-file string            prompt file path
+--message-bus string            message bus path
+--max-restarts int              max restarts (0 = no restarts)
+--restart-delay duration        delay between restarts (default 1s)
+--child-wait-timeout duration   timeout waiting for child process
+--child-poll-interval duration  poll interval for child status
 ```
 
-### Get Run Status
+### run-agent job — Run a single agent job
+
+Runs one agent invocation (no restart loop).
+
 ```bash
-bin/run-agent task status <run_id>
+./bin/run-agent job \
+  --project <project-id> \
+  --agent claude \
+  --cwd /path/to/project \
+  --prompt-file /path/to/prompt.md \
+  --root ./runs
 ```
 
-### Stop Agent Run
+All flags:
+```
+--project string          project id (required)
+--task string             task id (auto-generated if omitted)
+--agent string            agent type
+--config string           config file path
+--cwd string              working directory
+--root string             run-agent root directory
+--prompt string           prompt text (inline)
+--prompt-file string      prompt file path
+--message-bus string      message bus path
+--parent-run-id string    parent run id (for nested spawning)
+--previous-run-id string  previous run id (for continuation)
+```
+
+### run-agent serve — Start the read-only HTTP server
+
+Starts an HTTP server exposing the runs API and web UI. Task execution is disabled (read-only monitoring).
+
 ```bash
-bin/run-agent task stop <run_id>
+./bin/run-agent serve \
+  --root ./runs \
+  --port 14355
+```
+
+All flags:
+```
+--host string    HTTP server host (default "127.0.0.1")
+--port int       HTTP server port (default 14355)
+--root string    run-agent root directory
+--config string  config file path
 ```
 
 ---
@@ -255,6 +312,167 @@ bin/run-agent bus read --tail 20
 
 # Follow mode (watch for new messages)
 bin/run-agent bus read --follow
+```
+
+---
+
+## Garbage Collection
+
+### Clean up old run directories
+
+```bash
+# Dry run: see what would be deleted
+./bin/run-agent gc --dry-run --root runs --older-than 168h
+
+# Delete runs older than 7 days (default)
+./bin/run-agent gc --root runs
+
+# Delete runs for a specific project only
+./bin/run-agent gc --root runs --project my-project
+
+# Keep runs that failed (non-zero exit code)
+./bin/run-agent gc --root runs --keep-failed
+```
+
+All flags:
+```
+--root string             root directory (default: ./runs or RUNS_DIR env)
+--older-than duration     delete runs older than this (default 168h = 7 days)
+--dry-run                 print what would be deleted without deleting
+--project string          limit gc to a specific project (optional)
+--keep-failed             keep runs with non-zero exit codes
+```
+
+---
+
+## Validate Configuration
+
+### Check config and agent availability
+
+```bash
+# Validate auto-detected config
+./bin/run-agent validate
+
+# Validate specific config file
+./bin/run-agent validate --config config.local.yaml
+
+# Validate only one agent
+./bin/run-agent validate --config config.local.yaml --agent claude
+
+# Also validate root directory is writable
+./bin/run-agent validate --root ./runs
+```
+
+All flags:
+```
+--config string   config file path (auto-detected if omitted)
+--root string     root directory to validate
+--agent string    validate only this agent (default: all)
+--check-network   run network connectivity test for REST agents
+```
+
+---
+
+## Conductor Server Commands
+
+`conductor` runs as an orchestration server with a REST API and web UI. It reads a config file, starts tasks, and stores runs on disk.
+
+### Start the conductor server
+
+```bash
+./bin/conductor --config config.local.yaml --root ./runs
+```
+
+Server flags:
+```
+--config string         config file path (auto-detected if omitted)
+--root string           run-agent root directory
+--disable-task-start    disable task execution (read-only mode)
+```
+
+Environment variables (alternative to flags):
+```
+CONDUCTOR_CONFIG              config file path
+CONDUCTOR_ROOT                root directory
+CONDUCTOR_DISABLE_TASK_START  set to "true" to disable task start
+```
+
+### conductor job submit — Submit a job to the server
+
+```bash
+./bin/conductor job submit \
+  --project my-project \
+  --task task-20260220-190000-my-task \
+  --agent claude \
+  --prompt "Implement the feature described in..." \
+  --server http://localhost:8080
+```
+
+All flags:
+```
+--server string         conductor server URL (default "http://localhost:8080")
+--project string        project ID (required)
+--task string           task ID (required)
+--agent string          agent type, e.g. claude (required)
+--prompt string         task prompt (required)
+--project-root string   working directory for the task
+--attach-mode string    attach mode: create, attach, or resume (default "create")
+--wait                  wait for task completion by polling run status
+--json                  output response as JSON
+```
+
+### conductor job list — List tasks on the server
+
+```bash
+./bin/conductor job list
+./bin/conductor job list --project my-project
+./bin/conductor job list --json
+```
+
+All flags:
+```
+--server string   conductor server URL (default "http://localhost:8080")
+--project string  filter by project ID
+--json            output response as JSON
+```
+
+### conductor task status — Get status of a task
+
+```bash
+./bin/conductor task status task-20260220-190000-my-task
+./bin/conductor task status task-20260220-190000-my-task --project my-project
+```
+
+All flags:
+```
+--server string   conductor server URL (default "http://localhost:8080")
+--project string  project ID
+--json            output response as JSON
+```
+
+---
+
+## Environment Variables
+
+### Injected into agent processes
+
+These variables are set automatically when `run-agent task` or `run-agent job` launches an agent:
+
+| Variable          | Description                                      |
+|-------------------|--------------------------------------------------|
+| `TASK_FOLDER`     | Absolute path to the task directory              |
+| `RUN_FOLDER`      | Absolute path to the current run directory       |
+| `JRUN_PROJECT_ID` | Project ID                                       |
+| `JRUN_TASK_ID`    | Task ID                                          |
+| `JRUN_ID`         | Run ID                                           |
+| `JRUN_PARENT_ID`  | Parent run ID (only set when spawned by another run) |
+| `RUNS_DIR`        | Root runs directory                              |
+| `MESSAGE_BUS`     | Absolute path to the task message bus file       |
+
+Agents can use `MESSAGE_BUS` directly with `run-agent bus` without specifying `--bus`:
+```bash
+run-agent bus post --type FACT --body "Tests passed: 42/42"
+run-agent bus read --tail 20
 ```
 
 ---
@@ -342,24 +560,29 @@ make test
 ```
 
 ### Configuration
-- Global config: `~/run-agent/config.hcl`
-- Create config directory if missing:
-  ```bash
-  mkdir -p ~/run-agent
-  ```
+
+Config files are auto-detected in this order:
+1. `./config.yaml` or `./config.yml` or `./config.hcl` (current directory)
+2. `~/.config/conductor/config.yaml` or `~/.config/conductor/config.yml` or `~/.config/conductor/config.hcl`
+
+Or specify explicitly with `--config config.local.yaml`.
+
+Both YAML (`.yaml`/`.yml`) and HCL (`.hcl`) formats are supported.
+
 - Config schema: See `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/subsystem-runner-orchestration-config-schema.md`
 
 ### API Tokens
-Store tokens in separate files for security:
-```hcl
-agent "claude" {
-  token_file = "~/.config/claude/token"
-}
-
-agent "gemini" {
-  token_file = "~/.config/gemini/token"
-}
+Tokens can be provided via environment variables or config. The `validate` command checks token availability:
+```bash
+./bin/run-agent validate --config config.local.yaml
 ```
+
+Token environment variables by agent:
+- Claude: `ANTHROPIC_API_KEY`
+- Codex: `OPENAI_API_KEY`
+- Gemini: `GEMINI_API_KEY`
+- Perplexity: `PERPLEXITY_API_KEY`
+- xAI: `XAI_API_KEY`
 
 ---
 
@@ -433,11 +656,8 @@ gh pr create --title "feat(messagebus): Add fsync for durability" --body "..."
 
 ### Enable Debug Logging
 ```bash
-# Set environment variable
-export CONDUCTOR_LOG_LEVEL=debug
-
 # Run with debug output
-./bin/run-agent task start --agent claude --cwd . --prompt prompt.md
+./bin/run-agent task --project my-project --agent claude --cwd . --prompt-file prompt.md
 ```
 
 ### Debug Specific Package
@@ -450,23 +670,22 @@ go test -race -v ./pkg/messagebus/
 ```
 
 ### Inspect Run Artifacts
+
+Run directories follow the path: `<root>/<project>/<task>/runs/<run_id>/`
+
 ```bash
 # Check run folder
-ls -la runs/run_20260204-230514-12345/
+ls -la runs/<project>/<task>/runs/<run_id>/
 
 # Read run metadata
-cat runs/run_20260204-230514-12345/run-info.yaml
+cat runs/<project>/<task>/runs/<run_id>/run-info.yaml
 
 # Read agent output
-cat runs/run_20260204-230514-12345/agent-stdout.txt
-cat runs/run_20260204-230514-12345/agent-stderr.txt
+cat runs/<project>/<task>/runs/<run_id>/agent-stdout.txt
+cat runs/<project>/<task>/runs/<run_id>/agent-stderr.txt
 
-# Read task state
-cat TASK_STATE.md
-
-# Read message bus
-cat TASK-MESSAGE-BUS.md
-cat PROJECT-MESSAGE-BUS.md
+# Read message bus (in task directory)
+cat runs/<project>/<task>/TASK-MESSAGE-BUS.md
 ```
 
 ### Profiling
@@ -492,14 +711,14 @@ go tool pprof mem.prof
 ### Tests Fail
 1. Check race detector: `go test -race ./...`
 2. Run specific failing test: `go test -v -run TestName ./pkg/...`
-3. Check file permissions on `~/run-agent/` directory
+3. Check file permissions on the runs directory
 4. Verify no leftover processes: `ps aux | grep run-agent`
 
 ### Agent Won't Start
 1. Check agent CLI is in PATH: `which claude` or `which codex`
-2. Verify token/token_file in config: `cat ~/run-agent/config.hcl`
+2. Validate config: `./bin/run-agent validate --config config.local.yaml`
 3. Check run directory permissions: `ls -la runs/`
-4. Review agent stderr: `cat runs/<run_id>/agent-stderr.txt`
+4. Review agent stderr: `cat runs/<project>/<task>/runs/<run_id>/agent-stderr.txt`
 
 ### Message Bus Issues
 1. Check file locks: `lsof | grep MESSAGE-BUS`

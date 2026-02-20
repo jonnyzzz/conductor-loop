@@ -22,7 +22,9 @@ const state = {
 
 let refreshTimer  = null;
 let sseSource     = null;
-let tabRefreshTimer = null;
+let tabSseSource  = null;
+let tabSseRunId   = null;
+let tabSseTab     = null;
 
 // ── API ──────────────────────────────────────────────────────────────────────
 
@@ -208,14 +210,31 @@ async function loadRunMeta() {
   }
 }
 
+function stopTabSSE() {
+  if (tabSseSource) {
+    tabSseSource.close();
+    tabSseSource = null;
+    tabSseRunId  = null;
+    tabSseTab    = null;
+  }
+}
+
 async function loadTabContent() {
   const tab = state.activeTab;
   const el  = document.getElementById('tab-content');
-  el.textContent = 'Loading…';
+
+  // If SSE is already streaming this exact run/tab, let it continue.
+  if (tabSseSource && tabSseRunId === state.selectedRun && tabSseTab === tab) {
+    return;
+  }
+
+  stopTabSSE();
 
   const prefix = runPrefix();
-  try {
-    if (tab === 'messages') {
+
+  if (tab === 'messages') {
+    el.textContent = 'Loading…';
+    try {
       const data = await apiFetch(
         `/api/v1/messages?project_id=${enc(state.selectedProject)}&task_id=${enc(state.selectedTask)}`
       );
@@ -229,25 +248,76 @@ async function loadTabContent() {
       } else {
         el.textContent = '(no messages)';
       }
-    } else {
-      const data = await apiFetch(
-        `${prefix}/runs/${enc(state.selectedRun)}/file?name=${enc(tab)}`
-      );
-      el.textContent = data.content || '(empty)';
+    } catch (e) {
+      el.textContent = (e.status === 404) ? `(${tab} not available)` : `Error: ${e.message}`;
     }
     el.scrollTop = el.scrollHeight;
-  } catch (e) {
-    el.textContent = (e.status === 404) ? `(${tab} not available)` : `Error: ${e.message}`;
+    return;
   }
 
-  // For running tasks: auto-refresh the active tab every 2 seconds.
-  clearTimeout(tabRefreshTimer);
-  if (tab !== 'messages') {
-    const run = state.taskRuns.find(r => r.id === state.selectedRun);
-    if (run && run.status === 'running') {
-      tabRefreshTimer = setTimeout(loadTabContent, 2000);
+  // File tab — check if the run is currently active.
+  const run = state.taskRuns.find(r => r.id === state.selectedRun);
+  const isRunning = run && run.status === 'running';
+
+  // Load current content via API for immediate display.
+  el.textContent = 'Loading…';
+  try {
+    const data = await apiFetch(
+      `${prefix}/runs/${enc(state.selectedRun)}/file?name=${enc(tab)}`
+    );
+    el.textContent = data.content || (isRunning ? '' : '(empty)');
+  } catch (e) {
+    if (e.status === 404 && isRunning) {
+      el.textContent = ''; // file not yet created — SSE will populate it
+    } else {
+      el.textContent = (e.status === 404) ? `(${tab} not available)` : `Error: ${e.message}`;
+      el.scrollTop = el.scrollHeight;
+      return;
     }
   }
+  el.scrollTop = el.scrollHeight;
+
+  if (!isRunning) return;
+
+  // Start SSE for live streaming of growing file content.
+  const sseUrl = `${API_BASE}${prefix}/runs/${enc(state.selectedRun)}/stream?name=${enc(tab)}`;
+  const source = new EventSource(sseUrl);
+  tabSseSource = source;
+  tabSseRunId  = state.selectedRun;
+  tabSseTab    = tab;
+  let sseFirst = true;
+
+  source.onmessage = (event) => {
+    if (sseFirst) {
+      // First message contains all file content from offset 0; replace
+      // the API snapshot to avoid drift if the file grew in between.
+      sseFirst = false;
+      el.textContent = event.data;
+    } else {
+      el.textContent += event.data;
+    }
+    el.scrollTop = el.scrollHeight;
+  };
+
+  source.addEventListener('done', () => {
+    source.close();
+    if (tabSseSource === source) {
+      tabSseSource = null;
+      tabSseRunId  = null;
+      tabSseTab    = null;
+    }
+    // Reload once via API to display the definitive final content.
+    loadTabContent();
+  });
+
+  source.onerror = () => {
+    if (tabSseSource !== source) return; // already superseded
+    source.close();
+    tabSseSource = null;
+    tabSseRunId  = null;
+    tabSseTab    = null;
+    el.textContent += '\n(stream ended or error)';
+  };
 }
 
 function switchTab(name) {
@@ -263,7 +333,7 @@ function showRunDetail() {
 }
 
 function hideRunDetail() {
-  clearTimeout(tabRefreshTimer);
+  stopTabSSE();
   document.getElementById('run-detail').classList.add('hidden');
 }
 
