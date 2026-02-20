@@ -134,6 +134,17 @@ func (s *Server) handleRuns(w http.ResponseWriter, r *http.Request) *apiError {
 	if err != nil {
 		return apiErrorInternal("list runs", err)
 	}
+	for _, extra := range s.extraRoots {
+		extraRuns, err := listRunResponsesFlat(extra)
+		if err != nil {
+			s.logger.Printf("warn: scan extra root %s: %v", extra, err)
+			continue
+		}
+		runs = append(runs, extraRuns...)
+	}
+	sort.Slice(runs, func(i, j int) bool {
+		return runs[i].RunID < runs[j].RunID
+	})
 	return writeJSON(w, http.StatusOK, map[string][]RunResponse{"runs": runs})
 }
 
@@ -749,6 +760,40 @@ func stopTaskRuns(taskPath string) (int, error) {
 		}
 	}
 	return stopped, nil
+}
+
+// listRunResponsesFlat scans a flat runs/ directory produced by run-agent.sh.
+// Each subdirectory may contain either run-info.yaml (conductor format) or
+// cwd.txt (run-agent.sh format); both are accepted.
+func listRunResponsesFlat(root string) ([]RunResponse, error) {
+	runsDir := filepath.Join(root, "runs")
+	entries, err := os.ReadDir(runsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []RunResponse{}, nil
+		}
+		return nil, errors.Wrap(err, "read runs dir")
+	}
+	var runs []RunResponse
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dir := filepath.Join(runsDir, entry.Name())
+		// prefer run-info.yaml
+		if info, err := storage.ReadRunInfo(filepath.Join(dir, "run-info.yaml")); err == nil {
+			runs = append(runs, runInfoToResponse(info))
+			continue
+		}
+		// fall back to cwd.txt
+		if info, err := storage.ParseCwdTxt(filepath.Join(dir, "cwd.txt")); err == nil {
+			runs = append(runs, runInfoToResponse(info))
+		}
+	}
+	sort.Slice(runs, func(i, j int) bool {
+		return runs[i].RunID < runs[j].RunID
+	})
+	return runs, nil
 }
 
 func listTaskRunInfos(taskPath string) ([]*storage.RunInfo, error) {

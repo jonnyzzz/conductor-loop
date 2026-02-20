@@ -20,6 +20,7 @@ import (
 // Options configures the REST API server.
 type Options struct {
 	RootDir          string
+	ExtraRoots       []string
 	ConfigPath       string
 	APIConfig        config.APIConfig
 	Version          string
@@ -32,6 +33,7 @@ type Options struct {
 type Server struct {
 	apiConfig  config.APIConfig
 	rootDir    string
+	extraRoots []string
 	configPath string
 	version    string
 	logger     *log.Logger
@@ -78,6 +80,7 @@ func NewServer(opts Options) (*Server, error) {
 	s := &Server{
 		apiConfig:  cfg,
 		rootDir:    rootDir,
+		extraRoots: opts.ExtraRoots,
 		configPath: strings.TrimSpace(opts.ConfigPath),
 		version:    version,
 		logger:     logger,

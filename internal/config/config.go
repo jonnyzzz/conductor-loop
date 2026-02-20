@@ -36,7 +36,8 @@ type DefaultConfig struct {
 
 // StorageConfig defines storage-related settings.
 type StorageConfig struct {
-	RunsDir string `yaml:"runs_dir"`
+	RunsDir    string   `yaml:"runs_dir"`
+	ExtraRoots []string `yaml:"extra_roots,omitempty"`
 }
 
 // LoadConfig loads and validates configuration from a YAML file.

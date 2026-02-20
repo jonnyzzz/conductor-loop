@@ -108,8 +108,14 @@ func runServer(configPath, rootDir string, disableTaskStart bool) error {
 		rootDir = strings.TrimSpace(cfg.Storage.RunsDir)
 	}
 
+	var extraRoots []string
+	if cfg != nil {
+		extraRoots = cfg.Storage.ExtraRoots
+	}
+
 	server, err := api.NewServer(api.Options{
 		RootDir:          rootDir,
+		ExtraRoots:       extraRoots,
 		ConfigPath:       configPath,
 		APIConfig:        apiConfig,
 		Version:          version,
