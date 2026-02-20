@@ -777,3 +777,88 @@ project_id: conductor-loop
 - ISSUE-016: Message bus file rotation (MEDIUM, deferred to 100MB threshold)
 - Other MEDIUM/LOW issues: ISSUE-011 through ISSUE-018 (planning/optimization)
 
+
+---
+msg_id: MSG-20260220-SESSION11-START
+ts: 2026-02-20T19:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 19:00:00] ==========================================
+[2026-02-20 19:00:00] SESSION #11: GC Command + Validate Config + Issues Cleanup
+[2026-02-20 19:00:00] ==========================================
+
+[2026-02-20 19:00:00] PROGRESS: Starting session #11 — read all required docs, assessed state
+[2026-02-20 19:00:00] FACT: go build ./... passes (binaries rebuilt: conductor 13MB, run-agent 13MB)
+[2026-02-20 19:00:00] FACT: go test ./... — all 18 packages green (inherited from session #10)
+[2026-02-20 19:00:00] FACT: Conductor server running (all endpoints healthy)
+[2026-02-20 19:00:00] DECISION: Session #11 focus: (1) ISSUE-015 run-agent gc command, (2) ISSUE-009 validate-config completion, (3) ISSUES.md accurate state update
+[2026-02-20 19:00:00] DECISION: All 3 tasks independent — launching 3 parallel sub-agents via bin/run-agent job
+
+[2026-02-20 19:05:00] PROGRESS: Launched 3 parallel sub-agents via bin/run-agent job (after fixing task ID format)
+[2026-02-20 19:05:00] FACT: Agent task-20260220-182400-gc-command: implementing run-agent gc command (ISSUE-015)
+[2026-02-20 19:05:00] FACT: Agent task-20260220-182401-validate: implementing run-agent validate command (ISSUE-009)
+[2026-02-20 19:05:00] FACT: Agent task-20260220-182402-issues-update: auditing ISSUES.md accuracy
+
+[2026-02-20 19:05:00] ERROR: Initial launch used invalid task IDs (session11-gc, session11-validate, session11-issues-update)
+[2026-02-20 19:05:00] ERROR: Task ID validation from session #8 enforces format task-<YYYYMMDD>-<HHMMSS>-<slug>
+[2026-02-20 19:05:00] DECISION: Dog-food lesson — root agent must use valid task ID format when calling bin/run-agent job
+
+[2026-02-20 19:30:00] FACT: Agent task-20260220-182402-issues-update COMPLETED (exit 0): ISSUE-021 formally documented, summary table updated, session #11 verification section added (commit 2792ec0)
+[2026-02-20 19:30:00] FACT: Agent task-20260220-182400-gc-command COMPLETED (exit 0): gc.go + gc_test.go written, all tests pass, 8 tests (commit 8e04144)
+
+[2026-02-20 19:35:00] PROGRESS: Validate agent still running (7:41+ elapsed, 450MB RAM) — waiting for completion
+[2026-02-20 19:35:00] FACT: Dog-food lesson: root orchestrator used invalid task IDs (session11-gc format). Task IDs must be task-<YYYYMMDD>-<HHMMSS>-<slug>
+[2026-02-20 19:35:00] FACT: CLI reference docs (docs/user/cli-reference.md) use outdated format "task_001" — stale, should be "task-20260220-182400-slug"
+[2026-02-20 19:35:00] DECISION: File new issue for CLI docs task ID format update — low priority docs bug
+
+[2026-02-20 19:45:00] FACT: Agent task-20260220-182401-validate COMPLETED (exit 0): validate.go + validate_test.go written (15 tests), all pass, committed (8797e0e)
+
+[2026-02-20 19:45:00] ==========================================
+[2026-02-20 19:45:00] SESSION #11 SUMMARY
+[2026-02-20 19:45:00] ==========================================
+
+## Completed Tasks (3 sub-agents via bin/run-agent job)
+
+### task-20260220-182400-gc-command (ISSUE-015)
+- run-agent gc command: --root, --older-than (168h default), --dry-run, --project, --keep-failed flags
+- Safety: never deletes running runs, skips missing run-info.yaml, only deletes completed/failed
+- 8 tests covering all safety cases, project filter, dry-run, summary output
+- gc.go + gc_test.go + main.go update
+- Committed: 8e04144
+
+### task-20260220-182402-issues-update (ISSUES.md accuracy)
+- Added formal ISSUE-021 entry (data race in Server.ListenAndServe, resolved session #8)
+- Updated summary table: HIGH resolved: 2→3
+- Added Session #11 verification section with code evidence for all open/partially-resolved issues
+- Committed: 2792ec0
+
+### task-20260220-182401-validate (ISSUE-009 completion)
+- run-agent validate command: --config, --root, --agent, --check-network flags
+- Checks: config discovery, CLI availability (exec.LookPath + DetectCLIVersion), token presence (ValidateToken), root dir writable
+- Output with ✓/✗ symbols and version numbers (e.g., "✓ claude 2.1.49 (CLI found, token: ANTHROPIC_API_KEY set)")
+- 15 unit tests, mock CLI scripts (no real agents needed)
+- Also fixed gc.go: errors.Is() for wrapped error compatibility
+- Committed: 8797e0e
+
+## Dog-Food Lesson
+- Initial task IDs "session11-gc" rejected by task ID validator (session #8 enforcement)
+- Root orchestrator must use valid format: task-<YYYYMMDD>-<HHMMSS>-<slug>
+- Can omit --task to get auto-generated ID
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (binaries 13MB each)
+- go test -count=1 ./... (18 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## Resolved Issues
+- ISSUE-015: RESOLVED — run-agent gc command implemented
+- ISSUE-009: RESOLVED — run-agent validate command implemented (+ ValidateToken was already there)
+
+## Current Issue Status
+- CRITICAL: 0 open, 0 partially resolved, 5 resolved (ISSUE-001, ISSUE-019, ISSUE-020 fully; ISSUE-002 ISSUE-004 in PARTIALLY)
+- Actually per session #11 issues update: all issues properly tracked in ISSUES.md
+- Remaining open: ISSUE-005 (runner bottleneck), ISSUE-006 (storage/bus dep - not a real bug)
+- MEDIUM/LOW: ISSUE-011 through ISSUE-018 (planning/optimization)
