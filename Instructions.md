@@ -387,6 +387,8 @@ Server flags:
 ```
 --config string         config file path (auto-detected if omitted)
 --root string           run-agent root directory
+--host string           HTTP listen host (default "0.0.0.0", overrides config)
+--port int              HTTP listen port (default 8080, overrides config)
 --disable-task-start    disable task execution (read-only mode)
 ```
 

@@ -19,6 +19,8 @@ conductor [command] [flags]
 |------|------|---------|-------------|
 | `--config` | string | "" | Path to config file |
 | `--root` | string | "" | Root directory for run-agent |
+| `--host` | string | "0.0.0.0" | HTTP listen host (overrides config) |
+| `--port` | int | 8080 | HTTP listen port (overrides config) |
 | `--disable-task-start` | bool | false | Disable task execution (API-only mode) |
 | `--version` | bool | false | Print version and exit |
 | `--help` | bool | false | Show help and exit |
@@ -54,6 +56,9 @@ conductor
 # Start with custom root directory
 conductor --config config.yaml --root /opt/conductor
 
+# Start on a custom port (overrides config file value)
+conductor --config config.yaml --port 9090
+
 # Start in API-only mode (no task execution)
 conductor --config config.yaml --disable-task-start
 
@@ -61,6 +66,8 @@ conductor --config config.yaml --disable-task-start
 conductor \
   --config /etc/conductor/config.yaml \
   --root /opt/conductor \
+  --host 127.0.0.1 \
+  --port 8080 \
   --disable-task-start
 ```
 
@@ -355,6 +362,41 @@ run-agent job \
 | 0 | Success |
 | 1 | Agent failed |
 | 2 | Configuration error |
+
+#### `run-agent serve`
+
+Start a read-only HTTP server exposing the runs API and web UI. Task execution is disabled.
+Useful for monitoring runs without a running conductor server.
+
+```bash
+run-agent serve --root ./runs
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--host` | string | "127.0.0.1" | HTTP server host |
+| `--port` | int | 14355 | HTTP server port |
+| `--root` | string | "" | Root directory |
+| `--config` | string | "" | Config file path |
+
+**Examples:**
+
+```bash
+# Start on default port 14355
+run-agent serve --root ./runs
+
+# Start on custom port
+run-agent serve --root ./runs --port 8090
+
+# Listen on all interfaces
+run-agent serve --root ./runs --host 0.0.0.0 --port 14355
+```
+
+**Note:** When opening the web UI via `file://`, the `API_BASE` in `web/src/app.js` defaults to
+`http://localhost:8080` (conductor's port). If using `run-agent serve`, either open the UI
+through the server at `http://127.0.0.1:14355/ui/` or update `API_BASE` manually.
 
 #### `run-agent version`
 

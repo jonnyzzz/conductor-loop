@@ -31,6 +31,8 @@ func newRootCmd() *cobra.Command {
 		configPath       string
 		rootDir          string
 		disableTaskStart bool
+		host             string
+		port             int
 	)
 
 	cmd := &cobra.Command{
@@ -39,7 +41,17 @@ func newRootCmd() *cobra.Command {
 		Version:      version,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runServer(configPath, rootDir, disableTaskStart)
+			// Pass non-zero values only when the flag was explicitly set,
+			// so that config file values take precedence over flag defaults.
+			cliHost := ""
+			cliPort := 0
+			if cmd.Flags().Changed("host") {
+				cliHost = host
+			}
+			if cmd.Flags().Changed("port") {
+				cliPort = port
+			}
+			return runServer(configPath, rootDir, disableTaskStart, cliHost, cliPort)
 		},
 	}
 	cmd.SetVersionTemplate("{{.Version}}\n")
@@ -47,6 +59,8 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&configPath, "config", "", "config file path")
 	cmd.Flags().StringVar(&rootDir, "root", "", "run-agent root directory")
 	cmd.Flags().BoolVar(&disableTaskStart, "disable-task-start", false, "disable task execution")
+	cmd.Flags().StringVar(&host, "host", "0.0.0.0", "HTTP listen host (overrides config)")
+	cmd.Flags().IntVar(&port, "port", 8080, "HTTP listen port (overrides config)")
 
 	cmd.AddCommand(newTaskCmd())
 	cmd.AddCommand(newJobCmd())
@@ -55,7 +69,7 @@ func newRootCmd() *cobra.Command {
 }
 
 
-func runServer(configPath, rootDir string, disableTaskStart bool) error {
+func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string, cliPort int) error {
 	logger := log.New(os.Stdout, "conductor ", log.LstdFlags)
 
 	configPath = strings.TrimSpace(configPath)
@@ -100,6 +114,14 @@ func runServer(configPath, rootDir string, disableTaskStart bool) error {
 
 	if rootDir == "" && cfg != nil {
 		rootDir = strings.TrimSpace(cfg.Storage.RunsDir)
+	}
+
+	// CLI flags override config file values when explicitly provided.
+	if cliHost != "" {
+		apiConfig.Host = cliHost
+	}
+	if cliPort != 0 {
+		apiConfig.Port = cliPort
 	}
 
 	var extraRoots []string
