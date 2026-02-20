@@ -87,37 +87,29 @@ Create a task that prints "Hello World":
 curl -X POST http://localhost:8080/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
-    "agent": "codex",
+    "project_id": "my-project",
+    "task_id": "task-20260205-100000-hello-world",
+    "agent_type": "codex",
     "prompt": "Write a Python script that prints Hello World",
-    "working_dir": "/tmp"
+    "project_root": "/tmp"
   }'
 
 # Response:
 # {
-#   "run_id": "run_20260205_100001_abc123",
-#   "status": "created",
-#   "message": "Task created successfully"
+#   "project_id": "my-project",
+#   "task_id": "task-20260205-100000-hello-world",
+#   "status": "created"
 # }
 ```
 
-Save the `run_id` from the response - you'll need it to check status and view logs.
+Use the `task_id` from the response to monitor the task.
 
 ### Check Task Status
 
 ```bash
-# Replace RUN_ID with your actual run ID
-RUN_ID="run_20260205_100001_abc123"
+curl "http://localhost:8080/api/projects/my-project/tasks/task-20260205-100000-hello-world"
 
-curl http://localhost:8080/api/v1/runs/$RUN_ID
-
-# Response:
-# {
-#   "run_id": "run_20260205_100001_abc123",
-#   "status": "running",
-#   "agent": "codex",
-#   "start_time": "2026-02-05T10:00:01Z",
-#   "working_dir": "/tmp"
-# }
+# Response includes the list of runs with their statuses.
 ```
 
 Status values:
@@ -129,38 +121,31 @@ Status values:
 
 ### View Task Logs
 
-Stream the live logs:
+Stream the live logs for all runs of a task (SSE):
 
 ```bash
-# Stream logs with curl (SSE)
-curl -N http://localhost:8080/api/v1/runs/$RUN_ID/stream
+curl -N "http://localhost:8080/api/projects/my-project/tasks/task-20260205-100000-hello-world/runs/stream"
 
 # Output (Server-Sent Events):
-# data: {"type":"log","timestamp":"2026-02-05T10:00:01Z","line":"Starting task..."}
-# data: {"type":"log","timestamp":"2026-02-05T10:00:02Z","line":"Agent: codex"}
-# data: {"type":"log","timestamp":"2026-02-05T10:00:03Z","line":"Executing prompt..."}
+# data: Starting task...
+# data: Agent: codex
+# data: Executing prompt...
 # ...
 ```
 
-## Step 5: List All Runs
-
-See all your task executions:
+Or stream a specific run file:
 
 ```bash
-curl http://localhost:8080/api/v1/runs
+RUN_ID="20260205-1000000000-12345"
+curl -N "http://localhost:8080/api/projects/my-project/tasks/task-20260205-100000-hello-world/runs/$RUN_ID/stream?name=output.md"
+```
 
-# Response:
-# {
-#   "runs": [
-#     {
-#       "run_id": "run_20260205_100001_abc123",
-#       "status": "success",
-#       "agent": "codex",
-#       "start_time": "2026-02-05T10:00:01Z",
-#       "end_time": "2026-02-05T10:00:45Z"
-#     }
-#   ]
-# }
+## Step 5: List All Tasks
+
+See all tasks in a project:
+
+```bash
+curl http://localhost:8080/api/projects/my-project/tasks
 ```
 
 ## Step 6: Use the Web UI
@@ -169,12 +154,12 @@ Open the web UI in your browser:
 
 ```bash
 # Open in browser (macOS)
-open http://localhost:8080
+open http://localhost:8080/ui/
 
 # Linux
-xdg-open http://localhost:8080
+xdg-open http://localhost:8080/ui/
 
-# Or just navigate to: http://localhost:8080
+# Or just navigate to: http://localhost:8080/ui/
 ```
 
 The web UI provides:
@@ -214,9 +199,11 @@ Restart the server and run a task:
 curl -X POST http://localhost:8080/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
-    "agent": "claude",
+    "project_id": "my-project",
+    "task_id": "task-20260205-110000-ralph-explain",
+    "agent_type": "claude",
     "prompt": "Explain what the Ralph Loop is in one paragraph",
-    "working_dir": "/tmp"
+    "project_root": "/tmp"
   }'
 ```
 
@@ -240,9 +227,11 @@ The agent can create child tasks by writing to the message bus:
 curl -X POST http://localhost:8080/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
-    "agent": "codex",
+    "project_id": "my-project",
+    "task_id": "task-20260205-120000-build-project",
+    "agent_type": "codex",
     "prompt": "Create a Python project with multiple files, using child tasks for each file",
-    "working_dir": "/tmp/myproject"
+    "project_root": "/tmp/myproject"
   }'
 ```
 
@@ -264,17 +253,17 @@ The **Ralph Loop** is Conductor Loop's automatic restart mechanism. When you run
 4. Restarts on failure (up to max_restarts)
 5. Exits with the final status
 
-Example with explicit restart settings:
+Example with explicit restart settings via `run-agent task --max-restarts 3`:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent": "codex",
-    "prompt": "Run a flaky test that might fail",
-    "working_dir": "/tmp",
-    "max_restarts": 3
-  }'
+./bin/run-agent task \
+  --project my-project \
+  --task task-20260205-130000-flaky-test \
+  --root ./runs \
+  --config config.yaml \
+  --agent codex \
+  --prompt "Run a flaky test that might fail" \
+  --max-restarts 3
 ```
 
 If the task fails, it will restart up to 3 times before giving up.
@@ -284,24 +273,14 @@ If the task fails, it will restart up to 3 times before giving up.
 The message bus enables cross-task communication:
 
 ```bash
-# View all messages
-curl http://localhost:8080/api/v1/messages
+# View all messages for a project
+curl "http://localhost:8080/api/v1/messages?project_id=my-project"
 
-# Response:
-# {
-#   "messages": [
-#     {
-#       "timestamp": "2026-02-05T10:00:01Z",
-#       "run_id": "run_20260205_100001_abc123",
-#       "type": "task_start",
-#       "data": {"agent": "codex", "prompt": "..."}
-#     },
-#     ...
-#   ]
-# }
+# Stream project messages in real-time (SSE)
+curl -N "http://localhost:8080/api/v1/messages/stream?project_id=my-project"
 
-# Stream messages in real-time (SSE)
-curl -N http://localhost:8080/api/v1/messages/stream
+# Stream task-level messages
+curl -N "http://localhost:8080/api/projects/my-project/tasks/task-20260205-100000-hello-world/messages/stream"
 ```
 
 Tasks can write to the message bus for coordination:
@@ -318,9 +297,11 @@ Tasks can write to the message bus for coordination:
 curl -X POST http://localhost:8080/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
-    "agent": "codex",
+    "project_id": "my-project",
+    "task_id": "task-20260205-140000-code-gen",
+    "agent_type": "codex",
     "prompt": "Create a REST API server in Go with /health and /users endpoints",
-    "working_dir": "/tmp/myapi"
+    "project_root": "/tmp/myapi"
   }'
 ```
 
@@ -330,9 +311,11 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 curl -X POST http://localhost:8080/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
-    "agent": "claude",
+    "project_id": "my-project",
+    "task_id": "task-20260205-141500-code-review",
+    "agent_type": "claude",
     "prompt": "Review the code in ./src and provide feedback on best practices",
-    "working_dir": "/path/to/project"
+    "project_root": "/path/to/project"
   }'
 ```
 
@@ -342,9 +325,11 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 curl -X POST http://localhost:8080/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
-    "agent": "codex",
+    "project_id": "my-project",
+    "task_id": "task-20260205-143000-workflow",
+    "agent_type": "codex",
     "prompt": "1. Clone github.com/example/repo 2. Run tests 3. Generate coverage report 4. Create a summary",
-    "working_dir": "/tmp/workflow"
+    "project_root": "/tmp/workflow"
   }'
 ```
 

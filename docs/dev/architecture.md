@@ -25,12 +25,13 @@ Conductor Loop is an AI agent orchestration system that manages multi-agent work
 - **Process Orchestration**: Automated restart loops for resilient task execution
 - **Message Bus**: Append-only event log for task coordination
 - **REST API + SSE**: Real-time task monitoring and control
-- **Web UI**: Plain HTML/CSS/JS dashboard for task management
+- **Web UI**: React 18 + TypeScript dashboard (primary); plain HTML/CSS/JS fallback
 
 **Key Statistics:**
 - Backend: 11,276 lines of Go code
 - 64 test files
-- Frontend: Vanilla JavaScript (no framework, no build step)
+- Frontend (primary): React 18 + TypeScript (`frontend/`, requires `npm run build`)
+- Frontend (fallback): Vanilla JavaScript, no build step (`web/src/`)
 - Minimal dependencies (Cobra, YAML v3, pkg/errors)
 
 ---
@@ -399,7 +400,7 @@ cd frontend && npm install && npm run build
 {storage_root}/
 ├── {project_id}/
 │   ├── {task_id}/
-│   │   ├── TASK_STATE.md           # Task metadata and state
+│   │   ├── TASK.md                 # Task prompt and metadata
 │   │   ├── DONE                    # Completion marker
 │   │   ├── messagebus.yaml         # Task message bus
 │   │   └── runs/

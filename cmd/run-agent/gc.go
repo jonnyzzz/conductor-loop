@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
@@ -18,6 +19,8 @@ func newGCCmd() *cobra.Command {
 		dryRun     bool
 		project    string
 		keepFailed bool
+		rotateBus  bool
+		busMaxSize string
 	)
 
 	cmd := &cobra.Command{
@@ -31,7 +34,11 @@ func newGCCmd() *cobra.Command {
 					root = "./runs"
 				}
 			}
-			return runGC(root, project, olderThan, dryRun, keepFailed)
+			maxBytes, err := parseSizeBytes(busMaxSize)
+			if err != nil {
+				return fmt.Errorf("invalid --bus-max-size %q: %w", busMaxSize, err)
+			}
+			return runGC(root, project, olderThan, dryRun, keepFailed, rotateBus, maxBytes)
 		},
 	}
 
@@ -40,11 +47,13 @@ func newGCCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print what would be deleted without deleting")
 	cmd.Flags().StringVar(&project, "project", "", "limit gc to a specific project (optional)")
 	cmd.Flags().BoolVar(&keepFailed, "keep-failed", false, "keep runs with non-zero exit codes")
+	cmd.Flags().BoolVar(&rotateBus, "rotate-bus", false, "rotate message bus files that exceed --bus-max-size")
+	cmd.Flags().StringVar(&busMaxSize, "bus-max-size", "10MB", "size threshold for bus file rotation (e.g. 10MB, 5MB, 100KB)")
 
 	return cmd
 }
 
-func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed bool) error {
+func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed bool, rotateBus bool, busMaxBytes int64) error {
 	cutoff := time.Now().Add(-olderThan)
 
 	projects, err := listProjectDirs(root, project)
@@ -55,6 +64,7 @@ func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed boo
 	var (
 		deletedCount int
 		freedBytes   int64
+		rotatedCount int
 	)
 
 	for _, proj := range projects {
@@ -64,11 +74,35 @@ func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed boo
 			return fmt.Errorf("read project directory %s: %w", projDir, err)
 		}
 
+		// Rotate project-level bus file if requested
+		if rotateBus {
+			projBus := filepath.Join(projDir, "PROJECT-MESSAGE-BUS.md")
+			rotated, err := rotateBusFile(projBus, busMaxBytes, dryRun)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: rotate %s: %v\n", projBus, err)
+			} else if rotated {
+				rotatedCount++
+			}
+		}
+
 		for _, taskEntry := range taskEntries {
 			if !taskEntry.IsDir() {
 				continue
 			}
-			runsDir := filepath.Join(projDir, taskEntry.Name(), "runs")
+			taskDir := filepath.Join(projDir, taskEntry.Name())
+
+			// Rotate task-level bus file if requested
+			if rotateBus {
+				taskBus := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
+				rotated, err := rotateBusFile(taskBus, busMaxBytes, dryRun)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "warning: rotate %s: %v\n", taskBus, err)
+				} else if rotated {
+					rotatedCount++
+				}
+			}
+
+			runsDir := filepath.Join(taskDir, "runs")
 			runEntries, err := os.ReadDir(runsDir)
 			if err != nil {
 				if errors.Is(err, os.ErrNotExist) {
@@ -100,7 +134,88 @@ func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed boo
 		action = "Would delete"
 	}
 	fmt.Printf("%s %d runs, freed %.1f MB\n", action, deletedCount, float64(freedBytes)/(1024*1024))
+
+	if rotateBus && rotatedCount > 0 {
+		rotateAction := "Rotated"
+		if dryRun {
+			rotateAction = "Would rotate"
+		}
+		fmt.Printf("%s %d message bus file(s)\n", rotateAction, rotatedCount)
+	}
+
 	return nil
+}
+
+// rotateBusFile renames busPath to busPath.<YYYYMMDD-HHMMSS>.archived if it exceeds maxBytes.
+// Returns true if the file was rotated (or would be in dry-run mode).
+func rotateBusFile(busPath string, maxBytes int64, dryRun bool) (bool, error) {
+	info, err := os.Stat(busPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	if info.Size() <= maxBytes {
+		return false, nil
+	}
+
+	timestamp := time.Now().Format("20060102-150405")
+	archivedPath := busPath + "." + timestamp + ".archived"
+
+	sizeMB := float64(info.Size()) / (1024 * 1024)
+	baseName := filepath.Base(busPath)
+
+	if dryRun {
+		fmt.Printf("[dry-run] would rotate %s (%.1f MB → archived)\n", baseName, sizeMB)
+		return true, nil
+	}
+
+	if err := os.Rename(busPath, archivedPath); err != nil {
+		return false, fmt.Errorf("rename %s: %w", busPath, err)
+	}
+	fmt.Printf("Rotated %s (%.1f MB → archived)\n", baseName, sizeMB)
+	return true, nil
+}
+
+// parseSizeBytes parses a human-readable size string like "10MB", "5MB", "100KB", "1GB" into bytes.
+func parseSizeBytes(s string) (int64, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("empty size string")
+	}
+
+	upper := strings.ToUpper(s)
+	var multiplier int64
+	var numStr string
+
+	switch {
+	case strings.HasSuffix(upper, "GB"):
+		multiplier = 1024 * 1024 * 1024
+		numStr = s[:len(s)-2]
+	case strings.HasSuffix(upper, "MB"):
+		multiplier = 1024 * 1024
+		numStr = s[:len(s)-2]
+	case strings.HasSuffix(upper, "KB"):
+		multiplier = 1024
+		numStr = s[:len(s)-2]
+	case strings.HasSuffix(upper, "B"):
+		multiplier = 1
+		numStr = s[:len(s)-1]
+	default:
+		// treat as plain bytes
+		multiplier = 1
+		numStr = s
+	}
+
+	var n int64
+	if _, err := fmt.Sscanf(strings.TrimSpace(numStr), "%d", &n); err != nil {
+		return 0, fmt.Errorf("cannot parse number from %q", s)
+	}
+	if n < 0 {
+		return 0, fmt.Errorf("size must be non-negative")
+	}
+	return n * multiplier, nil
 }
 
 func listProjectDirs(root, project string) ([]string, error) {

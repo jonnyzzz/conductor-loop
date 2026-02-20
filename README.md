@@ -45,7 +45,7 @@ EOF
 ./conductor --config config.yaml --root $(pwd)
 
 # 4. Open the web UI
-open http://localhost:8080
+open http://localhost:8080/ui/
 ```
 
 See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
@@ -55,7 +55,7 @@ See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                         Web UI (React)                       │
-│                    http://localhost:3000                     │
+│                  http://localhost:8080/ui/                   │
 └─────────────────────────┬───────────────────────────────────┘
                           │ REST API + SSE
 ┌─────────────────────────▼───────────────────────────────────┐

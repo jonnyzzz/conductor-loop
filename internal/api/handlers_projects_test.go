@@ -600,6 +600,176 @@ func TestTaskRunsStream_NotFound(t *testing.T) {
 	}
 }
 
+func TestProjectStats_NotFound(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	url := "/api/projects/nonexistent/stats"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for non-existent project, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProjectStats_MethodNotAllowed(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	// Create the project directory so it's found
+	if err := os.MkdirAll(filepath.Join(root, "myproject"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	url := "/api/projects/myproject/stats"
+	req := httptest.NewRequest(http.MethodPost, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProjectStats_WithTasksAndRuns(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	projectID := "stats-project"
+
+	// Create 2 tasks with runs of different statuses
+	makeProjectRun(t, root, projectID, "task-20260101-120000-aaa", "run-1", storage.StatusCompleted, "done")
+	makeProjectRun(t, root, projectID, "task-20260101-120000-aaa", "run-2", storage.StatusFailed, "fail")
+	makeProjectRun(t, root, projectID, "task-20260101-130000-bbb", "run-1", storage.StatusRunning, "go")
+
+	// Write a task message bus file
+	busPath := filepath.Join(root, projectID, "task-20260101-120000-aaa", "TASK-MESSAGE-BUS.md")
+	if err := os.WriteFile(busPath, []byte("bus content here"), 0o644); err != nil {
+		t.Fatalf("write bus: %v", err)
+	}
+
+	// Write a project-level message bus file
+	projBusPath := filepath.Join(root, projectID, "PROJECT-MESSAGE-BUS.md")
+	if err := os.WriteFile(projBusPath, []byte("project bus"), 0o644); err != nil {
+		t.Fatalf("write project bus: %v", err)
+	}
+
+	url := "/api/projects/" + projectID + "/stats"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	checkInt := func(key string, want int) {
+		t.Helper()
+		val, ok := resp[key]
+		if !ok {
+			t.Errorf("missing key %q", key)
+			return
+		}
+		got := int(val.(float64))
+		if got != want {
+			t.Errorf("key %q: got %d, want %d", key, got, want)
+		}
+	}
+
+	if resp["project_id"] != projectID {
+		t.Errorf("expected project_id=%q, got %v", projectID, resp["project_id"])
+	}
+	checkInt("total_tasks", 2)
+	checkInt("total_runs", 3)
+	checkInt("running_runs", 1)
+	checkInt("completed_runs", 1)
+	checkInt("failed_runs", 1)
+	checkInt("crashed_runs", 0)
+	checkInt("message_bus_files", 2)
+}
+
+func TestProjectStats_EmptyProject(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	projectID := "empty-project"
+	if err := os.MkdirAll(filepath.Join(root, projectID), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	url := "/api/projects/" + projectID + "/stats"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["project_id"] != projectID {
+		t.Errorf("expected project_id=%q, got %v", projectID, resp["project_id"])
+	}
+	for _, key := range []string{"total_tasks", "total_runs", "running_runs", "completed_runs", "failed_runs", "crashed_runs", "message_bus_files"} {
+		if val, ok := resp[key]; !ok || int(val.(float64)) != 0 {
+			t.Errorf("expected %q=0, got %v", key, val)
+		}
+	}
+}
+
+func TestProjectStats_NonTaskDirsNotCounted(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	projectID := "mixed-project"
+
+	// Create a real task with a run
+	makeProjectRun(t, root, projectID, "task-20260101-120000-real", "run-1", storage.StatusCompleted, "ok")
+
+	// Create a directory that does NOT match the task ID format
+	if err := os.MkdirAll(filepath.Join(root, projectID, "notask"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	url := "/api/projects/" + projectID + "/stats"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	// Only the valid task ID should be counted
+	if got := int(resp["total_tasks"].(float64)); got != 1 {
+		t.Errorf("expected total_tasks=1, got %d", got)
+	}
+	// But runs under "notask" should still be counted
+	if got := int(resp["total_runs"].(float64)); got != 1 {
+		t.Errorf("expected total_runs=1, got %d", got)
+	}
+}
+
 func TestTaskMessages_StreamMethodNotAllowed(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})

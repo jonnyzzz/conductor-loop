@@ -1,16 +1,16 @@
 # Web UI Guide
 
-Conductor Loop includes a web UI for monitoring and managing tasks, viewing logs in real-time, and visualizing the message bus. The UI is served as a static HTML/JavaScript page (no framework dependency) from `web/src/index.html`.
+Conductor Loop includes a web UI for monitoring and managing tasks, viewing logs in real-time, and visualizing the message bus. The primary UI is a React 18 + TypeScript app built in `frontend/` and served from `frontend/dist/`. When `frontend/dist/` is not present, the server falls back to the plain HTML/JS UI at `web/src/`.
 
 ## Accessing the Web UI
 
 ### Default URL
 
 ```
-http://localhost:8080
+http://localhost:8080/ui/
 ```
 
-The web UI is served by the conductor server on the same port as the API.
+The web UI is served by the conductor server at the `/ui/` path on the same port as the API.
 
 ### Configuration
 
@@ -26,13 +26,13 @@ api:
 
 ```bash
 # macOS
-open http://localhost:8080
+open http://localhost:8080/ui/
 
 # Linux
-xdg-open http://localhost:8080
+xdg-open http://localhost:8080/ui/
 
 # Windows
-start http://localhost:8080
+start http://localhost:8080/ui/
 
 # Or open in your browser
 # Chrome, Firefox, Safari, Edge
@@ -390,7 +390,7 @@ Access via the settings icon (⚙️) in the top-right corner.
 **Problem**: No tasks showing despite tasks existing
 
 **Solutions:**
-1. Check that tasks exist via API: `curl http://localhost:8080/api/v1/tasks`
+1. Check that tasks exist via API: `curl http://localhost:8080/api/projects`
 2. Check browser console for errors
 3. Verify runs_dir is correctly configured
 4. Refresh the page
@@ -423,16 +423,16 @@ Access via the settings icon (⚙️) in the top-right corner.
 For frontend development:
 
 ```bash
-# Start backend
-conductor --config config.yaml
+# Start backend (built React UI served at http://localhost:8080/ui/)
+./bin/conductor --config config.yaml
 
-# Start frontend dev server (in frontend/)
+# Or start Vite dev server for hot-reload development (in frontend/)
 cd frontend
 npm install
 npm run dev
 
-# Frontend: http://localhost:3000
-# Backend: http://localhost:8080
+# Vite dev server: http://localhost:5173
+# Backend API: http://localhost:8080
 ```
 
 Configure CORS for development:

@@ -58,6 +58,10 @@ func (s *Server) handleProjectsRouter(w http.ResponseWriter, r *http.Request) *a
 	if len(parts) == 1 {
 		return s.handleProjectDetail(w, r)
 	}
+	// /api/projects/{id}/stats
+	if parts[1] == "stats" {
+		return s.handleProjectStats(w, r)
+	}
 	// /api/projects/{id}/tasks[/...]
 	if parts[1] == "tasks" {
 		if len(parts) == 2 {
@@ -775,6 +779,131 @@ func (s *Server) streamTaskRuns(w http.ResponseWriter, r *http.Request, projectI
 			}
 		}
 	}
+}
+
+// projectStats holds operational statistics for a project.
+type projectStats struct {
+	ProjectID            string `json:"project_id"`
+	TotalTasks           int    `json:"total_tasks"`
+	TotalRuns            int    `json:"total_runs"`
+	RunningRuns          int    `json:"running_runs"`
+	CompletedRuns        int    `json:"completed_runs"`
+	FailedRuns           int    `json:"failed_runs"`
+	CrashedRuns          int    `json:"crashed_runs"`
+	MessageBusFiles      int    `json:"message_bus_files"`
+	MessageBusTotalBytes int64  `json:"message_bus_total_bytes"`
+}
+
+// handleProjectStats serves GET /api/projects/{p}/stats.
+// It walks the project directory and returns run/task/bus counts.
+func (s *Server) handleProjectStats(w http.ResponseWriter, r *http.Request) *apiError {
+	if r.Method != http.MethodGet {
+		return apiErrorMethodNotAllowed()
+	}
+	parts := splitPath(r.URL.Path, "/api/projects/")
+	if len(parts) < 2 || parts[1] != "stats" {
+		return apiErrorNotFound("not found")
+	}
+	projectID := parts[0]
+
+	projectDir := filepath.Join(s.rootDir, projectID)
+	entries, err := os.ReadDir(projectDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return apiErrorNotFound("project not found")
+		}
+		return apiErrorInternal("read project dir", err)
+	}
+
+	stats := projectStats{ProjectID: projectID}
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.IsDir() {
+			// Count project-level message bus files (e.g. PROJECT-MESSAGE-BUS.md)
+			if strings.HasSuffix(name, "MESSAGE-BUS.md") {
+				stats.MessageBusFiles++
+				if fi, infoErr := entry.Info(); infoErr == nil {
+					stats.MessageBusTotalBytes += fi.Size()
+				}
+			}
+			continue
+		}
+
+		// Subdirectory: check if it's a valid task ID
+		if isTaskID(name) {
+			stats.TotalTasks++
+		}
+
+		taskDir := filepath.Join(projectDir, name)
+
+		// Count task-level message bus files (e.g. TASK-MESSAGE-BUS.md)
+		taskEntries, readErr := os.ReadDir(taskDir)
+		if readErr == nil {
+			for _, te := range taskEntries {
+				if !te.IsDir() && strings.HasSuffix(te.Name(), "MESSAGE-BUS.md") {
+					stats.MessageBusFiles++
+					if fi, infoErr := te.Info(); infoErr == nil {
+						stats.MessageBusTotalBytes += fi.Size()
+					}
+				}
+			}
+		}
+
+		// Count runs under <taskDir>/runs/
+		runsDir := filepath.Join(taskDir, "runs")
+		runEntries, err := os.ReadDir(runsDir)
+		if err != nil {
+			continue // no runs directory or unreadable
+		}
+		for _, runEntry := range runEntries {
+			if !runEntry.IsDir() {
+				continue
+			}
+			stats.TotalRuns++
+			runInfoPath := filepath.Join(runsDir, runEntry.Name(), "run-info.yaml")
+			runInfo, err := storage.ReadRunInfo(runInfoPath)
+			if err != nil {
+				continue
+			}
+			switch runInfo.Status {
+			case storage.StatusRunning:
+				stats.RunningRuns++
+			case storage.StatusCompleted:
+				stats.CompletedRuns++
+			case storage.StatusFailed:
+				stats.FailedRuns++
+			default:
+				stats.CrashedRuns++
+			}
+		}
+	}
+
+	return writeJSON(w, http.StatusOK, stats)
+}
+
+// isTaskID reports whether name matches the task ID format: task-YYYYMMDD-HHMMSS-slug.
+func isTaskID(name string) bool {
+	if !strings.HasPrefix(name, "task-") {
+		return false
+	}
+	rest := name[5:]
+	if len(rest) < 17 { // 8 + 1 + 6 + 1 + at least 1 for slug
+		return false
+	}
+	for i := 0; i < 8; i++ {
+		if rest[i] < '0' || rest[i] > '9' {
+			return false
+		}
+	}
+	if rest[8] != '-' {
+		return false
+	}
+	for i := 9; i < 15; i++ {
+		if rest[i] < '0' || rest[i] > '9' {
+			return false
+		}
+	}
+	return rest[15] == '-' && len(rest) > 16
 }
 
 // splitPath splits a URL path after trimming the given prefix, returning path segments.
