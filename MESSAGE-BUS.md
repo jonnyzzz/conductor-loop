@@ -1222,3 +1222,85 @@ project_id: conductor-loop
 - HIGH: 0 open (all resolved or deferred)
 - MEDIUM: 6 open (planning notes, mostly moot)
 - LOW: 2 open
+
+---
+msg_id: MSG-20260220-SESSION16-START
+ts: 2026-02-20T22:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 22:00:00] ==========================================
+[2026-02-20 22:00:00] SESSION #16: Web UI SSE Streaming + stop command + Instructions Docs
+[2026-02-20 22:00:00] ==========================================
+
+[2026-02-20 22:00:00] PROGRESS: Starting session #16 — read all required docs, assessed state
+[2026-02-20 22:00:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-20 22:00:00] FACT: go test ./... — ALL 18 packages green (inherited from session #15)
+[2026-02-20 22:00:00] FACT: All CRITICAL/HIGH issues resolved, all QUESTIONS.md answered
+[2026-02-20 22:00:00] DECISION: Session #16 focus:
+[2026-02-20 22:00:00]   (1) Web UI: Replace 2s tab-content polling with SSE streaming (use Session #15's new endpoint)
+[2026-02-20 22:00:00]   (2) run-agent stop command (Q4 in runner-orchestration-QUESTIONS.md says "yes, implement stop")
+[2026-02-20 22:00:00]   (3) Instructions.md update: reflect all commands added in sessions #11-#15
+[2026-02-20 22:00:00] DECISION: Launching 3 parallel sub-agents via bin/run-agent job
+
+[2026-02-20 22:30:00] PROGRESS: All 3 parallel agents completed
+[2026-02-20 22:30:00] FACT: Agent task-20260220-195540-q6qdvm (webui-sse): claude, exit 0, output.md written
+[2026-02-20 22:30:00] FACT: Agent task-20260220-195544-v4s8tx (stop-command): claude, exit 0, output.md written
+[2026-02-20 22:30:00] FACT: Agent task-20260220-195548-nd0o23 (instructions-update): claude, exit 0, output.md written
+[2026-02-20 22:30:00] QUALITY: go build ./... PASS
+[2026-02-20 22:30:00] QUALITY: go test ./... (18 packages) ALL PASS
+[2026-02-20 22:30:00] QUALITY: go test -race ./internal/... ./cmd/... PASS (no data races)
+[2026-02-20 22:30:00] FACT: Committed: 4e33273 feat(cli): add run-agent stop command and web UI SSE streaming
+
+[2026-02-20 22:35:00] ==========================================
+[2026-02-20 22:35:00] SESSION #16 SUMMARY
+[2026-02-20 22:35:00] ==========================================
+
+## Completed Tasks (3 sub-agents via bin/run-agent job)
+
+### task-20260220-195540-q6qdvm (Web UI SSE streaming)
+- Replaced 2s setTimeout polling with SSE streaming for live tab content in running tasks
+- Added tabSseSource/tabSseRunId/tabSseTab tracking variables
+- stopTabSSE() function closes SSE on tab switch or panel close
+- Two-phase loading: immediate API fetch for history, SSE for incremental updates
+- Uses /api/projects/{p}/tasks/{t}/runs/{r}/stream endpoint (added Session #15)
+- Deduplication guard: avoids recreating SSE for same run+tab
+- Committed: 4e33273
+
+### task-20260220-195544-v4s8tx (run-agent stop command)
+- New run-agent stop command: --run-dir or --root/--project/--task/--run
+- Sends SIGTERM to process group, polls 30s, force-kills with --force flag
+- New cmd/run-agent/stop.go + stop_test.go (11 tests)
+- Added TerminateProcessGroup, KillProcessGroup, IsProcessAlive to runner pkg
+- Cross-platform: Unix uses kill(-pgid, SIGTERM/SIGKILL), Windows uses TerminateProcess
+- Committed: 4e33273
+
+### task-20260220-195548-nd0o23 (Instructions.md update)
+- Rewrote Instructions.md with all commands from sessions #11-#15
+- Documents run-agent task/job/serve/bus post/bus read/gc/validate/stop
+- Documents conductor job submit/list and task status commands
+- Documents all injected env vars (TASK_FOLDER, RUN_FOLDER, JRUN_*, MESSAGE_BUS, RUNS_DIR)
+- Documents task ID format (task-<YYYYMMDD>-<HHMMSS>-<slug>) and config search paths
+- Committed: 4e33273
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (14MB each)
+- go test -count=1 ./... (18 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## Dog-Food Success
+- All 3 tasks orchestrated via ./bin/run-agent job (auto-generated task IDs)
+- DONE files created by all 3 agents ✓
+
+## Current Issue Status
+- CRITICAL: 0 open (all resolved)
+- HIGH: 0 open (all resolved or deferred)
+- MEDIUM: 6 open (planning notes, mostly moot)
+- LOW: 2 open (ISSUE-017 xAI deferred, ISSUE-018 frontend estimate)
+
+## What Was Added in Session #16
+1. run-agent stop — operational command to kill running tasks
+2. Web UI live streaming — SSE-based tab content (was 2s polling)
+3. Instructions.md — comprehensive and accurate CLI reference
