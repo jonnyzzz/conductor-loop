@@ -2,6 +2,11 @@
 
 ## Open Questions
 
+TODO: Research about CLAUDECODE environment variable. 
+
+TODO2: We need integration tests with all agents to log environment variables difference between the agent environment and the sub-task environment. Just create test-task.sh that captures enviroments, ask an agent (in Docker) to start it and let's see how env changes. For all supported agents.
+
+
 ### Q1: RUNS_DIR and MESSAGE_BUS Environment Variables
 **Issue**: The current contract explicitly excludes MESSAGE_BUS/TASK_MESSAGE_BUS and does not define RUNS_DIR, but older notes referenced RUNS_DIR/MESSAGE_BUS as read-only if present. The runner also does not set or enforce these variables.
 

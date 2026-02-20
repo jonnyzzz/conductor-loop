@@ -70,7 +70,7 @@ invocation in a shell script, which is started with the correct working director
 
 **Question**: Should HCL be the single source of truth, with YAML deprecated? If yes, should run-agent default to ~/run-agent/config.hcl when --config is omitted?
 
-**Answer**: (Pending - user)
+**Answer**: HCL is the single source of truth
 
 ---
 
@@ -79,7 +79,7 @@ invocation in a shell script, which is started with the correct working director
 
 **Question**: Should serve, bus, and stop be implemented now, or should the docs mark them as planned only?
 
-**Answer**: (Pending - user)
+**Answer**: yes, see the -ui- topics for details.
 
 ---
 
@@ -88,7 +88,7 @@ invocation in a shell script, which is started with the correct working director
 
 **Question**: Which selection algorithm should be considered authoritative, and how should cooldown or degradation be modeled?
 
-**Answer**: (Pending - user)
+**Answer**: let the parent agent make the decision. The balancing idea should be loggeed for the future.
 
 ---
 
@@ -97,7 +97,7 @@ invocation in a shell script, which is started with the correct working director
 
 **Question**: Where should depth be tracked (env var, run-info, or prompt), and what should run-agent do when the limit is exceeded?
 
-**Answer**: (Pending - user)
+**Answer**: Not implemented now, log for the future use.
 
 ---
 
@@ -106,7 +106,7 @@ invocation in a shell script, which is started with the correct working director
 
 **Question**: Should the runner add this prefix, and should it also include previous output or TASK_STATE.md context?
 
-**Answer**: (Pending - user)
+**Answer**: Yes, prepend on restart.
 
 ---
 
@@ -115,7 +115,7 @@ invocation in a shell script, which is started with the correct working director
 
 **Question**: Should the runner drop or overwrite reserved keys from caller-provided environment maps and inherited env?
 
-**Answer**: (Pending - user)
+**Answer**: No, the runner should set the JRUN_* variables correctly to the started agent process, agent process will start run-agent binary again for sub-agents, that is why the variables should be maintainer carefully. Make sure to assert and validate consistency.
 
 ---
 
@@ -124,7 +124,7 @@ invocation in a shell script, which is started with the correct working director
 
 **Question**: Should start/stop events include pid, prompt path, and output path in the message bus, and should a dedicated event log file be added?
 
-**Answer**: (Pending - user)
+**Answer**: Each run has it's run_id folder, let's include the exit code, and the folder path + known output files if any
 
 ---
 
@@ -133,7 +133,7 @@ invocation in a shell script, which is started with the correct working director
 
 **Question**: Should run-agent generate task IDs and write TASK.md when starting a task, or keep the current behavior and require pre-created task directories?
 
-**Answer**: (Pending - user)
+**Answer**: Yes, run-agent should take care about consistency of the folders, so it assigns TASK_ID and create all necessary files and folders, according to the specs. The task_id folder (or run_id folder) is the main folder to store all inputs and outputs for the started agent process 
 
 ---
 

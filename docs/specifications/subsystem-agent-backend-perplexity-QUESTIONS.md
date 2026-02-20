@@ -16,7 +16,7 @@
 
 **Question**: Should the Perplexity adapter write output.md directly, or should the runner always generate output.md from stdout (current spec)?
 
-**Answer**: (Pending - user)
+**Answer**: That is up to the tool to create any files it can. The conoslle output should be declared well enough to make it discoverable.
 
 ## Resolved Questions
 

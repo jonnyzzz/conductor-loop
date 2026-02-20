@@ -1,5 +1,7 @@
 # Agent Protocol & Governance - Questions
 
+TODO: Make sure that we write the session ID for each call, when an agent supports that.
+
 ## Open Questions
 
 ### Q2: Restart Prompt Prefix Enforcement
@@ -11,7 +13,7 @@
 
 **Question**: Should run-agent inject the restart prefix only after the first attempt, and if so, should it be inserted before or after the TASK_FOLDER/RUN_FOLDER preamble?
 
-**Answer**: (Pending - user)
+**Answer**: Yes, it should prepend that text, and it is only necessary for the root agent, when it's restarted, and only after all sub agents are completed.
 
 ### Q3: Delegation Depth Enforcement
 **Issue**: Protocol specifies a max delegation depth of 16, but there is no runtime enforcement.
@@ -21,7 +23,7 @@
 
 **Question**: Where should depth be tracked and enforced (runner spawn, CLI flags, or prompt-level convention only)?
 
-**Answer**: (Pending - user)
+**Answer**: No depth checks are necessary now. Just log that as an issue for the future. 
 
 ## Resolved Questions
 

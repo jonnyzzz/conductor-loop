@@ -14,7 +14,9 @@
     - `-C "$CWD"` - sets working directory
     - `-` - reads prompt from stdin
 
+TODO: We are not using -C parameter, and we do not use - option. Instead we use JSON stream output, and make it create all the files necessary
+
 Integrated into subsystem-agent-backend-codex.md.
 
 - Q: Config key + token format mismatch: older notes reference `openai_api_key` in config.hcl, while current specs use `agent "codex"` with `token`/`token_file` (and optional `@file` value). Which format is authoritative, and should `@file` be supported by the runner?
-  Answer: (Pending - user)
+  A: Same as above -- allow token/token_file. We unify settings approaches where possible
