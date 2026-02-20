@@ -36,7 +36,10 @@ func newBusPostCmd() *cobra.Command {
 		Short: "Post a message to the message bus",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if busPath == "" {
-				return fmt.Errorf("--bus is required")
+				busPath = os.Getenv("MESSAGE_BUS")
+			}
+			if busPath == "" {
+				return fmt.Errorf("--bus is required (or set MESSAGE_BUS env var)")
 			}
 			if body == "" {
 				info, err := os.Stdin.Stat()
@@ -68,7 +71,7 @@ func newBusPostCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&busPath, "bus", "", "path to message bus file (required)")
+	cmd.Flags().StringVar(&busPath, "bus", "", "path to message bus file (uses MESSAGE_BUS env var if not set)")
 	cmd.Flags().StringVar(&msgType, "type", "INFO", "message type")
 	cmd.Flags().StringVar(&projectID, "project", "", "project ID")
 	cmd.Flags().StringVar(&taskID, "task", "", "task ID")
@@ -90,7 +93,10 @@ func newBusReadCmd() *cobra.Command {
 		Short: "Read messages from the message bus",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if busPath == "" {
-				return fmt.Errorf("--bus is required")
+				busPath = os.Getenv("MESSAGE_BUS")
+			}
+			if busPath == "" {
+				return fmt.Errorf("--bus is required (or set MESSAGE_BUS env var)")
 			}
 			bus, err := messagebus.NewMessageBus(busPath, messagebus.WithPollInterval(500*time.Millisecond))
 			if err != nil {
@@ -131,7 +137,7 @@ func newBusReadCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&busPath, "bus", "", "path to message bus file (required)")
+	cmd.Flags().StringVar(&busPath, "bus", "", "path to message bus file (uses MESSAGE_BUS env var if not set)")
 	cmd.Flags().IntVar(&tail, "tail", 20, "print last N messages")
 	cmd.Flags().BoolVar(&follow, "follow", false, "watch for new messages (Ctrl-C to exit)")
 

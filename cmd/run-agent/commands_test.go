@@ -141,6 +141,94 @@ func TestBusPostCmd_PostsMessage(t *testing.T) {
 	}
 }
 
+func TestBusPostCmd_UsesMessageBusEnvVar(t *testing.T) {
+	busPath := filepath.Join(t.TempDir(), "bus.yaml")
+	t.Setenv("MESSAGE_BUS", busPath)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"bus", "post",
+		"--project", "my-project",
+		"--type", "INFO",
+		"--body", "env var test",
+	})
+
+	var runErr error
+	captureStdout(t, func() {
+		runErr = cmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("bus post failed: %v", runErr)
+	}
+
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("open bus: %v", err)
+	}
+	messages, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	if messages[0].Body != "env var test" {
+		t.Errorf("expected body 'env var test', got %q", messages[0].Body)
+	}
+}
+
+func TestBusPostCmd_FailsWithoutBusOrEnvVar(t *testing.T) {
+	t.Setenv("MESSAGE_BUS", "")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"bus", "post",
+		"--type", "INFO",
+		"--body", "hello",
+	})
+
+	var runErr error
+	captureStdout(t, func() {
+		runErr = cmd.Execute()
+	})
+	if runErr == nil {
+		t.Fatal("expected error when neither --bus nor MESSAGE_BUS is set")
+	}
+	if !strings.Contains(runErr.Error(), "MESSAGE_BUS") {
+		t.Errorf("expected error to mention MESSAGE_BUS, got: %v", runErr)
+	}
+}
+
+func TestBusReadCmd_UsesMessageBusEnvVar(t *testing.T) {
+	busPath := filepath.Join(t.TempDir(), "bus.yaml")
+
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("create bus: %v", err)
+	}
+	_, err = bus.AppendMessage(&messagebus.Message{Type: "INFO", ProjectID: "my-project", Body: "env var read test"})
+	if err != nil {
+		t.Fatalf("append message: %v", err)
+	}
+
+	t.Setenv("MESSAGE_BUS", busPath)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"bus", "read"})
+
+	var output string
+	var runErr error
+	output = captureStdout(t, func() {
+		runErr = cmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("bus read failed: %v", runErr)
+	}
+	if !strings.Contains(output, "env var read test") {
+		t.Errorf("expected output to contain 'env var read test', got: %q", output)
+	}
+}
+
 func TestBusReadCmd_ReadMessages(t *testing.T) {
 	busPath := filepath.Join(t.TempDir(), "bus.yaml")
 
