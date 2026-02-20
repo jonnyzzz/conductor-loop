@@ -247,7 +247,14 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 		_ = proc.Wait()
 		return errors.Wrap(err, "write run-info")
 	}
-	if err := postRunEvent(busPath, info, "RUN_START", "run started"); err != nil {
+	startBody := fmt.Sprintf("run started\nrun_dir: %s\nprompt: %s\nstdout: %s\nstderr: %s\noutput: %s",
+		runDir,
+		info.PromptPath,
+		info.StdoutPath,
+		info.StderrPath,
+		info.OutputPath,
+	)
+	if err := postRunEvent(busPath, info, "RUN_START", startBody); err != nil {
 		_ = proc.Cmd.Process.Kill()
 		_ = proc.Wait()
 		return err
@@ -280,7 +287,11 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 	if _, err := agent.CreateOutputMD(runDir, ""); err != nil {
 		return errors.Wrap(err, "ensure output.md")
 	}
-	stopBody := fmt.Sprintf("run stopped with code %d", info.ExitCode)
+	stopBody := fmt.Sprintf("run stopped with code %d\nrun_dir: %s\noutput: %s",
+		info.ExitCode,
+		runDir,
+		info.OutputPath,
+	)
 	if info.Status == storage.StatusFailed {
 		if excerpt := tailFile(info.StderrPath, 50); excerpt != "" {
 			stopBody += "\n\n## stderr (last 50 lines)\n" + excerpt
@@ -306,7 +317,14 @@ func executeREST(ctx context.Context, agentType string, selection agentSelection
 	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
 		return errors.Wrap(err, "write run-info")
 	}
-	if err := postRunEvent(busPath, info, "RUN_START", "run started"); err != nil {
+	startBody := fmt.Sprintf("run started\nrun_dir: %s\nprompt: %s\nstdout: %s\nstderr: %s\noutput: %s",
+		runDir,
+		info.PromptPath,
+		info.StdoutPath,
+		info.StderrPath,
+		info.OutputPath,
+	)
+	if err := postRunEvent(busPath, info, "RUN_START", startBody); err != nil {
 		return err
 	}
 
@@ -374,7 +392,11 @@ func finalizeRun(runDir, busPath string, info *storage.RunInfo, execErr error) e
 	if _, err := agent.CreateOutputMD(runDir, ""); err != nil {
 		return errors.Wrap(err, "ensure output.md")
 	}
-	stopBody := fmt.Sprintf("run stopped with code %d", info.ExitCode)
+	stopBody := fmt.Sprintf("run stopped with code %d\nrun_dir: %s\noutput: %s",
+		info.ExitCode,
+		runDir,
+		info.OutputPath,
+	)
 	if info.Status == storage.StatusFailed {
 		if excerpt := tailFile(info.StderrPath, 50); excerpt != "" {
 			stopBody += "\n\n## stderr (last 50 lines)\n" + excerpt
