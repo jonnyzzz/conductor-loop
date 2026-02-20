@@ -933,3 +933,99 @@ project_id: conductor-loop
 - All 3 tasks orchestrated via ./bin/run-agent job — binary path fully operational
 - Run directories at: runs/conductor-loop/task-20260220-200001-docs-fix etc.
 - All 3 agents used correct task-<YYYYMMDD>-<HHMMSS>-<slug> format
+
+---
+msg_id: MSG-20260220-SESSION13-START
+ts: 2026-02-20T19:40:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 19:40:00] ==========================================
+[2026-02-20 19:40:00] SESSION #13: HCL Config + Web UI Task Creation + conductor CLI Commands
+[2026-02-20 19:40:00] ==========================================
+
+[2026-02-20 19:40:00] PROGRESS: Starting session #13 — read all required docs, assessed state
+[2026-02-20 19:40:00] FACT: go build ./... passes (binaries rebuilt: conductor 13MB, run-agent 13MB)
+[2026-02-20 19:40:00] FACT: go test -count=1 ./... — ALL 18 packages green (including docker)
+[2026-02-20 19:40:00] FACT: All CRITICAL issues resolved, all QUESTIONS.md answered
+[2026-02-20 19:40:00] DECISION: Session #13 focus:
+[2026-02-20 19:40:00]   (1) HCL config format support — human said "HCL is source of truth"; currently errors on .hcl files
+[2026-02-20 19:40:00]   (2) Web UI task creation — allow starting tasks from the browser UI
+[2026-02-20 19:40:00]   (3) conductor job/task CLI commands — implement the stub commands for server-side job submission
+[2026-02-20 19:40:00] DECISION: Launching 3 parallel sub-agents via bin/run-agent job
+
+[2026-02-20 19:41:00] PROGRESS: Writing prompt files to prompts/session-13/
+[2026-02-20 19:41:00] FACT: Prompt files written: task-hcl-config.md, task-webui-create.md, task-conductor-jobs.md
+
+[2026-02-20 19:42:00] PROGRESS: Launched 3 parallel sub-agents via bin/run-agent job:
+[2026-02-20 19:42:00] FACT: Agent task-20260220-194100-hcl-config (PID 99725): Implement HCL config format parsing
+[2026-02-20 19:42:00] FACT: Agent task-20260220-194101-webui-create (PID 99741): Add task creation form to web UI + RUN_CRASH styling
+[2026-02-20 19:42:00] FACT: Agent task-20260220-194102-conductor-cmds (PID 99779): Implement conductor job/task CLI commands
+
+[2026-02-20 20:15:00] FACT: All 3 agents COMPLETED (exit code 0) with DONE files created
+[2026-02-20 20:15:00] FACT: Agent task-20260220-194100-hcl-config: HCL v1 parsing added, 4 new tests, config.hcl.example
+[2026-02-20 20:15:00] FACT: Agent task-20260220-194101-webui-create: Task creation form, RUN_CRASH styling, toast notifications
+[2026-02-20 20:15:00] FACT: Agent task-20260220-194102-conductor-cmds: conductor job submit/list + conductor task status commands, 17 tests
+
+[2026-02-20 20:16:00] QUALITY: go build ./... PASS
+[2026-02-20 20:16:00] QUALITY: go test -count=1 ./... — ALL 18 packages green
+[2026-02-20 20:16:00] QUALITY: go test -race ./internal/... ./cmd/... — no data races
+
+[2026-02-20 20:17:00] FACT: Committed: 4fcadc6 feat(config): implement HCL config format support
+[2026-02-20 20:17:00] FACT: Committed: 873e4ef feat(web): add task creation form and RUN_CRASH event styling
+[2026-02-20 20:17:00] FACT: Committed: 5ba0126 feat(conductor): implement job submit/list and task status commands
+
+[2026-02-20 20:18:00] ==========================================
+[2026-02-20 20:18:00] SESSION #13 SUMMARY
+[2026-02-20 20:18:00] ==========================================
+
+## Completed Tasks (3 sub-agents via bin/run-agent job)
+
+### task-20260220-194100-hcl-config (HCL config format)
+- Added github.com/hashicorp/hcl v1.0.0 dependency
+- parseHCLConfig() + hclFirstBlock() for HCL v1 block navigation
+- FindDefaultConfigIn() no longer errors on .hcl files — fully supported
+- 4 new tests: TestFindDefaultConfig_FoundHCL, TestLoadHCLConfig, TestLoadConfigAutoDetectsFormat, TestLoadHCLConfigInvalidSyntax
+- examples/configs/config.hcl.example created with full config template
+- Committed: 4fcadc6
+
+### task-20260220-194101-webui-create (Web UI task creation)
+- "+" button in projects panel opens task creation <dialog>
+- Form: project_id, task_id (auto-gen), agent_type, prompt, project_root, attach_mode
+- generateTaskId() creates task-YYYYMMDD-HHMMss-rand format in JavaScript
+- submitNewTask() POSTs to /api/v1/tasks, shows toast on success/error
+- RUN_CRASH events styled in red; RUN_START/STOP dimmed; others in green
+- CSS: dialog, form, toast, message type classes
+- Committed: 873e4ef
+
+### task-20260220-194102-conductor-cmds (conductor CLI commands)
+- conductor job submit: POST /api/v1/tasks with full flag set incl. --wait, --json
+- conductor job list: GET /api/v1/tasks with project filter
+- conductor task status: GET /api/v1/tasks/<id>
+- --wait flag: polls until run completion (3s interval, 10min timeout)
+- 17 unit tests via httptest.NewServer (no real server needed)
+- Committed: 5ba0126
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (13MB each)
+- go test -count=1 ./... (18 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## Dog-Food Success
+- All 3 tasks orchestrated via ./bin/run-agent job — binary path fully operational
+- DONE files created by all 3 agents ✓
+
+## Current Issue Status
+- CRITICAL: 0 open (all resolved)
+- HIGH: 1 open (ISSUE-003 Windows Job Objects — deferred, platform-specific)
+- MEDIUM: 6 open (ISSUE-011..018 planning/optimization notes)
+- LOW: 2 open (ISSUE-017 xAI deferred, ISSUE-018 frontend estimate)
+
+## What's Next
+- ISSUE-003 (Windows Job Objects): Deferred — needs Windows CI
+- ISSUE-016 (message bus rotation): Deferred to 100MB threshold
+- HCL format is now fully supported per human Q9 decision
+- Web UI now supports task creation and event-type-based styling
+- conductor CLI now has server-side job management commands
