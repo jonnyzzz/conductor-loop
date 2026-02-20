@@ -1496,7 +1496,7 @@ GET /api/.../file?name=stdout&tail=5000
 
 ## 8. Frontend UI
 
-**Package:** `frontend/`
+**Package:** `web/src/`
 
 ### Purpose
 
@@ -1504,295 +1504,45 @@ The frontend provides a web-based dashboard for monitoring and controlling tasks
 
 ### Technology Stack
 
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **TailwindCSS** - Styling
-- **@tanstack/react-query** - Data fetching and caching
-- **Ring UI (JetBrains)** - UI components
-- **Vite** - Build tool
-- **vitest** - Testing framework
+- **Plain HTML/CSS/JS** — vanilla JavaScript, no framework
+- **No npm, no build step, no TypeScript**
+- Static files served directly by the API server at `/ui/`
 
-### Key Components
+### Key Files
 
-#### 1. App.tsx
+- `web/src/index.html` - Main single-page application entry point
+- `web/src/app.js` - Application logic (vanilla JS)
+- `web/src/styles.css` - Styles
 
-**Responsibilities:**
-- Main layout and routing
-- Global state management
-- Component orchestration
+### Key UI Features
 
-**Layout:**
+- **Left panel:** Project message bus live stream (SSE)
+- **Main panel:** Task list with expandable run details
+- **Tabs per run:** TASK.MD, OUTPUT, STDOUT, STDERR, RUN-INFO, MESSAGES
+- **Real-time streaming:** File content via SSE (`/api/.../stream`)
+- **Stop button:** Stop running tasks via POST `.../stop`
+- **Message posting form:** Post messages to project or task bus
+- **Auto-refresh:** Task list refreshes every 5 seconds
+
+### Deployment
+
+The UI is a static single-page app — no build step required. The API server
+serves all files under `web/src/` at the `/ui/` path.
+
 ```
-┌─────────────────┬─────────────────────┐
-│                 │   MessageBus        │
-│   TaskList      │   (Top-right)       │
-│   (Left)        ├─────────────────────┤
-│                 │   RunDetail         │
-│                 │   (Bottom-right)    │
-├─────────────────┴─────────────────────┤
-│   LogViewer (Full-width)              │
-└───────────────────────────────────────┘
+# Open in browser after starting conductor:
+http://localhost:8080/ui/
 ```
-
-#### 2. TaskList.tsx
-
-**Responsibilities:**
-- Display projects and tasks
-- Task selection
-- Expandable tree view
-
-**Data:**
-- Fetches projects via `useProjects()`
-- Fetches tasks via `useTasks(projectId)`
-
-**UI:**
-```
-▼ Project 1
-  ▶ Task 1 (running)
-  ▶ Task 2 (completed)
-▶ Project 2
-```
-
-#### 3. RunDetail.tsx
-
-**Responsibilities:**
-- Display run metadata
-- Show run status (running, success, failed)
-- Display run files (stdout, stderr, output.md)
-
-**Data:**
-- Fetches run info via `useRunInfo(projectId, taskId, runId)`
-- Fetches run files via `useRunFile(projectId, taskId, runId, fileName)`
-
-#### 4. LogViewer.tsx
-
-**Responsibilities:**
-- Real-time log streaming
-- Syntax highlighting
-- Auto-scroll
-
-**Data:**
-- Streams logs via SSE: `useSSE('/api/.../logs/stream')`
-
-**Features:**
-- Auto-scroll to bottom
-- Manual scroll lock
-- Syntax highlighting (ANSI colors)
-
-#### 5. MessageBus.tsx
-
-**Responsibilities:**
-- Display message feed
-- Real-time message updates
-- Message filtering
-
-**Data:**
-- Streams messages via SSE: `useSSE('/api/.../bus/stream')`
-
-**UI:**
-```
-[10:00:00] agent_started: Agent started successfully
-[10:00:05] agent_output: Processing request...
-[10:00:10] agent_completed: Task completed
-```
-
-#### 6. RunTree.tsx
-
-**Responsibilities:**
-- Display task execution tree
-- Show parent-child relationships
-- Navigate between runs
-
-**Data:**
-- Fetches runs via `useRuns(projectId, taskId)`
-
-**UI:**
-```
-Run 1 (root) [running]
-├─ Run 2 (child) [completed]
-└─ Run 3 (child) [running]
-```
-
-### API Client
-
-**File:** `src/api/client.ts`
-
-```typescript
-class APIClient {
-    private baseURL: string = '/api'
-
-    async getProjects(): Promise<Project[]>
-    async getProject(projectId: string): Promise<Project>
-    async getTasks(projectId: string): Promise<TaskSummary[]>
-    async getTask(projectId: string, taskId: string): Promise<TaskDetail>
-    async getRuns(projectId: string, taskId: string): Promise<RunInfo[]>
-    async getRunInfo(projectId: string, taskId: string, runId: string): Promise<RunInfo>
-    async getTaskFile(projectId: string, taskId: string, name: string): Promise<string>
-    async getRunFile(projectId: string, taskId: string, runId: string, name: string, tail?: number): Promise<string>
-    async getMessages(projectId: string, taskId?: string): Promise<BusMessage[]>
-    async postProjectMessage(projectId: string, body: string): Promise<void>
-    async postTaskMessage(projectId: string, taskId: string, body: string): Promise<void>
-    async startTask(projectId: string, payload: TaskStartRequest): Promise<void>
-    async stopRun(projectId: string, taskId: string, runId: string): Promise<void>
-}
-```
-
-### Custom Hooks
-
-#### Data Fetching
-
-- `useAPI(endpoint)` - General API data fetching
-- `useProjects()` - Fetch projects list
-- `useTasks(projectId)` - Fetch tasks for project
-- `useTask(projectId, taskId)` - Fetch specific task
-- `useRunInfo(projectId, taskId, runId)` - Fetch run metadata
-- `useTaskFile(projectId, taskId, fileName)` - Fetch task file
-- `useRunFile(projectId, taskId, runId, fileName, tail)` - Fetch run file
-
-#### Streaming
-
-- `useSSE(endpoint)` - Server-Sent Events connection
-- `useWebSocket(endpoint)` - WebSocket connection (alternative)
-
-**useSSE Example:**
-```typescript
-const { data: messages, error } = useSSE<BusMessage>(
-    `/api/projects/${projectId}/bus/stream`
-)
-```
-
-### Data Types
-
-```typescript
-interface Project {
-    id: string
-    name: string
-    created_at: string
-}
-
-interface TaskSummary {
-    id: string
-    project_id: string
-    status: string
-    last_activity: string
-}
-
-interface TaskDetail extends TaskSummary {
-    runs: RunInfo[]
-}
-
-interface RunInfo {
-    run_id: string
-    project_id: string
-    task_id: string
-    agent_type: string
-    pid: number
-    pgid: number
-    status: string
-    start_time: string
-    end_time?: string
-    exit_code?: number
-}
-
-interface BusMessage {
-    msg_id: string
-    ts: string
-    type: string
-    project_id: string
-    task_id?: string
-    run_id?: string
-    parent_msg_ids?: string[]
-    attachment_path?: string
-    body: string
-}
-```
-
-### State Management
-
-**React Query:**
-- Caching and invalidation
-- Automatic refetching
-- Optimistic updates
-
-**Local State:**
-- Component-specific state (useState)
-- Selected task/run
-- UI state (expanded/collapsed)
-
-### Dependencies
-
-**Core:**
-- `react` & `react-dom` - UI framework
-- `typescript` - Type safety
-
-**Data:**
-- `@tanstack/react-query` - Data fetching
-
-**UI:**
-- `@jetbrains/ring-ui-built` - UI components
-- `tailwindcss` - Styling
-- `clsx` - Conditional classes
-
-**Build:**
-- `vite` - Module bundler
-- `vitest` - Testing
-
-### Testing Strategy
-
-**Unit Tests:** `frontend/tests/`
-
-- Test component rendering
-- Test hooks (useAPI, useSSE)
-- Test utility functions
-- Mock API responses
-
-**Integration Tests:**
-- Test data flow (API → components → UI)
-- Test SSE streaming
-- Test user interactions
-
-**Key Test Cases:**
-```typescript
-- Render TaskList with projects
-- Render RunDetail with run info
-- useSSE receives messages
-- useAPI fetches data correctly
-- Error handling works
-```
-
-### Build and Deployment
-
-**Development:**
-```bash
-cd frontend
-npm install
-npm run dev
-# Runs on http://localhost:5173
-```
-
-**Production:**
-```bash
-npm run build
-# Output: frontend/dist/
-```
-
-**Deployment:**
-- Static files served by API server
-- Single-page application (SPA)
-- Client-side routing
 
 ### Performance Characteristics
 
-- **Initial Load:** ~500ms-1s (depends on network)
+- **Initial Load:** Instant (small static files, no bundle)
 - **SSE Latency:** ~100ms (poll interval)
-- **UI Updates:** ~16ms (60 FPS)
 
 ### Known Limitations
 
 1. **No Offline Support:** Requires active server connection
 2. **No Mobile Optimization:** Desktop-focused UI
-3. **No Accessibility:** ARIA labels missing
-4. **No Internationalization:** English only
 
 ---
 

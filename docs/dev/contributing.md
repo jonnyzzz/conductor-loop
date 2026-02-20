@@ -180,7 +180,7 @@ conductor-loop/
 │   ├── user/               # User-facing documentation
 │   ├── dev/                # Developer documentation
 │   └── specifications/     # Technical specifications
-├── web/                    # Frontend React application
+├── web/                    # Frontend (plain HTML/CSS/JS)
 └── scripts/                # Build and utility scripts
 ```
 

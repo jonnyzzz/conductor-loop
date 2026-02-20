@@ -31,16 +31,6 @@ go version
 # Should output: go version go1.21.x ...
 ```
 
-**Node.js & npm:**
-- Version: Node.js 18+ and npm 9+
-- Installation: https://nodejs.org/
-
-```bash
-# Verify installation
-node --version  # Should be v18.x or higher
-npm --version   # Should be 9.x or higher
-```
-
 **Git:**
 - Version: 2.x or higher
 - Installation: https://git-scm.com/
@@ -101,11 +91,10 @@ ls -la
 # Expected output:
 # cmd/          - Entry points
 # internal/     - Private packages
-# frontend/     - React UI
+# web/          - Plain HTML/CSS/JS UI
 # docs/         - Documentation
 # tests/        - Integration tests
 # go.mod        - Go dependencies
-# package.json  - Frontend dependencies
 # README.md
 ```
 
@@ -124,22 +113,6 @@ go mod verify
 
 # Tidy up (remove unused dependencies)
 go mod tidy
-```
-
-### Frontend Dependencies
-
-```bash
-# Navigate to frontend directory
-cd frontend
-
-# Install npm dependencies
-npm install
-
-# Or use npm ci for clean install
-npm ci
-
-# Return to root
-cd ..
 ```
 
 ---
@@ -162,31 +135,11 @@ ls -la bin/
 ./bin/run-agent --version
 ```
 
-### Build Frontend
-
-```bash
-cd frontend
-
-# Development build
-npm run dev
-
-# Production build
-npm run build
-
-# Output: frontend/dist/
-
-cd ..
-```
-
 ### Build Everything
 
 ```bash
-# Using Makefile (if available)
-make build
-
-# Or manually
+# Build all binaries
 go build -o bin/ ./cmd/...
-cd frontend && npm run build && cd ..
 ```
 
 ---
@@ -234,18 +187,6 @@ go run ./cmd/conductor serve --config ~/.conductor/config.yaml
 ./bin/conductor serve --config ~/.conductor/config.yaml
 
 # Server should start on http://localhost:8080
-```
-
-### Run Frontend (Development Mode)
-
-```bash
-cd frontend
-
-# Start development server with hot reload
-npm run dev
-
-# Frontend should start on http://localhost:5173
-# Proxies API requests to http://localhost:8080
 ```
 
 ### Run Task Manually
@@ -306,17 +247,6 @@ brew install fswatch
 fswatch -o internal/ cmd/ | xargs -n1 -I{} sh -c 'go build -o bin/conductor ./cmd/conductor && ./bin/conductor serve'
 ```
 
-### Frontend Hot Reload
-
-```bash
-cd frontend
-
-# Vite has built-in hot reload
-npm run dev
-
-# Changes to src/ will automatically reload the browser
-```
-
 ---
 
 ## Debugging Techniques
@@ -374,28 +304,7 @@ log.Printf("Debug: entering function %s", funcName)
 
 **Browser DevTools:**
 
-```bash
-# Start dev server
-cd frontend && npm run dev
-
-# Open browser: http://localhost:5173
-# Press F12 to open DevTools
-# Use Console, Network, and React DevTools tabs
-```
-
-**VS Code Debugging:**
-
-Install "Debugger for Chrome" extension, then add to `.vscode/launch.json`:
-
-```json
-{
-  "name": "Launch Frontend",
-  "type": "chrome",
-  "request": "launch",
-  "url": "http://localhost:5173",
-  "webRoot": "${workspaceFolder}/frontend/src"
-}
-```
+Open http://localhost:8080/ui/ in your browser, press F12 to open DevTools, and use the Console and Network tabs.
 
 ### Logging
 
@@ -414,7 +323,7 @@ log.Printf("Debug: %v", value)
 
 **Frontend:**
 
-```typescript
+```javascript
 // Console logging
 console.log('Info:', data)
 console.error('Error:', error)
@@ -433,10 +342,7 @@ console.debug('Debug:', value)
 {
   "recommendations": [
     "golang.go",
-    "dbaeumer.vscode-eslint",
-    "esbenp.prettier-vscode",
-    "bradlc.vscode-tailwindcss",
-    "ms-vscode.vscode-typescript-next"
+    "dbaeumer.vscode-eslint"
   ]
 }
 ```
@@ -452,12 +358,6 @@ console.debug('Debug:', value)
   "editor.formatOnSave": true,
   "[go]": {
     "editor.defaultFormatter": "golang.go"
-  },
-  "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
-  },
-  "[typescriptreact]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
   }
 }
 ```
@@ -668,10 +568,6 @@ command -v npm >/dev/null 2>&1 || { echo "npm is not installed"; exit 1; }
 echo "Installing Go dependencies..."
 go mod download
 
-# Install frontend dependencies
-echo "Installing npm dependencies..."
-cd frontend && npm install && cd ..
-
 # Build binaries
 echo "Building binaries..."
 go build -o bin/ ./cmd/...
@@ -704,7 +600,7 @@ echo "Setup complete!"
 echo "Next steps:"
 echo "1. Add your API tokens to ~/.conductor/config.yaml"
 echo "2. Run backend: ./bin/conductor serve --config ~/.conductor/config.yaml"
-echo "3. Run frontend: cd frontend && npm run dev"
+echo "3. Open http://localhost:8080/ui/ in your browser"
 ```
 
 **Usage:**
@@ -733,16 +629,6 @@ export CONDUCTOR_DISABLE_TASK_START=true
 # Agent tokens
 export AGENT_CLAUDE_TOKEN="your-token"
 export AGENT_CODEX_TOKEN="your-token"
-```
-
-**Frontend:**
-
-```bash
-# API base URL (for development)
-export VITE_API_BASE_URL=http://localhost:8080
-
-# Enable debug mode
-export VITE_DEBUG=true
 ```
 
 ---

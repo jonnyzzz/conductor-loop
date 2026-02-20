@@ -25,12 +25,12 @@ Conductor Loop is an AI agent orchestration system that manages multi-agent work
 - **Process Orchestration**: Automated restart loops for resilient task execution
 - **Message Bus**: Append-only event log for task coordination
 - **REST API + SSE**: Real-time task monitoring and control
-- **Web UI**: React-based dashboard for task management
+- **Web UI**: Plain HTML/CSS/JS dashboard for task management
 
 **Key Statistics:**
-- Backend: 12,443 lines of Go code
-- 52 test files
-- Frontend: React 18 with TypeScript
+- Backend: 11,276 lines of Go code
+- 64 test files
+- Frontend: Vanilla JavaScript (no framework, no build step)
 - Minimal dependencies (Cobra, YAML v3, pkg/errors)
 
 ---
@@ -39,7 +39,7 @@ Conductor Loop is an AI agent orchestration system that manages multi-agent work
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Frontend (React)                        │
+│                      Frontend (HTML/CSS/JS)                     │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
 │  │ TaskList │  │ RunDetail│  │LogViewer │  │MessageBus│       │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘       │
@@ -239,20 +239,22 @@ type RalphConfig struct {
 - Message Bus: Read/write messages, streaming
 - Logs: Real-time log streaming
 
-### 8. Frontend UI (`frontend/`)
+### 8. Frontend UI (`web/src/`)
 
 **Technology Stack:**
-- React 18 with TypeScript
-- TailwindCSS for styling
-- @tanstack/react-query for data fetching
-- Ring UI (JetBrains) for components
-- Vite for bundling
+- Plain HTML/CSS/JS (vanilla JavaScript, no framework)
+- No npm, no build step, no TypeScript
 
-**Key Components:**
-- `TaskList` - Projects and tasks sidebar
-- `RunDetail` - Run information display
-- `LogViewer` - Real-time log streaming
-- `MessageBus` - Message feed display
+**Key Files:**
+- `web/src/index.html` - Main single-page application
+- `web/src/app.js` - Application logic (vanilla JS)
+- `web/src/styles.css` - Styles
+
+**Key UI Features:**
+- Task list and project sidebar
+- Run detail display
+- Real-time log streaming via SSE
+- Message bus feed
 
 ---
 
