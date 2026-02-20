@@ -51,14 +51,17 @@ func newTaskCmd() *cobra.Command {
 		Short: "Run a task with the Ralph loop",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectID = strings.TrimSpace(projectID)
-			taskID = strings.TrimSpace(taskID)
+			originalTaskID := strings.TrimSpace(taskID)
 			if projectID == "" {
 				return fmt.Errorf("project is required")
 			}
 			var err error
-			taskID, err = resolveTaskID(taskID)
+			taskID, err = resolveTaskID(originalTaskID)
 			if err != nil {
 				return err
+			}
+			if originalTaskID == "" {
+				fmt.Fprintf(cmd.ErrOrStderr(), "task: %s\n", taskID)
 			}
 			if strings.TrimSpace(opts.ConfigPath) == "" && strings.TrimSpace(opts.Agent) == "" {
 				found, err := config.FindDefaultConfig()
@@ -100,14 +103,17 @@ func newJobCmd() *cobra.Command {
 		Short: "Run a single agent job",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectID = strings.TrimSpace(projectID)
-			taskID = strings.TrimSpace(taskID)
+			originalTaskID := strings.TrimSpace(taskID)
 			if projectID == "" {
 				return fmt.Errorf("project is required")
 			}
 			var err error
-			taskID, err = resolveTaskID(taskID)
+			taskID, err = resolveTaskID(originalTaskID)
 			if err != nil {
 				return err
+			}
+			if originalTaskID == "" {
+				fmt.Fprintf(cmd.ErrOrStderr(), "task: %s\n", taskID)
 			}
 			if strings.TrimSpace(opts.ConfigPath) == "" && strings.TrimSpace(opts.Agent) == "" {
 				found, err := config.FindDefaultConfig()
