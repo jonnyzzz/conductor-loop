@@ -862,3 +862,74 @@ project_id: conductor-loop
 - Actually per session #11 issues update: all issues properly tracked in ISSUES.md
 - Remaining open: ISSUE-005 (runner bottleneck), ISSUE-006 (storage/bus dep - not a real bug)
 - MEDIUM/LOW: ISSUE-011 through ISSUE-018 (planning/optimization)
+
+---
+msg_id: MSG-20260220-SESSION12-START
+ts: 2026-02-20T20:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 20:00:00] ==========================================
+[2026-02-20 20:00:00] SESSION #12: API Enhancement + Docs Fix + Runner Investigation
+[2026-02-20 20:00:00] ==========================================
+
+[2026-02-20 20:00:00] PROGRESS: Starting session #12 — read all required docs, assessed state
+[2026-02-20 20:00:00] FACT: go build ./... passes (binaries rebuilt: conductor 13MB, run-agent 13MB)
+[2026-02-20 20:00:00] FACT: go test ./... — all 18 packages green (inherited from session #11)
+[2026-02-20 20:00:00] FACT: All CRITICAL issues resolved, all QUESTIONS.md answered
+[2026-02-20 20:00:00] FACT: Subsystem QUESTIONS all answered — no new human answers since 2026-02-20
+[2026-02-20 20:00:00] DECISION: Session #12 focus:
+[2026-02-20 20:00:00]   (1) Fix stale task ID format in docs/user/cli-reference.md (low-priority docs bug)
+[2026-02-20 20:00:00]   (2) Implement monitoring-ui Q3: add project_root/attach_mode/run_id to task creation API
+[2026-02-20 20:00:00]   (3) Investigate ISSUE-005 runner bottleneck + decomposition plan
+[2026-02-20 20:00:00] DECISION: Launching 3 parallel sub-agents via bin/run-agent job
+
+[2026-02-20 20:05:00] PROGRESS: Launched 3 parallel sub-agents via bin/run-agent job:
+[2026-02-20 20:05:00] FACT: Agent task-20260220-200001-docs-fix (PID 91465): Fix stale task ID format in docs/user/cli-reference.md and other docs
+[2026-02-20 20:05:00] FACT: Agent task-20260220-200002-api-creation (PID 91666): Implement monitoring-ui Q3 (project_root/attach_mode/run_id in task creation API)
+[2026-02-20 20:05:00] FACT: Agent task-20260220-200003-runner-analysis (PID 91495): Research ISSUE-005 runner bottleneck and write decomposition plan
+
+[2026-02-20 20:30:00] ==========================================
+[2026-02-20 20:30:00] SESSION #12 SUMMARY
+[2026-02-20 20:30:00] ==========================================
+
+## Completed Tasks (3 sub-agents via bin/run-agent job)
+
+### task-20260220-200001-docs-fix (Stale task ID format)
+- Fixed 18 stale task IDs across 5 files (cli-reference.md, troubleshooting.md, faq.md, adding-agents.md, development-setup.md)
+- Replaced "task_001", "test-task", "my-task" formats with valid "task-<YYYYMMDD>-<HHMMSS>-<slug>" format
+- Bash loops updated to use `task-$(date +%Y%m%d-%H%M%S)-...` for dynamic valid IDs
+- Committed: 220e5af
+
+### task-20260220-200002-api-creation (monitoring-ui Q3)
+- Added `project_root` field to task creation request (validated to exist, 400 if not found)
+- Added `attach_mode` field: "create" (default), "attach" (preserve TASK.md), "resume" (with restart prefix)
+- Added `run_id` to task creation response (pre-allocated via new AllocateRunDir())
+- All quality gates pass (build + 18/18 tests + race detector)
+- Committed: 53dc9e1
+
+### task-20260220-200003-runner-analysis (ISSUE-005)
+- Full analysis of runner architecture: ISSUE-005 is RESOLVED — decomposition already exists organically
+- process.go (runner-process), ralph.go (runner-ralph), task.go (runner-integration), storage/ (runner-metadata)
+- job.go has 14 well-factored functions, runJob() is 143 lines, not a monolith
+- Sequential execution within single job is CORRECT, not a bottleneck
+- ISSUES.md updated: ISSUE-005 OPEN → RESOLVED, summary table HIGH open 2→1
+- Committed: 5a96486
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (binaries 13MB each)
+- go test -count=1 ./... (18 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## Current Issue Status
+- CRITICAL: 0 open (all resolved)
+- HIGH: 1 open (ISSUE-003 Windows Job Objects - deferred, ISSUE-006 architectural note)
+- MEDIUM: 6 open (ISSUE-011..018 planning/optimization)
+- LOW: 2 open
+
+## Dog-Food Success
+- All 3 tasks orchestrated via ./bin/run-agent job — binary path fully operational
+- Run directories at: runs/conductor-loop/task-20260220-200001-docs-fix etc.
+- All 3 agents used correct task-<YYYYMMDD>-<HHMMSS>-<slug> format
