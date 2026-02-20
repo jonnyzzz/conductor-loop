@@ -101,12 +101,142 @@ func TestSelectAgentNoAgents(t *testing.T) {
 }
 
 func TestBuildPrompt(t *testing.T) {
-	prompt := buildPrompt("/task", "/run", "do something")
-	if !strings.Contains(prompt, "TASK_FOLDER=/task") || !strings.Contains(prompt, "RUN_FOLDER=/run") {
-		t.Fatalf("missing preamble: %q", prompt)
+	tests := []struct {
+		name        string
+		params      PromptParams
+		prompt      string
+		wantContain []string
+		wantAbsent  []string
+	}{
+		{
+			name: "basic with all JRUN values",
+			params: PromptParams{
+				TaskDir:     "/task",
+				RunDir:      "/run",
+				ProjectID:   "proj-1",
+				TaskID:      "task-1",
+				RunID:       "run-1",
+				ParentRunID: "parent-1",
+			},
+			prompt: "do something",
+			wantContain: []string{
+				"TASK_FOLDER=/task",
+				"RUN_FOLDER=/run",
+				"JRUN_PROJECT_ID=proj-1",
+				"JRUN_TASK_ID=task-1",
+				"JRUN_ID=run-1",
+				"JRUN_PARENT_ID=parent-1",
+				"do something",
+			},
+		},
+		{
+			name: "no parent run ID",
+			params: PromptParams{
+				TaskDir:   "/task",
+				RunDir:    "/run",
+				ProjectID: "proj-1",
+				TaskID:    "task-1",
+				RunID:     "run-1",
+			},
+			prompt: "do something",
+			wantContain: []string{
+				"JRUN_PROJECT_ID=proj-1",
+				"JRUN_TASK_ID=task-1",
+				"JRUN_ID=run-1",
+			},
+			wantAbsent: []string{
+				"JRUN_PARENT_ID",
+			},
+		},
+		{
+			name: "empty prompt",
+			params: PromptParams{
+				TaskDir:   "/task",
+				RunDir:    "/run",
+				ProjectID: "proj-1",
+				TaskID:    "task-1",
+				RunID:     "run-1",
+			},
+			prompt: "",
+			wantContain: []string{
+				"TASK_FOLDER=/task",
+				"JRUN_ID=run-1",
+			},
+		},
+		{
+			name: "whitespace-only parent run ID omitted",
+			params: PromptParams{
+				TaskDir:     "/task",
+				RunDir:      "/run",
+				ProjectID:   "proj-1",
+				TaskID:      "task-1",
+				RunID:       "run-1",
+				ParentRunID: "  ",
+			},
+			prompt: "work",
+			wantAbsent: []string{
+				"JRUN_PARENT_ID",
+			},
+		},
 	}
-	if !strings.HasSuffix(prompt, "\n") {
-		t.Fatalf("expected trailing newline")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := buildPrompt(tc.params, tc.prompt)
+			for _, want := range tc.wantContain {
+				if !strings.Contains(result, want) {
+					t.Errorf("expected %q in prompt, got:\n%s", want, result)
+				}
+			}
+			for _, absent := range tc.wantAbsent {
+				if strings.Contains(result, absent) {
+					t.Errorf("expected %q to be absent from prompt, got:\n%s", absent, result)
+				}
+			}
+			if !strings.HasSuffix(result, "\n") {
+				t.Errorf("expected trailing newline")
+			}
+		})
+	}
+}
+
+func TestWarnJRunEnvMismatch(t *testing.T) {
+	tests := []struct {
+		name        string
+		envVars     map[string]string
+		projectID   string
+		taskID      string
+		runID       string
+		parentRunID string
+	}{
+		{
+			name:      "no env vars set",
+			projectID: "proj-1",
+			taskID:    "task-1",
+			runID:     "run-1",
+		},
+		{
+			name:      "matching env vars",
+			envVars:   map[string]string{"JRUN_PROJECT_ID": "proj-1", "JRUN_TASK_ID": "task-1"},
+			projectID: "proj-1",
+			taskID:    "task-1",
+			runID:     "run-1",
+		},
+		{
+			name:      "mismatching env vars",
+			envVars:   map[string]string{"JRUN_PROJECT_ID": "other-proj"},
+			projectID: "proj-1",
+			taskID:    "task-1",
+			runID:     "run-1",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envVars {
+				t.Setenv(k, v)
+			}
+			// should not panic
+			warnJRunEnvMismatch(tc.projectID, tc.taskID, tc.runID, tc.parentRunID)
+		})
 	}
 }
 

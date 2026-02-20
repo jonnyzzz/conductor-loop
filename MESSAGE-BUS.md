@@ -231,3 +231,39 @@
 [2026-02-20 15:05:00] PENDING: Implement remaining human answers (bus subcommands, POST endpoint, serve command defaults)
 [2026-02-20 15:05:00] PENDING: Remaining 3 CRITICAL issues: ISSUE-002 (Windows locking), ISSUE-004 (CLI versions)
 [2026-02-20 15:05:00] PENDING: 6 HIGH issues, 6 MEDIUM issues still open
+
+[2026-02-20 15:20:00] ==========================================
+[2026-02-20 15:20:00] SESSION: 2026-02-20 Session #3
+[2026-02-20 15:20:00] ==========================================
+
+[2026-02-20 15:20:00] PRIORITY-0: Dog-food binary path (bin/run-agent, bin/conductor)
+
+[2026-02-20 15:20:01] FIX: Config validation relaxed - token/token_file now optional for CLI agents (claude, codex, gemini)
+[2026-02-20 15:20:02] FIX: CLAUDECODE env var removed from agent subprocess environment (prevents nested session error)
+[2026-02-20 15:20:03] FIX: Claude CLI -C flag removed from commandForAgent - claude doesn't support it, workdir handled by SpawnOptions.Dir
+[2026-02-20 15:20:04] VERIFIED: Dog-food path works end-to-end: bin/run-agent job → claude agent → exit_code=0, output.md written
+
+[2026-02-20 15:20:05] FEATURE: /api/v1/status endpoint added - returns active runs, uptime, configured agents, version
+[2026-02-20 15:20:06] FEATURE: CLI version detection (ISSUE-004) - ValidateAgent runs "<agent> --version" before execution
+[2026-02-20 15:20:07] FEATURE: JRUN_* variables added to prompt preamble (Q6) - JRUN_PROJECT_ID, JRUN_TASK_ID, JRUN_ID, JRUN_PARENT_ID
+[2026-02-20 15:20:08] FEATURE: Env var consistency validation - warns if JRUN_* env vars mismatch job parameters
+
+[2026-02-20 15:20:09] FIX: Race condition in sse_test.go recordingWriter - added sync.Mutex for thread-safe buffer access
+
+[2026-02-20 15:20:10] QUALITY: go build ./... passes
+[2026-02-20 15:20:11] QUALITY: go test -count=1 (14 packages) all pass
+[2026-02-20 15:20:12] QUALITY: go test -race (14 packages) clean - no data races
+
+[2026-02-20 15:20:13] ==========================================
+[2026-02-20 15:20:13] SESSION SUMMARY: 2026-02-20 Session #3
+[2026-02-20 15:20:13] ==========================================
+[2026-02-20 15:20:13] SUCCESS: Dog-food binary path fully operational (Priority 0 complete)
+[2026-02-20 15:20:13] SUCCESS: 3 dog-food blockers fixed (token validation, CLAUDECODE env, claude -C flag)
+[2026-02-20 15:20:13] SUCCESS: ISSUE-004 (CLI version detection) partially addressed via ValidateAgent
+[2026-02-20 15:20:13] SUCCESS: Q6 (JRUN preamble) implemented with consistency validation
+[2026-02-20 15:20:13] SUCCESS: /api/v1/status endpoint added (Q8 decision)
+[2026-02-20 15:20:13] SUCCESS: Pre-existing race condition in SSE test fixed
+[2026-02-20 15:20:13] SUCCESS: All quality gates pass (build, test, race detector)
+[2026-02-20 15:20:13] PENDING: ISSUE-002 (Windows file locking) still open
+[2026-02-20 15:20:13] PENDING: ISSUE-004 (CLI version compatibility checks) needs version constraint enforcement
+[2026-02-20 15:20:13] PENDING: Pre-existing flaky tests (TestMessageBusOrdering, TestRunCreationThroughput)

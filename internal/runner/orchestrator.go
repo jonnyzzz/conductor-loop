@@ -3,6 +3,7 @@ package runner
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -127,16 +128,59 @@ func createRunDir(runsDir string) (string, string, error) {
 	return filepath.Base(fallback), fallback, nil
 }
 
-func buildPrompt(taskDir, runDir, prompt string) string {
+// PromptParams holds the values used to build the agent prompt preamble.
+type PromptParams struct {
+	TaskDir     string
+	RunDir      string
+	ProjectID   string
+	TaskID      string
+	RunID       string
+	ParentRunID string
+}
+
+func buildPrompt(params PromptParams, prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
-	preamble := fmt.Sprintf("TASK_FOLDER=%s\nRUN_FOLDER=%s\nWrite output.md to %s\n\n", taskDir, runDir, filepath.Join(runDir, "output.md"))
+	var b strings.Builder
+	fmt.Fprintf(&b, "TASK_FOLDER=%s\n", params.TaskDir)
+	fmt.Fprintf(&b, "RUN_FOLDER=%s\n", params.RunDir)
+	fmt.Fprintf(&b, "JRUN_PROJECT_ID=%s\n", params.ProjectID)
+	fmt.Fprintf(&b, "JRUN_TASK_ID=%s\n", params.TaskID)
+	fmt.Fprintf(&b, "JRUN_ID=%s\n", params.RunID)
+	if strings.TrimSpace(params.ParentRunID) != "" {
+		fmt.Fprintf(&b, "JRUN_PARENT_ID=%s\n", params.ParentRunID)
+	}
+	fmt.Fprintf(&b, "Write output.md to %s\n\n", filepath.Join(params.RunDir, "output.md"))
 	if trimmed == "" {
-		return preamble
+		return b.String()
 	}
 	if !strings.HasSuffix(trimmed, "\n") {
 		trimmed += "\n"
 	}
-	return preamble + trimmed
+	return b.String() + trimmed
+}
+
+// warnJRunEnvMismatch logs a warning if JRUN_* environment variables from the
+// current process don't match the job's values. This helps catch misconfigured
+// nested invocations where a parent runner's env leaks incorrect values.
+func warnJRunEnvMismatch(projectID, taskID, runID, parentRunID string) {
+	checks := []struct {
+		envKey   string
+		jobValue string
+	}{
+		{"JRUN_PROJECT_ID", projectID},
+		{"JRUN_TASK_ID", taskID},
+		{"JRUN_ID", runID},
+		{"JRUN_PARENT_ID", parentRunID},
+	}
+	for _, c := range checks {
+		envVal := os.Getenv(c.envKey)
+		if envVal == "" {
+			continue
+		}
+		if envVal != c.jobValue {
+			log.Printf("warning: env %s=%q differs from job value %q", c.envKey, envVal, c.jobValue)
+		}
+	}
 }
 
 func ensureDir(path string) error {
