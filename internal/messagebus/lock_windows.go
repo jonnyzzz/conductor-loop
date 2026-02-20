@@ -1,5 +1,16 @@
 //go:build windows
 
+// Windows file locking limitation:
+//
+// On Unix/macOS, flock() is advisory — readers can access files without
+// acquiring locks, allowing lockless reads while writers hold exclusive locks.
+// On Windows, LockFileEx uses mandatory locks that block ALL concurrent
+// access to locked byte ranges, including reads. This means message bus
+// polling may block when any agent holds a write lock.
+//
+// For full compatibility, use WSL2 on Windows. See ISSUE-002 in ISSUES.md
+// and docs/user/troubleshooting.md for details.
+
 package messagebus
 
 import (

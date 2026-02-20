@@ -115,6 +115,8 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		"JRUN_TASK_ID":    taskID,
 		"JRUN_ID":         runID,
 		"JRUN_PARENT_ID":  parentRunID,
+		"RUNS_DIR":        runsDir,
+		"MESSAGE_BUS":     busPath,
 	}
 	if tokenVar := tokenEnvVar(agentType); tokenVar != "" {
 		if token := strings.TrimSpace(selection.Config.Token); token != "" {

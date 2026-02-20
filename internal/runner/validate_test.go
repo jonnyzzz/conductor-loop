@@ -96,6 +96,99 @@ func TestCliCommand(t *testing.T) {
 	}
 }
 
+func TestParseVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		major   int
+		minor   int
+		patch   int
+		wantErr bool
+	}{
+		{"simple", "1.2.3", 1, 2, 3, false},
+		{"v prefix", "v1.2.3", 1, 2, 3, false},
+		{"claude format", "claude 1.0.0", 1, 0, 0, false},
+		{"codex format", "codex 0.5.3", 0, 5, 3, false},
+		{"gemini format", "gemini 2.1.0-beta", 2, 1, 0, false},
+		{"with extra text", "Some CLI Tool v0.3.7 (build 1234)", 0, 3, 7, false},
+		{"large numbers", "10.20.30", 10, 20, 30, false},
+		{"no version", "no version here", 0, 0, 0, true},
+		{"empty string", "", 0, 0, 0, true},
+		{"partial version", "1.2", 0, 0, 0, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			major, minor, patch, err := parseVersion(tc.raw)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("parseVersion(%q): expected error, got nil", tc.raw)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseVersion(%q): unexpected error: %v", tc.raw, err)
+			}
+			if major != tc.major || minor != tc.minor || patch != tc.patch {
+				t.Errorf("parseVersion(%q) = (%d, %d, %d), want (%d, %d, %d)",
+					tc.raw, major, minor, patch, tc.major, tc.minor, tc.patch)
+			}
+		})
+	}
+}
+
+func TestIsVersionCompatible(t *testing.T) {
+	tests := []struct {
+		name       string
+		detected   string
+		minVersion [3]int
+		want       bool
+	}{
+		{"exact match", "claude 1.0.0", [3]int{1, 0, 0}, true},
+		{"above minimum", "claude 2.0.0", [3]int{1, 0, 0}, true},
+		{"below minimum major", "claude 0.9.0", [3]int{1, 0, 0}, false},
+		{"below minimum minor", "codex 0.0.9", [3]int{0, 1, 0}, false},
+		{"above minimum minor", "codex 0.2.0", [3]int{0, 1, 0}, true},
+		{"below minimum patch", "gemini 0.1.0", [3]int{0, 1, 1}, false},
+		{"above minimum patch", "gemini 0.1.2", [3]int{0, 1, 1}, true},
+		{"unparseable returns true", "unknown output", [3]int{1, 0, 0}, true},
+		{"empty returns true", "", [3]int{1, 0, 0}, true},
+		{"pre-release suffix", "claude 1.0.0-beta", [3]int{1, 0, 0}, true},
+		{"higher major lower minor", "claude 2.0.0", [3]int{1, 5, 0}, true},
+		{"same major lower minor", "claude 1.4.9", [3]int{1, 5, 0}, false},
+		{"zero version", "tool 0.0.0", [3]int{0, 0, 0}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isVersionCompatible(tc.detected, tc.minVersion)
+			if got != tc.want {
+				t.Errorf("isVersionCompatible(%q, %v) = %v, want %v",
+					tc.detected, tc.minVersion, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateAgentWarnsOnOldVersion(t *testing.T) {
+	dir := t.TempDir()
+	createVersionScript(t, dir, "claude", "claude 0.0.1")
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	// Should return nil (warn-only, no hard failure)
+	if err := ValidateAgent(context.Background(), "claude"); err != nil {
+		t.Fatalf("expected no error for old version (warn-only), got: %v", err)
+	}
+}
+
+func TestValidateAgentPassesOnGoodVersion(t *testing.T) {
+	dir := t.TempDir()
+	createVersionScript(t, dir, "codex", "codex 0.5.0")
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if err := ValidateAgent(context.Background(), "codex"); err != nil {
+		t.Fatalf("expected no error for compatible version, got: %v", err)
+	}
+}
+
 func createVersionScript(t *testing.T, dir, name, output string) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
