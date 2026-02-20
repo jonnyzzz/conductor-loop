@@ -2,7 +2,9 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	"time"
 )
 
 var validAgentTypes = map[string]struct{}{
@@ -66,6 +68,26 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("api.port must be between 0 and 65535")
 	}
 
+	if cfg.Webhook != nil {
+		if err := validateWebhookConfig(cfg.Webhook); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateWebhookConfig(wh *WebhookConfig) error {
+	if wh.URL != "" {
+		if _, err := url.ParseRequestURI(wh.URL); err != nil {
+			return fmt.Errorf("webhook.url is invalid: %w", err)
+		}
+	}
+	if wh.Timeout != "" {
+		if _, err := time.ParseDuration(wh.Timeout); err != nil {
+			return fmt.Errorf("webhook.timeout is invalid: %w", err)
+		}
+	}
 	return nil
 }
 

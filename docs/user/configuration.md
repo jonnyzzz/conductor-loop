@@ -253,6 +253,66 @@ api:
     - "*"
 ```
 
+### `webhook` - Webhook Notifications
+
+Send HTTP POST notifications when runs complete. Useful for integrating with Slack, GitHub Actions, PagerDuty, or custom monitoring systems.
+
+```yaml
+webhook:
+  url: "https://hooks.slack.com/services/..."  # Required: webhook endpoint
+  events:                                       # Optional: filter events (default: all)
+    - "run_stop"
+  secret: "my-signing-secret"                  # Optional: HMAC-SHA256 signing secret
+  timeout: "10s"                               # Optional: HTTP timeout (default: 10s)
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | Webhook endpoint URL |
+| `events` | []string | No | Events to send; if empty, sends all. Currently `run_stop` |
+| `secret` | string | No | HMAC-SHA256 secret for `X-Conductor-Signature` header |
+| `timeout` | string | No | HTTP timeout per attempt (default: `10s`) |
+
+#### Webhook Payload
+
+When a run completes, the following JSON is POSTed:
+
+```json
+{
+  "event": "run_stop",
+  "project_id": "my-project",
+  "task_id": "task-20260221-...",
+  "run_id": "20260221-...",
+  "agent_type": "claude",
+  "status": "completed",
+  "exit_code": 0,
+  "started_at": "2026-02-21T00:00:00Z",
+  "stopped_at": "2026-02-21T00:05:00Z",
+  "duration_seconds": 300,
+  "error_summary": ""
+}
+```
+
+Possible `status` values: `completed`, `failed`.
+
+#### Webhook Signing
+
+If `secret` is configured, each request includes an `X-Conductor-Signature: sha256=<hmac-hex>` header. Verify it in your endpoint:
+
+```python
+import hmac, hashlib
+
+def verify(secret: str, body: bytes, sig_header: str) -> bool:
+    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, sig_header)
+```
+
+#### Delivery Guarantees
+
+- Delivered asynchronously (does not block run finalization)
+- Retried up to 3 times with exponential backoff (1s, 2s between attempts)
+- Failures logged to the task message bus as `WARN` (non-fatal)
+
 ### `storage` - Storage Configuration
 
 Configure persistent storage for runs.

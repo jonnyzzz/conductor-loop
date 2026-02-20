@@ -17,6 +17,15 @@ type Config struct {
 	Defaults DefaultConfig          `yaml:"defaults"`
 	API      APIConfig              `yaml:"api"`
 	Storage  StorageConfig          `yaml:"storage"`
+	Webhook  *WebhookConfig         `yaml:"webhook,omitempty"`
+}
+
+// WebhookConfig holds configuration for run completion webhook notifications.
+type WebhookConfig struct {
+	URL     string   `yaml:"url"`
+	Events  []string `yaml:"events,omitempty"` // if empty, send all events
+	Secret  string   `yaml:"secret,omitempty"` // HMAC-SHA256 signing secret (optional)
+	Timeout string   `yaml:"timeout,omitempty"` // HTTP timeout, e.g. "10s" (default: "10s")
 }
 
 // AgentConfig describes a single agent backend configuration.

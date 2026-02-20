@@ -14,6 +14,7 @@ import (
 	"github.com/jonnyzzz/conductor-loop/internal/agent/xai"
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
+	"github.com/jonnyzzz/conductor-loop/internal/webhook"
 	"github.com/pkg/errors"
 )
 
@@ -105,6 +106,10 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	if err != nil {
 		return nil, err
 	}
+	var notifier *webhook.Notifier
+	if cfg != nil {
+		notifier = webhook.NewNotifier(cfg.Webhook)
+	}
 	selection, err := selectAgent(cfg, opts.Agent)
 	if err != nil {
 		return nil, err
@@ -184,6 +189,26 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		execErr = executeREST(ctxOrBackground(), agentType, selection, promptContent, workingDir, env, runDir, busPath, info)
 	} else {
 		execErr = executeCLI(ctxOrBackground(), agentType, promptPathAbs, workingDir, env, runDir, busPath, info)
+	}
+
+	// Send webhook notification asynchronously (non-blocking; failures are logged to message bus).
+	if notifier != nil {
+		payload := webhook.RunStopPayload{
+			Event:           "run_stop",
+			ProjectID:       info.ProjectID,
+			TaskID:          info.TaskID,
+			RunID:           info.RunID,
+			AgentType:       info.AgentType,
+			Status:          info.Status,
+			ExitCode:        info.ExitCode,
+			StartedAt:       info.StartTime,
+			StoppedAt:       info.EndTime,
+			DurationSeconds: info.EndTime.Sub(info.StartTime).Seconds(),
+			ErrorSummary:    info.ErrorSummary,
+		}
+		notifier.SendRunStop(payload, func(err error) {
+			_ = postRunEvent(busPath, info, "WARN", fmt.Sprintf("webhook delivery failed: %v", err))
+		})
 	}
 
 	if execErr != nil {
