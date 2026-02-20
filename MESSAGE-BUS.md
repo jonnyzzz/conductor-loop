@@ -1304,3 +1304,92 @@ project_id: conductor-loop
 1. run-agent stop — operational command to kill running tasks
 2. Web UI live streaming — SSE-based tab content (was 2s polling)
 3. Instructions.md — comprehensive and accurate CLI reference
+
+---
+msg_id: MSG-20260220-SESSION17-START
+ts: 2026-02-20T23:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 23:00:00] ==========================================
+[2026-02-20 23:00:00] SESSION #17: Stop API + Output Fallback + Task Resume
+[2026-02-20 23:00:00] ==========================================
+
+[2026-02-20 23:00:00] PROGRESS: Starting session #17 — read all required docs, assessed state
+[2026-02-20 23:00:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-20 23:00:00] FACT: go test ./... — ALL 18 packages green (inherited from session #16)
+[2026-02-20 23:00:00] FACT: All CRITICAL/HIGH issues resolved, all QUESTIONS.md answered
+[2026-02-20 23:00:00] DECISION: Session #17 focus:
+[2026-02-20 23:00:00]   (1) API stop endpoint POST /api/projects/{p}/tasks/{t}/runs/{r}/stop + Web UI stop button
+[2026-02-20 23:00:00]   (2) output.md fallback to agent-stdout.txt in file API (avoid "(output.md not available)")
+[2026-02-20 23:00:00]   (3) run-agent task resume command (per Q4 design decision)
+[2026-02-20 23:00:00] DECISION: Launching 3 parallel sub-agents via bin/run-agent job
+
+[2026-02-20 23:05:00] PROGRESS: Launched 3 parallel sub-agents via bin/run-agent job
+[2026-02-20 23:05:00] FACT: Agent (stop-api-webui): API stop endpoint POST /api/projects/{p}/tasks/{t}/runs/{r}/stop + Web UI stop button
+[2026-02-20 23:05:00] FACT: Agent (output-fallback): output.md fallback to agent-stdout.txt in file API
+[2026-02-20 23:05:00] FACT: Agent (resume-command): run-agent task resume subcommand
+
+[2026-02-20 23:30:00] FACT: All 3 parallel agents COMPLETED (exit 0) with DONE files created
+[2026-02-20 23:30:00] FACT: Agent (stop-api-webui): API stop endpoint + Web UI stop button — IMPLEMENTED
+[2026-02-20 23:30:00] FACT: Agent (output-fallback): output.md fallback to agent-stdout.txt — IMPLEMENTED
+[2026-02-20 23:30:00] FACT: Agent (resume-command): run-agent task resume subcommand — IMPLEMENTED
+[2026-02-20 23:30:00] QUALITY: go build ./... PASS
+[2026-02-20 23:30:00] QUALITY: go test -count=1 ./... (18 packages) ALL PASS
+[2026-02-20 23:30:00] QUALITY: go test -race ./internal/... ./cmd/... ALL PASS (no races)
+
+[2026-02-20 23:35:00] FACT: Committed: 597ac32 feat(api,cli,web): add stop endpoint, output fallback, and task resume
+
+[2026-02-20 23:40:00] ==========================================
+[2026-02-20 23:40:00] SESSION #17 SUMMARY
+[2026-02-20 23:40:00] ==========================================
+
+## Completed Tasks (3 parallel sub-agents via bin/run-agent job)
+
+### stop-api-webui (API stop endpoint + Web UI stop button)
+- POST /api/projects/{p}/tasks/{t}/runs/{r}/stop: sends SIGTERM to running process group
+- Returns 202 Accepted immediately (fire-and-forget); 409 if run not running; 404 if not found
+- Web UI: red Stop button in run detail header (visible only for running tasks)
+- Calls stop endpoint, shows toast, refreshes run meta
+- Tests: TestStopRun_Success, TestStopRun_NotRunning
+- Committed: 597ac32
+
+### output-fallback (output.md → agent-stdout.txt fallback in file API)
+- File API: when output.md not found, falls back to agent-stdout.txt
+- Response includes "fallback": "agent-stdout.txt" field when fallback used
+- SSE stream endpoint: same fallback logic
+- Web UI: displays "[Note: output.md not found, showing agent-stdout.txt]" prefix
+- Tests: TestRunFile_OutputMdFallback, TestRunFile_OutputMdNoFallback
+- Committed: 597ac32
+
+### resume-command (run-agent task resume subcommand)
+- New: run-agent task resume --project p --task t --agent claude --root ./runs
+- Checks task directory exists, verifies TASK.md present
+- Runs RunTask with ResumeMode=true (attach_mode="resume", restart prefix prepended)
+- Default max-restarts: 3
+- Committed: 597ac32
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (14MB each)
+- go test -count=1 ./... (18 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## Dog-Food Success
+- All 3 tasks orchestrated via ./bin/run-agent job — binary path fully operational
+- DONE files created by all 3 agents
+- Note: some duplicate runs were observed (agents ran same prompt after first had completed);
+  subsequent agents correctly reported "already implemented" and exited cleanly
+
+## Current Issue Status
+- CRITICAL: 0 open (all resolved)
+- HIGH: 0 open (all resolved or deferred)
+- MEDIUM: 6 open (ISSUE-011..018 planning/optimization notes — mostly moot)
+- LOW: 2 open (ISSUE-017 xAI deferred, ISSUE-018 frontend estimate)
+
+## What Was Added in Session #17
+1. run-agent stop API endpoint — REST API to kill running tasks
+2. Web UI stop button — browser-accessible task termination
+3. output.md fallback — OUTPUT tab always shows content (stdout fallback)
+4. run-agent task resume — continue a failed/stopped task from same directory
