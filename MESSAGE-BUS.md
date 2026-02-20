@@ -663,3 +663,26 @@ project_id: conductor-loop
 - ISSUE-005: Runner bottleneck - single RunJob() serialization (architectural)
 - ISSUE-006: Storage/messagebus circular dependency (architectural, not a real bug)
 - message-bus-tools Q3/Q5: Extended message model, full SSE payload
+
+---
+msg_id: MSG-20260220-SESSION9-START
+ts: 2026-02-20T18:30:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 18:30:00] ==========================================
+[2026-02-20 18:30:00] SESSION #9: Message Model Extension + SSE Payload + Flaky Test Fix
+[2026-02-20 18:30:00] ==========================================
+
+[2026-02-20 18:30:00] PROGRESS: Starting session #9 — read all required docs, assessed state
+[2026-02-20 18:30:00] FACT: go build ./... passes (BINARIES BUILT OK)
+[2026-02-20 18:30:00] FACT: TestMessageBusOrdering fails intermittently (pre-existing flaky test — concurrent ordering assumption is wrong)
+[2026-02-20 18:30:00] FACT: handlers_projects.go already implements project-scoped API (monitoring-ui Q2 was already done)
+[2026-02-20 18:30:00] DECISION: Session #9 focus: (1) fix flaky TestMessageBusOrdering, (2) extend message model Q3, (3) full SSE payload Q5
+[2026-02-20 18:30:00] DECISION: All 3 tasks independent — launching 3 parallel sub-agents via bin/run-agent job
+
+[2026-02-20 18:35:00] PROGRESS: Launched 2 parallel sub-agents via bin/run-agent job:
+[2026-02-20 18:35:00] FACT: Agent session9-fix-ordering (claude): fix flaky TestMessageBusOrdering concurrent ordering check
+[2026-02-20 18:35:00] FACT: Agent session9-extend-model (claude): extend message model with structured parents, meta, links, issue_id alias
+[2026-02-20 18:35:00] PENDING: Agent session9-sse-payload (claude): full SSE payload for message stream — will start after extend-model completes

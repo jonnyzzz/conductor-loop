@@ -94,9 +94,61 @@ func TestMessageBusOrdering(t *testing.T) {
 	if len(messages) != total {
 		t.Fatalf("expected %d messages, got %d", total, len(messages))
 	}
+
+	// Concurrent writers: ordering between goroutines is non-deterministic.
+	// Assert set membership: every written ID appears in file, and vice versa.
+	orderSet := make(map[string]bool, len(order))
+	for _, id := range order {
+		orderSet[id] = true
+	}
+	for _, msg := range messages {
+		if !orderSet[msg.MsgID] {
+			t.Fatalf("message %q in file but not in written set", msg.MsgID)
+		}
+	}
+	fileSet := make(map[string]bool, len(messages))
+	for _, msg := range messages {
+		fileSet[msg.MsgID] = true
+	}
+	for _, id := range order {
+		if !fileSet[id] {
+			t.Fatalf("message %q written but not found in file", id)
+		}
+	}
+}
+
+func TestMessageBusOrderingSingleWriter(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := messagebus.NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("new message bus: %v", err)
+	}
+
+	const numMsgs = 20
+	written := make([]string, numMsgs)
+	for i := 0; i < numMsgs; i++ {
+		msgID, err := bus.AppendMessage(&messagebus.Message{
+			Type:      "FACT",
+			ProjectID: "project",
+			TaskID:    "task-order",
+			Body:      fmt.Sprintf("message %d", i),
+		})
+		if err != nil {
+			t.Fatalf("append message %d: %v", i, err)
+		}
+		written[i] = msgID
+	}
+
+	messages, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(messages) != numMsgs {
+		t.Fatalf("expected %d messages, got %d", numMsgs, len(messages))
+	}
 	for i, msg := range messages {
-		if order[i] != msg.MsgID {
-			t.Fatalf("message order mismatch at %d: got %q want %q", i, msg.MsgID, order[i])
+		if written[i] != msg.MsgID {
+			t.Fatalf("order mismatch at %d: got %q want %q", i, msg.MsgID, written[i])
 		}
 	}
 }

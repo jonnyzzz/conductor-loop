@@ -76,8 +76,9 @@ The message bus design uses `O_APPEND + flock` with lockless reads. This works o
 
 ### ISSUE-003: Windows Process Group Management Not Supported
 **Severity**: HIGH
-**Status**: OPEN
-**Blocking**: Windows support
+**Status**: PARTIALLY RESOLVED
+**Resolved**: 2026-02-20 (short-term stubs)
+**Blocking**: Full Windows process group support
 
 **Description**:
 The design relies on PGID (process group ID) management and `kill(-pgid, 0)` for child detection. Windows doesn't have Unix-style process groups; `syscall.SysProcAttr.Setsid` doesn't exist on Windows.
@@ -92,20 +93,21 @@ The design relies on PGID (process group ID) management and `kill(-pgid, 0)` for
 - Risk Assessment Agent (Agent #3), Risk 1.2
 - docs/specifications/subsystem-runner-orchestration.md
 
-**Resolution Options**:
-1. Use Windows Job Objects for process grouping
-2. Implement `CreateJobObject` + `AssignProcessToJobObject`
-3. Use `QueryInformationJobObject` to detect running children
-4. Use `TerminateJobObject` for graceful shutdown
+**Short-term Resolution (2026-02-20)**:
+- [x] `internal/runner/pgid_windows.go`: Uses `CREATE_NEW_PROCESS_GROUP`, returns PID as pgid (workaround)
+- [x] `internal/runner/stop_windows.go`: Kills process by PID (works for single-process killing)
+- [x] `internal/runner/wait_windows.go`: Best-effort alive check on Windows (Signal(0) best effort)
+- [x] All platform-specific code uses `//go:build windows` or `//go:build !windows` tags
+- [x] Windows builds compile successfully
 
-**Recommended Action**:
-- Create `internal/process` package with platform-specific implementations
-- Use `//go:build` tagged files for Unix vs Windows
-- Add Windows Job Object wrapper
+**Medium-term (deferred)**:
+- [ ] Use Windows Job Objects for true process group management
+- [ ] Implement `CreateJobObject` + `AssignProcessToJobObject`
+- [ ] Use `QueryInformationJobObject` to detect running children
+- [ ] Use `TerminateJobObject` for graceful shutdown
 
 **Dependencies**:
-- runner-process implementation
-- Windows testing environment
+- Windows testing environment for full verification
 
 ---
 
@@ -737,10 +739,17 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 | Severity | Open | Partially Resolved | Resolved |
 |----------|------|-------------------|----------|
 | CRITICAL | 0 | 2 | 3 |
-| HIGH | 3 | 2 | 2 |
+| HIGH | 2 | 3 | 2 |
 | MEDIUM | 6 | 0 | 0 |
 | LOW | 2 | 0 | 0 |
-| **Total** | **11** | **4** | **6** |
+| **Total** | **10** | **5** | **6** |
+
+### Session #9 Changes (2026-02-20)
+
+**ISSUE-003**: Updated to PARTIALLY RESOLVED — Windows process group stubs already exist:
+- `internal/runner/pgid_windows.go`: CREATE_NEW_PROCESS_GROUP + pid-as-pgid workaround
+- `internal/runner/stop_windows.go`: Kill by PID (single process)
+- `internal/runner/wait_windows.go`: Best-effort alive check
 
 ### Session #8 Changes (2026-02-20)
 
@@ -773,4 +782,4 @@ New features implemented (from QUESTIONS.md decisions):
 
 *This document is maintained as part of the Conductor Loop project. Update as issues are resolved or new issues discovered.*
 
-*Last updated: 2026-02-20 Session #8*
+*Last updated: 2026-02-20 Session #9*
