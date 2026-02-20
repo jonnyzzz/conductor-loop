@@ -380,6 +380,32 @@ When agents fail, error context may be insufficient for diagnosis. Exit codes do
 
 ---
 
+### ISSUE-021: Data Race in Server.ListenAndServe/Shutdown
+**Severity**: HIGH
+**Status**: RESOLVED
+**Resolved**: 2026-02-20 (Session #8)
+**Blocking**: Test reliability, potential data corruption
+
+**Description**:
+Race condition between `ListenAndServe()` and `Shutdown()` in the `Server` struct. Both methods accessed `s.server` (the underlying `*http.Server`) concurrently without synchronization, detected by `go test -race`.
+
+**Impact**:
+- `go test -race` detected data race in `cmd/run-agent` serve command
+- Potential data corruption if serve/shutdown called concurrently in production
+- Flaky test results under the race detector
+
+**Source**:
+- Detected during Session #8 integration testing (`go test -race ./cmd/run-agent/`)
+
+**Resolution**:
+- [x] Added `mu sync.Mutex` to `Server` struct in `internal/api/server.go`
+- [x] `ListenAndServe()` creates `s.server` under lock, calls `srv.ListenAndServe()` outside lock
+- [x] `Shutdown()` reads `s.server` under lock, calls `srv.Shutdown()` outside lock
+- [x] `go test -race ./cmd/run-agent/` PASS — no data races
+- Committed: 01e164c
+
+---
+
 ### ISSUE-019: Concurrent run-info.yaml Updates Cause Data Loss
 **Severity**: CRITICAL
 **Status**: RESOLVED
@@ -739,10 +765,57 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 | Severity | Open | Partially Resolved | Resolved |
 |----------|------|-------------------|----------|
 | CRITICAL | 0 | 2 | 3 |
-| HIGH | 2 | 3 | 2 |
+| HIGH | 2 | 3 | 3 |
 | MEDIUM | 6 | 0 | 0 |
 | LOW | 2 | 0 | 0 |
-| **Total** | **10** | **5** | **6** |
+| **Total** | **10** | **5** | **7** |
+
+### Session #11 Changes (2026-02-20)
+
+**Verification pass**: All open/partially-resolved issues cross-checked against actual code.
+
+**ISSUE-021 (Data Race in Server)**: Added formal issue entry — previously only mentioned in
+Session #8 changes section. Code confirmed: `mu sync.Mutex` exists in `internal/api/server.go:48`.
+Status: RESOLVED. Summary table updated (HIGH resolved: 2 → 3, Total resolved: 6 → 7).
+
+**ISSUE-002 confirmed PARTIALLY RESOLVED**: `internal/messagebus/lock_windows.go` exists with
+`LockFileEx/UnlockFileEx` implementation. Medium-term Windows reader retry still deferred.
+
+**ISSUE-003 confirmed PARTIALLY RESOLVED**: All three Windows stubs verified:
+`internal/runner/pgid_windows.go`, `stop_windows.go`, `wait_windows.go` all present.
+Job Objects implementation still deferred.
+
+**ISSUE-004 confirmed PARTIALLY RESOLVED**: `parseVersion`, `isVersionCompatible`, `minVersions`
+all exist in `internal/runner/validate.go`. Config-level override and validate subcommand deferred.
+
+**ISSUE-005 still OPEN**: `internal/runner/job.go` is 552 lines with `runJob()` as the central
+serialized entry point. No decomposition into parallel components has been done.
+
+**ISSUE-006 status note**: `internal/storage/atomic.go` now imports `internal/messagebus` (for
+`LockExclusive`, added in ISSUE-019 fix). Dependency is one-directional (storage→messagebus),
+not circular. The planning concern about Phase 1 parallelism is moot since implementation is
+complete. Issue remains OPEN as an architectural note.
+
+**ISSUE-007 confirmed RESOLVED**: `WithMaxRetries`, `WithRetryBackoff`, `ContentionStats` all
+present in `internal/messagebus/messagebus.go`.
+
+**ISSUE-008 confirmed RESOLVED**: 14 test files in `test/integration/` covering concurrent
+writes, cross-process appends, orchestration, SSE, and API end-to-end scenarios.
+
+**ISSUE-009 confirmed PARTIALLY RESOLVED**: `ValidateToken()` exists in
+`internal/runner/validate.go:113`. Full expiration detection and OAuth refresh deferred.
+
+**ISSUE-010 confirmed PARTIALLY RESOLVED**: `tailFile()`, `classifyExitCode()`, and
+`ErrorSummary` field all present in `internal/runner/job.go`. Structured ERROR message type
+and UI surfacing deferred.
+
+**ISSUE-019 confirmed RESOLVED**: `internal/storage/atomic.go` uses `messagebus.LockExclusive`
+with 5s timeout for `UpdateRunInfo()` read-modify-write cycle.
+
+**ISSUE-020 confirmed RESOLVED**: `TestRunJobMessageBusEventOrdering` exists in
+`test/integration/orchestration_test.go:263`.
+
+---
 
 ### Session #9 Changes (2026-02-20)
 
@@ -782,4 +855,4 @@ New features implemented (from QUESTIONS.md decisions):
 
 *This document is maintained as part of the Conductor Loop project. Update as issues are resolved or new issues discovered.*
 
-*Last updated: 2026-02-20 Session #9*
+*Last updated: 2026-02-20 Session #11*
