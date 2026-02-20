@@ -1582,3 +1582,92 @@ project_id: conductor-loop
 1. TASK.md viewer — `GET /api/projects/{p}/tasks/{t}/file?name=TASK.md` endpoint + web UI tab
 2. Project message bus panel — live SSE stream of PROJECT-MESSAGE-BUS.md in left panel
 3. conductor --host/--port — CLI flags for conductor binary + docs updated
+
+---
+msg_id: MSG-20260220-SESSION20-START
+ts: 2026-02-20T21:20:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 21:20:00] ==========================================
+[2026-02-20 21:20:00] SESSION #20: Claude stream-json + Documentation updates
+[2026-02-20 21:20:00] ==========================================
+
+[2026-02-20 21:20:00] PROGRESS: Starting session #20 — read all required docs, assessed state
+[2026-02-20 21:20:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-20 21:20:00] FACT: go test -count=1 ./... — ALL 18 packages green (inherited from session #19)
+[2026-02-20 21:20:00] FACT: All CRITICAL/HIGH issues resolved, all QUESTIONS.md answered
+[2026-02-20 21:20:00] FACT: Assessment complete — main remaining TODO: Claude stream-json from agent backend spec
+[2026-02-20 21:20:00] FACT: Gap found: Claude uses --output-format text; spec says use stream-json for progress messages
+[2026-02-20 21:20:00] FACT: Gap found: User docs inaccurate (missing conductor commands, web UI description wrong)
+[2026-02-20 21:20:00] DECISION: Session #20 focus:
+[2026-02-20 21:20:00]   (1) Claude stream-json: switch to --output-format stream-json --verbose; add JSON parser for output.md
+[2026-02-20 21:20:00]   (2) Housekeeping: update spec questions notes, fix user docs, update ISSUES.md summary
+[2026-02-20 21:20:00] DECISION: Launching 2 parallel sub-agents via bin/run-agent job
+
+[2026-02-20 21:20:30] PROGRESS: Launched 2 parallel sub-agents via bin/run-agent job:
+[2026-02-20 21:20:30] FACT: Agent task-20260220-211825-c2keo8 (claude-stream-json): Claude JSON streaming implementation
+[2026-02-20 21:20:30] FACT: Agent task-20260220-211829-50b6r0 (housekeeping): Spec notes + doc accuracy + ISSUES.md
+
+[2026-02-20 21:25:00] FACT: Both parallel agents COMPLETED (exit 0) with DONE files created
+[2026-02-20 21:25:00] FACT: Agent task-20260220-211825-c2keo8 (claude-stream-json): stream-json support — IMPLEMENTED
+[2026-02-20 21:25:00] FACT: Agent task-20260220-211829-50b6r0 (housekeeping): doc updates — COMPLETE
+[2026-02-20 21:25:00] QUALITY: go build ./... PASS
+[2026-02-20 21:25:00] QUALITY: go test -count=1 ./... (18 packages) ALL PASS
+[2026-02-20 21:25:00] QUALITY: go test -race ./internal/... ./cmd/... ALL PASS (no data races)
+[2026-02-20 21:25:00] FACT: Binaries rebuilt: conductor (14MB), run-agent (14MB)
+[2026-02-20 21:25:00] FACT: Committed: f0c2e95 feat(agent): add stream-json output parsing for Claude backend
+[2026-02-20 21:25:00] FACT: Committed: 936dad9 docs: session #20 housekeeping - spec notes and doc accuracy
+
+[2026-02-20 21:26:00] ==========================================
+[2026-02-20 21:26:00] SESSION #20 SUMMARY
+[2026-02-20 21:26:00] ==========================================
+
+## Completed Tasks (2 sub-agents via bin/run-agent job)
+
+### task-20260220-211825-c2keo8 (Claude JSON Streaming)
+- Updated claudeArgs() to use --output-format stream-json --verbose (was --output-format text)
+- New file: internal/agent/claude/stream_parser.go
+  - ParseStreamJSON: scans ndjson stream, returns result field from type=result event
+  - Falls back to concatenated text from type=assistant messages if no result event
+  - writeOutputMDFromStream: writes output.md from parsed stream (if not already present)
+- Updated Execute() to call writeOutputMDFromStream after process completes (non-fatal)
+- Updated commandForAgent() in internal/runner/job.go to match new args
+- New file: internal/agent/claude/stream_parser_test.go (9 test cases)
+- Committed: f0c2e95
+
+### task-20260220-211829-50b6r0 (Housekeeping)
+- claude-QUESTIONS.md: Added stream-json implementation note
+- codex-QUESTIONS.md, gemini-QUESTIONS.md: Added deferral notes
+- cli-reference.md: Fixed conductor commands (were marked "not implemented"); added 7 missing run-agent commands
+- api-reference.md: Added "API Surfaces" section for /api/projects/ endpoints
+- web-ui.md: Fixed "React-based" claim (plain HTML/JS); added Run Detail Tabs, Stop Button, Project Message Bus sections
+- ISSUES.md: Fixed CRITICAL resolved count (3→4, ISSUE-000 was missed)
+- THE_PLAN_v5.md: Added Implementation Status table showing all phases complete
+- Committed: 936dad9
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (14MB each)
+- go test -count=1 ./... (18 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## Dog-Food Success
+- Both tasks orchestrated via ./bin/run-agent job (auto-generated task IDs)
+- DONE files created by both agents ✓
+- No merge conflicts
+
+## Current Issue Status
+- CRITICAL: 0 open (all resolved)
+- HIGH: 0 open (all resolved or deferred)
+- MEDIUM: 5 open (ISSUE-011..014, ISSUE-016 planning notes — mostly moot)
+- LOW: 2 open (ISSUE-017 xAI deferred, ISSUE-018 frontend estimate)
+
+## What Was Added in Session #20
+1. Claude stream-json output — --output-format stream-json --verbose; ParseStreamJSON extracts result text
+2. output.md auto-creation — extracted from JSON stream when Claude doesn't write output.md via tools
+3. User docs fixed — cli-reference, api-reference, web-ui all corrected
+4. Spec notes updated — implementation/deferral notes for all agent backend QUESTIONS files
+5. ISSUES.md table corrected — CRITICAL resolved count was wrong (3 vs 4)
+6. THE_PLAN_v5.md — added status table showing all phases complete
