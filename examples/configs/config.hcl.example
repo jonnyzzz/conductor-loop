@@ -1,0 +1,40 @@
+# Conductor Loop — HCL configuration example
+# Copy to config.hcl (or config.local.hcl) and adjust to your environment.
+
+agents {
+  claude {
+    type       = "claude"
+    token_file = "~/.config/claude/token"
+  }
+
+  gemini {
+    type       = "gemini"
+    token_file = "~/.config/gemini/token"
+  }
+
+  codex {
+    type  = "codex"
+    token = "sk-..."
+  }
+}
+
+defaults {
+  agent   = "claude"
+  timeout = 3600
+}
+
+api {
+  host = "127.0.0.1"
+  port = 8080
+
+  sse {
+    poll_interval_ms      = 100
+    discovery_interval_ms = 1000
+    heartbeat_interval_s  = 30
+    max_clients_per_run   = 10
+  }
+}
+
+storage {
+  runs_dir = "./runs"
+}

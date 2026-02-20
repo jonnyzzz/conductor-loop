@@ -287,15 +287,134 @@ func TestFindDefaultConfig_FoundHome(t *testing.T) {
 	}
 }
 
-func TestFindDefaultConfig_HCLError(t *testing.T) {
+func TestFindDefaultConfig_FoundHCL(t *testing.T) {
 	dir := t.TempDir()
 	hclPath := filepath.Join(dir, "config.hcl")
 	if err := os.WriteFile(hclPath, []byte("# hcl config\n"), 0o600); err != nil {
 		t.Fatalf("write hcl: %v", err)
 	}
-	_, err := FindDefaultConfigIn(dir)
+	path, err := FindDefaultConfigIn(dir)
+	if err != nil {
+		t.Fatalf("unexpected error for HCL config: %v", err)
+	}
+	if path != hclPath {
+		t.Fatalf("expected %q, got %q", hclPath, path)
+	}
+}
+
+func TestLoadHCLConfig(t *testing.T) {
+	dir := t.TempDir()
+	tokenPath := filepath.Join(dir, "token.txt")
+	if err := os.WriteFile(tokenPath, []byte("hcl-secret"), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+	content := `
+agents {
+  claude {
+    type       = "claude"
+    token_file = "token.txt"
+  }
+}
+
+defaults {
+  agent   = "claude"
+  timeout = 10
+}
+
+storage {
+  runs_dir = "./runs"
+}
+`
+	configPath := filepath.Join(dir, "config.hcl")
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig HCL: %v", err)
+	}
+	agent, ok := cfg.Agents["claude"]
+	if !ok {
+		t.Fatalf("expected claude agent in config")
+	}
+	if agent.Type != "claude" {
+		t.Fatalf("expected type claude, got %q", agent.Type)
+	}
+	if agent.Token != "hcl-secret" {
+		t.Fatalf("expected token from file, got %q", agent.Token)
+	}
+	if cfg.Defaults.Agent != "claude" {
+		t.Fatalf("expected default agent claude, got %q", cfg.Defaults.Agent)
+	}
+	if cfg.Defaults.Timeout != 10 {
+		t.Fatalf("expected timeout 10, got %d", cfg.Defaults.Timeout)
+	}
+}
+
+func TestLoadConfigAutoDetectsFormat(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write YAML config
+	yamlPath := filepath.Join(dir, "config.yaml")
+	yamlContent := `agents:
+  codex:
+    type: codex
+    token: yaml-token
+defaults:
+  agent: codex
+  timeout: 5
+`
+	if err := os.WriteFile(yamlPath, []byte(yamlContent), 0o600); err != nil {
+		t.Fatalf("write yaml: %v", err)
+	}
+
+	// Write HCL config
+	hclPath := filepath.Join(dir, "config.hcl")
+	hclContent := `
+agents {
+  codex {
+    type  = "codex"
+    token = "hcl-token"
+  }
+}
+defaults {
+  agent   = "codex"
+  timeout = 5
+}
+`
+	if err := os.WriteFile(hclPath, []byte(hclContent), 0o600); err != nil {
+		t.Fatalf("write hcl: %v", err)
+	}
+
+	yamlCfg, err := LoadConfig(yamlPath)
+	if err != nil {
+		t.Fatalf("LoadConfig YAML: %v", err)
+	}
+	if yamlCfg.Agents["codex"].Token != "yaml-token" {
+		t.Fatalf("expected yaml-token, got %q", yamlCfg.Agents["codex"].Token)
+	}
+
+	hclCfg, err := LoadConfig(hclPath)
+	if err != nil {
+		t.Fatalf("LoadConfig HCL: %v", err)
+	}
+	if hclCfg.Agents["codex"].Token != "hcl-token" {
+		t.Fatalf("expected hcl-token, got %q", hclCfg.Agents["codex"].Token)
+	}
+}
+
+func TestLoadHCLConfigInvalidSyntax(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.hcl")
+	if err := os.WriteFile(configPath, []byte(":::invalid hcl:::"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	_, err := LoadConfig(configPath)
 	if err == nil {
-		t.Fatalf("expected error for HCL config, got nil")
+		t.Fatalf("expected error for invalid HCL, got nil")
+	}
+	if !strings.Contains(err.Error(), "config.hcl") {
+		t.Fatalf("expected error to mention file path, got: %v", err)
 	}
 }
 

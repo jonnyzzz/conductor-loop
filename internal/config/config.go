@@ -1,11 +1,13 @@
-// Package config provides YAML configuration loading for conductor loop.
+// Package config provides YAML and HCL configuration loading for conductor loop.
 package config
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/hashicorp/hcl"
 	"gopkg.in/yaml.v3"
 )
 
@@ -45,10 +47,10 @@ type StorageConfig struct {
 // Search order:
 //  1. ./config.yaml
 //  2. ./config.yml
-//  3. ./config.hcl (returns error — HCL not yet supported)
+//  3. ./config.hcl
 //  4. $HOME/.config/conductor/config.yaml
 //  5. $HOME/.config/conductor/config.yml
-//  6. $HOME/.config/conductor/config.hcl (returns error — HCL not yet supported)
+//  6. $HOME/.config/conductor/config.hcl
 func FindDefaultConfig() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -62,78 +64,61 @@ func FindDefaultConfig() (string, error) {
 func FindDefaultConfigIn(baseDir string) (string, error) {
 	home, _ := os.UserHomeDir()
 
-	type candidate struct {
-		path  string
-		isHCL bool
-	}
-
-	candidates := []candidate{
-		{filepath.Join(baseDir, "config.yaml"), false},
-		{filepath.Join(baseDir, "config.yml"), false},
-		{filepath.Join(baseDir, "config.hcl"), true},
+	candidates := []string{
+		filepath.Join(baseDir, "config.yaml"),
+		filepath.Join(baseDir, "config.yml"),
+		filepath.Join(baseDir, "config.hcl"),
 	}
 	if home != "" {
 		candidates = append(candidates,
-			candidate{filepath.Join(home, ".config", "conductor", "config.yaml"), false},
-			candidate{filepath.Join(home, ".config", "conductor", "config.yml"), false},
-			candidate{filepath.Join(home, ".config", "conductor", "config.hcl"), true},
+			filepath.Join(home, ".config", "conductor", "config.yaml"),
+			filepath.Join(home, ".config", "conductor", "config.yml"),
+			filepath.Join(home, ".config", "conductor", "config.hcl"),
 		)
 	}
 
-	for _, c := range candidates {
-		if _, err := os.Stat(c.path); err != nil {
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err != nil {
 			continue
 		}
-		if c.isHCL {
-			return "", fmt.Errorf("HCL config format not yet supported: %s", c.path)
-		}
-		return c.path, nil
+		return path, nil
 	}
 
 	return "", nil
 }
 
-// LoadConfig loads and validates configuration from a YAML file.
+// LoadConfig loads and validates configuration from a YAML or HCL file.
 func LoadConfig(path string) (*Config, error) {
 	if path == "" {
 		return nil, fmt.Errorf("config path is empty")
 	}
 
-	data, err := os.ReadFile(path)
+	cfg, err := parseConfigFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
+		return nil, err
 	}
 
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parse config: %w", err)
-	}
-
-	if cfg.Agents == nil {
-		cfg.Agents = make(map[string]AgentConfig)
-	}
-
-	applyAgentDefaults(&cfg)
-	applyAPIDefaults(&cfg)
-	applyTokenEnvOverrides(&cfg)
+	applyAgentDefaults(cfg)
+	applyAPIDefaults(cfg)
+	applyTokenEnvOverrides(cfg)
 
 	baseDir := filepath.Dir(path)
-	if err := resolveTokenFilePaths(&cfg, baseDir); err != nil {
+	if err := resolveTokenFilePaths(cfg, baseDir); err != nil {
 		return nil, err
 	}
-	if err := resolveStoragePaths(&cfg, baseDir); err != nil {
-		return nil, err
-	}
-
-	if err := ValidateConfig(&cfg); err != nil {
+	if err := resolveStoragePaths(cfg, baseDir); err != nil {
 		return nil, err
 	}
 
-	if err := resolveTokens(&cfg); err != nil {
+	if err := ValidateConfig(cfg); err != nil {
 		return nil, err
 	}
 
-	return &cfg, nil
+	if err := resolveTokens(cfg); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
 }
 
 // LoadConfigForServer loads configuration without validating agent tokens.
@@ -143,33 +128,162 @@ func LoadConfigForServer(path string) (*Config, error) {
 		return nil, fmt.Errorf("config path is empty")
 	}
 
+	cfg, err := parseConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	applyAgentDefaults(cfg)
+	applyAPIDefaults(cfg)
+	applyTokenEnvOverrides(cfg)
+
+	baseDir := filepath.Dir(path)
+	if err := resolveTokenFilePaths(cfg, baseDir); err != nil {
+		return nil, err
+	}
+	if err := resolveStoragePaths(cfg, baseDir); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+// parseConfigFile reads and parses a config file, auto-detecting format by extension.
+func parseConfigFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext == ".hcl" {
+		return parseHCLConfig(path, data)
+	}
+	return parseYAMLConfig(data)
+}
+
+// parseYAMLConfig decodes YAML bytes into a Config.
+func parseYAMLConfig(data []byte) (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
-
 	if cfg.Agents == nil {
 		cfg.Agents = make(map[string]AgentConfig)
 	}
-
-	applyAgentDefaults(&cfg)
-	applyAPIDefaults(&cfg)
-	applyTokenEnvOverrides(&cfg)
-
-	baseDir := filepath.Dir(path)
-	if err := resolveTokenFilePaths(&cfg, baseDir); err != nil {
-		return nil, err
-	}
-	if err := resolveStoragePaths(&cfg, baseDir); err != nil {
-		return nil, err
-	}
-
 	return &cfg, nil
+}
+
+// parseHCLConfig decodes HCL bytes into a Config.
+func parseHCLConfig(path string, data []byte) (*Config, error) {
+	var raw map[string]interface{}
+	if err := hcl.Decode(&raw, string(data)); err != nil {
+		return nil, fmt.Errorf("parse HCL config %s: %w", path, err)
+	}
+
+	cfg := &Config{
+		Agents: make(map[string]AgentConfig),
+	}
+
+	// agents block
+	if v, ok := raw["agents"]; ok {
+		for name, agentRaw := range hclFirstBlock(v) {
+			agentBlocks := hclFirstBlock(agentRaw)
+			if agentBlocks == nil {
+				continue
+			}
+			agent := AgentConfig{}
+			if s, ok := agentBlocks["type"].(string); ok {
+				agent.Type = s
+			}
+			if s, ok := agentBlocks["token"].(string); ok {
+				agent.Token = s
+			}
+			if s, ok := agentBlocks["token_file"].(string); ok {
+				agent.TokenFile = s
+			}
+			if s, ok := agentBlocks["base_url"].(string); ok {
+				agent.BaseURL = s
+			}
+			if s, ok := agentBlocks["model"].(string); ok {
+				agent.Model = s
+			}
+			cfg.Agents[name] = agent
+		}
+	}
+
+	// defaults block
+	if m := hclFirstBlock(raw["defaults"]); m != nil {
+		if s, ok := m["agent"].(string); ok {
+			cfg.Defaults.Agent = s
+		}
+		if n, ok := m["timeout"].(int); ok {
+			cfg.Defaults.Timeout = n
+		}
+	}
+
+	// api block
+	if m := hclFirstBlock(raw["api"]); m != nil {
+		if s, ok := m["host"].(string); ok {
+			cfg.API.Host = s
+		}
+		if n, ok := m["port"].(int); ok {
+			cfg.API.Port = n
+		}
+		if b, ok := m["auth_enabled"].(bool); ok {
+			cfg.API.AuthEnabled = b
+		}
+		if list, ok := m["cors_origins"].([]interface{}); ok {
+			for _, item := range list {
+				if s, ok := item.(string); ok {
+					cfg.API.CORSOrigins = append(cfg.API.CORSOrigins, s)
+				}
+			}
+		}
+		if sm := hclFirstBlock(m["sse"]); sm != nil {
+			if n, ok := sm["poll_interval_ms"].(int); ok {
+				cfg.API.SSE.PollIntervalMs = n
+			}
+			if n, ok := sm["discovery_interval_ms"].(int); ok {
+				cfg.API.SSE.DiscoveryIntervalMs = n
+			}
+			if n, ok := sm["heartbeat_interval_s"].(int); ok {
+				cfg.API.SSE.HeartbeatIntervalS = n
+			}
+			if n, ok := sm["max_clients_per_run"].(int); ok {
+				cfg.API.SSE.MaxClientsPerRun = n
+			}
+		}
+	}
+
+	// storage block
+	if m := hclFirstBlock(raw["storage"]); m != nil {
+		if s, ok := m["runs_dir"].(string); ok {
+			cfg.Storage.RunsDir = s
+		}
+		if list, ok := m["extra_roots"].([]interface{}); ok {
+			for _, item := range list {
+				if s, ok := item.(string); ok {
+					cfg.Storage.ExtraRoots = append(cfg.Storage.ExtraRoots, s)
+				}
+			}
+		}
+	}
+
+	return cfg, nil
+}
+
+// hclFirstBlock returns the first element of an HCL v1 block value ([]map[string]interface{}).
+// Returns nil if the value is not a block or is empty.
+func hclFirstBlock(v interface{}) map[string]interface{} {
+	if v == nil {
+		return nil
+	}
+	blocks, ok := v.([]map[string]interface{})
+	if !ok || len(blocks) == 0 {
+		return nil
+	}
+	return blocks[0]
 }
 
 func applyAgentDefaults(cfg *Config) {
