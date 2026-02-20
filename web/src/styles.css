@@ -546,3 +546,52 @@ body {
 .msg-crash { color: var(--err); }
 .msg-run   { color: var(--text-dim); }
 .msg-ok    { color: var(--ok); }
+.msg-user  { color: var(--accent); }
+
+/* ── Message compose area ────────────────────────── */
+
+#msg-compose {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg2);
+  padding: 6px 10px;
+}
+
+#msg-form {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+#msg-type {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  padding: 4px 6px;
+  flex-shrink: 0;
+  outline: none;
+}
+#msg-type:focus { border-color: var(--accent); }
+
+#msg-body {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  padding: 4px 6px;
+  resize: none;
+  outline: none;
+}
+#msg-body:focus { border-color: var(--accent); }
+
+#msg-form .btn-submit {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  font-size: 11px;
+}

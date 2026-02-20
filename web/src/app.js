@@ -20,11 +20,12 @@ const state = {
   activeTab:       'output.md',
 };
 
-let refreshTimer  = null;
-let sseSource     = null;
-let tabSseSource  = null;
-let tabSseRunId   = null;
-let tabSseTab     = null;
+let refreshTimer     = null;
+let taskRefreshTimer = null;  // setTimeout-based timer for task/run list
+let sseSource        = null;
+let tabSseSource     = null;
+let tabSseRunId      = null;
+let tabSseTab        = null;
 
 // ── API ──────────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,7 @@ function renderProjectList() {
 
 async function selectProject(id) {
   if (state.selectedProject === id) return;
+  clearTimeout(taskRefreshTimer);
   state.selectedProject = id;
   state.selectedTask    = null;
   state.selectedRun     = null;
@@ -97,6 +99,7 @@ async function selectProject(id) {
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
 async function loadTasks() {
+  clearTimeout(taskRefreshTimer);
   if (!state.selectedProject) {
     state.tasks = [];
     renderMainPanel();
@@ -108,7 +111,18 @@ async function loadTasks() {
   } catch {
     // keep existing
   }
+  // Also refresh runs for the currently selected task
+  if (state.selectedTask) {
+    try {
+      const task = await apiFetch(
+        `/api/projects/${enc(state.selectedProject)}/tasks/${enc(state.selectedTask)}`
+      );
+      state.taskRuns = task.runs || [];
+    } catch { /* keep */ }
+  }
   renderMainPanel();
+  // Schedule next refresh (only active when a project is selected)
+  taskRefreshTimer = setTimeout(loadTasks, REFRESH_MS);
 }
 
 async function selectTask(id) {
@@ -151,12 +165,21 @@ function renderMainPanel() {
     const sel  = t.id === state.selectedTask;
     const icon = stIcon(t.status);
     const ago  = timeAgo(t.last_activity);
+    let runLabel;
+    if (sel && state.taskRuns.length > 0) {
+      const runningCount = state.taskRuns.filter(r => r.status === 'running').length;
+      runLabel = runningCount > 0
+        ? `${state.taskRuns.length} runs, ${runningCount} running`
+        : `${state.taskRuns.length} runs`;
+    } else {
+      runLabel = `Runs: ${t.run_count}`;
+    }
     const runs = sel ? renderRunsSection() : '';
     return `<div class="task-card${sel ? ' selected' : ''}">
       <div class="task-row" onclick="selectTask(${js(t.id)})">
         ${icon}
         <span class="task-id">${h(t.id)}</span>
-        <span class="task-meta">Runs: ${t.run_count} · ${ago}</span>
+        <span class="task-meta">${runLabel} · ${ago}</span>
       </div>
       ${runs}
     </div>`;
@@ -171,7 +194,7 @@ function renderRunsSection() {
   const items = [...state.taskRuns].reverse().map(r => {
     const sel = r.id === state.selectedRun;
     const icon = stIcon(r.status);
-    const dur  = r.end_time ? fmtDuration(r.start_time, r.end_time) : 'running';
+    const dur  = fmtDuration(r.start_time, r.end_time || Date.now());
     return `<div class="run-row${sel ? ' selected' : ''}" onclick="selectRun(${js(r.id)})">
       ${icon}
       <span class="run-id">${h(r.id)}</span>
@@ -196,7 +219,7 @@ async function loadRunMeta() {
   const prefix = runPrefix();
   try {
     const run = await apiFetch(`${prefix}/runs/${enc(state.selectedRun)}`);
-    const dur  = run.end_time ? fmtDuration(run.start_time, run.end_time) : 'running';
+    const dur  = fmtDuration(run.start_time, run.end_time || Date.now());
     document.getElementById('run-meta').innerHTML =
       `<span>Run: <b>${h(run.id)}</b></span>` +
       `<span>Agent: ${h(run.agent || '—')}</span>` +
@@ -251,6 +274,11 @@ async function loadTabContent() {
   const tab = state.activeTab;
   const el  = document.getElementById('tab-content');
 
+  // For messages tab, SSE is task-scoped; check task+tab instead of run+tab.
+  if (tab === 'messages' && tabSseSource && tabSseTab === 'messages' && tabSseRunId === state.selectedTask) {
+    return;
+  }
+
   // If SSE is already streaming this exact run/tab, let it continue.
   if (tabSseSource && tabSseRunId === state.selectedRun && tabSseTab === tab) {
     return;
@@ -261,25 +289,31 @@ async function loadTabContent() {
   const prefix = runPrefix();
 
   if (tab === 'messages') {
-    el.textContent = 'Loading…';
-    try {
-      const data = await apiFetch(
-        `/api/v1/messages?project_id=${enc(state.selectedProject)}&task_id=${enc(state.selectedTask)}`
-      );
-      const msgs = (data.messages || []).slice(-50);
-      if (msgs.length) {
-        el.innerHTML = msgs.map(m => {
-          const cls  = msgTypeClass(m.type);
-          const text = `[${h(shortTime(m.timestamp))}] [${h(m.type)}] ${h(m.body || m.content || '')}`;
-          return cls ? `<span class="${cls}">${text}</span>` : text;
-        }).join('\n');
-      } else {
-        el.textContent = '(no messages)';
-      }
-    } catch (e) {
-      el.textContent = (e.status === 404) ? `(${tab} not available)` : `Error: ${e.message}`;
-    }
-    el.scrollTop = el.scrollHeight;
+    el.innerHTML = '';
+    const sseUrl = `${API_BASE}/api/v1/messages/stream?project_id=${enc(state.selectedProject)}&task_id=${enc(state.selectedTask)}`;
+    const source = new EventSource(sseUrl);
+    tabSseSource = source;
+    tabSseRunId  = state.selectedTask; // task-scoped; not run-scoped
+    tabSseTab    = 'messages';
+
+    source.addEventListener('message', (event) => {
+      try {
+        const m = JSON.parse(event.data);
+        const cls  = msgTypeClass(m.type);
+        const text = `[${h(shortTime(m.timestamp))}] [${h(m.type)}] ${h(m.content || '')}`;
+        const line = cls ? `<span class="${cls}">${text}</span>` : text;
+        el.innerHTML += (el.innerHTML ? '\n' : '') + line;
+        el.scrollTop = el.scrollHeight;
+      } catch { /* ignore parse errors */ }
+    });
+
+    source.addEventListener('heartbeat', () => { /* keep-alive, no-op */ });
+
+    source.onerror = () => {
+      if (tabSseSource !== source) return;
+      // browser auto-reconnects EventSource; no cleanup needed here
+    };
+
     return;
   }
 
@@ -357,16 +391,19 @@ function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === name);
   });
+  updateMsgCompose();
   if (state.selectedRun) loadTabContent();
 }
 
 function showRunDetail() {
   document.getElementById('run-detail').classList.remove('hidden');
+  updateMsgCompose();
 }
 
 function hideRunDetail() {
   stopTabSSE();
   document.getElementById('run-detail').classList.add('hidden');
+  updateMsgCompose();
 }
 
 function closeRun() {
@@ -499,6 +536,45 @@ async function fullRefresh() {
   }
 }
 
+// ── Message compose ───────────────────────────────────────────────────────────
+
+function updateMsgCompose() {
+  const el = document.getElementById('msg-compose');
+  if (!el) return;
+  if (state.selectedTask && state.activeTab === 'messages') {
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+async function postMessage() {
+  const type = document.getElementById('msg-type').value;
+  const bodyEl = document.getElementById('msg-body');
+  const body = bodyEl.value.trim();
+  if (!body) return;
+  try {
+    const resp = await fetch(API_BASE + '/api/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project_id: state.selectedProject,
+        task_id: state.selectedTask,
+        type,
+        body,
+      }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${text}`);
+    }
+    bodyEl.value = '';
+    showToast('Message posted');
+  } catch (e) {
+    showToast(`Error: ${e.message}`, true);
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function runPrefix() {
@@ -521,6 +597,8 @@ function msgTypeClass(type) {
     case 'RUN_START':
     case 'RUN_COMPLETE': return 'msg-run';
     case 'TASK_DONE':    return 'msg-ok';
+    case 'USER':
+    case 'QUESTION':     return 'msg-user';
     default:             return '';
   }
 }

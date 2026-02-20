@@ -59,6 +59,18 @@
           <button class="tab-btn" data-tab="messages">MESSAGES</button>
         </div>
         <pre id="tab-content"></pre>
+        <div id="msg-compose" class="hidden">
+          <form id="msg-form" onsubmit="postMessage(); return false;">
+            <select id="msg-type">
+              <option value="USER">USER</option>
+              <option value="QUESTION">QUESTION</option>
+              <option value="ANSWER">ANSWER</option>
+              <option value="INFO">INFO</option>
+            </select>
+            <textarea id="msg-body" rows="2" placeholder="Message..."></textarea>
+            <button type="submit" class="btn-submit">Send</button>
+          </form>
+        </div>
       </div>
 
     </div><!-- /content -->
