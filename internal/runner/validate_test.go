@@ -189,6 +189,102 @@ func TestValidateAgentPassesOnGoodVersion(t *testing.T) {
 	}
 }
 
+func TestValidateToken(t *testing.T) {
+	tests := []struct {
+		name      string
+		agentType string
+		token     string
+		envKey    string
+		envValue  string
+		wantErr   bool
+	}{
+		{
+			name:      "REST agent missing token",
+			agentType: "perplexity",
+			token:     "",
+			wantErr:   true,
+		},
+		{
+			name:      "REST agent present token",
+			agentType: "perplexity",
+			token:     "pplx-abc123",
+			wantErr:   false,
+		},
+		{
+			name:      "REST agent xai missing token",
+			agentType: "xai",
+			token:     "",
+			wantErr:   true,
+		},
+		{
+			name:      "REST agent xai present token",
+			agentType: "xai",
+			token:     "xai-token",
+			wantErr:   false,
+		},
+		{
+			name:      "CLI agent missing env var no config token",
+			agentType: "claude",
+			token:     "",
+			envKey:    "ANTHROPIC_API_KEY",
+			envValue:  "",
+			wantErr:   true,
+		},
+		{
+			name:      "CLI agent with env var set",
+			agentType: "claude",
+			token:     "",
+			envKey:    "ANTHROPIC_API_KEY",
+			envValue:  "sk-ant-key",
+			wantErr:   false,
+		},
+		{
+			name:      "CLI agent with config token but no env var",
+			agentType: "claude",
+			token:     "sk-ant-from-config",
+			envKey:    "ANTHROPIC_API_KEY",
+			envValue:  "",
+			wantErr:   false,
+		},
+		{
+			name:      "codex missing env var no config token",
+			agentType: "codex",
+			token:     "",
+			envKey:    "OPENAI_API_KEY",
+			envValue:  "",
+			wantErr:   true,
+		},
+		{
+			name:      "gemini with config token",
+			agentType: "gemini",
+			token:     "gemini-token-from-config",
+			envKey:    "GEMINI_API_KEY",
+			envValue:  "",
+			wantErr:   false,
+		},
+		{
+			name:      "unknown agent type",
+			agentType: "unknown-agent",
+			token:     "",
+			wantErr:   false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.envKey != "" {
+				t.Setenv(tc.envKey, tc.envValue)
+			}
+			err := ValidateToken(tc.agentType, tc.token)
+			if tc.wantErr && err == nil {
+				t.Errorf("ValidateToken(%q, %q): expected error, got nil", tc.agentType, tc.token)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("ValidateToken(%q, %q): unexpected error: %v", tc.agentType, tc.token, err)
+			}
+		})
+	}
+}
+
 func createVersionScript(t *testing.T, dir, name, output string) {
 	t.Helper()
 	if runtime.GOOS == "windows" {

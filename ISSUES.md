@@ -299,7 +299,8 @@ All integration smoke tests already implemented and passing:
 
 ### ISSUE-009: Agent Token Expiration Handling Not Implemented
 **Severity**: HIGH
-**Status**: OPEN
+**Status**: PARTIALLY RESOLVED
+**Resolved**: 2026-02-20 (phase 1)
 **Blocking**: Operational reliability
 
 **Description**:
@@ -322,10 +323,18 @@ Tokens stored in config.hcl can expire (Anthropic, OpenAI tokens have TTL). No r
 4. Post ERROR to message bus when auth fails
 5. Document token rotation procedures
 
-**Recommended Action**:
-- Implement startup token validation
-- Add `run-agent validate-config --check-tokens` command
-- Test all backends before starting task
+**Resolution (Phase 1)**:
+- [x] `ValidateToken()` warns on missing token at job start (internal/runner/validate.go)
+- [x] REST agents (perplexity, xai): warns if token field is empty
+- [x] CLI agents (claude, codex, gemini): warns if env var not set and no config token
+- [x] Warn-only — never blocks job startup; agent will fail with clear error at execution time
+- [x] Called from `runJob()` after agent selection (internal/runner/job.go)
+- [x] 10 table-driven tests covering all agent types and token scenarios
+- [ ] Full token expiration detection via API call (deferred — requires network roundtrip)
+- [ ] Token refresh for OAuth-based providers (deferred)
+- [ ] `run-agent validate-config --check-tokens` command (deferred)
+
+**Resolution Note**: `ValidateToken()` warns on missing token at job start. Full expiration detection deferred.
 
 **Dependencies**:
 - infra-config implementation
@@ -728,10 +737,10 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 | Severity | Open | Partially Resolved | Resolved |
 |----------|------|-------------------|----------|
 | CRITICAL | 1 | 2 | 4 |
-| HIGH | 3 | 1 | 2 |
+| HIGH | 2 | 2 | 2 |
 | MEDIUM | 6 | 0 | 0 |
 | LOW | 2 | 0 | 0 |
-| **Total** | **12** | **3** | **6** |
+| **Total** | **11** | **4** | **6** |
 
 ---
 

@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,6 +107,11 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	}
 	if agentType == "" {
 		return nil, errors.New("agent type is empty")
+	}
+
+	// Warn-only token validation
+	if tokenErr := ValidateToken(agentType, selection.Config.Token); tokenErr != nil {
+		log.Printf("warning: %v", tokenErr)
 	}
 
 	warnJRunEnvMismatch(projectID, taskID, runID, parentRunID)

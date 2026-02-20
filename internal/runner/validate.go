@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -107,4 +108,29 @@ func cliCommand(agentType string) string {
 	default:
 		return ""
 	}
+}
+
+// ValidateToken checks if a token is configured for the given agent type.
+// It returns a warning (non-nil error) if the token appears to be missing,
+// but callers should treat this as advisory only.
+func ValidateToken(agentType string, token string) error {
+	agentType = strings.ToLower(strings.TrimSpace(agentType))
+
+	// For REST agents, check the provided token
+	if isRestAgent(agentType) {
+		if strings.TrimSpace(token) == "" {
+			return fmt.Errorf("agent %q: no token configured; set token in config or via environment", agentType)
+		}
+		return nil
+	}
+
+	// For CLI agents, check environment variable
+	envVar := tokenEnvVar(agentType)
+	if envVar != "" && os.Getenv(envVar) == "" {
+		// Check if there's a token in config that will be injected
+		if strings.TrimSpace(token) == "" {
+			return fmt.Errorf("agent %q: %s not set and no token in config", agentType, envVar)
+		}
+	}
+	return nil
 }
