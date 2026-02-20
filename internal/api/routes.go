@@ -18,6 +18,10 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("/api/v1/messages", s.wrap(s.handleMessages))
 	mux.Handle("/api/v1/messages/stream", s.wrap(s.handleMessageStream))
 
+	// Project-centric API (used by the web UI)
+	mux.Handle("/api/projects", s.wrap(s.handleProjectsList))
+	mux.Handle("/api/projects/", s.wrap(s.handleProjectsRouter))
+
 	handler := http.Handler(mux)
 	handler = s.withAuth(handler)
 	handler = s.withCORS(handler)
