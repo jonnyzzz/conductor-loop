@@ -212,6 +212,14 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 		return apiErrorInternal("scan runs", err)
 	}
 
+	// task-scoped file endpoint: GET /api/projects/{p}/tasks/{t}/file?name=TASK.md
+	if len(parts) == 4 && parts[3] == "file" {
+		if r.Method != http.MethodGet {
+			return apiErrorMethodNotAllowed()
+		}
+		return s.serveTaskFile(w, r, projectID, taskID)
+	}
+
 	if len(parts) >= 5 && parts[3] == "runs" {
 		runID := parts[4]
 		// find the specific run
@@ -284,6 +292,34 @@ func (s *Server) handleStopRun(w http.ResponseWriter, run *storage.RunInfo) *api
 	return writeJSON(w, http.StatusAccepted, map[string]interface{}{
 		"run_id":  run.RunID,
 		"message": "SIGTERM sent",
+	})
+}
+
+// serveTaskFile serves a named file from a task directory (task-scoped, not run-scoped).
+// Only TASK.md is allowed; returns 404 for any other name.
+func (s *Server) serveTaskFile(w http.ResponseWriter, r *http.Request, projectID, taskID string) *apiError {
+	name := r.URL.Query().Get("name")
+	if name != "TASK.md" {
+		return apiErrorNotFound("unknown task file: " + name)
+	}
+	filePath := filepath.Join(s.rootDir, projectID, taskID, "TASK.md")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return apiErrorNotFound("TASK.md not found")
+		}
+		return apiErrorInternal("read task file", err)
+	}
+	fi, _ := os.Stat(filePath)
+	var modified time.Time
+	if fi != nil {
+		modified = fi.ModTime().UTC()
+	}
+	return writeJSON(w, http.StatusOK, map[string]interface{}{
+		"name":       "TASK.md",
+		"content":    string(data),
+		"modified":   modified,
+		"size_bytes": len(data),
 	})
 }
 

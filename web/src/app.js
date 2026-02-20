@@ -17,7 +17,7 @@ const state = {
   taskRuns:        [],   // runs for the currently selected task
   projects:        [],
   tasks:           [],
-  activeTab:       'output.md',
+  activeTab:       'task.md',
 };
 
 let refreshTimer     = null;
@@ -314,6 +314,18 @@ async function loadTabContent() {
       // browser auto-reconnects EventSource; no cleanup needed here
     };
 
+    return;
+  }
+
+  // Task-scoped tab: fetch TASK.md from the task directory (not run-scoped).
+  if (tab === 'task.md') {
+    el.textContent = 'Loading…';
+    try {
+      const data = await apiFetch(`${prefix}/file?name=TASK.md`);
+      el.textContent = data.content || '(empty)';
+    } catch (e) {
+      el.textContent = (e.status === 404) ? 'No TASK.md found' : `Error: ${e.message}`;
+    }
     return;
   }
 

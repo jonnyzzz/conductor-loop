@@ -262,6 +262,78 @@ func TestStopRun_NotRunning(t *testing.T) {
 	}
 }
 
+func TestServeTaskFile_Found(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	// Create TASK.md in the task directory
+	taskDir := filepath.Join(root, "project", "task-1")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task dir: %v", err)
+	}
+	taskContent := "# My Task\n\nDo something great.\n"
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte(taskContent), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+
+	url := "/api/projects/project/tasks/task-1/file?name=TASK.md"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["name"] != "TASK.md" {
+		t.Errorf("expected name=TASK.md, got %v", resp["name"])
+	}
+	if !strings.Contains(resp["content"].(string), "Do something great") {
+		t.Errorf("expected task content in response, got: %v", resp["content"])
+	}
+}
+
+func TestServeTaskFile_NotFound(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	// Task directory exists but no TASK.md
+	taskDir := filepath.Join(root, "project", "task-notask")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task dir: %v", err)
+	}
+
+	url := "/api/projects/project/tasks/task-notask/file?name=TASK.md"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestServeTaskFile_UnknownName(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	url := "/api/projects/project/tasks/task-1/file?name=secrets.txt"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown file name, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestServeRunFile_ProjectEndpoint(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
