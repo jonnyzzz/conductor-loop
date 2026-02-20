@@ -458,6 +458,156 @@ func TestFsyncWritesComplete(t *testing.T) {
 	}
 }
 
+func TestParentsObjectFormRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	_, err = bus.AppendMessage(&Message{
+		Type:      "FACT",
+		ProjectID: "project",
+		Parents: []Parent{
+			{MsgID: "x", Kind: "depends_on"},
+		},
+		Body: "parent test",
+	})
+	if err != nil {
+		t.Fatalf("AppendMessage: %v", err)
+	}
+	msgs, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("ReadMessages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	if len(msgs[0].Parents) != 1 {
+		t.Fatalf("expected 1 parent, got %d", len(msgs[0].Parents))
+	}
+	if msgs[0].Parents[0].MsgID != "x" {
+		t.Fatalf("expected parent MsgID %q, got %q", "x", msgs[0].Parents[0].MsgID)
+	}
+	if msgs[0].Parents[0].Kind != "depends_on" {
+		t.Fatalf("expected parent Kind %q, got %q", "depends_on", msgs[0].Parents[0].Kind)
+	}
+}
+
+func TestParentsBackwardCompat(t *testing.T) {
+	// Old format: parents as a YAML string list.
+	raw := []byte("---\nmsg_id: msg-001\nts: 2024-01-01T00:00:00Z\ntype: FACT\nproject_id: project\nparents:\n  - msg-001\n  - msg-002\n---\nbody\n")
+	msgs, err := parseMessages(raw)
+	if err != nil {
+		t.Fatalf("parseMessages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	if len(msgs[0].Parents) != 2 {
+		t.Fatalf("expected 2 parents, got %d", len(msgs[0].Parents))
+	}
+	if msgs[0].Parents[0].MsgID != "msg-001" {
+		t.Fatalf("expected Parents[0].MsgID %q, got %q", "msg-001", msgs[0].Parents[0].MsgID)
+	}
+	if msgs[0].Parents[1].MsgID != "msg-002" {
+		t.Fatalf("expected Parents[1].MsgID %q, got %q", "msg-002", msgs[0].Parents[1].MsgID)
+	}
+}
+
+func TestIssueIDAutoSet(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	msgID, err := bus.AppendMessage(&Message{
+		Type:      "ISSUE",
+		ProjectID: "project",
+		Body:      "issue body",
+	})
+	if err != nil {
+		t.Fatalf("AppendMessage: %v", err)
+	}
+	msgs, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("ReadMessages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	if msgs[0].IssueID != msgID {
+		t.Fatalf("expected IssueID %q to equal MsgID %q", msgs[0].IssueID, msgID)
+	}
+}
+
+func TestMetaRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	_, err = bus.AppendMessage(&Message{
+		Type:      "FACT",
+		ProjectID: "project",
+		Meta:      map[string]string{"key1": "value1", "key2": "value2"},
+		Body:      "meta test",
+	})
+	if err != nil {
+		t.Fatalf("AppendMessage: %v", err)
+	}
+	msgs, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("ReadMessages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	if msgs[0].Meta["key1"] != "value1" {
+		t.Fatalf("expected Meta[key1]=%q, got %q", "value1", msgs[0].Meta["key1"])
+	}
+	if msgs[0].Meta["key2"] != "value2" {
+		t.Fatalf("expected Meta[key2]=%q, got %q", "value2", msgs[0].Meta["key2"])
+	}
+}
+
+func TestLinksRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	_, err = bus.AppendMessage(&Message{
+		Type:      "FACT",
+		ProjectID: "project",
+		Links: []Link{
+			{URL: "https://example.com", Label: "example", Kind: "reference"},
+		},
+		Body: "links test",
+	})
+	if err != nil {
+		t.Fatalf("AppendMessage: %v", err)
+	}
+	msgs, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("ReadMessages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	if len(msgs[0].Links) != 1 {
+		t.Fatalf("expected 1 link, got %d", len(msgs[0].Links))
+	}
+	if msgs[0].Links[0].URL != "https://example.com" {
+		t.Fatalf("expected Link.URL %q, got %q", "https://example.com", msgs[0].Links[0].URL)
+	}
+	if msgs[0].Links[0].Label != "example" {
+		t.Fatalf("expected Link.Label %q, got %q", "example", msgs[0].Links[0].Label)
+	}
+	if msgs[0].Links[0].Kind != "reference" {
+		t.Fatalf("expected Link.Kind %q, got %q", "reference", msgs[0].Links[0].Kind)
+	}
+}
+
 type shortWriter struct{}
 
 func (w *shortWriter) Write(p []byte) (int, error) { return 0, nil }

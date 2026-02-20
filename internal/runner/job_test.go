@@ -549,3 +549,88 @@ func TestErrorSummaryClassification(t *testing.T) {
 		})
 	}
 }
+
+// TestRunJobCLIEmitsRunStop verifies that a job exiting with code 0 emits RUN_STOP (not RUN_CRASH).
+func TestRunJobCLIEmitsRunStop(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	busPath := filepath.Join(root, "TASK-MESSAGE-BUS.md")
+	_, err := runJob("project", "task", JobOptions{
+		RootDir:        root,
+		Agent:          "codex",
+		Prompt:         "hello",
+		MessageBusPath: busPath,
+	})
+	if err != nil {
+		t.Fatalf("runJob: %v", err)
+	}
+
+	msgs := readBusMessages(t, busPath)
+	assertBusEvent(t, msgs, messagebus.EventTypeRunStart, true)
+	assertBusEvent(t, msgs, messagebus.EventTypeRunStop, true)
+	assertBusEvent(t, msgs, messagebus.EventTypeRunCrash, false)
+}
+
+// TestRunJobCLIEmitsRunCrash verifies that a job exiting with non-zero code emits RUN_CRASH (not RUN_STOP).
+func TestRunJobCLIEmitsRunCrash(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	createFailingCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	busPath := filepath.Join(root, "TASK-MESSAGE-BUS.md")
+	_, err := runJob("project", "task", JobOptions{
+		RootDir:        root,
+		Agent:          "codex",
+		Prompt:         "hello",
+		MessageBusPath: busPath,
+	})
+	// Non-zero exit is expected to return an error.
+	if err == nil {
+		t.Fatalf("expected error from failing agent")
+	}
+
+	msgs := readBusMessages(t, busPath)
+	assertBusEvent(t, msgs, messagebus.EventTypeRunStart, true)
+	assertBusEvent(t, msgs, messagebus.EventTypeRunCrash, true)
+	assertBusEvent(t, msgs, messagebus.EventTypeRunStop, false)
+}
+
+// readBusMessages reads all messages from a message bus file for testing.
+func readBusMessages(t *testing.T, busPath string) []*messagebus.Message {
+	t.Helper()
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	msgs, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("ReadMessages: %v", err)
+	}
+	return msgs
+}
+
+// assertBusEvent checks whether a message type is present (wantPresent=true) or absent (wantPresent=false).
+func assertBusEvent(t *testing.T, msgs []*messagebus.Message, msgType string, wantPresent bool) {
+	t.Helper()
+	for _, m := range msgs {
+		if m.Type == msgType {
+			if !wantPresent {
+				t.Fatalf("unexpected event %q found in message bus", msgType)
+			}
+			return
+		}
+	}
+	if wantPresent {
+		t.Fatalf("expected event %q not found in message bus", msgType)
+	}
+}

@@ -24,20 +24,86 @@ const (
 	messageBusFileMode  = 0o644
 )
 
+// Run event types posted to the message bus.
+const (
+	EventTypeRunStart = "RUN_START"
+	EventTypeRunStop  = "RUN_STOP"
+	EventTypeRunCrash = "RUN_CRASH"
+)
+
 // ErrSinceIDNotFound indicates the requested since ID was not found.
 var ErrSinceIDNotFound = stderrors.New("since id not found")
 
+// Parent represents a structured parent reference.
+type Parent struct {
+	MsgID string            `yaml:"msg_id"`
+	Kind  string            `yaml:"kind,omitempty"` // e.g. "depends_on", "blocks", "child_of"
+	Meta  map[string]string `yaml:"meta,omitempty"`
+}
+
+// Link represents an advisory link.
+type Link struct {
+	URL   string `yaml:"url"`
+	Label string `yaml:"label,omitempty"`
+	Kind  string `yaml:"kind,omitempty"`
+}
+
 // Message represents a message bus entry.
 type Message struct {
-	MsgID        string    `yaml:"msg_id"`
-	Timestamp    time.Time `yaml:"ts"`
-	Type         string    `yaml:"type"`
-	ProjectID    string    `yaml:"project_id"`
-	TaskID       string    `yaml:"task_id"`
-	RunID        string    `yaml:"run_id"`
-	ParentMsgIDs []string  `yaml:"parents,omitempty"`
-	Attachment   string    `yaml:"attachment_path,omitempty"`
-	Body         string    `yaml:"-"`
+	MsgID     string            `yaml:"msg_id"`
+	Timestamp time.Time         `yaml:"ts"`
+	Type      string            `yaml:"type"`
+	ProjectID string            `yaml:"project_id"`
+	TaskID    string            `yaml:"task_id"`
+	RunID     string            `yaml:"run_id"`
+	IssueID   string            `yaml:"issue_id,omitempty"` // alias for msg_id on ISSUE messages
+	Parents   []Parent          `yaml:"parents,omitempty"`  // replaces ParentMsgIDs
+	Links     []Link            `yaml:"links,omitempty"`
+	Meta      map[string]string `yaml:"meta,omitempty"`
+	Body      string            `yaml:"-"`
+}
+
+// rawMessage is used for custom YAML parsing to handle backward compat.
+type rawMessage struct {
+	MsgID     string            `yaml:"msg_id"`
+	Timestamp time.Time         `yaml:"ts"`
+	Type      string            `yaml:"type"`
+	ProjectID string            `yaml:"project_id"`
+	TaskID    string            `yaml:"task_id"`
+	RunID     string            `yaml:"run_id"`
+	IssueID   string            `yaml:"issue_id,omitempty"`
+	Parents   yaml.Node         `yaml:"parents,omitempty"`
+	Links     []Link            `yaml:"links,omitempty"`
+	Meta      map[string]string `yaml:"meta,omitempty"`
+}
+
+func parseParents(node yaml.Node) []Parent {
+	if node.Kind == 0 {
+		return nil
+	}
+	if node.Kind == yaml.SequenceNode && len(node.Content) > 0 {
+		// Check if first element is a scalar (string) or mapping (object).
+		first := node.Content[0]
+		if first.Kind == yaml.ScalarNode {
+			// Old format: string list.
+			var strs []string
+			if err := node.Decode(&strs); err == nil {
+				parents := make([]Parent, 0, len(strs))
+				for _, s := range strs {
+					if s != "" {
+						parents = append(parents, Parent{MsgID: s})
+					}
+				}
+				return parents
+			}
+		}
+		// New format: object list.
+		var parents []Parent
+		if err := node.Decode(&parents); err == nil {
+			return parents
+		}
+	}
+	return nil
 }
 
 // MessageBus manages append-only message bus files.
@@ -161,6 +227,9 @@ func (mb *MessageBus) AppendMessage(msg *Message) (string, error) {
 		msg.Timestamp = mb.now().UTC()
 	} else {
 		msg.Timestamp = msg.Timestamp.UTC()
+	}
+	if msg.Type == "ISSUE" && msg.IssueID == "" {
+		msg.IssueID = msg.MsgID
 	}
 
 	data, err := serializeMessage(msg)
@@ -347,14 +416,26 @@ func parseMessages(data []byte) ([]*Message, error) {
 			}
 		case stateHeader:
 			if trimmed == "---" {
-				var msg Message
-				if err := yaml.Unmarshal(headerBuf.Bytes(), &msg); err != nil {
+				var raw rawMessage
+				if err := yaml.Unmarshal(headerBuf.Bytes(), &raw); err != nil {
 					headerBuf.Reset()
 					current = nil
 					state = stateHeader
 					break
 				}
-				current = &msg
+				msg := &Message{
+					MsgID:     raw.MsgID,
+					Timestamp: raw.Timestamp,
+					Type:      raw.Type,
+					ProjectID: raw.ProjectID,
+					TaskID:    raw.TaskID,
+					RunID:     raw.RunID,
+					IssueID:   raw.IssueID,
+					Parents:   parseParents(raw.Parents),
+					Links:     raw.Links,
+					Meta:      raw.Meta,
+				}
+				current = msg
 				bodyBuf.Reset()
 				state = stateBody
 			} else {

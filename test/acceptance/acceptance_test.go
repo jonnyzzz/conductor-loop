@@ -1636,16 +1636,21 @@ func (a *uiAdapter) serveBusStream(w http.ResponseWriter, r *http.Request, proje
 				if msg == nil {
 					continue
 				}
+				parentIDs := make([]string, 0, len(msg.Parents))
+				for _, p := range msg.Parents {
+					if p.MsgID != "" {
+						parentIDs = append(parentIDs, p.MsgID)
+					}
+				}
 				payload := uiBusMessage{
-					MsgID:          msg.MsgID,
-					TS:             msg.Timestamp.UTC().Format(time.RFC3339Nano),
-					Type:           msg.Type,
-					Message:        msg.Body,
-					Parents:        msg.ParentMsgIDs,
-					RunID:          msg.RunID,
-					AttachmentPath: msg.Attachment,
-					Project:        project,
-					Task:           taskID,
+					MsgID:   msg.MsgID,
+					TS:      msg.Timestamp.UTC().Format(time.RFC3339Nano),
+					Type:    msg.Type,
+					Message: msg.Body,
+					Parents: parentIDs,
+					RunID:   msg.RunID,
+					Project: project,
+					Task:    taskID,
 				}
 				data, err := json.Marshal(payload)
 				if err != nil {

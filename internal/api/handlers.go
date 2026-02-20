@@ -58,15 +58,17 @@ type RunResponse struct {
 
 // MessageResponse defines the message bus entry payload.
 type MessageResponse struct {
-	MsgID        string    `json:"msg_id"`
-	Timestamp    time.Time `json:"timestamp"`
-	Type         string    `json:"type"`
-	ProjectID    string    `json:"project_id"`
-	TaskID       string    `json:"task_id,omitempty"`
-	RunID        string    `json:"run_id,omitempty"`
-	ParentMsgIDs []string  `json:"parents,omitempty"`
-	Attachment   string    `json:"attachment_path,omitempty"`
-	Body         string    `json:"body"`
+	MsgID     string                    `json:"msg_id"`
+	Timestamp time.Time                 `json:"timestamp"`
+	Type      string                    `json:"type"`
+	ProjectID string                    `json:"project_id"`
+	TaskID    string                    `json:"task_id,omitempty"`
+	RunID     string                    `json:"run_id,omitempty"`
+	IssueID   string                    `json:"issue_id,omitempty"`
+	Parents   []messagebus.Parent       `json:"parents,omitempty"`
+	Links     []messagebus.Link         `json:"links,omitempty"`
+	Meta      map[string]string         `json:"meta,omitempty"`
+	Body      string                    `json:"body"`
 }
 
 type handlerFunc func(http.ResponseWriter, *http.Request) *apiError
@@ -265,15 +267,17 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) *apiErro
 			continue
 		}
 		resp = append(resp, MessageResponse{
-			MsgID:        msg.MsgID,
-			Timestamp:    msg.Timestamp,
-			Type:         msg.Type,
-			ProjectID:    msg.ProjectID,
-			TaskID:       msg.TaskID,
-			RunID:        msg.RunID,
-			ParentMsgIDs: msg.ParentMsgIDs,
-			Attachment:   msg.Attachment,
-			Body:         msg.Body,
+			MsgID:     msg.MsgID,
+			Timestamp: msg.Timestamp,
+			Type:      msg.Type,
+			ProjectID: msg.ProjectID,
+			TaskID:    msg.TaskID,
+			RunID:     msg.RunID,
+			IssueID:   msg.IssueID,
+			Parents:   msg.Parents,
+			Links:     msg.Links,
+			Meta:      msg.Meta,
+			Body:      msg.Body,
 		})
 	}
 	return writeJSON(w, http.StatusOK, map[string][]MessageResponse{"messages": resp})

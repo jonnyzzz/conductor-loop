@@ -305,11 +305,11 @@ func TestRunJobMessageBusEventOrdering(t *testing.T) {
 	startIdx, stopIdx = -1, -1
 	for i, m := range msgs {
 		switch m.Type {
-		case "RUN_START":
+		case messagebus.EventTypeRunStart:
 			if startIdx == -1 {
 				startIdx = i
 			}
-		case "RUN_STOP":
+		case messagebus.EventTypeRunStop, messagebus.EventTypeRunCrash:
 			if stopIdx == -1 {
 				stopIdx = i
 			}
@@ -320,10 +320,10 @@ func TestRunJobMessageBusEventOrdering(t *testing.T) {
 		t.Fatalf("RUN_START event not found in message bus")
 	}
 	if stopIdx == -1 {
-		t.Fatalf("RUN_STOP event not found in message bus")
+		t.Fatalf("RUN_STOP or RUN_CRASH event not found in message bus")
 	}
 	if startIdx >= stopIdx {
-		t.Fatalf("RUN_START (index %d) must appear before RUN_STOP (index %d)", startIdx, stopIdx)
+		t.Fatalf("RUN_START (index %d) must appear before RUN_STOP/RUN_CRASH (index %d)", startIdx, stopIdx)
 	}
 }
 

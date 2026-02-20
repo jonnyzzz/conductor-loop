@@ -254,7 +254,7 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 		info.StderrPath,
 		info.OutputPath,
 	)
-	if err := postRunEvent(busPath, info, "RUN_START", startBody); err != nil {
+	if err := postRunEvent(busPath, info, messagebus.EventTypeRunStart, startBody); err != nil {
 		_ = proc.Cmd.Process.Kill()
 		_ = proc.Wait()
 		return err
@@ -297,7 +297,11 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 			stopBody += "\n\n## stderr (last 50 lines)\n" + excerpt
 		}
 	}
-	if err := postRunEvent(busPath, info, "RUN_STOP", stopBody); err != nil {
+	stopEvent := messagebus.EventTypeRunStop
+	if exitCode != 0 {
+		stopEvent = messagebus.EventTypeRunCrash
+	}
+	if err := postRunEvent(busPath, info, stopEvent, stopBody); err != nil {
 		return err
 	}
 	if waitErr != nil || exitCode != 0 {
@@ -324,7 +328,7 @@ func executeREST(ctx context.Context, agentType string, selection agentSelection
 		info.StderrPath,
 		info.OutputPath,
 	)
-	if err := postRunEvent(busPath, info, "RUN_START", startBody); err != nil {
+	if err := postRunEvent(busPath, info, messagebus.EventTypeRunStart, startBody); err != nil {
 		return err
 	}
 
@@ -402,7 +406,11 @@ func finalizeRun(runDir, busPath string, info *storage.RunInfo, execErr error) e
 			stopBody += "\n\n## stderr (last 50 lines)\n" + excerpt
 		}
 	}
-	if err := postRunEvent(busPath, info, "RUN_STOP", stopBody); err != nil {
+	stopEvent := messagebus.EventTypeRunStop
+	if execErr != nil {
+		stopEvent = messagebus.EventTypeRunCrash
+	}
+	if err := postRunEvent(busPath, info, stopEvent, stopBody); err != nil {
 		return err
 	}
 	if execErr != nil {
