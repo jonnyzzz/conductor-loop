@@ -540,7 +540,8 @@ Runner (reads) ← Storage Files ← Message Bus posted data
 
 ### ISSUE-011: Agent Protocol Should Sequence Before Backends
 **Severity**: MEDIUM
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-20 (Session #24)
 **Blocking**: Phase 2 efficiency
 
 **Description**:
@@ -561,11 +562,15 @@ Phase 2 shows agent-protocol and all backends as fully parallel, but backends de
 **Dependencies**:
 - THE_PLAN_v5.md updates
 
+**Resolution Notes**:
+All implementations complete. Protocol is defined in internal/agent/ and backends in internal/agent/{claude,codex,gemini,perplexity,xai}/. The sequencing concern was a planning artifact — no rework occurred.
+
 ---
 
 ### ISSUE-012: Phase 5 Testing Needs Explicit Sub-Phases
 **Severity**: MEDIUM
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-20 (Session #24)
 **Blocking**: Timeline clarity
 
 **Description**:
@@ -590,11 +595,15 @@ Stage 6b: Advanced Testing (PARALLEL, after 6a)
 **Dependencies**:
 - THE_PLAN_v5.md updates
 
+**Resolution Notes**:
+Integration tests in test/integration/ cover all subsystems: messagebus_concurrent_test.go, messagebus_test.go, orchestration_test.go, api_test.go, and more. Sub-phase structure was handled organically.
+
 ---
 
 ### ISSUE-013: No Walking Skeleton for Early Validation
 **Severity**: MEDIUM
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-20 (Session #24)
 **Blocking**: Architecture validation
 
 **Description**:
@@ -624,11 +633,15 @@ Add Phase 0.5: Walking Skeleton (3-4 days)
 **Dependencies**:
 - THE_PLAN_v5.md updates
 
+**Resolution Notes**:
+Architecture was validated via dog-food test in session #5: run-agent binary executed a real task, Ralph loop completed, REST API served runs. Walking skeleton concern was resolved through dog-food testing.
+
 ---
 
 ### ISSUE-014: No Research Sprint Parallelization
 **Severity**: MEDIUM
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-20 (Session #24)
 **Blocking**: Timeline optimization
 
 **Description**:
@@ -657,6 +670,9 @@ Extract all research into parallel "Research Sprint" (Stage 1.5):
 
 **Dependencies**:
 - THE_PLAN_v5.md updates
+
+**Resolution Notes**:
+Research parallelization was achieved via the conductor-loop dog-food process: parallel sub-agents via ./bin/run-agent job across sessions #11-#24. No serial research bottleneck occurred.
 
 ---
 
@@ -812,9 +828,15 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 |----------|------|-------------------|----------|
 | CRITICAL | 0 | 2 | 4 |
 | HIGH | 1 | 3 | 4 |
-| MEDIUM | 5 | 0 | 1 |
+| MEDIUM | 1 | 0 | 5 |
 | LOW | 2 | 0 | 0 |
-| **Total** | **8** | **5** | **9** |
+| **Total** | **4** | **5** | **13** |
+
+### Session #24 Changes (2026-02-20)
+
+**ISSUE-011, 012, 013, 014**: All marked RESOLVED — these were planning artifacts from
+the pre-implementation phase. The implementation is complete and all concerns were moot.
+Summary table: MEDIUM open 5 → 1, MEDIUM resolved 1 → 5, Total open 8 → 4.
 
 ### Session #20 Changes (2026-02-20)
 
@@ -925,4 +947,4 @@ New features implemented (from QUESTIONS.md decisions):
 
 *This document is maintained as part of the Conductor Loop project. Update as issues are resolved or new issues discovered.*
 
-*Last updated: 2026-02-20 Session #20*
+*Last updated: 2026-02-20 Session #24*
