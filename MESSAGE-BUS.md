@@ -571,3 +571,95 @@ SESSION #7 SUMMARY
 - monitoring-ui Q2/Q3/Q6: Project API endpoints, task creation, web UI
 - message-bus-tools Q3/Q5: Extended message model, full SSE payload
 - storage-layout Q4: Task ID format enforcement
+
+---
+msg_id: MSG-20260220-SESSION8-START
+ts: 2026-02-20T17:45:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 17:45:00] ==========================================
+[2026-02-20 17:45:00] SESSION #8: Task ID Enforcement + Config Search + MessageBus Fsync + Web UI
+[2026-02-20 17:45:00] ==========================================
+
+[2026-02-20 17:45:00] PROGRESS: Starting session #8 — read all required docs, assessed state
+[2026-02-20 17:45:00] FACT: go build ./... passes, all 18 test packages green
+[2026-02-20 17:45:00] FACT: Conductor server running (PID 93612), all API endpoints responsive
+[2026-02-20 17:45:00] FACT: Binaries rebuilt: conductor (13MB), run-agent (13MB)
+[2026-02-20 17:45:00] DECISION: Session #8 focus: (1) task ID enforcement (Q4), (2) config search paths (Q9), (3) messagebus fsync option (Q1), (4) web UI (Q6), (5) fix pre-existing race condition
+
+[2026-02-20 17:50:00] FACT: Launched 4 parallel sub-agents via run-agent.sh:
+[2026-02-20 17:50:00] FACT: - session8-task-id (claude): task ID format enforcement
+[2026-02-20 17:50:00] FACT: - session8-config-search (claude): default config search paths
+[2026-02-20 17:50:00] FACT: - session8-messagebus-fsync (claude): WithFsync option
+[2026-02-20 17:50:00] FACT: - session8-web-ui (claude): static monitoring web UI
+
+[2026-02-20 18:05:00] FACT: All 4 sub-agents COMPLETED successfully
+[2026-02-20 18:05:00] FACT: Race condition detected in go test -race: pre-existing bug from session #7 (serve command)
+[2026-02-20 18:05:00] FACT: Launched fix-serve-race agent to address data race in Server.ListenAndServe/Shutdown
+[2026-02-20 18:10:00] FACT: fix-serve-race COMPLETED: mutex added to Server struct, race resolved
+
+[2026-02-20 18:10:00] ==========================================
+[2026-02-20 18:10:00] SESSION #8 SUMMARY
+[2026-02-20 18:10:00] ==========================================
+
+## Completed Tasks (5 sub-agents via run-agent.sh)
+
+### session8-task-id (storage-layout Q4)
+- ValidateTaskID() and GenerateTaskID() in internal/storage/taskid.go
+- Format: task-<YYYYMMDD-HHMMSS>-<slug> (regex enforced)
+- CLI auto-generates task ID when --task not provided
+- CLI validates task ID when --task is provided, fails with clear error if invalid
+- 16 table-driven tests in taskid_test.go + 5 CLI tests in main_test.go
+- Committed: 5e2d85b
+
+### session8-config-search (QUESTIONS Q9)
+- FindDefaultConfig() and FindDefaultConfigIn() in internal/config/config.go
+- Search order: ./config.yaml → ./config.yml → ./config.hcl (error) → ~/.config/conductor/config.yaml
+- conductor binary: auto-discovers config, returns error if none found
+- run-agent: auto-discovers config when no --agent and no --config flags
+- 4 tests: not-found, found-yaml, found-home, hcl-error
+- Committed: b86b887
+
+### session8-messagebus-fsync (QUESTIONS Q1)
+- WithFsync(enabled bool) Option added to messagebus
+- fsync bool field in MessageBus struct
+- file.Sync() called before lock release when fsync=true
+- Default: false (37K msg/sec preserved)
+- 3 tests: default-false, option-storage, functional-writes
+- Committed: 26146da
+
+### session8-web-ui (monitoring-ui Q6)
+- web/src/index.html, web/src/app.js (~280 lines), web/src/styles.css
+- Dark theme, 3-panel layout: projects (left), tasks (main), run detail (bottom)
+- Project/task/run navigation, STDOUT/STDERR/PROMPT/MESSAGES tabs
+- 5-second auto-refresh + SSE (runs/stream/all) for live updates
+- Static file serving at /ui/ added to API routes
+- Committed: ebe3406
+
+### fix-serve-race (pre-existing bug)
+- mu sync.Mutex added to Server struct
+- ListenAndServe() creates s.server under lock, calls srv.ListenAndServe() outside
+- Shutdown() reads s.server under lock, calls srv.Shutdown() outside
+- go test -race ./cmd/run-agent/ PASS — no data races
+- Committed: 01e164c
+
+## Resolved Items
+- storage-layout Q4: RESOLVED (task ID enforcement implemented)
+- QUESTIONS Q9 (config search paths): RESOLVED (auto-discovery implemented)
+- QUESTIONS Q1 (WithFsync): RESOLVED (option added, default false)
+- monitoring-ui Q6 (web UI): RESOLVED (static UI implemented)
+- Pre-existing race in serve test: FIXED
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (binaries rebuilt)
+- go test -count=1 ./... (18 packages): ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+
+## Remaining Open Items
+- ISSUE-003: Windows process groups (HIGH, deferred — platform-specific)
+- ISSUE-005: Runner bottleneck - single RunJob() serialization (architectural)
+- ISSUE-006: Storage/messagebus circular dependency (architectural, not a real bug)
+- message-bus-tools Q3/Q5: Extended message model, full SSE payload

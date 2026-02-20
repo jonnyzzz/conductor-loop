@@ -742,6 +742,20 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 | LOW | 2 | 0 | 0 |
 | **Total** | **11** | **4** | **6** |
 
+### Session #8 Changes (2026-02-20)
+
+New fix logged: **ISSUE-021: Data race in Server.ListenAndServe/Shutdown** — RESOLVED
+- **Status**: RESOLVED
+- **Severity**: HIGH (test reliability, data corruption potential)
+- **Fix**: Added `mu sync.Mutex` to `Server` struct; both `ListenAndServe()` and `Shutdown()` now access `s.server` under lock
+- **Commit**: 01e164c
+
+New features implemented (from QUESTIONS.md decisions):
+- Task ID enforcement (storage-layout Q4) — Committed: 5e2d85b
+- Config default search paths (Q9) — Committed: b86b887
+- MessageBus WithFsync option (Q1) — Committed: 26146da
+- Web monitoring UI (monitoring-ui Q6) — Committed: ebe3406
+
 ---
 
 ## References
@@ -759,4 +773,4 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 
 *This document is maintained as part of the Conductor Loop project. Update as issues are resolved or new issues discovered.*
 
-*Last updated: 2026-02-20 Session #7*
+*Last updated: 2026-02-20 Session #8*
