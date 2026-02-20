@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -134,6 +135,130 @@ func TestServeRunFileStream_RunNotFound(t *testing.T) {
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for missing run, got %d", rec.Code)
+	}
+}
+
+func TestRunFile_OutputMdFallback(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	// Create a run with agent-stdout.txt but no output.md
+	makeProjectRun(t, root, "project", "task", "run-1", storage.StatusCompleted, "stdout content\n")
+
+	url := "/api/projects/project/tasks/task/runs/run-1/file?name=output.md"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for fallback, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp["fallback"] != "agent-stdout.txt" {
+		t.Errorf("expected fallback=agent-stdout.txt, got %v", resp["fallback"])
+	}
+	if !strings.Contains(resp["content"].(string), "stdout content") {
+		t.Errorf("expected stdout content in response, got: %v", resp["content"])
+	}
+	if resp["name"] != "output.md" {
+		t.Errorf("expected name=output.md, got %v", resp["name"])
+	}
+}
+
+func TestRunFile_OutputMdNoFallback(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	// Create a run directory but no files (neither output.md nor agent-stdout.txt)
+	runDir := filepath.Join(root, "project", "task", "runs", "run-empty")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	info := &storage.RunInfo{
+		RunID:     "run-empty",
+		ProjectID: "project",
+		TaskID:    "task",
+		Status:    storage.StatusCompleted,
+		StartTime: time.Now().UTC(),
+		EndTime:   time.Now().UTC(),
+		// StdoutPath intentionally left empty — no files created
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	url := "/api/projects/project/tasks/task/runs/run-empty/file?name=output.md"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 when neither output.md nor stdout exists, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestStopRun_Success(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	// Create a running run with a non-existent PID/PGID (best-effort SIGTERM will fail, but 202 still returned).
+	runDir := filepath.Join(root, "project", "task", "runs", "run-stop-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+	_ = os.WriteFile(stdoutPath, []byte(""), 0o644)
+	stopInfo := &storage.RunInfo{
+		RunID:      "run-stop-1",
+		ProjectID:  "project",
+		TaskID:     "task",
+		Status:     storage.StatusRunning,
+		StartTime:  time.Now().UTC(),
+		StdoutPath: stdoutPath,
+		PID:        99999999,
+		PGID:       99999999,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), stopInfo); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	url := "/api/projects/project/tasks/task/runs/run-stop-1/stop"
+	req := httptest.NewRequest(http.MethodPost, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "SIGTERM sent") {
+		t.Errorf("expected 'SIGTERM sent' in response, got: %q", rec.Body.String())
+	}
+}
+
+func TestStopRun_NotRunning(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	makeProjectRun(t, root, "project", "task", "run-stop-2", storage.StatusCompleted, "hello\n")
+
+	url := "/api/projects/project/tasks/task/runs/run-stop-2/stop"
+	req := httptest.NewRequest(http.MethodPost, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

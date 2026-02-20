@@ -204,9 +204,37 @@ async function loadRunMeta() {
       `<span>Exit: ${run.exit_code}</span>` +
       `<span>Duration: ${dur}</span>` +
       `<span>${shortTime(run.start_time)}</span>`;
+    const stopBtn = document.getElementById('stop-run-btn');
+    if (stopBtn) {
+      if (run.status === 'running') {
+        stopBtn.classList.remove('hidden');
+      } else {
+        stopBtn.classList.add('hidden');
+      }
+    }
   } catch (e) {
     document.getElementById('run-meta').innerHTML =
       `<span class="error-msg">Error loading run: ${h(e.message)}</span>`;
+  }
+}
+
+async function stopCurrentRun() {
+  if (!state.selectedRun) return;
+  const prefix = runPrefix();
+  try {
+    const resp = await fetch(API_BASE + `${prefix}/runs/${enc(state.selectedRun)}/stop`, {
+      method: 'POST',
+    });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      const msg = (data.error && data.error.message) || `HTTP ${resp.status}`;
+      showToast(`Stop failed: ${msg}`, true);
+      return;
+    }
+    showToast('Stop signal sent');
+    await loadRunMeta();
+  } catch (e) {
+    showToast(`Stop error: ${e.message}`, true);
   }
 }
 
@@ -265,7 +293,11 @@ async function loadTabContent() {
     const data = await apiFetch(
       `${prefix}/runs/${enc(state.selectedRun)}/file?name=${enc(tab)}`
     );
-    el.textContent = data.content || (isRunning ? '' : '(empty)');
+    let content = data.content || (isRunning ? '' : '(empty)');
+    if (data.fallback) {
+      content = `[Note: output.md not found, showing ${data.fallback}]\n\n` + content;
+    }
+    el.textContent = content;
   } catch (e) {
     if (e.status === 404 && isRunning) {
       el.textContent = ''; // file not yet created — SSE will populate it

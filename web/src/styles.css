@@ -523,6 +523,24 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ── Stop button ─────────────────────────────────── */
+
+.btn-stop {
+  background: none;
+  border: 1px solid var(--err);
+  border-radius: 3px;
+  color: var(--err);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 2px 7px;
+  transition: background 0.1s, color 0.1s;
+}
+.btn-stop:hover {
+  background: var(--err);
+  color: var(--bg);
+}
+
 /* ── Message type styles (messages tab) ──────────── */
 
 .msg-crash { color: var(--err); }

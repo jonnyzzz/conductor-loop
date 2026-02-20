@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/runner"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/pkg/errors"
 )
@@ -195,13 +196,11 @@ func (s *Server) handleProjectTasks(w http.ResponseWriter, r *http.Request) *api
 // handleProjectTask serves GET /api/projects/{projectId}/tasks/{taskId}
 // and GET /api/projects/{projectId}/tasks/{taskId}/runs/{runId}
 // and GET /api/projects/{projectId}/tasks/{taskId}/runs/{runId}/file
+// and POST /api/projects/{projectId}/tasks/{taskId}/runs/{runId}/stop
 func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiError {
-	if r.Method != http.MethodGet {
-		return apiErrorMethodNotAllowed()
-	}
-	// /api/projects/{projectId}/tasks/{taskId}[/runs/{runId}[/file]]
+	// /api/projects/{projectId}/tasks/{taskId}[/runs/{runId}[/file|stream|stop]]
 	parts := splitPath(r.URL.Path, "/api/projects/")
-	// parts[0]=projectId, parts[1]="tasks", parts[2]=taskId, parts[3]="runs", parts[4]=runId, parts[5]="file"
+	// parts[0]=projectId, parts[1]="tasks", parts[2]=taskId, parts[3]="runs", parts[4]=runId, parts[5]="file|stream|stop"
 	if len(parts) < 3 || parts[1] != "tasks" {
 		return apiErrorNotFound("not found")
 	}
@@ -226,6 +225,17 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 		if found == nil {
 			return apiErrorNotFound("run not found")
 		}
+		// stop endpoint (POST)
+		if len(parts) >= 6 && parts[5] == "stop" {
+			if r.Method != http.MethodPost {
+				return apiErrorMethodNotAllowed()
+			}
+			return s.handleStopRun(w, found)
+		}
+		// remaining run endpoints are GET-only
+		if r.Method != http.MethodGet {
+			return apiErrorMethodNotAllowed()
+		}
 		// file endpoint
 		if len(parts) >= 6 && parts[5] == "file" {
 			return s.serveRunFile(w, r, found)
@@ -238,7 +248,10 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 		return writeJSON(w, http.StatusOK, runInfoToProjectRun(found))
 	}
 
-	// task detail
+	// task detail - GET only
+	if r.Method != http.MethodGet {
+		return apiErrorMethodNotAllowed()
+	}
 	tasks := buildTasks(projectID, runs)
 	for _, t := range tasks {
 		if t.ID == taskID {
@@ -246,6 +259,32 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 		}
 	}
 	return apiErrorNotFound("task not found")
+}
+
+// handleStopRun handles POST /api/projects/{p}/tasks/{t}/runs/{r}/stop.
+// It sends SIGTERM to the process group of a running run (best-effort).
+func (s *Server) handleStopRun(w http.ResponseWriter, run *storage.RunInfo) *apiError {
+	if run.Status != storage.StatusRunning {
+		return apiErrorConflict("run is not running", map[string]string{"status": run.Status})
+	}
+
+	// Use PGID if available, otherwise fall back to PID.
+	pgid := run.PGID
+	if pgid <= 0 {
+		pgid = run.PID
+	}
+
+	// Best-effort SIGTERM — log failures but return 202 regardless.
+	if pgid > 0 {
+		if err := runner.TerminateProcessGroup(pgid); err != nil && s.logger != nil {
+			s.logger.Printf("stop run %s: terminate pgid %d: %v", run.RunID, pgid, err)
+		}
+	}
+
+	return writeJSON(w, http.StatusAccepted, map[string]interface{}{
+		"run_id":  run.RunID,
+		"message": "SIGTERM sent",
+	})
 }
 
 // serveRunFile reads a named file from a run directory.
@@ -275,24 +314,43 @@ func (s *Server) serveRunFile(w http.ResponseWriter, r *http.Request, run *stora
 	if filePath == "" {
 		return apiErrorNotFound("file path not set for " + name)
 	}
+
+	var fallbackName string
+	actualPath := filePath
 	data, err := os.ReadFile(filePath)
+	if err != nil && os.IsNotExist(err) && name == "output.md" {
+		// Try agent-stdout.txt as fallback
+		if run.StdoutPath != "" {
+			if fb, ferr := os.ReadFile(run.StdoutPath); ferr == nil {
+				data = fb
+				err = nil
+				fallbackName = "agent-stdout.txt"
+				actualPath = run.StdoutPath
+			}
+		}
+	}
 	if err != nil {
 		if os.IsNotExist(err) {
 			return apiErrorNotFound("file not found: " + name)
 		}
 		return apiErrorInternal("read file", err)
 	}
-	fi, _ := os.Stat(filePath)
+
+	fi, _ := os.Stat(actualPath)
 	var modified time.Time
 	if fi != nil {
 		modified = fi.ModTime().UTC()
 	}
-	return writeJSON(w, http.StatusOK, map[string]interface{}{
+	resp := map[string]interface{}{
 		"name":       name,
 		"content":    string(data),
 		"modified":   modified,
 		"size_bytes": len(data),
-	})
+	}
+	if fallbackName != "" {
+		resp["fallback"] = fallbackName
+	}
+	return writeJSON(w, http.StatusOK, resp)
 }
 
 // serveRunFileStream streams a growing file using SSE (text/event-stream).
@@ -321,6 +379,15 @@ func (s *Server) serveRunFileStream(w http.ResponseWriter, r *http.Request, run 
 
 	if filePath == "" {
 		return apiErrorNotFound("file path not set for " + name)
+	}
+
+	// Fallback: if output.md doesn't exist, stream agent-stdout.txt instead.
+	if name == "output.md" {
+		if _, err := os.Stat(filePath); os.IsNotExist(err) && run.StdoutPath != "" {
+			if _, err2 := os.Stat(run.StdoutPath); err2 == nil {
+				filePath = run.StdoutPath
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")

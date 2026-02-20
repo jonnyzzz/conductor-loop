@@ -31,6 +31,7 @@ type TaskOptions struct {
 	RestartDelay   time.Duration
 	Environment    map[string]string
 	FirstRunDir    string // optional: pre-allocated run directory used for the first run attempt
+	ResumeMode     bool   // when true, prepend restart prefix even on the first run attempt
 }
 
 // RunTask starts the root agent and enforces the Ralph loop.
@@ -99,7 +100,7 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 	previousRunID := ""
 	runnerFn := func(ctx context.Context, attempt int) error {
 		jobPrompt := prompt
-		if attempt > 0 {
+		if attempt > 0 || opts.ResumeMode {
 			jobPrompt = restartPrefix + prompt
 		}
 		jobOpts := JobOptions{

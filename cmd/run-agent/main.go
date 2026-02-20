@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -85,6 +86,81 @@ func newTaskCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.WorkingDir, "cwd", "", "working directory")
 	cmd.Flags().StringVar(&opts.MessageBusPath, "message-bus", "", "message bus path")
 	cmd.Flags().IntVar(&opts.MaxRestarts, "max-restarts", 0, "max restarts")
+	cmd.Flags().DurationVar(&opts.WaitTimeout, "child-wait-timeout", 0, "child wait timeout")
+	cmd.Flags().DurationVar(&opts.PollInterval, "child-poll-interval", 0, "child poll interval")
+	cmd.Flags().DurationVar(&opts.RestartDelay, "restart-delay", time.Second, "restart delay")
+
+	cmd.AddCommand(newTaskResumeCmd())
+
+	return cmd
+}
+
+func newTaskResumeCmd() *cobra.Command {
+	var (
+		projectID string
+		taskID    string
+		opts      runner.TaskOptions
+	)
+
+	cmd := &cobra.Command{
+		Use:   "resume",
+		Short: "Resume a stopped or failed task",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectID = strings.TrimSpace(projectID)
+			taskID = strings.TrimSpace(taskID)
+			if projectID == "" {
+				return fmt.Errorf("project is required")
+			}
+			if taskID == "" {
+				return fmt.Errorf("task is required")
+			}
+			if err := storage.ValidateTaskID(taskID); err != nil {
+				return err
+			}
+			if strings.TrimSpace(opts.ConfigPath) == "" && strings.TrimSpace(opts.Agent) == "" {
+				found, err := config.FindDefaultConfig()
+				if err != nil {
+					return err
+				}
+				opts.ConfigPath = found
+			}
+			// Resolve root dir to validate task directory existence
+			rootDir := strings.TrimSpace(opts.RootDir)
+			if rootDir == "" {
+				var err error
+				rootDir, err = os.Getwd()
+				if err != nil {
+					return fmt.Errorf("resolve root dir: %w", err)
+				}
+			}
+			taskDir := filepath.Join(rootDir, projectID, taskID)
+			if _, err := os.Stat(taskDir); err != nil {
+				if os.IsNotExist(err) {
+					return fmt.Errorf("task directory not found: %s", taskDir)
+				}
+				return fmt.Errorf("stat task directory: %w", err)
+			}
+			taskMDPath := filepath.Join(taskDir, "TASK.md")
+			if _, err := os.Stat(taskMDPath); err != nil {
+				if os.IsNotExist(err) {
+					return fmt.Errorf("TASK.md not found in task directory %s", taskDir)
+				}
+				return fmt.Errorf("stat TASK.md: %w", err)
+			}
+			fmt.Fprintf(cmd.ErrOrStderr(), "Resuming task: %s\n", taskID)
+			opts.ResumeMode = true
+			return runner.RunTask(projectID, taskID, opts)
+		},
+	}
+
+	cmd.Flags().StringVar(&projectID, "project", "", "project id")
+	cmd.Flags().StringVar(&taskID, "task", "", "task id")
+	cmd.Flags().StringVar(&opts.RootDir, "root", "", "run-agent root directory")
+	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "config file path")
+	cmd.Flags().StringVar(&opts.Agent, "agent", "", "agent type")
+	cmd.Flags().StringVar(&opts.WorkingDir, "cwd", "", "working directory")
+	cmd.Flags().StringVar(&opts.MessageBusPath, "message-bus", "", "message bus path")
+	cmd.Flags().IntVar(&opts.MaxRestarts, "max-restarts", 3, "max restarts")
 	cmd.Flags().DurationVar(&opts.WaitTimeout, "child-wait-timeout", 0, "child wait timeout")
 	cmd.Flags().DurationVar(&opts.PollInterval, "child-poll-interval", 0, "child poll interval")
 	cmd.Flags().DurationVar(&opts.RestartDelay, "restart-delay", time.Second, "restart delay")
