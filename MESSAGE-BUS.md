@@ -376,3 +376,135 @@
 [2026-02-20 16:35:00] FACT: Docker test still fails: container_name "conductor" in docker-compose.yml conflicts between test runs
 [2026-02-20 16:35:00] FACT: All 12 QUESTIONS files reviewed — all questions answered, no new human answers since last session
 [2026-02-20 16:35:00] DECISION: Focus areas: (1) fix Docker test, (2) implement restart prompt prefix, (3) implement task folder creation, (4) address ISSUE-009 token validation
+
+[2026-02-20 17:00:00] ==========================================
+[2026-02-20 17:00:00] SESSION #7: Docker fix + Restart Prefix + Task Folder + Token Validation
+[2026-02-20 17:00:00] ==========================================
+
+[2026-02-20 17:00:00] PROGRESS: Starting session #7 — read all required docs, assessed state
+[2026-02-20 17:00:00] FACT: go build ./... passes, 17/18 test packages green
+[2026-02-20 17:00:00] FACT: Docker test fails: port 8080 in use by running conductor server (PID 93612)
+[2026-02-20 17:00:00] FACT: Binaries: conductor (13.8MB), run-agent (12.3MB) both built and working
+[2026-02-20 17:00:00] FACT: 0 fully open CRITICAL issues; 3 HIGH open: ISSUE-003, ISSUE-005, ISSUE-006, ISSUE-009
+[2026-02-20 17:00:00] DECISION: Session #7 focus: (1) Docker port conflict skip, (2) restart prompt prefix Q7/Q2, (3) task folder creation Q10, (4) ISSUE-009 token validation
+[2026-02-20 17:00:00] PROGRESS: Writing prompt files and launching 3 parallel sub-agents via bin/run-agent job
+
+---
+msg_id: MSG-20260220-155454-390970000-PID30154-0001
+ts: 2026-02-20T15:54:54.390976Z
+type: RUN_START
+project_id: conductor-loop
+task_id: session7-docker-fix
+run_id: 20260220-1554540000-30154
+---
+run started
+
+---
+msg_id: MSG-20260220-155456-138711000-PID30204-0001
+ts: 2026-02-20T15:54:56.138717Z
+type: RUN_START
+project_id: conductor-loop
+task_id: session7-restart-prefix
+run_id: 20260220-1554560000-30204
+---
+run started
+
+---
+msg_id: MSG-20260220-155456-864232000-PID30221-0001
+ts: 2026-02-20T15:54:56.864242Z
+type: RUN_START
+project_id: conductor-loop
+task_id: session7-token-validation
+run_id: 20260220-1554560000-30221
+---
+run started
+
+---
+msg_id: MSG-20260220-155554-384756000-PID30154-0002
+ts: 2026-02-20T15:55:54.384761Z
+type: RUN_STOP
+project_id: conductor-loop
+task_id: session7-docker-fix
+run_id: 20260220-1554540000-30154
+---
+run stopped with code 0
+
+---
+msg_id: MSG-20260220-155759-460234000-PID30221-0002
+ts: 2026-02-20T15:57:59.460239Z
+type: RUN_STOP
+project_id: conductor-loop
+task_id: session7-token-validation
+run_id: 20260220-1554560000-30221
+---
+run stopped with code 0
+
+---
+msg_id: MSG-20260220-155942-233845000-PID30204-0002
+ts: 2026-02-20T15:59:42.233849Z
+type: RUN_STOP
+project_id: conductor-loop
+task_id: session7-restart-prefix
+run_id: 20260220-1554560000-30204
+---
+run stopped with code 0
+
+---
+msg_id: MSG-20260220-160352-894921000-PID36177-0001
+ts: 2026-02-20T16:03:52.894927Z
+type: RUN_START
+project_id: conductor-loop
+task_id: session7-run-agent-serve-bus
+run_id: 20260220-1603520000-36177
+---
+run started
+
+---
+msg_id: MSG-20260220-160354-266765000-PID36194-0001
+ts: 2026-02-20T16:03:54.266773Z
+type: RUN_START
+project_id: conductor-loop
+task_id: session7-post-messages-api
+run_id: 20260220-1603540000-36194
+---
+run started
+
+---
+msg_id: MSG-20260220-160433-643809000-PID36568-0001
+ts: 2026-02-20T16:04:33.643816Z
+type: RUN_START
+project_id: conductor-loop
+task_id: session7-run-event-enrichment
+run_id: 20260220-1604330000-36568
+---
+run started
+
+---
+msg_id: MSG-20260220-160614-031077000-PID36194-0002
+ts: 2026-02-20T16:06:14.031084Z
+type: RUN_STOP
+project_id: conductor-loop
+task_id: session7-post-messages-api
+run_id: 20260220-1603540000-36194
+---
+run stopped with code 0
+
+---
+msg_id: MSG-20260220-160652-979231000-PID36568-0002
+ts: 2026-02-20T16:06:52.979237Z
+type: RUN_STOP
+project_id: conductor-loop
+task_id: session7-run-event-enrichment
+run_id: 20260220-1604330000-36568
+---
+run stopped with code 0
+
+---
+msg_id: MSG-20260220-160819-648943000-PID36177-0002
+ts: 2026-02-20T16:08:19.648946Z
+type: RUN_STOP
+project_id: conductor-loop
+task_id: session7-run-agent-serve-bus
+run_id: 20260220-1603520000-36177
+---
+run stopped with code 0
