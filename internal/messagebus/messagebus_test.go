@@ -398,6 +398,66 @@ func TestWithRetryBackoffOption(t *testing.T) {
 	}
 }
 
+func TestWithFsyncFalseDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	if bus.fsync {
+		t.Fatalf("expected fsync=false by default")
+	}
+}
+
+func TestWithFsyncOption(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path, WithFsync(true))
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	if !bus.fsync {
+		t.Fatalf("expected fsync=true after WithFsync(true)")
+	}
+
+	bus2, err := NewMessageBus(path, WithFsync(false))
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	if bus2.fsync {
+		t.Fatalf("expected fsync=false after WithFsync(false)")
+	}
+}
+
+func TestFsyncWritesComplete(t *testing.T) {
+	// WithFsync(true) should write and read back correctly.
+	// Note: fsync reduces throughput (~200 msg/sec vs 37,000+ without).
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path, WithFsync(true))
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+
+	const count = 10
+	for i := 0; i < count; i++ {
+		_, err := bus.AppendMessage(&Message{
+			Type:      "FACT",
+			ProjectID: "project",
+			Body:      "fsync-msg",
+		})
+		if err != nil {
+			t.Fatalf("AppendMessage %d: %v", i, err)
+		}
+	}
+
+	messages, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("ReadMessages: %v", err)
+	}
+	if len(messages) != count {
+		t.Fatalf("expected %d messages, got %d", count, len(messages))
+	}
+}
+
 type shortWriter struct{}
 
 func (w *shortWriter) Write(p []byte) (int, error) { return 0, nil }

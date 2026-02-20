@@ -48,6 +48,7 @@ type MessageBus struct {
 	pollInterval time.Duration
 	maxRetries   int
 	retryBackoff time.Duration
+	fsync        bool
 
 	attempts int64
 	retries  int64
@@ -91,6 +92,16 @@ func WithMaxRetries(n int) Option {
 func WithRetryBackoff(d time.Duration) Option {
 	return func(bus *MessageBus) {
 		bus.retryBackoff = d
+	}
+}
+
+// WithFsync enables or disables fsync after each message write.
+// Default is false (no fsync) for maximum throughput.
+// Enable for durability-critical deployments where message loss on OS crash is unacceptable.
+// WARNING: fsync significantly reduces throughput (~200 msg/sec vs 37,000+ without).
+func WithFsync(enabled bool) Option {
+	return func(bus *MessageBus) {
+		bus.fsync = enabled
 	}
 }
 
@@ -198,6 +209,11 @@ func (mb *MessageBus) tryAppend(data []byte) error {
 
 	if err := appendEntry(file, data); err != nil {
 		return errors.Wrap(err, "write message")
+	}
+	if mb.fsync {
+		if err := file.Sync(); err != nil {
+			return errors.Wrap(err, "fsync message bus")
+		}
 	}
 	return nil
 }
