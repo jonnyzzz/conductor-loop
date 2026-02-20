@@ -12,6 +12,7 @@ Common issues and solutions for Conductor Loop.
 - [Web UI Issues](#web-ui-issues)
 - [Performance Issues](#performance-issues)
 - [Docker Issues](#docker-issues)
+- [Windows](#windows)
 - [Getting Help](#getting-help)
 
 ---
@@ -736,6 +737,51 @@ docker exec conductor curl http://localhost:8080/api/v1/health
 ```bash
 docker network inspect bridge
 ```
+
+---
+
+## Windows
+
+### Message Bus File Locking
+
+**Symptom:**
+
+Agents hang or become unresponsive on native Windows. Message bus polling
+blocks when another agent is writing. System appears single-threaded.
+
+**Cause:**
+
+The message bus uses file locking for concurrent write safety. On Unix/macOS,
+`flock()` is advisory — readers can access files without acquiring locks. On
+Windows, `LockFileEx` uses mandatory locks that block all concurrent access to
+locked byte ranges, including reads. This means message bus readers may block
+whenever any agent holds a write lock.
+
+**Solution:**
+
+**Use WSL2 (recommended):**
+
+WSL2 provides full Linux compatibility, including advisory `flock()` semantics:
+
+```bash
+# Install WSL2 (PowerShell as Administrator)
+wsl --install
+
+# Clone and build inside WSL2
+wsl
+git clone https://github.com/jonnyzzz/conductor-loop.git
+cd conductor-loop
+go build -o conductor ./cmd/conductor
+go build -o run-agent ./cmd/run-agent
+```
+
+**Native Windows workaround:**
+
+If you must run on native Windows, reduce the number of concurrent agents to
+minimize lock contention. The system will function but with degraded
+performance under concurrent workloads.
+
+See [ISSUE-002](https://github.com/jonnyzzz/conductor-loop/blob/main/ISSUES.md) for tracking and future improvements.
 
 ---
 

@@ -37,7 +37,8 @@ All four requirements already implemented in code:
 
 ### ISSUE-002: Windows File Locking Incompatibility
 **Severity**: CRITICAL
-**Status**: OPEN
+**Status**: PARTIALLY RESOLVED
+**Resolved**: 2026-02-20 (short-term)
 **Blocking**: Cross-platform support
 
 **Description**:
@@ -60,14 +61,16 @@ The message bus design uses `O_APPEND + flock` with lockless reads. This works o
    - Windows: readers acquire shared locks with timeout/retry
 3. **Long-term**: Consider alternative IPC (named pipes, memory-mapped files)
 
-**Recommended Action**:
-- Implement Windows-specific lock acquisition in reader code
-- Use 1-second timeout with exponential backoff
-- Add Windows-specific integration tests
+**Short-term Resolution (2026-02-20)**:
+- [x] Platform Support table added to README.md documenting Windows limitation
+- [x] Windows troubleshooting section added to docs/user/troubleshooting.md (WSL2 recommended)
+- [x] Windows-specific lock_windows.go created using LockFileEx/UnlockFileEx with LOCKFILE_FAIL_IMMEDIATELY
+- [ ] Medium-term: Windows shared-lock reader with timeout/retry (deferred)
+- [ ] Windows-specific integration tests (deferred — needs Windows CI)
 
 **Dependencies**:
 - infra-messagebus implementation
-- Cross-platform testing
+- Cross-platform testing (Windows CI)
 
 ---
 
@@ -108,7 +111,8 @@ The design relies on PGID (process group ID) management and `kill(-pgid, 0)` for
 
 ### ISSUE-004: CLI Version Compatibility Breakage Risk
 **Severity**: CRITICAL
-**Status**: OPEN
+**Status**: PARTIALLY RESOLVED
+**Resolved**: 2026-02-20
 **Blocking**: Agent backend reliability
 
 **Description**:
@@ -125,17 +129,23 @@ Claude CLI and Codex CLI are evolving rapidly. Flag changes, output format chang
 - Implementation Strategy Validator (Agent #4)
 
 **Resolution Required**:
-- [ ] Detect CLI version at startup (`claude --version`, `codex --version`)
-- [ ] Maintain compatibility matrix in config.hcl
-- [ ] Fail fast with clear error if incompatible version detected
-- [ ] Add integration test suite for multiple CLI versions
-- [ ] Document supported versions in README
-- [ ] Subscribe to CLI changelog notifications
+- [x] Detect CLI version at startup (`claude --version`, `codex --version`) — ValidateAgent in validate.go
+- [x] Minimum version constraints defined (minVersions map: claude>=1.0.0, codex>=0.1.0, gemini>=0.1.0)
+- [x] Version parsing with regex (`\d+\.\d+\.\d+`) — handles all three CLI output formats
+- [x] Warning on incompatible version (warn-only mode, no hard failure)
+- [x] Table-driven tests for parseVersion and isVersionCompatible
+- [ ] Maintain compatibility matrix in config.hcl (config override for min_version — deferred)
+- [ ] Add integration test suite for multiple CLI versions (deferred)
+- [ ] Document supported versions in README (deferred)
+- [ ] Add `run-agent validate` subcommand (deferred)
+- [ ] Persist agent_version in run-info.yaml (deferred)
 
-**Recommended Action**:
-- Implement CLI version detection in agent backend initialization
-- Maintain version compatibility tests in CI
-- Add `run-agent validate-config --check-versions` command
+**Resolution**:
+Session #3: Added ValidateAgent with CLI detection via `--version` flag.
+Session #4: Added version parsing (parseVersion), version comparison (isVersionCompatible),
+minimum version constraints (minVersions map), and comprehensive table-driven tests.
+Warn-only mode — does not block startup on old versions. Research agent confirmed actual
+CLI versions: claude=2.1.49, codex=0.104.0, gemini=0.28.2.
 
 **Dependencies**:
 - All agent backend implementations
@@ -715,13 +725,13 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 
 ## Issue Summary
 
-| Severity | Open | Resolved |
-|----------|------|----------|
-| CRITICAL | 3 | 4 |
-| HIGH | 6 | 0 |
-| MEDIUM | 6 | 0 |
-| LOW | 2 | 0 |
-| **Total** | **17** | **4** |
+| Severity | Open | Partially Resolved | Resolved |
+|----------|------|-------------------|----------|
+| CRITICAL | 1 | 2 | 4 |
+| HIGH | 6 | 0 | 0 |
+| MEDIUM | 6 | 0 | 0 |
+| LOW | 2 | 0 | 0 |
+| **Total** | **15** | **2** | **4** |
 
 ---
 

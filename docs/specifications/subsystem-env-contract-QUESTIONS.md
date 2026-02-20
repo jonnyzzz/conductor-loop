@@ -18,6 +18,8 @@ TODO2: We need integration tests with all agents to log environment variables di
 
 **Answer**: (Pending - user)
 
+**Implementation (2026-02-20)**: RUNS_DIR and MESSAGE_BUS env vars are now injected into agent subprocess environment via envOverrides in internal/runner/job.go. They are set alongside JRUN_* variables. This is a pragmatic decision — agents can use these if available, but the contract doesn't require them.
+
 ## Resolved Questions
 
 No resolved questions at this time.

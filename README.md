@@ -114,6 +114,14 @@ Conductor Loop is designed for:
 - **Research & Experimentation**: Test and compare different AI agents
 - **Production AI Workflows**: Deploy reliable AI-powered automation
 
+## Platform Support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| macOS    | Fully supported | Primary development platform |
+| Linux    | Fully supported | All features work |
+| Windows  | Limited | Message bus uses advisory flock; Windows mandatory locks may block concurrent readers. Use WSL2 for full compatibility. |
+
 ## Requirements
 
 - **Go**: 1.21 or higher
