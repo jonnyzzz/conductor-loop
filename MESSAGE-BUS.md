@@ -2072,3 +2072,94 @@ project_id: conductor-loop
 - 46c7cff: docs(issues): close ISSUE-006 planning artifact + audit open issues
 - afa9673: feat(messagebus): add WithAutoRotate option for automatic bus file rotation
 - 905b05c: feat(webhook): add run completion webhook notifications
+
+---
+msg_id: MSG-20260221-SESSION26-START
+ts: 2026-02-21T02:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 02:00:00] ==========================================
+[2026-02-21 02:00:00] SESSION #26: List Command + Output Follow + Docs Housekeeping
+[2026-02-21 02:00:00] ==========================================
+
+[2026-02-21 02:00:00] PROGRESS: Starting session #26 — read all required docs, assessed state
+[2026-02-21 02:00:00] FACT: go build ./... passes (binaries rebuilt)
+[2026-02-21 02:00:00] FACT: go test ./internal/... ./cmd/... — ALL 14 packages green (no races)
+[2026-02-21 02:00:00] FACT: ISSUES.md table inconsistency found: MEDIUM shows 1 open but ISSUE-016 was resolved in Session #25
+[2026-02-21 02:00:00] FACT: /api/v1/status, JRUN_* preamble, task resume — all already implemented in previous sessions
+[2026-02-21 02:00:00] FACT: run-agent output --follow: not yet implemented; stdout written in real-time to file
+[2026-02-21 02:00:00] FACT: run-agent list: not yet implemented; no CLI way to enumerate tasks/runs without server
+[2026-02-21 02:00:00] DECISION: Session #26 focus:
+[2026-02-21 02:00:00]   (1) issues-housekeeping-26: Fix ISSUES.md table (MEDIUM 1→0), review docs/dev/ accuracy
+[2026-02-21 02:00:00]   (2) run-agent-list: Add run-agent list command for project/task/run enumeration
+[2026-02-21 02:00:00]   (3) output-follow: Add --follow flag to run-agent output for live log tailing
+[2026-02-21 02:00:00] DECISION: Launching 3 parallel sub-agents via bin/run-agent job
+
+[2026-02-21 01:15:00] PROGRESS: All 3 parallel agents COMPLETED (exit code 0, DONE files created)
+[2026-02-21 01:15:00] FACT: Agent task-20260220-233909-cq5awd (run-agent-list): run-agent list implemented — committed 191723e
+[2026-02-21 01:15:00] FACT: Agent task-20260220-233904-fndx7g (issues-housekeeping): ISSUES.md table fixed, 8 dev docs updated — committed 672306a
+[2026-02-21 01:15:00] FACT: Agent task-20260220-233910-3fp65b (output-follow): --follow flag added to run-agent output — committed 55bdefa
+[2026-02-21 01:15:00] QUALITY: go build ./... PASS
+[2026-02-21 01:15:00] QUALITY: go test -race ./internal/... ./cmd/... ALL 14 packages PASS (no races)
+[2026-02-21 01:15:00] FACT: Binaries rebuilt: conductor (14MB), run-agent (14MB)
+
+[2026-02-21 01:16:00] ==========================================
+[2026-02-21 01:16:00] SESSION #26 SUMMARY
+[2026-02-21 01:16:00] ==========================================
+
+## Completed Tasks (3 sub-agents via bin/run-agent job)
+
+### task-20260220-233909-cq5awd (run-agent list)
+- Added `run-agent list` command for project/task/run enumeration without a server
+- No flags: lists all projects in root directory
+- --project P: shows task table (TASK_ID, RUNS, LATEST_STATUS, DONE columns)
+- --project P --task T: shows run table (RUN_ID, STATUS, EXIT_CODE, STARTED, DURATION)
+- --json flag for machine-readable output
+- 13 new tests in cmd/run-agent/list_test.go
+- Committed: 191723e
+
+### task-20260220-233904-fndx7g (Issues Housekeeping + Docs)
+- ISSUES.md table corrected: MEDIUM 1 open → 0 open, resolved 5→6; Total 1 open/16 resolved → 0/17
+- Added Session #26 Changes section to ISSUES.md
+- docs/dev/message-bus.md: documents WithAutoRotate, ReadLastN, run-agent gc --rotate-bus
+- docs/dev/agent-protocol.md: added JRUN_PROJECT_ID/TASK_ID/ID to Standard Variables
+- docs/dev/subsystems.md: fixed message bus Known Limitations; added section 9 Webhook Notifications
+- docs/dev/architecture.md: updated subsystem count 8→9; added webhook section; WithAutoRotate note
+- docs/dev/ralph-loop.md: fixed incorrect note about exit code 0 not stopping the loop
+- docs/dev/testing.md: fixed tests/ → test/ directory references
+- docs/dev/storage-layout.md: updated Cleanup section for run-agent gc
+- Committed: 672306a
+
+### task-20260220-233910-3fp65b (Output --follow flag)
+- Added -f/--follow flag to run-agent output command
+- Exits immediately for completed runs (prints all content)
+- Polls every 500ms for new bytes for running jobs
+- Stops when run-info.yaml transitions to terminal status or 60s no-data timeout
+- Handles SIGINT gracefully
+- 6 new tests in cmd/run-agent/output_follow_test.go
+- Committed: 55bdefa
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (14MB each)
+- go test -race ./internal/... ./cmd/... (14 packages): ALL PASS (no races)
+
+## Dog-Food Success
+- All 3 tasks orchestrated via ./bin/run-agent job (auto-generated task IDs)
+- DONE files created by all 3 agents ✓
+- No merge conflicts
+
+## Current Issue Status
+- CRITICAL: 0 open, 2 partially resolved, 4 resolved
+- HIGH: 0 open, 3 partially resolved, 5 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+- Total: 0 fully open, 5 partially resolved, 17 resolved
+
+## Commits This Session
+- 191723e: feat(cli): add run-agent list command for project/task/run enumeration
+- 672306a: docs(issues): fix ISSUES.md table + update dev docs for session #25 features
+- 55bdefa: feat(cli): add --follow flag to run-agent output for live log tailing
+
