@@ -45,11 +45,18 @@ type Server struct {
 	handler    http.Handler
 	server     *http.Server
 
-	mu sync.Mutex
+	mu     sync.Mutex
+	taskWg sync.WaitGroup
 
 	sseOnce        sync.Once
 	sseManagerInst *StreamManager
 	sseErr         error
+}
+
+// WaitForTasks waits for all background task goroutines to finish.
+// Call this in tests before temp directory cleanup to avoid races.
+func (s *Server) WaitForTasks() {
+	s.taskWg.Wait()
 }
 
 // NewServer constructs a REST API server with defaults applied.

@@ -41,7 +41,12 @@ func TestAPIWithRealBackend(t *testing.T) {
 		t.Fatalf("new server: %v", err)
 	}
 	ts := httptest.NewServer(server.Handler())
-	defer ts.Close()
+	// Register cleanup AFTER t.TempDir() calls so it runs first (t.Cleanup is LIFO).
+	// This ensures all task goroutines finish before temp directories are removed.
+	t.Cleanup(func() {
+		ts.Close()
+		server.WaitForTasks()
+	})
 
 	projectID := "project"
 	taskID := "task-api-backend"

@@ -436,7 +436,11 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 	}
 
 	if s.startTasks {
-		go s.startTask(req, runDir, runPrompt)
+		s.taskWg.Add(1)
+		go func() {
+			defer s.taskWg.Done()
+			s.startTask(req, runDir, runPrompt)
+		}()
 	}
 
 	resp := TaskCreateResponse{
