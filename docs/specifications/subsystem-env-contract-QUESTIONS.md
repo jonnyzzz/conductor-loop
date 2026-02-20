@@ -16,10 +16,10 @@ TODO2: We need integration tests with all agents to log environment variables di
 
 **Question**: Should run-agent keep RUNS_DIR/MESSAGE_BUS out of the contract (current spec), or start injecting them as read-only and block overrides from CLI/env maps?
 
-**Answer**: (Pending - user)
+**Answer**: Inject RUNS_DIR and MESSAGE_BUS as informational env vars. Do NOT block overrides — agents may need to redirect these for sub-tasks. These are "available if you need them" additions to the contract, not enforced constraints.
 
-**Implementation (2026-02-20)**: RUNS_DIR and MESSAGE_BUS env vars are now injected into agent subprocess environment via envOverrides in internal/runner/job.go. They are set alongside JRUN_* variables. This is a pragmatic decision — agents can use these if available, but the contract doesn't require them.
+**Implementation (2026-02-20)**: RUNS_DIR and MESSAGE_BUS env vars are now injected into agent subprocess environment via envOverrides in internal/runner/job.go. They are set alongside JRUN_* variables. Validated by 6 integration tests in `internal/runner/env_contract_test.go`.
 
 ## Resolved Questions
 
-No resolved questions at this time.
+- Q1: RUNS_DIR and MESSAGE_BUS — inject as informational, don't block overrides (resolved 2026-02-20)

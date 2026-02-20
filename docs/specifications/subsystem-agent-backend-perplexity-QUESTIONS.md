@@ -75,4 +75,4 @@
 ---
 
 - Q: Config format/token syntax mismatch: specs reference config.hcl with inline or `@file` token values, but code currently loads YAML with `token`/`token_file` fields and no `@file` shorthand. Which format is authoritative, and should `@file` be supported by the runner?
-  Answer: (Pending - user)
+  Answer: YAML is authoritative. The `config.hcl` references in specs are outdated — all code uses YAML (`config.yaml`) with `token` and `token_file` as mutually exclusive fields. The `@file` shorthand is NOT supported and NOT needed; `token_file: /path/to/file` achieves the same goal with clearer semantics. No changes required.

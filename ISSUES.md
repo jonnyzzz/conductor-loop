@@ -223,7 +223,8 @@ Make infra-storage, infra-messagebus, infra-config ALL PARALLEL (no dependencies
 
 ### ISSUE-007: Message Bus Lock Contention Under Load
 **Severity**: HIGH
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-20
 **Blocking**: 50+ agent scalability
 
 **Description**:
@@ -239,17 +240,15 @@ With 16-50 parallel agents all writing to TASK-MESSAGE-BUS.md, lock contention o
 - Risk Assessment Agent (Agent #3), Risk 2.1
 - docs/specifications/subsystem-message-bus-tools.md
 
-**Resolution Options**:
-1. Make lock timeout configurable per task (increase for high-concurrency)
-2. Implement exponential backoff retry (3 attempts: 10s, 20s, 40s)
-3. Add write-through cache: agent buffers locally, background thread flushes
-4. Monitor lock wait time metrics
-5. Consider sharded message bus (per-agent subdirectories)
-
-**Recommended Action**:
-- Implement retry logic with backoff in message bus client
-- Add lock contention metrics collection
-- Test with 50+ concurrent writers early (Phase 1.2)
+**Resolution**:
+Implemented retry with exponential backoff in `AppendMessage()`:
+- [x] Default 3 attempts with exponential backoff (100ms × 2^attempt)
+- [x] Configurable via `WithMaxRetries(n)` and `WithRetryBackoff(d)` options
+- [x] File reopened between retries to release stale state
+- [x] Lock contention metrics via `ContentionStats()` (atomic int64 counters)
+- [x] 5 new unit tests: retry on contention, exhaust retries, stats, option validation
+- [ ] Test with 50+ concurrent writers (deferred to performance testing)
+- [ ] Write-through cache (deferred — retry logic sufficient for current scale)
 
 **Dependencies**:
 - infra-messagebus implementation
@@ -259,7 +258,8 @@ With 16-50 parallel agents all writing to TASK-MESSAGE-BUS.md, lock contention o
 
 ### ISSUE-008: No Early Integration Validation Checkpoints
 **Severity**: HIGH
-**Status**: OPEN
+**Status**: RESOLVED
+**Resolved**: 2026-02-20
 **Blocking**: Risk mitigation
 
 **Description**:
@@ -275,14 +275,21 @@ Plan waits until Phase 5 to test component integration. If Storage + MessageBus 
 
 **Resolution Required**:
 Add smoke test checkpoints after each major phase:
-- [ ] After Phase 1: Smoke test storage + messagebus (2 processes write concurrently)
-- [ ] After Phase 2: Smoke test agent spawning (spawn 3 agents in sequence)
-- [ ] After Phase 3: Smoke test full Ralph loop (root spawns child, both complete)
-- [ ] Phase 5: Full integration testing (as planned)
+- [x] After Phase 1: Smoke test storage + messagebus (2 processes write concurrently)
+- [x] After Phase 2: Smoke test agent spawning (spawn 3 agents in sequence)
+- [x] After Phase 3: Smoke test full Ralph loop (root spawns child, both complete)
+- [x] Phase 5: Full integration testing (as planned)
 
-**Expected Impact**:
-- Catches integration issues 2-4 weeks earlier
-- Prevents costly rework
+**Resolution**:
+All integration smoke tests already implemented and passing:
+- test/integration/messagebus_concurrent_test.go: TestConcurrentAgentWrites (10 agents × 100 msgs),
+  TestMessageBusConcurrency, TestMessageBusOrdering, TestFlockContention
+- test/integration/messagebus_test.go: TestConcurrentAppend (10 OS processes × 100 msgs),
+  TestLockTimeout, TestCrashRecovery, TestReadWhileWriting
+- test/integration/orchestration_test.go: TestRunJob, TestRunTask, TestParentChildRuns,
+  TestNestedRuns, TestRunJobMessageBusEventOrdering
+- internal/runner/env_contract_test.go: 6 env contract tests for agent subprocess env vars
+- internal/runner/process_test.go, test/unit/process_test.go: process management tests
 
 **Dependencies**:
 - THE_PLAN_v5.md updates
@@ -328,7 +335,8 @@ Tokens stored in config.hcl can expire (Anthropic, OpenAI tokens have TTL). No r
 
 ### ISSUE-010: Insufficient Error Context in Failure Scenarios
 **Severity**: HIGH
-**Status**: OPEN
+**Status**: PARTIALLY RESOLVED
+**Resolved**: 2026-02-20 (phase 1)
 **Blocking**: Debugging and observability
 
 **Description**:
@@ -343,24 +351,16 @@ When agents fail, error context may be insufficient for diagnosis. Exit codes do
 **Source**:
 - Risk Assessment Agent (Agent #3), Risk 4.7
 
-**Resolution Required**:
-Define structured error messages in message bus:
-```yaml
-type: ERROR
-error_code: CLAUDE_RATE_LIMIT
-error_category: backend
-details:
-  status_code: 429
-  retry_after: 60
-stderr_excerpt: [last 100 lines]
-```
-
-**Recommended Action**:
-- Define structured ERROR message format
-- Implement error classifier by root cause
-- Capture last 100 lines of stderr in ERROR messages
-- Add error knowledge base mapping patterns to remediation
-- Surface errors prominently in UI
+**Resolution (Phase 1)**:
+- [x] `tailFile()` helper reads last N lines of stderr on failure
+- [x] `classifyExitCode()` maps exit codes to human-readable summaries (1=failure, 2=usage, 137=OOM, 143=SIGTERM)
+- [x] `ErrorSummary` field added to `RunInfo` (persisted in run-info.yaml)
+- [x] `RUN_STOP` message body includes stderr excerpt (last 50 lines) for failed runs
+- [x] Both `executeCLI` and `finalizeRun` (REST) enhanced with error context
+- [x] 11 new tests: TestTailFile (5 subtests), TestErrorSummaryClassification (6 cases)
+- [ ] Structured ERROR message type (deferred — current stderr-in-RUN_STOP approach sufficient)
+- [ ] Error knowledge base / pattern matching (deferred)
+- [ ] UI error surfacing (deferred)
 
 **Dependencies**:
 - Message bus object model
@@ -728,10 +728,10 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 | Severity | Open | Partially Resolved | Resolved |
 |----------|------|-------------------|----------|
 | CRITICAL | 1 | 2 | 4 |
-| HIGH | 6 | 0 | 0 |
+| HIGH | 3 | 1 | 2 |
 | MEDIUM | 6 | 0 | 0 |
 | LOW | 2 | 0 | 0 |
-| **Total** | **15** | **2** | **4** |
+| **Total** | **12** | **3** | **6** |
 
 ---
 
