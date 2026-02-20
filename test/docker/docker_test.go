@@ -22,13 +22,28 @@ import (
 )
 
 const (
-	imageName       = "conductor:test"
-	healthURL       = "http://localhost:8080/api/v1/health"
-	secondaryHealth = "http://localhost:8081/api/v1/health"
+	imageName = "conductor:test"
 )
 
 var buildOnce sync.Once
 var buildErr error
+
+// findFreePort asks the OS for an unused TCP port and returns it.
+func findFreePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find free port: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	return port
+}
+
+// healthURL returns the health endpoint URL for the given host port.
+func healthURL(port int) string {
+	return fmt.Sprintf("http://localhost:%d/api/v1/health", port)
+}
 
 func TestDockerBuild(t *testing.T) {
 	root := repoRoot(t)
@@ -55,68 +70,68 @@ func TestDockerBuild(t *testing.T) {
 func TestDockerRun(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
-	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 
+	port := findFreePort(t)
 	project := uniqueProjectName(t)
 	compose := composeCommand(t)
-	composeUp(t, root, project, compose, "conductor")
+	composeUp(t, root, project, compose, port, "conductor")
 	defer composeDown(t, root, project, compose)
 
-	waitForHTTP(t, healthURL)
+	waitForHTTP(t, healthURL(port))
 }
 
 func TestDockerPersistence(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
-	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 
+	port := findFreePort(t)
 	project := uniqueProjectName(t)
 	compose := composeCommand(t)
-	composeUp(t, root, project, compose, "conductor")
+	composeUp(t, root, project, compose, port, "conductor")
 	defer composeDown(t, root, project, compose)
 
-	waitForHTTP(t, healthURL)
+	waitForHTTP(t, healthURL(port))
 
 	runID := fmt.Sprintf("run-%d", time.Now().UnixNano())
 	writeRunInfo(t, root, "proj", "task-001", runID)
 
-	assertRunExists(t, runID, "http://localhost:8080/api/v1/runs/")
+	assertRunExists(t, runID, fmt.Sprintf("http://localhost:%d/api/v1/runs/", port))
 
 	composeRestart(t, root, project, compose, "conductor")
-	waitForHTTP(t, healthURL)
-	assertRunExists(t, runID, "http://localhost:8080/api/v1/runs/")
+	waitForHTTP(t, healthURL(port))
+	assertRunExists(t, runID, fmt.Sprintf("http://localhost:%d/api/v1/runs/", port))
 }
 
 func TestDockerNetworkIsolation(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
-	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 
+	port := findFreePort(t)
 	project := uniqueProjectName(t)
 	compose := composeCommand(t)
-	composeUp(t, root, project, compose, "conductor")
+	composeUp(t, root, project, compose, port, "conductor")
 	defer composeDown(t, root, project, compose)
 
-	waitForHTTP(t, healthURL)
+	waitForHTTP(t, healthURL(port))
 	composeExec(t, root, project, compose, "conductor", []string{"curl", "-f", "http://conductor:8080/api/v1/health"})
 }
 
 func TestDockerVolumes(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
-	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 
+	port := findFreePort(t)
 	project := uniqueProjectName(t)
 	compose := composeCommand(t)
-	composeUp(t, root, project, compose, "conductor")
+	composeUp(t, root, project, compose, port, "conductor")
 	defer composeDown(t, root, project, compose)
 
 	markerDir := filepath.Join(root, "data", "runs", "volume-test")
@@ -134,16 +149,16 @@ func TestDockerVolumes(t *testing.T) {
 func TestDockerLogs(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
-	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 
+	port := findFreePort(t)
 	project := uniqueProjectName(t)
 	compose := composeCommand(t)
-	composeUp(t, root, project, compose, "conductor")
+	composeUp(t, root, project, compose, port, "conductor")
 	defer composeDown(t, root, project, compose)
 
-	waitForHTTP(t, healthURL)
+	waitForHTTP(t, healthURL(port))
 
 	args := append(compose[1:], "-p", project, "logs", "conductor")
 	cmd := exec.Command(compose[0], args...)
@@ -156,26 +171,26 @@ func TestDockerLogs(t *testing.T) {
 func TestDockerMultiContainer(t *testing.T) {
 	root := repoRoot(t)
 	ensureDocker(t)
-	checkPortAvailable(t, "8080")
 	ensureDockerConfig(t, root)
 	ensureRunsDir(t, root)
 	buildDockerImage(t, root)
 
+	port := findFreePort(t)
+	secondaryPort := findFreePort(t)
 	project := uniqueProjectName(t)
 	compose := composeCommand(t)
-	composeUp(t, root, project, compose, "conductor")
+	composeUp(t, root, project, compose, port, "conductor")
 	defer composeDown(t, root, project, compose)
 
-	waitForHTTP(t, healthURL)
+	waitForHTTP(t, healthURL(port))
 
 	secondaryName := fmt.Sprintf("conductor-secondary-%s", project)
-	secondaryPort := "8081:8080"
 	network := fmt.Sprintf("%s_conductor-net", project)
 	args := []string{
 		"run", "-d",
 		"--name", secondaryName,
 		"--network", network,
-		"-p", secondaryPort,
+		"-p", fmt.Sprintf("%d:8080", secondaryPort),
 		"-v", filepath.Join(root, "data", "runs") + ":/data/runs",
 		"-v", filepath.Join(root, "config.yaml") + ":/data/config/config.yaml:ro",
 		"-e", "CONDUCTOR_CONFIG=/data/config/config.yaml",
@@ -190,20 +205,20 @@ func TestDockerMultiContainer(t *testing.T) {
 		_ = exec.Command("docker", "rm", "-f", secondaryName).Run()
 	}()
 
-	waitForHTTP(t, secondaryHealth)
+	waitForHTTP(t, healthURL(secondaryPort))
 
 	runID := fmt.Sprintf("run-%d", time.Now().UnixNano())
 	writeRunInfo(t, root, "proj", "task-002", runID)
 
-	assertRunExists(t, runID, "http://localhost:8080/api/v1/runs/")
-	assertRunExists(t, runID, "http://localhost:8081/api/v1/runs/")
+	assertRunExists(t, runID, fmt.Sprintf("http://localhost:%d/api/v1/runs/", port))
+	assertRunExists(t, runID, fmt.Sprintf("http://localhost:%d/api/v1/runs/", secondaryPort))
 
 	msgID := writeProjectMessage(t, root, "proj", "multi-container")
 	if msgID == "" {
 		t.Fatalf("expected msg id")
 	}
-	assertMessageVisible(t, "http://localhost:8080/api/v1/messages?project_id=proj", msgID)
-	assertMessageVisible(t, "http://localhost:8081/api/v1/messages?project_id=proj", msgID)
+	assertMessageVisible(t, fmt.Sprintf("http://localhost:%d/api/v1/messages?project_id=proj", port), msgID)
+	assertMessageVisible(t, fmt.Sprintf("http://localhost:%d/api/v1/messages?project_id=proj", secondaryPort), msgID)
 }
 
 func ensureDocker(t *testing.T) {
@@ -216,17 +231,6 @@ func ensureDocker(t *testing.T) {
 	}
 }
 
-func checkPortAvailable(t *testing.T, port string) {
-	t.Helper()
-	// Use Dial (connect) rather than Listen (bind) to detect whether any process is
-	// listening on the port. Conductor binds on IPv6 (::*:8080) which blocks Docker's
-	// IPv4 bind but does NOT prevent a Go IPv4 net.Listen to 127.0.0.1.
-	conn, err := net.DialTimeout("tcp", "127.0.0.1:"+port, 500*time.Millisecond)
-	if err == nil {
-		conn.Close()
-		t.Skipf("port %s already in use (is conductor server running?), skipping docker test", port)
-	}
-}
 
 func buildDockerImage(t *testing.T, root string) {
 	t.Helper()
@@ -266,12 +270,13 @@ func composeCommand(t *testing.T) []string {
 	return nil
 }
 
-func composeUp(t *testing.T, root, project string, compose []string, services ...string) {
+func composeUp(t *testing.T, root, project string, compose []string, hostPort int, services ...string) {
 	t.Helper()
 	args := append(compose[1:], "-p", project, "up", "-d")
 	args = append(args, services...)
 	cmd := exec.Command(compose[0], args...)
 	cmd.Dir = root
+	cmd.Env = append(os.Environ(), fmt.Sprintf("CONDUCTOR_HOST_PORT=%d", hostPort))
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("compose up failed: %v (%s)", err, strings.TrimSpace(string(output)))
 	}

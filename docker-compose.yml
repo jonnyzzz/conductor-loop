@@ -2,7 +2,7 @@ services:
   conductor:
     build: .
     ports:
-      - "8080:8080"
+      - "${CONDUCTOR_HOST_PORT:-8080}:8080"
     volumes:
       - ./data/runs:/data/runs
       - ./config.yaml:/data/config/config.yaml:ro
