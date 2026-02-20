@@ -464,7 +464,8 @@ func commandForAgent(agentType string) (string, []string, error) {
 		args := []string{
 			"-p",
 			"--input-format", "text",
-			"--output-format", "text",
+			"--output-format", "stream-json",
+			"--verbose",
 			"--tools", "default",
 			"--permission-mode", "bypassPermissions",
 		}

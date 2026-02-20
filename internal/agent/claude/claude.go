@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -77,6 +78,13 @@ func (a *ClaudeAgent) Execute(ctx context.Context, runCtx *agent.RunContext) (er
 		return err
 	}
 
+	// Extract output.md from JSON stream if not already written.
+	// Non-fatal: if parsing fails the caller's CreateOutputMD fallback handles it.
+	if runCtx.StdoutPath != "" {
+		runDir := filepath.Dir(runCtx.StdoutPath)
+		_ = writeOutputMDFromStream(runDir, runCtx.StdoutPath)
+	}
+
 	return nil
 }
 
@@ -115,7 +123,8 @@ func claudeArgs(workingDir string) []string {
 		"--input-format",
 		"text",
 		"--output-format",
-		"text",
+		"stream-json",
+		"--verbose",
 		"--tools",
 		"default",
 		"--permission-mode",
