@@ -1715,3 +1715,98 @@ project_id: conductor-loop
 [2026-02-20 23:10:00] FACT: findWebDir() updated: frontend/dist has priority over web/src
 [2026-02-20 23:10:00] FACT: docs/dev/architecture.md now documents both UIs accurately
 
+---
+msg_id: MSG-20260220-SESSION22-START
+ts: 2026-02-20T23:30:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 23:30:00] ==========================================
+[2026-02-20 23:30:00] SESSION #22: Per-Task Log Streaming + React Task Creation
+[2026-02-20 23:30:00] ==========================================
+
+[2026-02-20 23:30:00] PROGRESS: Starting session #22 — read all required docs, assessed state
+[2026-02-20 23:30:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-20 23:30:00] FACT: go test -count=1 ./... — ALL 18 packages green (inherited from session #21)
+[2026-02-20 23:30:00] FACT: All CRITICAL/HIGH issues resolved, all QUESTIONS.md answered
+[2026-02-20 23:30:00] FACT: Gap identified: React LogViewer panel non-functional (logStreamUrl = undefined in App.tsx)
+[2026-02-20 23:30:00] FACT: Gap identified: React frontend has no task creation UI (only web/src/ has this)
+[2026-02-20 23:30:00] DECISION: Session #22 focus:
+[2026-02-20 23:30:00]   (1) Add GET /api/projects/{p}/tasks/{t}/runs/stream endpoint (fan-in all runs for task)
+[2026-02-20 23:30:00]   (2) Wire logStreamUrl in React App.tsx to the new endpoint
+[2026-02-20 23:30:00]   (3) Add task creation dialog to React frontend TaskList component
+[2026-02-20 23:30:00] DECISION: Launching 2 parallel sub-agents via ./bin/run-agent job
+
+[2026-02-20 23:31:00] PROGRESS: Launched 2 parallel sub-agents via bin/run-agent job:
+[2026-02-20 23:31:00] FACT: Agent task-20260220-221412-9lt06h: Add per-task log stream endpoint + wire React LogViewer
+[2026-02-20 23:31:00] FACT: Agent task-20260220-221415-4la86l: Add task creation dialog to React frontend
+
+[2026-02-20 23:40:00] FACT: Both parallel agents COMPLETED (exit code 0) with DONE files created
+
+[2026-02-20 23:40:00] FACT: Agent task-20260220-221412-9lt06h (per-task-log-stream): COMPLETED
+[2026-02-20 23:40:00]   - Added GET /api/projects/{p}/tasks/{t}/runs/stream endpoint in handlers_projects.go
+[2026-02-20 23:40:00]   - streamTaskRuns() fans in all run SSE streams for a specific project+task
+[2026-02-20 23:40:00]   - RunDiscovery goroutine picks up NEW runs started during streaming
+[2026-02-20 23:40:00]   - Added 2 tests (MethodNotAllowed, NotFound)
+[2026-02-20 23:40:00]   - React App.tsx logStreamUrl now wired to the new endpoint
+[2026-02-20 23:40:00]   - Committed: 387909e
+
+[2026-02-20 23:40:00] FACT: Agent task-20260220-221415-4la86l (react-task-create): COMPLETED
+[2026-02-20 23:40:00]   - Added "+ New Task" button to React TaskList component
+[2026-02-20 23:40:00]   - Dialog with: task_id (auto-gen), agent_type, prompt, project_root, attach_mode
+[2026-02-20 23:40:00]   - generateTaskId() produces task-YYYYMMDD-HHMMSS-rand6 format
+[2026-02-20 23:40:00]   - useStartTask hook added; startTask() method to APIClient
+[2026-02-20 23:40:00]   - Fixed TaskStartRequest.attach_mode type ('create'|'attach'|'resume')
+[2026-02-20 23:40:00]   - Committed: 846992d
+
+[2026-02-20 23:41:00] QUALITY: go build ./... PASS
+[2026-02-20 23:41:00] QUALITY: go test ./internal/... ./cmd/... ALL PASS (no data races)
+[2026-02-20 23:41:00] FACT: Binaries rebuilt: conductor (14MB), run-agent (14MB)
+[2026-02-20 23:41:00] FACT: frontend/dist rebuilt (npm run build completed)
+
+---
+msg_id: MSG-20260220-SESSION22-END
+ts: 2026-02-20T23:45:00Z
+type: SESSION_END
+project_id: conductor-loop
+---
+
+[2026-02-20 23:45:00] ==========================================
+[2026-02-20 23:45:00] SESSION #22 SUMMARY
+[2026-02-20 23:45:00] ==========================================
+
+## Completed Tasks (2 sub-agents via bin/run-agent job)
+
+### task-20260220-221412-9lt06h (Per-Task Log Stream)
+- Added streamTaskRuns() in internal/api/handlers_projects.go
+- Endpoint: GET /api/projects/{p}/tasks/{t}/runs/stream
+- Fans in SSE streams from all runs belonging to the task
+- Live RunDiscovery goroutine picks up new runs during streaming
+- Returns 404 if no runs found for the project+task
+- Added 2 unit tests: TestTaskRunsStream_MethodNotAllowed, TestTaskRunsStream_NotFound
+- React App.tsx: logStreamUrl now wired (was undefined) — LogViewer is NOW FUNCTIONAL
+- frontend/dist rebuilt via npm run build
+- Committed: 387909e
+
+### task-20260220-221415-4la86l (React Task Creation)
+- Added "+ New Task" button to TaskList panel header
+- Dialog: task_id (auto-gen), agent_type, prompt, project_root, attach_mode
+- generateTaskId(): task-YYYYMMDD-HHMMSS-rand6 format (matches task ID validation)
+- useStartTask() hook: wraps APIClient.startTask(), invalidates tasksQuery on success
+- Fixed TaskStartRequest.attach_mode type: 'create'|'attach'|'resume'
+- frontend/dist rebuilt via npm run build
+- Committed: 846992d
+
+## Quality Gates (final)
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS (14MB each)
+- go test ./internal/... ./cmd/...: ALL PASS
+- go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+- frontend/dist/index.html: Fresh build
+
+## Dog-Food Success
+- Both tasks orchestrated via ./bin/run-agent job (auto-generated task IDs)
+- DONE files created by both agents
+- No merge conflicts
+
