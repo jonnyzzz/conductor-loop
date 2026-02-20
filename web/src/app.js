@@ -120,7 +120,7 @@ function connectProjectSSE(projectId) {
   msgArea.className = 'proj-messages';
   section.appendChild(msgArea);
 
-  const sseUrl = `${API_BASE}/api/v1/messages/stream?project_id=${enc(projectId)}`;
+  const sseUrl = `${API_BASE}/api/projects/${enc(projectId)}/messages/stream`;
   const source = new EventSource(sseUrl);
   projSseSource = source;
 
@@ -337,7 +337,7 @@ async function loadTabContent() {
 
   if (tab === 'messages') {
     el.innerHTML = '';
-    const sseUrl = `${API_BASE}/api/v1/messages/stream?project_id=${enc(state.selectedProject)}&task_id=${enc(state.selectedTask)}`;
+    const sseUrl = `${API_BASE}/api/projects/${enc(state.selectedProject)}/tasks/${enc(state.selectedTask)}/messages/stream`;
     const source = new EventSource(sseUrl);
     tabSseSource = source;
     tabSseRunId  = state.selectedTask; // task-scoped; not run-scoped
@@ -613,15 +613,13 @@ async function postMessage() {
   const body = bodyEl.value.trim();
   if (!body) return;
   try {
-    const resp = await fetch(API_BASE + '/api/v1/messages', {
+    const url = state.selectedTask
+      ? `${API_BASE}/api/projects/${enc(state.selectedProject)}/tasks/${enc(state.selectedTask)}/messages`
+      : `${API_BASE}/api/projects/${enc(state.selectedProject)}/messages`;
+    const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        project_id: state.selectedProject,
-        task_id: state.selectedTask,
-        type,
-        body,
-      }),
+      body: JSON.stringify({ type, body }),
     });
     if (!resp.ok) {
       const text = await resp.text();
