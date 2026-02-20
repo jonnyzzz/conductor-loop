@@ -1671,3 +1671,47 @@ project_id: conductor-loop
 4. Spec notes updated — implementation/deferral notes for all agent backend QUESTIONS files
 5. ISSUES.md table corrected — CRITICAL resolved count was wrong (3 vs 4)
 6. THE_PLAN_v5.md — added status table showing all phases complete
+
+---
+msg_id: MSG-20260220-SESSION21-START
+ts: 2026-02-20T22:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-20 22:00:00] ==========================================
+[2026-02-20 22:00:00] SESSION #21: Project-scoped message bus endpoints
+[2026-02-20 22:00:00] ==========================================
+
+[2026-02-20 22:00:00] PROGRESS: Starting session #21 — read all required docs, assessed state
+[2026-02-20 22:00:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-20 22:00:00] FACT: go test -count=1 ./... — ALL 18 packages green (inherited from session #20)
+[2026-02-20 22:00:00] FACT: All CRITICAL/HIGH issues resolved, all QUESTIONS.md answered
+[2026-02-20 22:00:00] FACT: Assessment: API complete, web UI complete, all tests green
+[2026-02-20 22:00:00] FACT: Gap identified: /api/projects/{p}/messages* endpoints missing from project-scoped API
+[2026-02-20 22:00:00] DECISION: Session #21 focus: Add project-scoped message bus endpoints to project API
+[2026-02-20 22:00:00] DECISION: Launching 1 sub-agent via bin/run-agent job (dog-food)
+
+---
+msg_id: MSG-20260220-SESSION21-END
+ts: 2026-02-20T23:10:00Z
+type: SESSION_END
+project_id: conductor-loop
+---
+
+[2026-02-20 23:10:00] ==========================================
+[2026-02-20 23:10:00] SESSION #21: COMPLETED
+[2026-02-20 23:10:00] ==========================================
+
+[2026-02-20 23:10:00] FACT: 4 sub-agent tasks run via ./bin/run-agent job (dog-food loop working)
+[2026-02-20 23:10:00] FACT: 3 commits made:
+[2026-02-20 23:10:00]   - e19c872 docs(dev): fix stale React/TypeScript and line count references
+[2026-02-20 23:10:00]   - 11880f6 feat(web): use project-scoped message endpoints
+[2026-02-20 23:10:00]   - 153d1ec feat(frontend): fix React app API endpoints and integrate with conductor
+[2026-02-20 23:10:00] FACT: go build ./... passes; go test ./... all 18 packages green; go test -race no races
+[2026-02-20 23:10:00] FACT: Discovery: frontend/ React 18 + TypeScript app existed but had API endpoint mismatches
+[2026-02-20 23:10:00] DECISION: React app (frontend/) now primary UI served by conductor; web/src/ is fallback
+[2026-02-20 23:10:00] FACT: React app now uses correct API endpoints (/messages not /bus, /api/v1/tasks, TASK.md)
+[2026-02-20 23:10:00] FACT: findWebDir() updated: frontend/dist has priority over web/src
+[2026-02-20 23:10:00] FACT: docs/dev/architecture.md now documents both UIs accurately
+
