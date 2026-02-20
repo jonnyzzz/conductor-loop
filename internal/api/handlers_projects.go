@@ -63,6 +63,15 @@ func (s *Server) handleProjectsRouter(w http.ResponseWriter, r *http.Request) *a
 		}
 		return s.handleProjectTask(w, r)
 	}
+	// /api/projects/{id}/messages[/stream]
+	if parts[1] == "messages" {
+		if len(parts) == 2 {
+			return s.handleProjectMessages(w, r)
+		}
+		if len(parts) == 3 && parts[2] == "stream" {
+			return s.handleProjectMessagesStream(w, r)
+		}
+	}
 	return apiErrorNotFound("not found")
 }
 
@@ -218,6 +227,17 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 			return apiErrorMethodNotAllowed()
 		}
 		return s.serveTaskFile(w, r, projectID, taskID)
+	}
+
+	// task-scoped message bus: /api/projects/{p}/tasks/{t}/messages[/stream]
+	if len(parts) >= 4 && parts[3] == "messages" {
+		if len(parts) == 4 {
+			return s.handleTaskMessages(w, r, projectID, taskID)
+		}
+		if len(parts) == 5 && parts[4] == "stream" {
+			return s.handleTaskMessagesStream(w, r, projectID, taskID)
+		}
+		return apiErrorNotFound("not found")
 	}
 
 	if len(parts) >= 5 && parts[3] == "runs" {

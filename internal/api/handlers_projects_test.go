@@ -353,3 +353,233 @@ func TestServeRunFile_ProjectEndpoint(t *testing.T) {
 		t.Errorf("expected file content in response, got: %q", rec.Body.String())
 	}
 }
+
+// writeProjectBus writes a minimal message bus entry to the given path.
+func writeProjectBus(t *testing.T, busPath, msgID, msgType, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(busPath), 0o755); err != nil {
+		t.Fatalf("mkdir bus dir: %v", err)
+	}
+	entry := "---\nmsg_id: " + msgID + "\ntype: " + msgType + "\nproject_id: test\nts: 2025-01-01T00:00:00Z\n---\n" + body + "\n"
+	if err := os.WriteFile(busPath, []byte(entry), 0o644); err != nil {
+		t.Fatalf("write bus: %v", err)
+	}
+}
+
+func TestProjectMessages_ListEmpty(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	url := "/api/projects/proj1/messages"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	msgs, ok := resp["messages"]
+	if !ok {
+		t.Fatalf("expected 'messages' key in response")
+	}
+	if msgs == nil {
+		t.Errorf("expected non-nil messages slice")
+	}
+}
+
+func TestProjectMessages_ListWithMessages(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	busPath := filepath.Join(root, "proj1", "PROJECT-MESSAGE-BUS.md")
+	writeProjectBus(t, busPath, "msg-001", "USER", "hello world")
+
+	url := "/api/projects/proj1/messages"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "hello world") {
+		t.Errorf("expected message body in response, got: %q", rec.Body.String())
+	}
+}
+
+func TestProjectMessages_Post(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	body := strings.NewReader(`{"type":"USER","body":"test message"}`)
+	url := "/api/projects/proj1/messages"
+	req := httptest.NewRequest(http.MethodPost, url, body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["msg_id"] == "" || resp["msg_id"] == nil {
+		t.Errorf("expected msg_id in response, got: %v", resp)
+	}
+	// Verify the bus file was created.
+	busPath := filepath.Join(root, "proj1", "PROJECT-MESSAGE-BUS.md")
+	if _, statErr := os.Stat(busPath); os.IsNotExist(statErr) {
+		t.Errorf("expected bus file to be created at %s", busPath)
+	}
+}
+
+func TestProjectMessages_PostEmptyBody(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	body := strings.NewReader(`{"type":"USER","body":""}`)
+	url := "/api/projects/proj1/messages"
+	req := httptest.NewRequest(http.MethodPost, url, body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for empty body, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProjectMessages_MethodNotAllowed(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	url := "/api/projects/proj1/messages"
+	req := httptest.NewRequest(http.MethodDelete, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+}
+
+func TestTaskMessages_ListEmpty(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	// Need a run so the project/task is recognized
+	makeProjectRun(t, root, "proj1", "task-a", "run-1", storage.StatusCompleted, "")
+
+	url := "/api/projects/proj1/tasks/task-a/messages"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, ok := resp["messages"]; !ok {
+		t.Fatalf("expected 'messages' key in response")
+	}
+}
+
+func TestTaskMessages_Post(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "proj1", "task-a", "run-1", storage.StatusCompleted, "")
+
+	body := strings.NewReader(`{"type":"PROGRESS","body":"task progress"}`)
+	url := "/api/projects/proj1/tasks/task-a/messages"
+	req := httptest.NewRequest(http.MethodPost, url, body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["msg_id"] == "" || resp["msg_id"] == nil {
+		t.Errorf("expected msg_id in response, got: %v", resp)
+	}
+	busPath := filepath.Join(root, "proj1", "task-a", "TASK-MESSAGE-BUS.md")
+	if _, statErr := os.Stat(busPath); os.IsNotExist(statErr) {
+		t.Errorf("expected task bus file to be created at %s", busPath)
+	}
+}
+
+func TestProjectMessages_StreamNotFound(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	// /messages/stream should return SSE headers even for non-existent bus
+	ctx, cancel := context.WithCancel(context.Background())
+	url := "/api/projects/proj1/messages/stream"
+	req := httptest.NewRequest(http.MethodGet, url, nil).WithContext(ctx)
+	rec := &recordingWriter{header: make(http.Header)}
+
+	done := make(chan struct{})
+	go func() {
+		server.Handler().ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	// Cancel context quickly; we just want to verify it starts streaming.
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("stream handler did not exit after context cancel")
+	}
+
+	ct := rec.Header().Get("Content-Type")
+	if ct != "text/event-stream" {
+		t.Errorf("expected text/event-stream, got %q", ct)
+	}
+}
+
+func TestTaskMessages_StreamMethodNotAllowed(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "proj1", "task-a", "run-1", storage.StatusCompleted, "")
+
+	url := "/api/projects/proj1/tasks/task-a/messages/stream"
+	req := httptest.NewRequest(http.MethodPost, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+}

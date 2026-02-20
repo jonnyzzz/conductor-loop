@@ -223,11 +223,6 @@ func (s *Server) streamAllRuns(w http.ResponseWriter, r *http.Request) *apiError
 }
 
 func (s *Server) streamMessages(w http.ResponseWriter, r *http.Request) *apiError {
-	writer, err := newSSEWriter(w)
-	if err != nil {
-		return apiErrorBadRequest("sse not supported")
-	}
-	ctx := r.Context()
 	projectID := strings.TrimSpace(r.URL.Query().Get("project_id"))
 	if projectID == "" {
 		return apiErrorBadRequest("project_id is required")
@@ -237,6 +232,17 @@ func (s *Server) streamMessages(w http.ResponseWriter, r *http.Request) *apiErro
 	if taskID != "" {
 		busPath = filepath.Join(s.rootDir, projectID, taskID, "TASK-MESSAGE-BUS.md")
 	}
+	return s.streamMessageBusPath(w, r, busPath)
+}
+
+// streamMessageBusPath streams messages from a bus file as SSE events.
+// It supports Last-Event-ID for resumable clients.
+func (s *Server) streamMessageBusPath(w http.ResponseWriter, r *http.Request, busPath string) *apiError {
+	writer, err := newSSEWriter(w)
+	if err != nil {
+		return apiErrorBadRequest("sse not supported")
+	}
+	ctx := r.Context()
 	bus, err := messagebus.NewMessageBus(busPath)
 	if err != nil {
 		return apiErrorInternal("open message bus", err)
