@@ -123,8 +123,14 @@ export class APIClient {
     )
   }
 
-  async getMessages(projectId: string, taskId: string): Promise<BusMessage[]> {
-    // Note: SSE is the primary path; this expects a list endpoint if added by backend.
+  async getProjectMessages(projectId: string): Promise<BusMessage[]> {
+    const data = await this.request<{ messages: BusMessage[] }>(
+      `/api/projects/${encodeURIComponent(projectId)}/messages`
+    )
+    return data.messages
+  }
+
+  async getTaskMessages(projectId: string, taskId: string): Promise<BusMessage[]> {
     const data = await this.request<{ messages: BusMessage[] }>(
       `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/messages`
     )

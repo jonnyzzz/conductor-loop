@@ -16,6 +16,7 @@ type StreamFilter = 'all' | 'stdout' | 'stderr'
 
 interface LogLine extends LogEvent {
   id: string
+  dedupeKey: string
 }
 
 function formatLine(line: LogLine) {
@@ -31,16 +32,46 @@ function formatAgo(ms: number): string {
   return `${Math.floor(m / 60)}h ago`
 }
 
+function normalizeInitialLines(initialLines: LogEvent[], maxLines: number): LogLine[] {
+  const start = Math.max(0, initialLines.length - maxLines)
+  const normalized: LogLine[] = []
+  for (let idx = start; idx < initialLines.length; idx += 1) {
+    const line = initialLines[idx]
+    const dedupeKey = `initial|${idx}|${line.run_id}|${line.stream}|${line.line}`
+    normalized.push({
+      ...line,
+      id: dedupeKey,
+      dedupeKey,
+    })
+  }
+  return normalized
+}
+
+function buildLogDedupeKey(line: LogEvent, cursorID?: string): string {
+  const tsCandidate =
+    (line as { timestamp?: string }).timestamp ??
+    (line as { ts?: string }).ts ??
+    ''
+  const cursor = cursorID?.trim()
+  if (cursor) {
+    return `log|${line.run_id}|${line.stream}|${cursor}`
+  }
+  if (tsCandidate) {
+    return `log|${line.run_id}|${line.stream}|${tsCandidate}|${line.line}`
+  }
+  return `log|${line.run_id}|${line.stream}|${line.line}|${Date.now()}`
+}
+
 export function LogViewer({
   streamUrl,
   initialLines = [],
   maxLines = 5000,
 }: {
   streamUrl?: string
-  initialLines?: LogLine[]
+  initialLines?: LogEvent[]
   maxLines?: number
 }) {
-  const [lines, setLines] = useState<LogLine[]>(initialLines)
+  const [lines, setLines] = useState<LogLine[]>(() => normalizeInitialLines(initialLines, maxLines))
   const [streamFilter, setStreamFilter] = useState<StreamFilter>('all')
   const [search, setSearch] = useState('')
   const [runFilter, setRunFilter] = useState('')
@@ -48,15 +79,22 @@ export function LogViewer({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [lastLogTime, setLastLogTime] = useState<number | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const seenKeysRef = useRef<Set<string>>(new Set())
 
-  useEffect(() => {
-    setLines(initialLines)
-    setLastLogTime(null)
+  const resetLogState = useCallback(() => {
+    const normalized = normalizeInitialLines(initialLines, maxLines)
+    setLines(normalized)
+    seenKeysRef.current = new Set(normalized.map((line) => line.dedupeKey))
+    setLastLogTime(normalized.length > 0 ? Date.now() : null)
     setSearch('')
     setRunFilter('')
     setStreamFilter('all')
     setAutoScroll(true)
-  }, [streamUrl])
+  }, [initialLines, maxLines])
+
+  useEffect(() => {
+    resetLogState()
+  }, [streamUrl, resetLogState])
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 5000)
@@ -72,11 +110,20 @@ export function LogViewer({
   }, [lastLogTime, now])
 
   const pushLine = useCallback(
-    (line: LogEvent) => {
+    (line: LogEvent, dedupeKey: string) => {
+      if (seenKeysRef.current.has(dedupeKey)) {
+        return
+      }
+      seenKeysRef.current.add(dedupeKey)
       setLines((prev) => {
-        const next = [...prev, { ...line, id: `${Date.now()}-${Math.random()}` }]
+        const next = [...prev, { ...line, id: dedupeKey, dedupeKey }]
         if (next.length > maxLines) {
-          return next.slice(next.length - maxLines)
+          const dropCount = next.length - maxLines
+          const dropped = next.slice(0, dropCount)
+          for (const item of dropped) {
+            seenKeysRef.current.delete(item.dedupeKey)
+          }
+          return next.slice(dropCount)
         }
         return next
       })
@@ -85,12 +132,19 @@ export function LogViewer({
     [maxLines]
   )
 
+  const pushSystemLine = useCallback(
+    (line: LogEvent, marker: string) => {
+      pushLine(line, `meta|${marker}`)
+    },
+    [pushLine]
+  )
+
   const sseHandlers = useMemo(
     () => ({
       log: (event: MessageEvent) => {
         try {
           const payload = JSON.parse(event.data) as LogEvent
-          pushLine(payload)
+          pushLine(payload, buildLogDedupeKey(payload, event.lastEventId))
         } catch {
           // Ignore malformed events.
         }
@@ -98,7 +152,10 @@ export function LogViewer({
       run_start: (event: MessageEvent) => {
         try {
           const payload = JSON.parse(event.data) as { run_id: string; agent: string; start_time: string }
-          pushLine({ run_id: payload.run_id, stream: 'stdout', line: `RUN START (${payload.agent}) ${payload.start_time}` })
+          pushSystemLine(
+            { run_id: payload.run_id, stream: 'stdout', line: `RUN START (${payload.agent}) ${payload.start_time}` },
+            `run_start|${payload.run_id}|${payload.start_time}`
+          )
         } catch {
           // Ignore malformed events.
         }
@@ -106,16 +163,19 @@ export function LogViewer({
       run_end: (event: MessageEvent) => {
         try {
           const payload = JSON.parse(event.data) as { run_id: string; exit_code: number; end_time: string }
-          pushLine({ run_id: payload.run_id, stream: 'stderr', line: `RUN END (exit ${payload.exit_code}) ${payload.end_time}` })
+          pushSystemLine(
+            { run_id: payload.run_id, stream: 'stderr', line: `RUN END (exit ${payload.exit_code}) ${payload.end_time}` },
+            `run_end|${payload.run_id}|${payload.end_time}|${payload.exit_code}`
+          )
         } catch {
           // Ignore malformed events.
         }
       },
     }),
-    [pushLine]
+    [pushLine, pushSystemLine]
   )
 
-  useSSE(streamUrl, {
+  const stream = useSSE(streamUrl, {
     events: sseHandlers,
   })
 
@@ -169,7 +229,13 @@ export function LogViewer({
       <div className="panel-header">
         <div>
           <div className="panel-title">Live logs</div>
-          <div className="panel-subtitle">Streaming via SSE</div>
+          <div className="panel-subtitle">
+            {!streamUrl && 'Select a project/task to stream logs'}
+            {streamUrl && stream.state === 'connecting' && 'Connecting to stream…'}
+            {streamUrl && stream.state === 'open' && 'Streaming via SSE'}
+            {streamUrl && stream.state === 'reconnecting' && `Reconnecting… (${stream.errorCount})`}
+            {streamUrl && stream.state === 'error' && `Stream error (${stream.errorCount})`}
+          </div>
         </div>
         <div className="panel-actions">
           {heartbeatStatus !== 'none' && (
@@ -211,7 +277,13 @@ export function LogViewer({
         </div>
       </div>
       <div className="panel-section panel-section-tight log-stream" ref={containerRef} onScroll={handleScroll}>
-        {filteredLines.length === 0 && <div className="empty-state">No log lines yet.</div>}
+        {filteredLines.length === 0 && (
+          <div className="empty-state">
+            {!streamUrl && 'Select a project and task to view logs.'}
+            {streamUrl && lines.length === 0 && 'No log lines yet.'}
+            {streamUrl && lines.length > 0 && 'No lines match current filters.'}
+          </div>
+        )}
         {filteredLines.map((line) => (
           <div
             key={line.id}

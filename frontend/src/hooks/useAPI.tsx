@@ -1,7 +1,17 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { FileContent, FlatRunItem, Project, ProjectDetail, ProjectStats, RunInfo, TaskDetail, TaskSummary } from '../types'
+import type {
+  BusMessage,
+  FileContent,
+  FlatRunItem,
+  Project,
+  ProjectDetail,
+  ProjectStats,
+  RunInfo,
+  TaskDetail,
+  TaskSummary,
+} from '../types'
 import { APIClient, createClient } from '../api/client'
 import type { TaskStartRequest } from '../api/client'
 
@@ -62,6 +72,28 @@ export function useTask(projectId?: string, taskId?: string) {
     queryFn: () => api.getTask(projectId ?? '', taskId ?? ''),
     enabled: Boolean(projectId && taskId),
     staleTime: 2000,
+  })
+}
+
+export function useProjectMessages(projectId?: string) {
+  const api = useAPIClient()
+  return useQuery<BusMessage[]>({
+    queryKey: ['messages', 'project', projectId],
+    queryFn: () => api.getProjectMessages(projectId ?? ''),
+    enabled: Boolean(projectId),
+    staleTime: 0,
+    refetchOnMount: 'always',
+  })
+}
+
+export function useTaskMessages(projectId?: string, taskId?: string) {
+  const api = useAPIClient()
+  return useQuery<BusMessage[]>({
+    queryKey: ['messages', 'task', projectId, taskId],
+    queryFn: () => api.getTaskMessages(projectId ?? '', taskId ?? ''),
+    enabled: Boolean(projectId && taskId),
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }
 

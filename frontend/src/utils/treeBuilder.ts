@@ -16,6 +16,7 @@ export interface TreeNode {
   children: TreeNode[]
   restartCount?: number
   parentRunId?: string
+  inlineLatestRun?: boolean
 }
 
 /**
@@ -104,6 +105,7 @@ export function buildTree(
   function buildTaskNode(taskId: string): TreeNode {
     const runs = taskRunMap.get(taskId) ?? []
     const taskStatus = taskStatusMap.get(taskId) ?? deriveTaskStatus(runs)
+    const runIds = new Set(runs.map((run) => run.id))
 
     // Identify restart chains (previous_run_id links).
     // A run is in a chain if it has a previous_run_id that points to another run in the same task.
@@ -111,7 +113,7 @@ export function buildTree(
     // The "tail" is the latest run in the chain.
     const inChain = new Set<string>()
     for (const run of runs) {
-      if (run.previous_run_id && runs.some(r => r.id === run.previous_run_id)) {
+      if (run.previous_run_id && runIds.has(run.previous_run_id)) {
         inChain.add(run.previous_run_id) // the previous run is "superseded"
       }
     }
@@ -129,7 +131,7 @@ export function buildTree(
     // Compute restart count: how many previous_run_id chains exist for this task.
     // restartCount = number of runs that have a valid previous_run_id within this task.
     const restartCount = runs.filter(
-      r => r.previous_run_id && runs.some(pr => pr.id === r.previous_run_id)
+      (r) => r.previous_run_id && runIds.has(r.previous_run_id)
     ).length
 
     const children: TreeNode[] = rootRuns.map(buildRunNode)
@@ -139,6 +141,12 @@ export function buildTree(
       const accTime = acc.end_time ?? acc.start_time
       return currentTime > accTime ? run : acc
     }, undefined)
+    const shouldInlineLatestRun =
+      latestRun !== undefined &&
+      children.length === 1 &&
+      children[0].id === latestRun.id &&
+      children[0].children.length === 0
+    const visibleChildren = shouldInlineLatestRun ? [] : children
 
     const shortId = taskId.replace(/^task-\d{8}-\d{6}-/, '')
     return {
@@ -152,8 +160,9 @@ export function buildTree(
       latestRunAgent: latestRun?.agent,
       latestRunStatus: latestRun?.status,
       latestRunTime: latestRun?.start_time,
-      children,
+      children: visibleChildren,
       restartCount: restartCount > 0 ? restartCount : undefined,
+      inlineLatestRun: shouldInlineLatestRun ? true : undefined,
     }
   }
 

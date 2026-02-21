@@ -6,6 +6,12 @@ interface RunNode {
   children: RunNode[]
 }
 
+interface RestartHint {
+  state: string
+  title: string
+  detail: string
+}
+
 function buildTree(runs: RunSummary[]): RunNode[] {
   const map = new Map<string, RunNode>()
   const roots: RunNode[] = []
@@ -39,10 +45,12 @@ export function RunTree({
   runs,
   selectedRunId,
   onSelect,
+  restartHint,
 }: {
   runs: RunSummary[]
   selectedRunId?: string
   onSelect: (runId: string) => void
+  restartHint?: RestartHint | null
 }) {
   const tree = buildTree(runs)
 
@@ -55,10 +63,12 @@ export function RunTree({
       >
         <span className={clsx('status-dot', `status-${node.run.status}`)} />
         <span className="run-tree-title">{node.run.id}</span>
-        <span className="run-tree-meta">{node.run.agent}</span>
+        <span className="run-tree-meta">
+          {node.run.agent} · {node.run.status}
+        </span>
       </button>
       {node.run.previous_run_id && (
-        <div className="run-tree-previous">prev: {node.run.previous_run_id}</div>
+        <div className="run-tree-previous">Restarted from: {node.run.previous_run_id}</div>
       )}
       {node.children.map((child) => renderNode(child, depth + 1))}
     </div>
@@ -68,5 +78,15 @@ export function RunTree({
     return <div className="empty-state">No runs yet.</div>
   }
 
-  return <div className="run-tree">{tree.map((node) => renderNode(node, 0))}</div>
+  return (
+    <div className="run-tree">
+      {restartHint && (
+        <div className={clsx('run-tree-restart-hint', restartHint.state)}>
+          <span className="run-tree-restart-title">{restartHint.title}</span>
+          <span>{restartHint.detail}</span>
+        </div>
+      )}
+      {tree.map((node) => renderNode(node, 0))}
+    </div>
+  )
 }

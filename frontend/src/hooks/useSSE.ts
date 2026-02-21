@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 
 type EventHandler = (event: MessageEvent) => void
 
@@ -7,66 +7,71 @@ interface UseSSEOptions {
   onError?: (event: Event) => void
   events?: Record<string, EventHandler>
   withCredentials?: boolean
-  reconnectBaseDelayMs?: number
-  reconnectMaxDelayMs?: number
 }
 
-export function useSSE(url?: string, options: UseSSEOptions = {}) {
-  const reconnectAttempt = useRef(0)
-  const reconnectTimer = useRef<number | null>(null)
-  const { onOpen, onError, events, withCredentials, reconnectBaseDelayMs, reconnectMaxDelayMs } = options
+export type SSEConnectionState = 'disabled' | 'connecting' | 'open' | 'reconnecting' | 'error'
+
+interface UseSSEResult {
+  state: SSEConnectionState
+  errorCount: number
+}
+
+export function useSSE(url?: string, options: UseSSEOptions = {}): UseSSEResult {
+  const [state, setState] = useState<SSEConnectionState>(() => (url ? 'connecting' : 'disabled'))
+  const [errorCount, setErrorCount] = useState(0)
+  const { onOpen, onError, events, withCredentials } = options
 
   useEffect(() => {
     if (!url) {
+      setState('disabled')
+      setErrorCount(0)
       return undefined
     }
 
-    let closed = false
-    let source: EventSource | null = null
+    setState('connecting')
+    setErrorCount(0)
 
-    const connect = () => {
-      if (closed) {
-        return
-      }
-      source = new EventSource(url, { withCredentials })
-      if (onOpen) {
-        source.addEventListener('open', onOpen)
-      }
-      if (events) {
-        Object.entries(events).forEach(([event, handler]) => {
-          source?.addEventListener(event, handler)
-        })
-      }
-      source.onerror = (event) => {
-        onError?.(event)
-        if (closed) {
-          return
-        }
-        source?.close()
-        reconnectAttempt.current += 1
-        const base = reconnectBaseDelayMs ?? 500
-        const max = reconnectMaxDelayMs ?? 8000
-        const delay = Math.min(max, base * 2 ** reconnectAttempt.current)
-        reconnectTimer.current = window.setTimeout(connect, delay)
-      }
+    const source = new EventSource(url, { withCredentials })
+    let hasOpened = false
+
+    const handleOpen = (event: Event) => {
+      hasOpened = true
+      setState('open')
+      onOpen?.(event)
     }
 
-    connect()
+    const handleError = (event: Event) => {
+      onError?.(event)
+      setErrorCount((prev) => prev + 1)
+      setState(hasOpened ? 'reconnecting' : 'error')
+    }
+
+    source.addEventListener('open', handleOpen)
+    source.addEventListener('error', handleError)
+
+    if (events) {
+      Object.entries(events).forEach(([event, handler]) => {
+        source.addEventListener(event, handler as EventListener)
+      })
+    }
 
     return () => {
-      closed = true
-      if (reconnectTimer.current) {
-        window.clearTimeout(reconnectTimer.current)
+      source.removeEventListener('open', handleOpen)
+      source.removeEventListener('error', handleError)
+      if (events) {
+        Object.entries(events).forEach(([event, handler]) => {
+          source.removeEventListener(event, handler as EventListener)
+        })
       }
-      source?.close()
+      source.close()
     }
   }, [
     url,
     events,
     onError,
     onOpen,
-    reconnectBaseDelayMs,
-    reconnectMaxDelayMs,
     withCredentials,
   ])
+
+  return { state, errorCount }
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Button from '@jetbrains/ring-ui-built/components/button/button'
 import { TreePanel } from './components/TreePanel'
 import { RunDetail } from './components/RunDetail'
@@ -20,9 +20,14 @@ export function App() {
 
   const tasksQuery = useTasks(effectiveProjectId)
   const effectiveTaskId = selectedTaskId ?? tasksQuery.data?.[0]?.id
+  const explicitTaskId = selectedTaskId
 
   const taskQuery = useTask(effectiveProjectId, effectiveTaskId)
   const effectiveRunId = selectedRunId ?? taskQuery.data?.runs?.[taskQuery.data.runs.length - 1]?.id
+  const effectiveRun = useMemo(
+    () => taskQuery.data?.runs?.find((run) => run.id === effectiveRunId),
+    [effectiveRunId, taskQuery.data?.runs]
+  )
 
   const runInfoQuery = useRunInfo(effectiveProjectId, effectiveTaskId, effectiveRunId)
   const taskStateQuery = useTaskFile(effectiveProjectId, effectiveTaskId, 'TASK.md')
@@ -43,11 +48,21 @@ export function App() {
     if (busScope === 'project') {
       return `/api/projects/${effectiveProjectId}/messages/stream`
     }
-    if (!effectiveTaskId) {
+    if (!explicitTaskId) {
       return undefined
     }
-    return `/api/projects/${effectiveProjectId}/tasks/${effectiveTaskId}/messages/stream`
-  }, [busScope, effectiveProjectId, effectiveTaskId])
+    return `/api/projects/${effectiveProjectId}/tasks/${explicitTaskId}/messages/stream`
+  }, [busScope, effectiveProjectId, explicitTaskId])
+
+  useEffect(() => {
+    if (!effectiveRun?.files || effectiveRun.files.length === 0) {
+      return
+    }
+    const hasSelectedFile = effectiveRun.files.some((file) => file.name === runFileName)
+    if (!hasSelectedFile) {
+      setRunFileName(effectiveRun.files[0].name)
+    }
+  }, [effectiveRun?.files, runFileName])
 
   return (
     <div className="app-shell">
@@ -93,13 +108,15 @@ export function App() {
         </section>
 
         <section className="app-panel app-panel-bus">
-          <div className="panel">
-            <div className="panel-header">
-              <div>
-                <div className="panel-title">Message bus</div>
-                <div className="panel-subtitle">Project and task feeds</div>
-              </div>
-              <div className="panel-actions">
+          <MessageBus
+            key={busStreamUrl ?? `bus-${busScope}-none`}
+            streamUrl={busStreamUrl}
+            title="Message bus"
+            projectId={effectiveProjectId}
+            taskId={explicitTaskId}
+            scope={busScope}
+            headerActions={(
+              <>
                 <Button
                   inline
                   className={busScope === 'task' ? 'filter-button-active' : undefined}
@@ -114,16 +131,8 @@ export function App() {
                 >
                   Project
                 </Button>
-              </div>
-            </div>
-          </div>
-          <MessageBus
-            key={busStreamUrl ?? `bus-${busScope}-none`}
-            streamUrl={busStreamUrl}
-            title={`${busScope} bus`}
-            projectId={effectiveProjectId}
-            taskId={effectiveTaskId}
-            scope={busScope}
+              </>
+            )}
           />
         </section>
 

@@ -5,6 +5,18 @@ import type { FileContent, RunInfo, TaskDetail } from '../types'
 import { FileViewer } from './FileViewer'
 import { RunTree } from './RunTree'
 
+function formatDateTime(value?: string): string {
+  const raw = (value ?? '').trim()
+  if (!raw || raw === '0001-01-01T00:00:00Z') {
+    return '—'
+  }
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) {
+    return '—'
+  }
+  return parsed.toLocaleString()
+}
+
 export function RunDetail({
   task,
   runInfo,
@@ -45,6 +57,21 @@ export function RunDetail({
     return task.runs.filter((r) => r.status !== 'completed')
   }, [task?.runs, showCompletedRuns])
 
+  const runMix = useMemo(() => {
+    if (!task?.runs?.length) {
+      return 'No runs yet'
+    }
+    const counts: Record<string, number> = {}
+    task.runs.forEach((run) => {
+      counts[run.status] = (counts[run.status] ?? 0) + 1
+    })
+
+    const parts = ['running', 'failed', 'completed', 'stopped', 'unknown']
+      .filter((status) => (counts[status] ?? 0) > 0)
+      .map((status) => `${counts[status]} ${status}`)
+    return parts.join(' | ')
+  }, [task?.runs])
+
   useEffect(() => {
     setShowCompletedRuns(false)
   }, [task?.id])
@@ -67,20 +94,20 @@ export function RunDetail({
       return {
         state: 'task-restart-hint-done',
         title: 'Restart disabled',
-        detail: 'DONE marker is present. This task will not restart until you click Resume task.',
+        detail: 'DONE marker is present. Failed and ended runs stay final until you click Resume task.',
       }
     }
     if (task.status === 'running') {
       return {
         state: 'task-restart-hint-running',
         title: 'Auto-restart active',
-        detail: 'Ralph loop can keep restarting runs until a DONE marker is created.',
+        detail: 'Task loop is active. Failed runs can restart automatically until a DONE marker is created.',
       }
     }
     return {
       state: 'task-restart-hint-open',
       title: 'Restart possible',
-      detail: 'DONE marker is missing. This task can be resumed and run again.',
+      detail: 'Task loop is stopped now, but DONE marker is missing so this task can be resumed and run again.',
     }
   }, [task])
 
@@ -136,6 +163,7 @@ export function RunDetail({
       </div>
       {task && (
         <div className="panel-section panel-section-tight task-overview">
+          <div className="section-title">Task at a glance</div>
           <div className="task-overview-grid">
             <div className="task-overview-item">
               <div className="metadata-label">Task status</div>
@@ -144,8 +172,18 @@ export function RunDetail({
               </div>
             </div>
             <div className="task-overview-item">
+              <div className="metadata-label">Restart policy</div>
+              <div className="task-overview-restart-value">{restartHint?.title ?? 'Unknown'}</div>
+              {restartHint && <div className="task-overview-note">{restartHint.detail}</div>}
+            </div>
+            <div className="task-overview-item">
+              <div className="metadata-label">Runs</div>
+              <div className="metadata-value">{task.runs.length}</div>
+              <div className="task-overview-note">{runMix}</div>
+            </div>
+            <div className="task-overview-item">
               <div className="metadata-label">Last activity</div>
-              <div className="metadata-value">{new Date(task.last_activity).toLocaleString()}</div>
+              <div className="metadata-value">{formatDateTime(task.last_activity)}</div>
             </div>
             {runInfo && (
               <>
@@ -159,7 +197,7 @@ export function RunDetail({
                 </div>
                 <div className="task-overview-item">
                   <div className="metadata-label">Run start</div>
-                  <div className="metadata-value">{new Date(runInfo.start_time).toLocaleString()}</div>
+                  <div className="metadata-value">{formatDateTime(runInfo.start_time)}</div>
                 </div>
               </>
             )}
@@ -174,7 +212,7 @@ export function RunDetail({
       )}
       <div className="panel-section panel-split">
         <div className="panel-column">
-          <div className="section-title">Metadata</div>
+          <div className="section-title">Selected run metadata</div>
           {taskState && <div className="task-state">{taskState}</div>}
           {runInfo && task?.status === 'running' && onStopRun && (
             <div className="panel-actions" style={{ marginBottom: '8px' }}>
@@ -236,11 +274,11 @@ export function RunDetail({
               </div>
               <div>
                 <div className="metadata-label">Start</div>
-                <div className="metadata-value">{new Date(runInfo.start_time).toLocaleString()}</div>
+                <div className="metadata-value">{formatDateTime(runInfo.start_time)}</div>
               </div>
               <div>
                 <div className="metadata-label">End</div>
-                <div className="metadata-value">{new Date(runInfo.end_time).toLocaleString()}</div>
+                <div className="metadata-value">{formatDateTime(runInfo.end_time)}</div>
               </div>
               <div>
                 <div className="metadata-label">Parent</div>
@@ -268,19 +306,32 @@ export function RunDetail({
         <div className="panel-column">
           <div className="section-title">Run tree</div>
           {completedRuns.length > 0 && (
-            <button
-              type="button"
-              className="runs-completed-toggle"
-              onClick={() => setShowCompletedRuns((value) => !value)}
-            >
-              {showCompletedRuns ? `Hide ${completedRuns.length} completed` : `... ${completedRuns.length} completed`}
-            </button>
+            <div className="runs-completed-controls">
+              <button
+                type="button"
+                className="runs-completed-toggle"
+                onClick={() => setShowCompletedRuns((value) => !value)}
+              >
+                {showCompletedRuns ? `Hide ${completedRuns.length} completed` : `... ${completedRuns.length} completed`}
+              </button>
+              {!showCompletedRuns && (
+                <div className="runs-completed-hint">Archived history is hidden. Click to include completed runs.</div>
+              )}
+            </div>
           )}
           {task ? (
             visibleRuns.length > 0 ? (
-              <RunTree runs={visibleRuns} selectedRunId={selectedRunId} onSelect={onSelectRun} />
+              <RunTree
+                runs={visibleRuns}
+                selectedRunId={selectedRunId}
+                onSelect={onSelectRun}
+                restartHint={restartHint}
+              />
             ) : (
-              <div className="empty-state">No running or failed runs. Expand completed runs to inspect history.</div>
+              <div className="empty-state">
+                No running or failed runs. Expand completed runs to inspect history.
+                {restartHint ? ` Restart policy: ${restartHint.title}.` : ''}
+              </div>
             )
           ) : (
             <div className="empty-state">No task loaded.</div>

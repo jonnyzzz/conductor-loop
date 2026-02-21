@@ -101,10 +101,15 @@ function TreeNodeRow({
   const [expanded, setExpanded] = useState(
     defaultExpanded || node.status === 'running'
   )
+  const taskRepresentsSelectedLatestRun =
+    node.type === 'task' &&
+    node.inlineLatestRun &&
+    selectedRunId != null &&
+    selectedRunId === node.latestRunId
 
   const isSelected =
     (node.type === 'project' && selectedProjectId === node.id && !selectedTaskId && !selectedRunId) ||
-    (node.type === 'task' && selectedTaskId === node.id && !selectedRunId) ||
+    (node.type === 'task' && selectedTaskId === node.id && (!selectedRunId || taskRepresentsSelectedLatestRun)) ||
     (node.type === 'run' && selectedRunId === node.id)
 
   const hasChildren = node.children.length > 0
@@ -169,7 +174,12 @@ function TreeNodeRow({
                 <span className="tree-time">{formatTime(node.latestRunTime)}</span>
               )}
               {node.restartCount != null && node.restartCount > 0 && (
-                <span className="tree-badge tree-badge-restart">×{node.restartCount + 1}</span>
+                <span
+                  className="tree-badge tree-badge-restart"
+                  title={`${node.restartCount} restart${node.restartCount === 1 ? '' : 's'} in chain`}
+                >
+                  ↻{node.restartCount}
+                </span>
               )}
             </>
           )}
@@ -310,14 +320,28 @@ export function TreePanel({
         <div className="panel-section">
           <div className="list">
             {projects.map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                className={clsx('list-item list-item-compact', selectedProjectId === project.id && 'list-item-active')}
-                onClick={() => onSelectProject(project.id)}
-              >
-                <span className="list-item-title">{project.id}</span>
-              </button>
+              <div key={project.id} className="tree-project-picker-row">
+                <button
+                  type="button"
+                  className={clsx(
+                    'list-item list-item-compact tree-project-picker-item',
+                    selectedProjectId === project.id && 'list-item-active'
+                  )}
+                  onClick={() => onSelectProject(project.id)}
+                >
+                  <span className="list-item-title">{project.id}</span>
+                </button>
+                <button
+                  type="button"
+                  className="tree-inline-action tree-inline-action-list"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    openDialog(project.id)
+                  }}
+                >
+                  + New Task
+                </button>
+              </div>
             ))}
           </div>
         </div>
