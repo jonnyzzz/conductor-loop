@@ -130,3 +130,35 @@ func TestSortStrings(t *testing.T) {
 		t.Fatalf("sortStrings failed: %v", ss)
 	}
 }
+
+func TestRecordWaitingRun(t *testing.T) {
+	r := New()
+
+	// Start with 0 queued runs.
+	out := r.Render()
+	if !strings.Contains(out, "conductor_queued_runs_total 0\n") {
+		t.Fatalf("expected queued_runs_total=0, got:\n%s", out)
+	}
+
+	// Add two waiting runs.
+	r.RecordWaitingRun(1)
+	r.RecordWaitingRun(1)
+	out = r.Render()
+	if !strings.Contains(out, "conductor_queued_runs_total 2\n") {
+		t.Fatalf("expected queued_runs_total=2, got:\n%s", out)
+	}
+
+	// One finishes waiting.
+	r.RecordWaitingRun(-1)
+	out = r.Render()
+	if !strings.Contains(out, "conductor_queued_runs_total 1\n") {
+		t.Fatalf("expected queued_runs_total=1 after decrement, got:\n%s", out)
+	}
+}
+
+func TestRecordWaitingRunNilSafe(t *testing.T) {
+	var r *Registry
+	// Must not panic on nil receiver.
+	r.RecordWaitingRun(1)
+	r.RecordWaitingRun(-1)
+}
