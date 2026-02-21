@@ -2,9 +2,11 @@ import { type FormEvent, useMemo, useState } from 'react'
 import Button from '@jetbrains/ring-ui-built/components/button/button'
 import Dialog from '@jetbrains/ring-ui-built/components/dialog/dialog'
 import clsx from 'clsx'
-import type { Project, TaskSummary } from '../types'
+import type { Project, RunStatus, TaskSummary } from '../types'
 import { useStartTask } from '../hooks/useAPI'
 import type { TaskStartRequest } from '../api/client'
+
+const STATUS_BADGE_ORDER: RunStatus[] = ['running', 'failed', 'completed']
 
 const statusFilters = ['all', 'running', 'completed', 'failed'] as const
 export type StatusFilter = (typeof statusFilters)[number]
@@ -156,6 +158,15 @@ export function TaskList({
                 <span className={clsx('status-dot', `status-${task.status}`)} />
                 {task.status} · {new Date(task.last_activity).toLocaleString()}
               </div>
+              {task.run_counts && (
+                <div className="run-count-badges">
+                  {STATUS_BADGE_ORDER.filter((s) => (task.run_counts?.[s] ?? 0) > 0).map((s) => (
+                    <span key={s} className={`run-count-badge run-count-${s}`}>
+                      {task.run_counts![s]} {s}
+                    </span>
+                  ))}
+                </div>
+              )}
             </button>
           ))}
           {filteredTasks.length === 0 && <div className="empty-state">No tasks match the filter.</div>}

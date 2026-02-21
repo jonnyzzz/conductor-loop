@@ -21,6 +21,7 @@ export interface TaskSummary {
   status: RunStatus
   last_activity: string
   run_count?: number
+  run_counts?: Partial<Record<RunStatus, number>>
 }
 
 export interface TaskDetail {

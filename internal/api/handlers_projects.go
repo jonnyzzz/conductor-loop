@@ -194,12 +194,17 @@ func (s *Server) handleProjectTasks(w http.ResponseWriter, r *http.Request) *api
 	tasks := buildTasks(projectID, runs)
 	result := make([]map[string]interface{}, 0, len(tasks))
 	for _, t := range tasks {
+		runCounts := make(map[string]int)
+		for _, r := range t.Runs {
+			runCounts[r.Status]++
+		}
 		result = append(result, map[string]interface{}{
 			"id":            t.ID,
 			"project_id":    t.ProjectID,
 			"status":        t.Status,
 			"last_activity": t.LastActivity,
 			"run_count":     len(t.Runs),
+			"run_counts":    runCounts,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool {

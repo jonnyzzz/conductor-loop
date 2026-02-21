@@ -1,7 +1,11 @@
+import { useMemo, useState } from 'react'
 import Button from '@jetbrains/ring-ui-built/components/button/button'
 import clsx from 'clsx'
-import type { FileContent, RunInfo, TaskDetail } from '../types'
+import type { FileContent, RunInfo, RunStatus, TaskDetail } from '../types'
 import { RunTree } from './RunTree'
+
+const runStatusFilters = ['all', 'running', 'completed', 'failed'] as const
+type RunStatusFilter = (typeof runStatusFilters)[number]
 
 const fileOptions = [
   { label: 'output.md', name: 'output.md' },
@@ -29,6 +33,15 @@ export function RunDetail({
   fileContent?: FileContent
   taskState?: string
 }) {
+  const [runFilter, setRunFilter] = useState<RunStatusFilter>('all')
+
+  const filteredRuns = useMemo(() => {
+    if (!task?.runs) return []
+    if (runFilter === 'all') return task.runs
+    if (runFilter === 'failed') return task.runs.filter((r) => r.status === 'failed' || (r.status as RunStatus) === 'stopped')
+    return task.runs.filter((r) => r.status === runFilter)
+  }, [task?.runs, runFilter])
+
   return (
     <div className="panel">
       <div className="panel-header">
@@ -102,8 +115,20 @@ export function RunDetail({
         </div>
         <div className="panel-column">
           <div className="section-title">Run tree</div>
+          <div className="filters">
+            {runStatusFilters.map((f) => (
+              <Button
+                key={f}
+                inline
+                className={clsx('filter-button', runFilter === f && 'filter-button-active')}
+                onClick={() => setRunFilter(f)}
+              >
+                {f}
+              </Button>
+            ))}
+          </div>
           {task ? (
-            <RunTree runs={task.runs} selectedRunId={selectedRunId} onSelect={onSelectRun} />
+            <RunTree runs={filteredRuns} selectedRunId={selectedRunId} onSelect={onSelectRun} />
           ) : (
             <div className="empty-state">No task loaded.</div>
           )}
