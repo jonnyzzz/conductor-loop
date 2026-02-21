@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import type { Project, RunStatus, TaskSummary } from '../types'
 import { useStartTask } from '../hooks/useAPI'
 import type { TaskStartRequest } from '../api/client'
+import { ProjectStats } from './ProjectStats'
 
 const STATUS_BADGE_ORDER: RunStatus[] = ['running', 'failed', 'completed']
 
@@ -138,6 +139,7 @@ export function TaskList({
           + New Task
         </Button>
       </div>
+      {selectedProjectId && <ProjectStats projectId={selectedProjectId} />}
       <div className="panel-section">
         <div className="task-search-row">
           <input

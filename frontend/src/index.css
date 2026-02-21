@@ -553,3 +553,53 @@ body {
   padding-top: 0;
   padding-bottom: 4px;
 }
+
+.project-stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px 4px;
+  flex-wrap: wrap;
+}
+
+.project-stats-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.project-stats-label {
+  font-size: 10px;
+  color: var(--app-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.project-stats-value {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.project-stats-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--app-border);
+}
+
+.project-stats-running {
+  color: var(--status-running);
+}
+
+.project-stats-completed {
+  color: var(--status-completed);
+}
+
+.project-stats-failed {
+  color: var(--status-failed);
+}
+
+.project-stats-loading,
+.project-stats-unavailable {
+  font-size: 10px;
+  color: var(--app-subtle);
+}

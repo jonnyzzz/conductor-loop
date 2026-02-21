@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { FileContent, Project, ProjectDetail, RunInfo, TaskDetail, TaskSummary } from '../types'
+import type { FileContent, Project, ProjectDetail, ProjectStats, RunInfo, TaskDetail, TaskSummary } from '../types'
 import { APIClient, createClient } from '../api/client'
 import type { TaskStartRequest } from '../api/client'
 
@@ -103,6 +103,17 @@ export function useStartTask(projectId?: string) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['tasks', projectId] })
     },
+  })
+}
+
+export function useProjectStats(projectId?: string) {
+  const api = useAPIClient()
+  return useQuery<ProjectStats>({
+    queryKey: ['project-stats', projectId],
+    queryFn: () => api.getProjectStats(projectId ?? ''),
+    enabled: Boolean(projectId),
+    staleTime: 5000,
+    refetchInterval: 10000,
   })
 }
 

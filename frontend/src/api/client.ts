@@ -4,6 +4,7 @@ import type {
   MessageResponse,
   Project,
   ProjectDetail,
+  ProjectStats,
   ProjectsResponse,
   RunInfo,
   RunSummary,
@@ -166,6 +167,10 @@ export class APIClient {
       `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}`,
       { method: 'DELETE' }
     )
+  }
+
+  async getProjectStats(projectId: string): Promise<ProjectStats> {
+    return this.request<ProjectStats>(`/api/projects/${encodeURIComponent(projectId)}/stats`)
   }
 }
 

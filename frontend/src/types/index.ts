@@ -132,3 +132,15 @@ export type RunInfoResponse = RunInfo
 export interface MessageResponse {
   msg_id: string
 }
+
+export interface ProjectStats {
+  project_id: string
+  total_tasks: number
+  total_runs: number
+  running_runs: number
+  completed_runs: number
+  failed_runs: number
+  crashed_runs: number
+  message_bus_files: number
+  message_bus_total_bytes: number
+}
