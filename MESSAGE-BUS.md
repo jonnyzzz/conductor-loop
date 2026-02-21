@@ -2724,3 +2724,83 @@ project_id: conductor-loop
 ## Issue Status (unchanged)
 - Total: 0 fully open, 5 partially resolved (ISSUE-002/003/004/009/010 deferred), 17 resolved
 
+
+---
+msg_id: MSG-20260221-SESSION34-START
+ts: 2026-02-21T03:15:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 03:15:00] ==========================================
+[2026-02-21 03:15:00] SESSION #34: conductor project/task list + housekeeping
+[2026-02-21 03:15:00] ==========================================
+
+[2026-02-21 03:15:00] PROGRESS: Starting session #34 — read all required docs, assessed state
+[2026-02-21 03:15:00] FACT: go build ./... passes (from session #33)
+[2026-02-21 03:15:00] FACT: go test ./internal/... ./cmd/...: ALL 14 PACKAGES PASS (from session #33)
+[2026-02-21 03:15:00] FACT: All CRITICAL/HIGH issues resolved or deferred (same as session #33)
+[2026-02-21 03:15:00] FACT: GC deleted 3 completed runs, freed 2.1 MB
+[2026-02-21 03:15:00] DECISION: Session #34 focus: add conductor project list + conductor task list commands
+[2026-02-21 03:15:00] DECISION: Two parallel sub-agents dispatched:
+[2026-02-21 03:15:00]   - task-20260221-021109-enz9o9: conductor project list + task list commands (Task A)
+[2026-02-21 03:15:00]   - task-20260221-021116-bnakj6: session #33 housekeeping + go test -race (Task B)
+
+[2026-02-21 03:25:00] PROGRESS: Sub-agents completed - collecting results
+
+[2026-02-21 03:25:00] RESULTS: Session #34 - All 2 sub-agents completed
+[2026-02-21 03:25:00] ==========================================
+[2026-02-21 03:25:00] FACT: task-20260221-021109-enz9o9 (conductor project/task list) - COMPLETED (commit 055a860)
+[2026-02-21 03:25:00] FACT: task-20260221-021116-bnakj6 (session housekeeping) - COMPLETED (commit df71e66)
+[2026-02-21 03:25:00] FACT: go build ./...: PASS (binaries rebuilt)
+[2026-02-21 03:25:00] FACT: go test ./internal/... ./cmd/...: ALL 14 PACKAGES PASS
+[2026-02-21 03:25:00] FACT: go test -race ./internal/... ./cmd/...: PASS (no data races)
+[2026-02-21 03:25:00] FACT: GC deleted 3 runs, freed 2.1 MB before dispatching sub-agents
+
+[2026-02-21 03:25:01] ==========================================
+[2026-02-21 03:25:01] SESSION SUMMARY: 2026-02-21 Session #34
+[2026-02-21 03:25:01] ==========================================
+
+## Features Implemented This Session
+
+1. **feat(cli): add conductor project list and task list commands** (commit 055a860)
+   - `conductor project list [--server URL] [--json]` → calls GET /api/projects, shows project table
+   - `conductor task list --project <id> [--server URL] [--json]` → calls GET /api/projects/{p}/tasks, shows task table
+   - Both commands support --json flag for raw JSON output
+   - Table formats: tabwriter with TASK/PROJECT ID + STATUS + RUNS + LAST ACTIVITY columns
+   - has_more=true note when paginated results available
+   - 9 new tests: TestProjectListSuccess, TestProjectListJSONOutput, TestProjectListServerError,
+     TestTaskListSuccess, TestTaskListJSONOutput, TestTaskListHasMore, TestTaskListServerError,
+     TestProjectAppearsInHelp, TestTaskListAppearsInHelp
+   - 4 files changed, 357 insertions
+
+2. **chore: session #33 housekeeping** (commit df71e66)
+   - Verified go test -race ./internal/... ./cmd/...: ALL 14 packages pass, no races
+   - Confirmed cli-reference.md already accurate for session #33 commands
+   - Minor docs update (docs/dev/message-bus.md timestamp)
+
+## Dog-Food
+
+- All 2 tasks dispatched via ./bin/run-agent job (parallel, root: runs/)
+- All 2 DONE files created ✓
+- Sub-agent completion times: ~2.5min (Task A), ~2.5min (Task B)
+
+## Quality Gates
+
+- go build ./...: PASS (binaries rebuilt: conductor, run-agent)
+- go test ./internal/... ./cmd/...: ALL 14 PACKAGES PASS
+- go test -race ./internal/... ./cmd/...: PASS (no data races — first time verified this session)
+
+## GC
+
+- Deleted 3 old completed runs (>1h old from session #33), freed 2.1 MB
+
+## Current Issue Status
+
+- Total: 0 fully open, 5 partially resolved (ISSUE-002/003/004/009/010 deferred), 17 resolved
+
+## Commits This Session
+
+- df71e66: chore: session #33 housekeeping - verify race-free and update docs
+- 055a860: feat(cli): add conductor project list and task list commands
+
