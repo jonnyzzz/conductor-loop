@@ -359,6 +359,14 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 		return writeJSON(w, http.StatusOK, runInfoToProjectRun(found))
 	}
 
+	// task resume endpoint (POST /api/projects/{p}/tasks/{t}/resume)
+	if len(parts) == 4 && parts[3] == "resume" {
+		if r.Method != http.MethodPost {
+			return apiErrorMethodNotAllowed()
+		}
+		return s.handleTaskResume(w, projectID, taskID)
+	}
+
 	// task delete endpoint (DELETE)
 	if r.Method == http.MethodDelete {
 		return s.handleTaskDelete(w, projectID, taskID, runs)
@@ -420,6 +428,29 @@ func (s *Server) handleRunDelete(w http.ResponseWriter, projectID, taskID string
 	}
 	w.WriteHeader(http.StatusNoContent)
 	return nil
+}
+
+// handleTaskResume handles POST /api/projects/{p}/tasks/{t}/resume.
+// It removes the DONE file for an exhausted task so the Ralph loop can run again.
+func (s *Server) handleTaskResume(w http.ResponseWriter, projectID, taskID string) *apiError {
+	taskDir, ok := findProjectTaskDir(s.rootDir, projectID, taskID)
+	if !ok {
+		return apiErrorNotFound("task not found")
+	}
+
+	doneFile := filepath.Join(taskDir, "DONE")
+	if err := os.Remove(doneFile); err != nil {
+		if os.IsNotExist(err) {
+			return apiErrorBadRequest("task has no DONE file; nothing to resume")
+		}
+		return apiErrorInternal("remove DONE file", err)
+	}
+
+	return writeJSON(w, http.StatusOK, map[string]interface{}{
+		"project_id": projectID,
+		"task_id":    taskID,
+		"resumed":    true,
+	})
 }
 
 // handleTaskDelete handles DELETE /api/projects/{p}/tasks/{t}.

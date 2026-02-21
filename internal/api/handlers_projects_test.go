@@ -1473,3 +1473,103 @@ func TestDeleteRun_NotFound(t *testing.T) {
 		t.Fatalf("expected 404 Not Found for non-existent run, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestHandleTaskResume_WithDONE(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	// Create task dir with TASK.md and a DONE file.
+	taskDir := filepath.Join(root, "project", "task-resume")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte("prompt\n"), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write DONE: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/project/tasks/task-resume/resume", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if result["project_id"] != "project" {
+		t.Fatalf("expected project_id=project, got %v", result["project_id"])
+	}
+	if result["task_id"] != "task-resume" {
+		t.Fatalf("expected task_id=task-resume, got %v", result["task_id"])
+	}
+	if result["resumed"] != true {
+		t.Fatalf("expected resumed=true, got %v", result["resumed"])
+	}
+
+	// DONE file must be removed.
+	if _, err := os.Stat(filepath.Join(taskDir, "DONE")); !os.IsNotExist(err) {
+		t.Fatalf("expected DONE file to be removed")
+	}
+}
+
+func TestHandleTaskResume_NoDONE(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	// Create task dir with TASK.md but no DONE file.
+	taskDir := filepath.Join(root, "project", "task-nodone")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte("prompt\n"), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/project/tasks/task-nodone/resume", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleTaskResume_TaskNotFound(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/project/tasks/nonexistent-task/resume", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleTaskResume_WrongMethod(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/tasks/task-x/resume", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
