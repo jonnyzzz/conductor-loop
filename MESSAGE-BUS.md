@@ -3077,3 +3077,110 @@ project_id: conductor-loop
 - 683a66e: docs: add agent CLI version requirements and update Stage 6 status
 - 0965a9d: feat(cli): add --delete-done-tasks flag to run-agent gc
 - 1ea59da: fix(cli): improve run-agent list task status and add LAST_ACTIVITY column
+[2026-02-21 04:31:41] FACT: Scenario 1 (single agent) passed
+[2026-02-21 04:31:41] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 04:31:41] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 04:31:41] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 04:31:41] FACT: All acceptance tests passed
+
+---
+msg_id: MSG-20260221-SESSION40-START
+ts: 2026-02-21T04:30:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 04:30:00] ==========================================
+[2026-02-21 04:30:00] SESSION: 2026-02-21 Session #40
+[2026-02-21 04:30:00] ==========================================
+[2026-02-21 04:30:00] FACT: go build ./... PASS (binaries rebuilt: conductor, run-agent)
+[2026-02-21 04:30:00] FACT: go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS (cached from session #39)
+[2026-02-21 04:30:00] ERROR: ACCEPTANCE=1 go test ./test/acceptance/...: FAIL — Scenario3_RalphLoopWait ambiguous run ID error
+
+[2026-02-21 04:30:30] ==========================================
+[2026-02-21 04:30:30] FIX: runner/orchestrator.go newRunID() collision bug (commit 06316c5)
+[2026-02-21 04:30:30] ==========================================
+[2026-02-21 04:30:30] FACT: Root cause: time-offset approach in runner.newRunID() could produce identical stamps
+[2026-02-21 04:30:30] FACT: Two calls at different times could produce same 4-digit fractional timestamp
+[2026-02-21 04:30:30] FACT: findRunInfoPath() glob searches ALL project/task dirs → found 2 matches → "ambiguous"
+[2026-02-21 04:30:30] FACT: Session #38 fixed storage.go:newRunID() but NOT runner/orchestrator.go:newRunID()
+[2026-02-21 04:30:30] FACT: API server uses runner.AllocateRunDir → runner.createRunDir → runner.newRunID (the buggy one)
+[2026-02-21 04:30:30] FIX: Changed runner.newRunID() to use counter suffix: fmt.Sprintf("%s-%d-%d", stamp, pid, seq)
+[2026-02-21 04:30:30] FACT: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS after fix
+[2026-02-21 04:30:30] FACT: go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races
+[2026-02-21 04:30:30] COMMIT: 06316c5 fix(runner): prevent run ID collisions across concurrent CreateRun calls
+
+[2026-02-21 04:33:00] DECISION: Session #40 remaining work — dispatching 3 parallel sub-agents
+[2026-02-21 04:33:00]   (1) task-20260221-033340-g1utes: resume-command — implement run-agent resume subcommand
+[2026-02-21 04:33:00]   (2) task-20260221-033343-6l3kbr: agent-version-runinfo — persist agent_version in run-info.yaml
+[2026-02-21 04:33:00]   (3) task-20260221-033345-19l8af: error-summary-ui — surface ErrorSummary in web UI
+[2026-02-21 04:46:31] FACT: Scenario 1 (single agent) passed
+[2026-02-21 04:46:31] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 04:46:31] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 04:46:31] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 04:46:31] FACT: All acceptance tests passed
+
+[2026-02-21 04:45:00] FACT: task-20260221-033340-g1utes (resume-command) - COMPLETED (exit_code=0, duration=9m)
+[2026-02-21 04:45:00] FACT: task-20260221-033343-6l3kbr (agent-version-runinfo) - COMPLETED (exit_code=0, duration=4m)
+[2026-02-21 04:45:00] FACT: task-20260221-033345-19l8af (error-summary-ui) - COMPLETED (exit_code=0, duration=4m)
+[2026-02-21 04:45:00] FACT: go build ./...: PASS (binaries rebuilt: conductor, run-agent)
+[2026-02-21 04:45:00] FACT: go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races
+[2026-02-21 04:45:00] FACT: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+[2026-02-21 04:45:00] COMMIT: 06316c5 fix(runner): prevent run ID collisions across concurrent CreateRun calls
+[2026-02-21 04:45:00] COMMIT: ad9f688 feat(api): expose agent_version and error_summary in run responses
+[2026-02-21 04:45:00] COMMIT: 35ac45b feat(cli): add run-agent resume command to reset exhausted task
+
+[2026-02-21 04:45:30] ==========================================
+[2026-02-21 04:45:30] SESSION SUMMARY: 2026-02-21 Session #40
+[2026-02-21 04:45:30] ==========================================
+
+## Bug Fix This Session
+
+1. **fix(runner): run ID collision across tasks** (commit 06316c5)
+   - Root cause: runner/orchestrator.go:newRunID() used time-offset (offset%10000 * 100µs)
+   - Two calls at different times could produce identical 4-digit fractional timestamps
+   - findRunInfoPath() glob searches ALL project/task dirs → finds 2 matches → "ambiguous"
+   - Session #38 fixed storage.go:newRunID() but NOT runner/orchestrator.go:newRunID()
+   - Fix: changed to counter-suffix format: stamp-pid-seq (same as storage.go)
+   - Acceptance test Scenario3_RalphLoopWait now passes consistently
+
+## Features Implemented This Session (via 3 parallel sub-agents)
+
+2. **feat(api): agent_version and error_summary in run responses** (commit ad9f688)
+   - RunResponse struct now includes AgentVersion and ErrorSummary fields
+   - runInfoToResponse() maps both fields from RunInfo
+   - AgentVersion YAML tag: changed from omitempty to always-include for debugging
+   - Added 4 new handler tests
+   - Resolves deferred items from ISSUE-004 and ISSUE-010
+
+3. **feat(cli): run-agent resume command** (commit 35ac45b)
+   - `run-agent resume --project P --task T [--root dir]` resets exhausted tasks
+   - Deletes DONE file so Ralph loop can run again (restart counter is in-memory)
+   - Optional --agent flag to immediately launch a new run after reset
+   - 7 new tests in resume_test.go
+   - Resolves Q4 backlog item from QUESTIONS.md
+
+## Dog-Food
+- 3 tasks dispatched via ./bin/run-agent job (parallel, root: runs/)
+- All DONE files created ✓
+- Sub-agent completion times: 4m (agent-version), 4m (error-summary), 9m (resume)
+
+## Quality Gates
+- go build -o bin/conductor, go build -o bin/run-agent: PASS
+- go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races
+- ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+
+## Current Issue Status
+- CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows), 5 resolved
+- HIGH: 0 open, 2 partially resolved (ISSUE-003, ISSUE-009), 6 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+- Total: 0 fully open, 3 partially resolved, 19 resolved
+- NOTE: ISSUE-004 fully resolved (all deferred items done: README + validate + agent_version in run-info)
+- NOTE: ISSUE-010 partially resolved → now fully resolved (API exposure done; UI already had it)
+- NOTE: Q4 from QUESTIONS.md resolved (run-agent resume command implemented)
+
+## Commits This Session
+- 06316c5: fix(runner): prevent run ID collisions across concurrent CreateRun calls
+- ad9f688: feat(api): expose agent_version and error_summary in run responses
+- 35ac45b: feat(cli): add run-agent resume command to reset exhausted task

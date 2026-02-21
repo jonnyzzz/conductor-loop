@@ -856,11 +856,11 @@ All 8 problems documented with solutions in CRITICAL-PROBLEMS-RESOLVED.md:
 
 | Severity | Open | Partially Resolved | Resolved |
 |----------|------|-------------------|----------|
-| CRITICAL | 0 | 2 | 4 |
-| HIGH | 0 | 3 | 5 |
+| CRITICAL | 0 | 1 | 5 |
+| HIGH | 0 | 2 | 6 |
 | MEDIUM | 0 | 0 | 6 |
 | LOW | 0 | 0 | 2 |
-| **Total** | **0** | **5** | **17** |
+| **Total** | **0** | **3** | **19** |
 
 ### Session #26 Changes (2026-02-21)
 
@@ -1003,4 +1003,24 @@ New features implemented (from QUESTIONS.md decisions):
 
 *This document is maintained as part of the Conductor Loop project. Update as issues are resolved or new issues discovered.*
 
-*Last updated: 2026-02-21 Session #26*
+*Last updated: 2026-02-21 Session #40*
+
+### Session #40 Changes (2026-02-21)
+
+**ISSUE-004** (CRITICAL PARTIALLY RESOLVED → RESOLVED): All deferred items now done:
+- agent_version in run-info.yaml: already existed, now AgentVersion always persisted (no omitempty)
+- AgentVersion exposed in /api/v1/runs/:id RunResponse (commit ad9f688)
+- README agent CLI version table added (Session #39)
+- run-agent validate subcommand exists (Session #28)
+Summary: CRITICAL partially resolved 2 → 1, CRITICAL resolved 4 → 5.
+
+**ISSUE-010** (HIGH PARTIALLY RESOLVED → RESOLVED): All deferred items addressed:
+- ErrorSummary in /api/v1/runs/:id RunResponse (commit ad9f688)
+- Frontend already had error_summary display via .metadata-error CSS
+Summary: HIGH partially resolved 3 → 2, HIGH resolved 5 → 6.
+
+**Q4 from QUESTIONS.md**: run-agent resume command implemented (commit 35ac45b).
+Resolves the backlogged "run-agent task resume" decision.
+
+**Bug fix**: runner/orchestrator.go newRunID() collision (commit 06316c5).
+ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS after fix.
