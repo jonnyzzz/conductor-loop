@@ -43,7 +43,7 @@ func TestRunStatusJSON_IncludesRequiredFields(t *testing.T) {
 	makeRunWithPID(t, root, project, runningTask, "run-002", storage.StatusRunning, now.Add(-time.Minute), -1, os.Getpid())
 
 	var buf bytes.Buffer
-	if err := runStatus(&buf, root, project, "", true); err != nil {
+	if err := runStatus(&buf, root, project, "", "", true, false); err != nil {
 		t.Fatalf("runStatus: %v", err)
 	}
 
@@ -99,7 +99,7 @@ func TestRunStatusJSON_ReconcilesStaleRunningPID(t *testing.T) {
 	infoPath := filepath.Join(runDir, "run-info.yaml")
 
 	var buf bytes.Buffer
-	if err := runStatus(&buf, root, project, task, true); err != nil {
+	if err := runStatus(&buf, root, project, task, "", true, false); err != nil {
 		t.Fatalf("runStatus: %v", err)
 	}
 
@@ -153,7 +153,7 @@ func TestRunStatusJSON_NoRunsAndDoneSemantics(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := runStatus(&buf, root, project, "", true); err != nil {
+	if err := runStatus(&buf, root, project, "", "", true, false); err != nil {
 		t.Fatalf("runStatus: %v", err)
 	}
 
@@ -209,7 +209,7 @@ func TestRunStatusText_CoherentWithFields(t *testing.T) {
 	makeRun(t, root, project, task, "run-001", storage.StatusFailed, now.Add(-time.Minute), 3)
 
 	var buf bytes.Buffer
-	if err := runStatus(&buf, root, project, "", false); err != nil {
+	if err := runStatus(&buf, root, project, "", "", false, false); err != nil {
 		t.Fatalf("runStatus: %v", err)
 	}
 
@@ -245,7 +245,7 @@ func TestRunStatusJSON_BlockedByDependencies(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := runStatus(&buf, root, project, taskMain, true); err != nil {
+	if err := runStatus(&buf, root, project, taskMain, "", true, false); err != nil {
 		t.Fatalf("runStatus: %v", err)
 	}
 
@@ -262,5 +262,125 @@ func TestRunStatusJSON_BlockedByDependencies(t *testing.T) {
 	}
 	if len(row.BlockedBy) != 1 || row.BlockedBy[0] != taskDep {
 		t.Fatalf("blocked_by=%v, want [%s]", row.BlockedBy, taskDep)
+	}
+}
+
+func TestRunStatusJSON_StatusFilterRunning(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	now := time.Now().UTC()
+
+	runningTask := "task-20260101-000030-aa"
+	completedTask := "task-20260101-000031-bb"
+
+	makeRunWithPID(t, root, project, runningTask, "run-001", storage.StatusRunning, now.Add(-time.Minute), -1, os.Getpid())
+	makeRun(t, root, project, completedTask, "run-001", storage.StatusCompleted, now.Add(-2*time.Minute), 0)
+
+	var buf bytes.Buffer
+	if err := runStatus(&buf, root, project, "", "running", true, false); err != nil {
+		t.Fatalf("runStatus: %v", err)
+	}
+
+	var payload statusJSONPayload
+	if err := json.Unmarshal(buf.Bytes(), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if len(payload.Tasks) != 1 {
+		t.Fatalf("expected 1 filtered task, got %d", len(payload.Tasks))
+	}
+	if payload.Tasks[0].TaskID != runningTask {
+		t.Fatalf("filtered task=%q, want %q", payload.Tasks[0].TaskID, runningTask)
+	}
+}
+
+func TestRunStatusText_FilterNoMatchIncludesMessage(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000032-cc"
+
+	makeRun(t, root, project, task, "run-001", storage.StatusCompleted, time.Now().UTC().Add(-time.Minute), 0)
+
+	var buf bytes.Buffer
+	if err := runStatus(&buf, root, project, "", "running", false, false); err != nil {
+		t.Fatalf("runStatus: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "TASK_ID") {
+		t.Fatalf("expected header in output:\n%s", output)
+	}
+	want := `No status rows matched --status "running" in project proj.`
+	if !strings.Contains(output, want) {
+		t.Fatalf("expected no-match message %q in output:\n%s", want, output)
+	}
+}
+
+func TestRunStatusConcise_OutputsEquivalentFieldSet(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000033-dd"
+	now := time.Now().UTC()
+
+	makeRunWithPID(t, root, project, task, "run-001", storage.StatusRunning, now.Add(-time.Minute), -1, os.Getpid())
+
+	var buf bytes.Buffer
+	if err := runStatus(&buf, root, project, "", "running", false, true); err != nil {
+		t.Fatalf("runStatus: %v", err)
+	}
+
+	output := strings.TrimSpace(buf.String())
+	if strings.Contains(output, "TASK_ID") {
+		t.Fatalf("concise output must not include header:\n%s", output)
+	}
+	fields := strings.Split(output, "\t")
+	if len(fields) != 6 {
+		t.Fatalf("expected 6 concise fields, got %d: %q", len(fields), output)
+	}
+	if fields[0] != task {
+		t.Fatalf("task_id=%q, want %q", fields[0], task)
+	}
+	if fields[1] != storage.StatusRunning {
+		t.Fatalf("status=%q, want %q", fields[1], storage.StatusRunning)
+	}
+	if fields[2] != "-1" {
+		t.Fatalf("exit_code=%q, want -1", fields[2])
+	}
+	if fields[3] != "run-001" {
+		t.Fatalf("latest_run=%q, want run-001", fields[3])
+	}
+	if fields[4] != "false" {
+		t.Fatalf("done=%q, want false", fields[4])
+	}
+	if fields[5] != "true" {
+		t.Fatalf("pid_alive=%q, want true", fields[5])
+	}
+}
+
+func TestRunStatusConcise_NoMatchPrintsMessage(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000034-ee"
+
+	makeRun(t, root, project, task, "run-001", storage.StatusCompleted, time.Now().UTC().Add(-time.Minute), 0)
+
+	var buf bytes.Buffer
+	if err := runStatus(&buf, root, project, "", "running", false, true); err != nil {
+		t.Fatalf("runStatus: %v", err)
+	}
+
+	got := strings.TrimSpace(buf.String())
+	want := `No status rows matched --status "running" in project proj.`
+	if got != want {
+		t.Fatalf("concise no-match output=%q, want %q", got, want)
+	}
+}
+
+func TestRunStatusRejectsConciseAndJSON(t *testing.T) {
+	err := runStatus(&bytes.Buffer{}, t.TempDir(), "proj", "", "", true, true)
+	if err == nil {
+		t.Fatalf("expected error when --concise and --json are both set")
+	}
+	if !strings.Contains(err.Error(), "--concise cannot be used with --json") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

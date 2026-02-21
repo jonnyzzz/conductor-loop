@@ -1518,6 +1518,67 @@ Listing runs (`--project --task --json`):
 
 ---
 
+#### `run-agent status`
+
+Show latest run status per task (first-class replacement for manual `task-*` shell loops).
+
+```bash
+run-agent status --project <id> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--root` | string | "./runs" | Root runs directory (uses `RUNS_DIR` env var if not set) |
+| `--project` | string | "" | Project ID (required) |
+| `--task` | string | "" | Task ID (optional; defaults to all tasks in project) |
+| `--status` | string | "" | Filter rows by status: `running`, `active`, `completed`, `failed`, `blocked`, `done`, `pending` |
+| `--json` | bool | false | Output as JSON (`{"tasks":[...]}`) |
+| `--concise` | bool | false | Output concise tab-separated rows: `task_id status exit_code latest_run done pid_alive` |
+
+**Behavior:**
+- Derives the latest run per task from `<task>/runs/*` (lexicographically last run directory)
+- Reads `status` and `exit_code` from `run-info.yaml`
+- Includes `done` (`DONE` marker) and `pid_alive` fields
+- `--status` filters rows; `active` is an alias for `running`, `done` filters by `DONE` marker, and `pending` matches tasks with no runs (`status = -`)
+- Prints an explicit no-match message when filters yield zero rows (avoids silent output)
+- `--json` and `--concise` are mutually exclusive
+
+**Examples:**
+
+```bash
+# Table output for all tasks in a project
+run-agent status --root ./runs --project my-project
+
+# Loop-equivalent "only running latest runs" view
+run-agent status --root ./runs --project my-project --status running
+
+# Automation-friendly concise rows
+run-agent status --root ./runs --project my-project --status running --concise
+```
+
+**Output examples:**
+
+Table output:
+```
+TASK_ID                           STATUS   EXIT_CODE  LATEST_RUN                      DONE   PID_ALIVE  BLOCKED_BY
+task-20260220-140000-hello        completed 0         20260220-1401000000-abc12345   true   false      -
+task-20260220-150000-analysis     running   -1        20260220-1500000000-def67890   false  true       -
+```
+
+Concise output (`--concise`):
+```
+task-20260220-150000-analysis	running	-1	20260220-1500000000-def67890	false	true
+```
+
+No-match output (`--status running --concise` with no active tasks):
+```
+No status rows matched --status "running" in project my-project.
+```
+
+---
+
 #### `run-agent validate`
 
 Validate conductor configuration and agent CLI availability.

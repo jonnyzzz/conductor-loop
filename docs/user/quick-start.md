@@ -121,13 +121,19 @@ Status values:
 
 ### Check Running Task Runs (Latest Per Task)
 
-Use the helper script to scan each task's latest run and show only active (`status: running`) runs:
+Use `run-agent status` to scan each task's latest run and show only active (`status: running`) runs:
 
 ```bash
-./scripts/check-running-runs.sh /Users/you/run-agent my-project
+run-agent status --root /Users/you/run-agent --project my-project --status running
 ```
 
-The script always prints a table header and prints `No running task runs found` when no active runs are detected.
+For automation-friendly output, add `--concise`:
+
+```bash
+run-agent status --root /Users/you/run-agent --project my-project --status running --concise
+```
+
+When no rows match, the command prints an explicit no-match message (instead of silent empty output).
 
 ### View Task Logs
 

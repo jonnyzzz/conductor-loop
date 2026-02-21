@@ -19,10 +19,12 @@ import (
 
 func newStatusCmd() *cobra.Command {
 	var (
-		root      string
-		projectID string
-		taskID    string
-		jsonOut   bool
+		root         string
+		projectID    string
+		taskID       string
+		statusFilter string
+		jsonOut      bool
+		conciseOut   bool
 	)
 
 	cmd := &cobra.Command{
@@ -36,35 +38,40 @@ func newStatusCmd() *cobra.Command {
 					root = "./runs"
 				}
 			}
-			return runStatus(cmd.OutOrStdout(), root, projectID, taskID, jsonOut)
+			return runStatus(cmd.OutOrStdout(), root, projectID, taskID, statusFilter, jsonOut, conciseOut)
 		},
 	}
 
 	cmd.Flags().StringVar(&root, "root", "", "root directory (default: ./runs or RUNS_DIR env)")
 	cmd.Flags().StringVar(&projectID, "project", "", "project id (required)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id (optional; defaults to all tasks in project)")
+	cmd.Flags().StringVar(&statusFilter, "status", "", "filter rows by status: running, active, completed, failed, blocked, done, pending")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON")
+	cmd.Flags().BoolVar(&conciseOut, "concise", false, "output concise tab-separated rows: task_id status exit_code latest_run done pid_alive")
 	_ = cmd.MarkFlagRequired("project")
 
 	return cmd
 }
 
 type statusRow struct {
-	TaskID    string `json:"task_id"`
-	Status    string `json:"status"`
-	ExitCode  *int   `json:"exit_code"`
-	LatestRun string `json:"latest_run"`
-	Done      bool   `json:"done"`
-	PIDAlive  *bool  `json:"pid_alive"`
+	TaskID    string   `json:"task_id"`
+	Status    string   `json:"status"`
+	ExitCode  *int     `json:"exit_code"`
+	LatestRun string   `json:"latest_run"`
+	Done      bool     `json:"done"`
+	PIDAlive  *bool    `json:"pid_alive"`
 	DependsOn []string `json:"depends_on,omitempty"`
 	BlockedBy []string `json:"blocked_by,omitempty"`
 }
 
-func runStatus(out io.Writer, root, projectID, taskID string, jsonOut bool) error {
+func runStatus(out io.Writer, root, projectID, taskID, statusFilter string, jsonOut, conciseOut bool) error {
 	projectID = strings.TrimSpace(projectID)
 	taskID = strings.TrimSpace(taskID)
 	if projectID == "" {
 		return fmt.Errorf("--project is required")
+	}
+	if jsonOut && conciseOut {
+		return fmt.Errorf("--concise cannot be used with --json")
 	}
 
 	projectDir := filepath.Join(root, projectID)
@@ -108,25 +115,35 @@ func runStatus(out io.Writer, root, projectID, taskID string, jsonOut bool) erro
 		rows = append(rows, row)
 	}
 
+	rows = filterStatusRows(rows, statusFilter)
+
 	if jsonOut {
 		return encodeJSON(out, map[string]interface{}{"tasks": rows})
+	}
+
+	if conciseOut {
+		if len(rows) == 0 {
+			_, err := fmt.Fprintln(out, statusEmptyMessage(projectID, taskID, statusFilter))
+			return err
+		}
+		for _, row := range rows {
+			fmt.Fprintf(
+				out,
+				"%s\t%s\t%s\t%s\t%t\t%s\n",
+				row.TaskID,
+				row.Status,
+				statusExitCode(row.ExitCode),
+				statusLatestRun(row.LatestRun),
+				row.Done,
+				statusPIDAlive(row.PIDAlive),
+			)
+		}
+		return nil
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "TASK_ID\tSTATUS\tEXIT_CODE\tLATEST_RUN\tDONE\tPID_ALIVE\tBLOCKED_BY")
 	for _, row := range rows {
-		exitCode := "-"
-		if row.ExitCode != nil {
-			exitCode = fmt.Sprintf("%d", *row.ExitCode)
-		}
-		latestRun := row.LatestRun
-		if latestRun == "" {
-			latestRun = "-"
-		}
-		pidAlive := "-"
-		if row.PIDAlive != nil {
-			pidAlive = fmt.Sprintf("%t", *row.PIDAlive)
-		}
 		blockedBy := "-"
 		if len(row.BlockedBy) > 0 {
 			blockedBy = strings.Join(row.BlockedBy, ",")
@@ -136,14 +153,86 @@ func runStatus(out io.Writer, root, projectID, taskID string, jsonOut bool) erro
 			"%s\t%s\t%s\t%s\t%t\t%s\t%s\n",
 			row.TaskID,
 			row.Status,
-			exitCode,
-			latestRun,
+			statusExitCode(row.ExitCode),
+			statusLatestRun(row.LatestRun),
 			row.Done,
-			pidAlive,
+			statusPIDAlive(row.PIDAlive),
 			blockedBy,
 		)
 	}
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	if len(rows) == 0 && strings.TrimSpace(statusFilter) != "" {
+		_, err := fmt.Fprintln(out, statusEmptyMessage(projectID, taskID, statusFilter))
+		return err
+	}
+	return nil
+}
+
+func filterStatusRows(rows []statusRow, statusFilter string) []statusRow {
+	normalized := strings.ToLower(strings.TrimSpace(statusFilter))
+	if normalized == "" {
+		return rows
+	}
+	filtered := make([]statusRow, 0, len(rows))
+	for _, row := range rows {
+		if statusRowMatchesFilter(row, normalized) {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
+func statusRowMatchesFilter(row statusRow, statusFilter string) bool {
+	switch statusFilter {
+	case "active":
+		return strings.EqualFold(row.Status, storage.StatusRunning)
+	case "done":
+		return row.Done
+	case "pending":
+		return row.Status == "-"
+	default:
+		return strings.EqualFold(row.Status, statusFilter)
+	}
+}
+
+func statusEmptyMessage(projectID, taskID, statusFilter string) string {
+	projectID = strings.TrimSpace(projectID)
+	taskID = strings.TrimSpace(taskID)
+	statusFilter = strings.TrimSpace(statusFilter)
+
+	if statusFilter != "" {
+		if taskID != "" {
+			return fmt.Sprintf("No status rows matched --status %q for task %s.", statusFilter, taskID)
+		}
+		return fmt.Sprintf("No status rows matched --status %q in project %s.", statusFilter, projectID)
+	}
+	if taskID != "" {
+		return fmt.Sprintf("No status rows found for task %s.", taskID)
+	}
+	return fmt.Sprintf("No status rows found in project %s.", projectID)
+}
+
+func statusExitCode(code *int) string {
+	if code == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%d", *code)
+}
+
+func statusLatestRun(runID string) string {
+	if runID == "" {
+		return "-"
+	}
+	return runID
+}
+
+func statusPIDAlive(alive *bool) string {
+	if alive == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%t", *alive)
 }
 
 func buildStatusRow(root, projectID, taskID string) (statusRow, error) {

@@ -29,7 +29,7 @@
 - [x] Timeout semantics updated to idle-output timeout (no timeout while output is flowing).
 - [x] Web UI resources bundled with `go:embed` fallback (`web/src`).
 - [x] Fix `task.done` semantics to reflect actual `DONE` marker presence (not merely non-running status).
-- [ ] Add conductor-native command/API replacing ad-hoc shell loop that scans latest run per task (`status`, `exit_code`, `pid/alive`, `DONE`).
+- [x] Add first-class status command flow replacing ad-hoc shell loop for latest-run task status (`status`, `exit_code`, `pid_alive`, `DONE`) via `run-agent status --status/--concise` with explicit no-match output (`task-20260222-101250-status-loop-equivalent`).
 
 ### Docs / Process
 
