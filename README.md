@@ -10,9 +10,12 @@
 - **Ralph Loop**: Automatic task restart and recovery on failure
 - **Hierarchical Tasks**: Parent-child task relationships with dependency management
 - **Live Log Streaming**: Real-time SSE-based log streaming via REST API
-- **Web UI**: React-based dashboard for task monitoring and visualization
-- **Message Bus**: Cross-task communication and coordination
-- **Storage**: Persistent run storage with structured logging
+- **Web UI**: React-based dashboard with message bus compose form, stop/resume buttons, JSON output viewer, thinking block visualization, and live heartbeat indicator
+- **Message Bus**: Cross-task communication with GET and POST API endpoints; compose form in web UI
+- **Task Resume**: Remove `DONE` file via API or web UI to restart exhausted tasks
+- **Prometheus Metrics**: `/metrics` endpoint with uptime, active/completed/failed run counts, and API request counters
+- **Storage**: Persistent run storage with structured logging; `output.md` auto-extracted from JSONL on crash
+- **PATH Deduplication**: Agent binary directory prepended to PATH without duplicates
 - **Docker Support**: Full containerization with docker-compose
 
 ## Quick Start
@@ -44,8 +47,8 @@ EOF
 # 3. Start the server
 ./conductor --config config.yaml --root $(pwd)
 
-# 4. Open the web UI
-open http://localhost:8080/ui/
+# 4. Open the web UI (default port: 14355)
+open http://localhost:14355/
 
 # 5. Watch a task until completion (waits for all sub-tasks to finish)
 ./bin/conductor watch --project my-project --timeout 30m
@@ -58,7 +61,7 @@ See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                         Web UI (React)                       │
-│                  http://localhost:8080/ui/                   │
+│                  http://localhost:14355/ui/                   │
 └─────────────────────────┬───────────────────────────────────┘
                           │ REST API + SSE
 ┌─────────────────────────▼───────────────────────────────────┐

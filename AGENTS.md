@@ -275,6 +275,103 @@ Fixes: #45
 
 ---
 
+## Message Bus Protocol
+
+Agents MUST post progress updates to the message bus using the `run-agent bus post`
+command. The `MESSAGE_BUS` env var is set automatically by the runner.
+
+```bash
+run-agent bus post --type PROGRESS --body "Starting X"
+run-agent bus post --type FACT    --body "Completed Y: commit abc123"
+run-agent bus post --type ERROR   --body "Failed: reason"
+run-agent bus post --type DECISION --body "Chose approach Z"
+```
+
+When `--project` and `--root` are available (e.g. from env vars), specify them for
+project-aware posting:
+
+```bash
+run-agent bus post \
+  --project "$JRUN_PROJECT_ID" \
+  --task    "$JRUN_TASK_ID" \
+  --root    "$CONDUCTOR_ROOT" \
+  --type PROGRESS --body "Reading codebase..."
+```
+
+You can also POST via the HTTP API (e.g. when `run-agent` is not on PATH):
+
+```bash
+# Task-level
+curl -X POST "http://localhost:14355/api/projects/$JRUN_PROJECT_ID/tasks/$JRUN_TASK_ID/messages" \
+  -H "Content-Type: application/json" \
+  -d "{\"type\": \"PROGRESS\", \"body\": \"Starting refactor...\"}"
+
+# Project-level
+curl -X POST "http://localhost:14355/api/projects/$JRUN_PROJECT_ID/messages" \
+  -H "Content-Type: application/json" \
+  -d "{\"type\": \"FACT\", \"body\": \"auth module uses JWT\"}"
+```
+
+Post at minimum:
+- PROGRESS at the start of each major step
+- FACT for every concrete outcome (commits, test results, key file paths)
+- ERROR when blocked (include error text and attempted remediation)
+
+---
+
+## JRUN Environment Variables
+
+When a run is started by conductor-loop, these variables are injected into the agent process
+and also available in the prompt preamble:
+
+| Variable | Description |
+|----------|-------------|
+| `JRUN_PROJECT_ID` | Project identifier |
+| `JRUN_TASK_ID` | Task identifier |
+| `JRUN_ID` | Run identifier for the current execution |
+| `JRUN_PARENT_ID` | Run ID of the parent run (if spawned as sub-agent) |
+| `TASK_FOLDER` | Absolute path to the task directory |
+| `RUN_FOLDER` | Absolute path to the current run directory |
+| `MESSAGE_BUS` | Absolute path to `TASK-MESSAGE-BUS.md` |
+
+---
+
+## Sub-Agent Spawning
+
+For tasks exceeding single-context capacity, decompose using:
+
+```bash
+run-agent job \
+  --project "$JRUN_PROJECT_ID" \
+  --task    "$JRUN_TASK_ID" \
+  --parent-run-id "$JRUN_ID" \
+  --agent claude \
+  --root "$CONDUCTOR_ROOT" \
+  --cwd /path/to/working/dir \
+  --prompt "sub-task description"
+```
+
+Run sub-agents in **parallel** for independent work. Pass `--parent-run-id`
+so the hierarchy is tracked in run-info.yaml.
+
+Use `--timeout <duration>` to limit sub-agent runtime (e.g. `--timeout 30m`).
+
+Example: spawn parallel sub-agents and wait:
+
+```bash
+run-agent job --project "$JRUN_PROJECT_ID" --root "$CONDUCTOR_ROOT" \
+  --agent claude --parent-run-id "$JRUN_ID" \
+  --prompt "Fix the auth module" &
+
+run-agent job --project "$JRUN_PROJECT_ID" --root "$CONDUCTOR_ROOT" \
+  --agent claude --parent-run-id "$JRUN_ID" \
+  --prompt "Add tests for the storage package" &
+
+wait   # wait for all sub-agents to complete
+```
+
+---
+
 ## Communication Protocol
 
 ### Message Bus Usage
