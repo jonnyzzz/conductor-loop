@@ -548,6 +548,30 @@ func mergeEnvironment(base []string, overrides map[string]string) []string {
 
 ---
 
+## Agent Version Detection
+
+**Reference:** `internal/runner/job.go` (`detectAgentVersion`)
+
+When a run is created, the runner attempts to detect the agent CLI version automatically and stores it in `run-info.yaml` as `agent_version`.
+
+**Function signature:**
+```go
+func detectAgentVersion(ctx context.Context, agentType string) string
+```
+
+**Behaviour:**
+
+- **CLI agents** (claude, codex, gemini): runs `<agent-cli> --version` via `agent.DetectCLIVersion()` and returns the trimmed output string. This is best-effort — if the command fails or times out, an empty string is returned.
+- **REST agents** (perplexity, xai): always returns `""` (no binary to query).
+
+The detected version is written to `RunInfo.AgentVersion` (YAML field `agent_version`, omitted when empty) and exposed through the project runs API and the `RunDetail` frontend component.
+
+**Adding version detection to a new agent backend:**
+
+If the agent exposes a `--version` flag, no extra work is needed — `cliCommand(agentType)` must return the executable name and `DetectCLIVersion` will handle the rest. For REST agents, return `""` from `isRestAgent`.
+
+---
+
 ## Adding New Agent Backends
 
 See detailed guide: [Adding New Agent Backends](adding-agents.md)
@@ -718,5 +742,5 @@ See `internal/agent/claude/` for a reference implementation.
 
 ---
 
-**Last Updated:** 2026-02-05
+**Last Updated:** 2026-02-21
 **Version:** 1.0.0

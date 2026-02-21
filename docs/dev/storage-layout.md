@@ -164,6 +164,7 @@ previous_run_id: ""                       # Previous run in restart chain
 
 # Agent configuration
 agent: claude                             # Agent type (claude, codex, gemini, etc.)
+agent_version: "claude 2.1.49"           # Detected agent CLI version (omitempty)
 
 # Process information
 pid: 12345                                # Process ID of the agent
@@ -186,6 +187,9 @@ stderr_path: stderr                       # Path to stderr capture
 
 # Command line (for debugging)
 commandline: "claude --prompt 'task description'"
+
+# Error details (omitempty)
+error_summary: ""                         # Human-readable error summary on failure
 ```
 
 ### Field Descriptions
@@ -211,6 +215,7 @@ commandline: "claude --prompt 'task description'"
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `agent` | string | Yes | Agent type: `claude`, `codex`, `gemini`, `perplexity`, `xai` |
+| `agent_version` | string | No | Detected agent CLI version string (omitted for REST agents or if detection fails) |
 
 #### Process Information
 
@@ -243,6 +248,7 @@ commandline: "claude --prompt 'task description'"
 | `stdout_path` | string | No | Path to stdout capture (relative to run directory) |
 | `stderr_path` | string | No | Path to stderr capture (relative to run directory) |
 | `commandline` | string | No | Full command line used to start agent (for debugging) |
+| `error_summary` | string | No | Human-readable error summary written on run failure (omitempty) |
 
 ### Status Values
 
@@ -1999,6 +2005,26 @@ func buildRunTree(st storage.Storage, rootRunID string) error {
 
 ---
 
+## API Task Summary Response
+
+The `GET /api/projects/{projectID}/tasks` endpoint includes a `run_counts` field in each task object. This is a map from run status to integer count, computed at query time from the task's runs:
+
+```json
+{
+  "id": "task-001",
+  "project_id": "my-project",
+  "status": "running",
+  "run_count": 5,
+  "run_counts": {
+    "running": 1,
+    "completed": 3,
+    "failed": 1
+  }
+}
+```
+
+This field enables the frontend to show per-status badges without a separate API call.
+
 ## See Also
 
 - [Architecture Overview](architecture.md)
@@ -2009,6 +2035,6 @@ func buildRunTree(st storage.Storage, rootRunID string) error {
 
 ---
 
-**Last Updated:** 2026-02-05
+**Last Updated:** 2026-02-21
 **Version:** 1.0.0
 **Package:** `internal/storage/`

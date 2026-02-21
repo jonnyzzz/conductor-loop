@@ -12,6 +12,9 @@ This document provides detailed information about each subsystem in the conducto
 6. [Runner Orchestration](#6-runner-orchestration)
 7. [API Server](#7-api-server)
 8. [Frontend UI](#8-frontend-ui)
+9. [Webhook Notifications](#9-webhook-notifications)
+10. [CLI Commands: run-agent list](#10-cli-commands-run-agent-list)
+11. [CLI Commands: run-agent output](#11-cli-commands-run-agent-output)
 
 ---
 
@@ -120,16 +123,18 @@ Reference: `internal/storage/storage.go:154-171`
 
 ```go
 type RunInfo struct {
-    RunID     string    // Unique run identifier
-    ProjectID string    // Project identifier
-    TaskID    string    // Task identifier
-    AgentType string    // Agent backend type
-    PID       int       // Process ID
-    PGID      int       // Process group ID
-    Status    string    // running, success, failed, stopped
-    StartTime time.Time // UTC start time
-    EndTime   time.Time // UTC end time (zero if not finished)
-    ExitCode  int       // Exit code (-1 if not finished)
+    RunID         string    // Unique run identifier
+    ProjectID     string    // Project identifier
+    TaskID        string    // Task identifier
+    AgentType     string    // Agent backend type
+    PID           int       // Process ID
+    PGID          int       // Process group ID
+    Status        string    // running, completed, failed
+    StartTime     time.Time // UTC start time
+    EndTime       time.Time // UTC end time (zero if not finished)
+    ExitCode      int       // Exit code (-1 if not finished)
+    ErrorSummary  string    // Optional error summary (omitempty)
+    AgentVersion  string    // Detected agent CLI version (omitempty)
 }
 ```
 
@@ -1272,6 +1277,7 @@ The API server provides a REST API and Server-Sent Events (SSE) for real-time mo
 
 - `server.go` - HTTP server setup
 - `handlers.go` - Request handlers (21KB, ~40+ endpoints)
+- `handlers_projects.go` - Project/task/run API handlers; includes `findProjectDir` and `findProjectTaskDir` path-resolution helpers
 - `sse.go` - Server-Sent Events streaming
 - `routes.go` - Route definitions
 - `middleware.go` - HTTP middleware
@@ -1301,7 +1307,7 @@ type Options struct {
 
 #### Tasks
 
-- `GET /api/projects/{projectID}/tasks` - List tasks in project
+- `GET /api/projects/{projectID}/tasks` - List tasks in project (includes `run_counts` map per task)
 - `GET /api/projects/{projectID}/tasks/{taskID}` - Get task details
 - `POST /api/projects/{projectID}/tasks` - Start new task
 - `GET /api/projects/{projectID}/tasks/{taskID}/file?name=...` - Read task file
@@ -1484,6 +1490,24 @@ GET /api/.../file?name=stdout&tail=5000
 - **Concurrent Clients:** Limited per run (default: 10)
 - **Throughput:** Depends on storage and message bus
 
+### Path Resolution Helpers
+
+**Reference:** `internal/api/handlers_projects.go`
+
+Two helper functions resolve project and task directories for API handlers, supporting multiple common directory layouts:
+
+```go
+// findProjectDir locates <projectID> under rootDir.
+// Checks: <rootDir>/<projectID>, <rootDir>/runs/<projectID>
+func findProjectDir(rootDir, projectID string) (string, bool)
+
+// findProjectTaskDir locates <projectID>/<taskID> under rootDir.
+// Checks: direct, runs/ subdirectory, and walks up to 3 levels deep.
+func findProjectTaskDir(rootDir, projectID, taskID string) (string, bool)
+```
+
+These helpers are used by handlers for task files, project stats, message bus, and task creation so that the API works correctly regardless of whether the root is set to the repo root or the `runs/` subdirectory.
+
 ### Known Limitations
 
 1. **No Authentication:** Open API (secure via network)
@@ -1602,6 +1626,139 @@ X-Conductor-Signature: sha256=<hex>
 
 ---
 
+---
+
+## 10. CLI Commands: run-agent list
+
+**File:** `cmd/run-agent/list.go`
+
+### Purpose
+
+The `run-agent list` command reads run metadata directly from the filesystem (no server required) and outputs it in human-readable table form or JSON.
+
+### Usage
+
+```
+run-agent list [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--root` | Root directory (default: `./runs` or `$RUNS_DIR`) |
+| `--project` | Project ID; if set, lists tasks for that project |
+| `--task` | Task ID; requires `--project`; if set, lists runs for that task |
+| `--json` | Emit JSON instead of table output |
+
+### Output Modes
+
+**No flags (project list):** Prints one project name per line, sorted.
+
+**`--project` only (task list):** Tab-separated table with columns:
+`TASK_ID`, `RUNS`, `LATEST_STATUS`, `DONE`
+
+**`--project --task` (run list):** Tab-separated table with columns:
+`RUN_ID`, `STATUS`, `EXIT_CODE`, `STARTED`, `DURATION`
+
+### Implementation Notes
+
+- Root directory falls back to `RUNS_DIR` environment variable, then `./runs`.
+- DONE detection: `os.Stat(taskDir/DONE)`.
+- Latest status: reads `run-info.yaml` from the lexically last run directory.
+- Duration shown as `"running"` for active runs; computed from `end_time - start_time` otherwise.
+- JSON mode wraps output in `{"projects": [...]}`, `{"tasks": [...]}`, or `{"runs": [...]}`.
+
+### Dependencies
+
+- `internal/storage` (ReadRunInfo)
+- `text/tabwriter` for aligned table output
+- `encoding/json` for JSON output
+
+### Testing Strategy
+
+**Unit Tests:** `cmd/run-agent/list_test.go` (13 tests)
+
+- Test listing projects (empty root, multiple projects)
+- Test listing tasks (DONE detection, run count, latest status)
+- Test listing runs (running vs. completed, duration formatting)
+- Test JSON output for each mode
+- Test `--task requires --project` validation
+
+---
+
+## 11. CLI Commands: run-agent output
+
+**File:** `cmd/run-agent/output.go`
+
+### Purpose
+
+The `run-agent output` command prints output files from completed (or running) agent runs. With `--follow` / `-f`, it live-tails the output of a running job.
+
+### Usage
+
+```
+run-agent output [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--run-dir` | Direct path to run directory (overrides `--project/--task/--run`) |
+| `--root` | Root directory (default: `./runs` or `$RUNS_DIR`) |
+| `--project` | Project ID |
+| `--task` | Task ID |
+| `--run` | Run ID (uses most recent if omitted) |
+| `--tail N` | Print last N lines only (0 = all) |
+| `--file` | File to print: `output` (default), `stdout`, `stderr`, `prompt` |
+| `--follow`, `-f` | Follow output as it is written (for running jobs) |
+
+### File Resolution
+
+**`--file output` (default):** Tries `output.md` first; falls back to `agent-stdout.txt`.
+
+**`--file stdout`:** Uses `agent-stdout.txt`.
+
+**`--file stderr`:** Uses `agent-stderr.txt`.
+
+**`--file prompt`:** Uses `prompt.md`.
+
+### Follow Mode (`--follow`)
+
+1. If the run is already complete (non-`running` status in `run-info.yaml`), prints all content and exits immediately.
+2. For a running job:
+   - Resolves the live file (`agent-stdout.txt` for output/stdout, `agent-stderr.txt` for stderr).
+   - Waits up to `followFileWaitTimeout` (5 seconds) for the file to appear.
+   - Polls every `followPollInterval` (500 ms) for new bytes, printing them immediately.
+   - Exits when `run-info.yaml` status becomes non-`running`, or when no new data has arrived for `followNoDataTimeout` (60 seconds).
+   - Handles SIGINT/SIGTERM gracefully.
+
+### Implementation Notes
+
+- Poll intervals are package-level variables (`followPollInterval`, `followFileWaitTimeout`, `followNoDataTimeout`) so tests can shorten them.
+- `drainNewContent` opens the file, seeks to `offset`, copies new bytes to stdout, and returns the byte count written.
+- `--tail` is implemented with a ring-buffer over a line scanner (avoids loading the entire file into memory).
+- Root directory falls back to `RUNS_DIR` environment variable, then `./runs`.
+
+### Dependencies
+
+- `internal/storage` (ReadRunInfo, StatusRunning)
+- Standard library: `os/signal`, `syscall`, `bufio`, `io`
+
+### Testing Strategy
+
+**Unit Tests:** `cmd/run-agent/output_follow_test.go` (6 tests)
+
+- Follow exits immediately for a completed run
+- Follow prints live data from a running job
+- Follow exits when job completes
+- Follow exits on no-data timeout
+- Follow exits on SIGINT
+- Follow waits for file to appear
+
+---
+
 ## Next Steps
 
 For more specialized documentation, see:
@@ -1614,5 +1771,5 @@ For more specialized documentation, see:
 
 ---
 
-**Last Updated:** 2026-02-05
+**Last Updated:** 2026-02-21
 **Version:** 1.0.0

@@ -65,8 +65,18 @@ conductor-loop/
 │   └── api/
 │       ├── handlers.go
 │       ├── handlers_test.go
+│       ├── handlers_projects.go
+│       ├── handlers_projects_test.go  # 38 tests; includes path-resolution helper tests
 │       ├── sse.go
 │       └── sse_test.go
+├── cmd/
+│   └── run-agent/
+│       ├── list.go
+│       ├── list_test.go               # 13 tests for run-agent list command
+│       ├── output.go
+│       ├── output_follow_test.go      # 6 tests for --follow behaviour
+│       ├── validate.go
+│       └── validate_test.go           # 24 tests; 5 cover --check-tokens
 ├── test/
 │   ├── integration/
 │   │   ├── storage_integration_test.go
@@ -867,5 +877,5 @@ describe('TaskList', () => {
 
 ---
 
-**Last Updated:** 2026-02-05
+**Last Updated:** 2026-02-21
 **Version:** 1.0.0
