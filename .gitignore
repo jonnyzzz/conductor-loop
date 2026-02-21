@@ -29,3 +29,11 @@ runs/
 # Orchestration logs and outputs
 orchestration-*.log
 output-*.md
+
+# Local tooling/runtime artifacts
+.playwright-mcp/
+/conductor-loop/
+/config.local.yaml
+/cover.html
+/output.md
+/run-agent
