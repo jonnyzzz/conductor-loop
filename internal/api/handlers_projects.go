@@ -309,7 +309,7 @@ func (s *Server) handleProjectTasks(w http.ResponseWriter, r *http.Request) *api
 		return apiErrorInternal("scan runs", err)
 	}
 
-	tasks := buildTasks(projectID, runs)
+	tasks := buildTasks(s.rootDir, projectID, runs)
 	// Sort by creation time, newest first.
 	sort.Slice(tasks, func(i, j int) bool {
 		return tasks[i].CreatedAt.After(tasks[j].CreatedAt)
@@ -468,7 +468,7 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 	if r.Method != http.MethodGet {
 		return apiErrorMethodNotAllowed()
 	}
-	tasks := buildTasks(projectID, runs)
+	tasks := buildTasks(s.rootDir, projectID, runs)
 	for _, t := range tasks {
 		if t.ID == taskID {
 			return writeJSON(w, http.StatusOK, t)
@@ -909,7 +909,7 @@ func (s *Server) allRunInfos() ([]*storage.RunInfo, error) {
 }
 
 // buildTasks groups runs into tasks for a given project.
-func buildTasks(projectID string, runs []*storage.RunInfo) []projectTask {
+func buildTasks(rootDir, projectID string, runs []*storage.RunInfo) []projectTask {
 	taskMap := make(map[string][]projectRun)
 	for _, run := range runs {
 		if run.ProjectID != projectID {
@@ -953,6 +953,12 @@ func buildTasks(projectID string, runs []*storage.RunInfo) []projectTask {
 		if running {
 			state = "running"
 		}
+		done := false
+		if taskDir, ok := findProjectTaskDir(rootDir, projectID, taskID); ok {
+			if _, err := os.Stat(filepath.Join(taskDir, "DONE")); err == nil {
+				done = true
+			}
+		}
 
 		tasks = append(tasks, projectTask{
 			ID:           taskID,
@@ -960,7 +966,7 @@ func buildTasks(projectID string, runs []*storage.RunInfo) []projectTask {
 			Status:       status,
 			LastActivity: lastActivity,
 			CreatedAt:    createdAt,
-			Done:         !running,
+			Done:         done,
 			State:        state,
 			Runs:         taskRuns,
 		})

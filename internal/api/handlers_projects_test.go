@@ -1873,6 +1873,61 @@ func TestHandleProjectTasksStatusFilter_Unknown(t *testing.T) {
 	}
 }
 
+func TestHandleProjectTaskDoneFlagWithoutDoneFile(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	makeProjectRun(t, root, "project", "task-done-flag", "run-1", storage.StatusCompleted, "done\n")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/tasks/task-done-flag", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp projectTask
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Done {
+		t.Fatalf("expected done=false when DONE marker is absent")
+	}
+}
+
+func TestHandleProjectTaskDoneFlagWithDoneFile(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	taskID := "task-done-flag"
+	makeProjectRun(t, root, "project", taskID, "run-1", storage.StatusCompleted, "done\n")
+	doneFile := filepath.Join(root, "project", taskID, "DONE")
+	if err := os.WriteFile(doneFile, []byte(""), 0o644); err != nil {
+		t.Fatalf("write DONE: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/tasks/"+taskID, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp projectTask
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !resp.Done {
+		t.Fatalf("expected done=true when DONE marker exists")
+	}
+}
+
 // --- handleProjectDelete tests ---
 
 func TestDeleteProject_Empty(t *testing.T) {
