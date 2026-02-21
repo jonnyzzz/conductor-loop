@@ -2953,3 +2953,34 @@ project_id: conductor-loop
 [2026-02-21 04:01:00] FACT: Added storageRunCounter (sync/atomic uint64) + TestFileStorageRunIDsUnique (10 calls, frozen time+PID)
 [2026-02-21 04:02:00] FACT: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS (Scenario1-4)
 [2026-02-21 04:02:00] FACT: go test -race ./test/...: ALL 5 TEST PACKAGES PASS (acceptance, docker, integration, performance, unit)
+[2026-02-21 04:03:00] FACT: Committed 28b6ca1: fix(storage): prevent run ID collisions across concurrent CreateRun calls
+[2026-02-21 04:03:00] COMMIT: 28b6ca1 fix(storage): prevent run ID collisions across concurrent CreateRun calls
+
+[2026-02-21 04:03:30] ==========================================
+[2026-02-21 04:03:30] SESSION SUMMARY: 2026-02-21 Session #38
+[2026-02-21 04:03:30] ==========================================
+
+## Bug Fixed This Session
+
+1. **fix(storage): run ID collision in FileStorage.CreateRun** (commit 28b6ca1)
+   - Root cause: `newRunID()` used second-precision format (`20060102-1504050000`) with no guard
+   - Two CreateRun calls in the same second from same PID → identical run IDs in different task dirs
+   - `findRunInfoPath` glob `root/*/*/runs/ID/run-info.yaml` found both → "ambiguous" error
+   - Fix: Added `storageRunCounter` (sync/atomic uint64), appended as suffix: `<stamp>-<pid>-<seq>`
+   - Added `TestFileStorageRunIDsUnique`: 10 calls with frozen clock+PID → all unique
+   - Acceptance test Scenario3_RalphLoopWait now PASSES
+
+## Dog-Food / Test Results
+- Discovered by running `ACCEPTANCE=1 go test ./test/acceptance/...` for the first time
+- All 4 acceptance scenarios now pass (Scenario1, 2, 3, 4)
+- `go test -race ./internal/... ./cmd/...`: ALL 14 PACKAGES PASS, no races
+- `go test -race ./test/...`: ALL 5 TEST PACKAGES PASS
+
+## Current Issue Status (unchanged from Session #37)
+- CRITICAL: 0 open, 2 partially resolved (ISSUE-002 Windows, ISSUE-004 CLI versions), 4 resolved
+- HIGH: 0 open, 3 partially resolved (ISSUE-003, ISSUE-009, ISSUE-010), 5 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+
+## Commits This Session
+- 28b6ca1: fix(storage): prevent run ID collisions across concurrent CreateRun calls
