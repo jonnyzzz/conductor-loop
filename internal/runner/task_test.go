@@ -74,6 +74,42 @@ func TestRunTask_CreatesTaskMD(t *testing.T) {
 	}
 }
 
+func TestRunTask_DoesNotOverwriteExistingTaskMD(t *testing.T) {
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "project", "task")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task: %v", err)
+	}
+	original := "existing prompt\n"
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte(original), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+	// Create DONE so the loop exits immediately without running the agent.
+	if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write DONE: %v", err)
+	}
+
+	binDir := t.TempDir()
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if err := RunTask("project", "task", TaskOptions{
+		RootDir: root,
+		Agent:   "codex",
+		Prompt:  "new prompt",
+	}); err != nil {
+		t.Fatalf("RunTask: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(taskDir, "TASK.md"))
+	if err != nil {
+		t.Fatalf("read TASK.md: %v", err)
+	}
+	if string(data) != original {
+		t.Fatalf("TASK.md was overwritten: got %q, want %q", string(data), original)
+	}
+}
+
 func TestRunTask_WithPromptFile(t *testing.T) {
 	root := t.TempDir()
 	taskDir := filepath.Join(root, "project", "task")

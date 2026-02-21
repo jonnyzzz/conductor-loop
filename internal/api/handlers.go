@@ -465,13 +465,14 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 		prompt += "\n"
 	}
 
-	// Write TASK.md: always for "create"; only if absent for "attach"/"resume".
+	// Write TASK.md only when absent. Never overwrite an existing task prompt.
 	taskMDPath := filepath.Join(taskDir, "TASK.md")
-	writeTaskMD := attachMode == "create"
-	if !writeTaskMD {
-		if _, err := os.Stat(taskMDPath); os.IsNotExist(err) {
-			writeTaskMD = true
+	writeTaskMD := false
+	if _, err := os.Stat(taskMDPath); err != nil {
+		if !os.IsNotExist(err) {
+			return apiErrorInternal("stat TASK.md", err)
 		}
+		writeTaskMD = true
 	}
 	if writeTaskMD {
 		if err := os.WriteFile(taskMDPath, []byte(prompt), 0o644); err != nil {

@@ -165,6 +165,68 @@ func TestRunJobCLI(t *testing.T) {
 	}
 }
 
+func TestRunJob_CreatesTaskMD(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	prompt := "hello from job"
+	if _, err := runJob("project", "task", JobOptions{
+		RootDir: root,
+		Agent:   "codex",
+		Prompt:  prompt,
+	}); err != nil {
+		t.Fatalf("runJob: %v", err)
+	}
+
+	taskMD, err := os.ReadFile(filepath.Join(root, "project", "task", "TASK.md"))
+	if err != nil {
+		t.Fatalf("read TASK.md: %v", err)
+	}
+	if strings.TrimSpace(string(taskMD)) != prompt {
+		t.Fatalf("TASK.md content mismatch: got %q want %q", strings.TrimSpace(string(taskMD)), prompt)
+	}
+}
+
+func TestRunJob_DoesNotOverwriteTaskMD(t *testing.T) {
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "project", "task")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task: %v", err)
+	}
+	original := "original task prompt\n"
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte(original), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if _, err := runJob("project", "task", JobOptions{
+		RootDir: root,
+		Agent:   "codex",
+		Prompt:  "new prompt",
+	}); err != nil {
+		t.Fatalf("runJob: %v", err)
+	}
+
+	taskMD, err := os.ReadFile(filepath.Join(taskDir, "TASK.md"))
+	if err != nil {
+		t.Fatalf("read TASK.md: %v", err)
+	}
+	if string(taskMD) != original {
+		t.Fatalf("TASK.md was overwritten: got %q want %q", string(taskMD), original)
+	}
+}
+
 func TestRunJobExported(t *testing.T) {
 	root := t.TempDir()
 	binDir := filepath.Join(root, "bin")

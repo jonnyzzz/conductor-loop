@@ -514,6 +514,46 @@ func TestHandleTaskCreate_Attach_DoesNotOverwriteTaskMD(t *testing.T) {
 	}
 }
 
+func TestHandleTaskCreate_Create_DoesNotOverwriteTaskMD(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	taskDir := filepath.Join(root, "project", "task")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	original := "original prompt\n"
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte(original), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+
+	payload := TaskCreateRequest{
+		ProjectID:  "project",
+		TaskID:     "task",
+		AgentType:  "codex",
+		Prompt:     "new prompt",
+		AttachMode: "create",
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	content, err := os.ReadFile(filepath.Join(taskDir, "TASK.md"))
+	if err != nil {
+		t.Fatalf("read TASK.md: %v", err)
+	}
+	if string(content) != original {
+		t.Fatalf("TASK.md was overwritten: got %q, want %q", string(content), original)
+	}
+}
+
 func TestRunInfoToResponse_AgentVersion(t *testing.T) {
 	info := &storage.RunInfo{
 		RunID:        "run-1",

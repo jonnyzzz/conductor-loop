@@ -59,6 +59,15 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	if err != nil {
 		return nil, err
 	}
+	taskMDPath := filepath.Join(taskDir, "TASK.md")
+	if _, statErr := os.Stat(taskMDPath); statErr != nil {
+		if !os.IsNotExist(statErr) {
+			return nil, errors.Wrap(statErr, "stat TASK.md")
+		}
+		if writeErr := os.WriteFile(taskMDPath, []byte(promptText+"\n"), 0o644); writeErr != nil {
+			return nil, errors.Wrap(writeErr, "write TASK.md")
+		}
+	}
 
 	workingDir := strings.TrimSpace(opts.WorkingDir)
 	if workingDir == "" {
