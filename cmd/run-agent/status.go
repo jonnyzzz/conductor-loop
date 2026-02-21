@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/runner"
 	"github.com/jonnyzzz/conductor-loop/internal/runstate"
@@ -25,6 +26,8 @@ func newStatusCmd() *cobra.Command {
 		statusFilter string
 		jsonOut      bool
 		conciseOut   bool
+		activityOut  bool
+		driftAfter   time.Duration
 	)
 
 	cmd := &cobra.Command{
@@ -38,7 +41,19 @@ func newStatusCmd() *cobra.Command {
 					root = "./runs"
 				}
 			}
-			return runStatus(cmd.OutOrStdout(), root, projectID, taskID, statusFilter, jsonOut, conciseOut)
+			return runStatusWithOptions(
+				cmd.OutOrStdout(),
+				root,
+				projectID,
+				taskID,
+				statusFilter,
+				jsonOut,
+				conciseOut,
+				activityOptions{
+					Enabled:    activityOut,
+					DriftAfter: driftAfter,
+				},
+			)
 		},
 	}
 
@@ -48,23 +63,35 @@ func newStatusCmd() *cobra.Command {
 	cmd.Flags().StringVar(&statusFilter, "status", "", "filter rows by status: running, active, completed, failed, blocked, done, pending")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON")
 	cmd.Flags().BoolVar(&conciseOut, "concise", false, "output concise tab-separated rows: task_id status exit_code latest_run done pid_alive")
+	cmd.Flags().BoolVar(&activityOut, "activity", false, "include recent activity signals (latest bus message, output activity, meaningful-signal age, analysis drift risk)")
+	cmd.Flags().DurationVar(&driftAfter, "drift-after", defaultAnalysisDriftAfter, "mark analysis-drift risk when a running task has no meaningful bus signal for this duration (used with --activity)")
 	_ = cmd.MarkFlagRequired("project")
 
 	return cmd
 }
 
 type statusRow struct {
-	TaskID    string   `json:"task_id"`
-	Status    string   `json:"status"`
-	ExitCode  *int     `json:"exit_code"`
-	LatestRun string   `json:"latest_run"`
-	Done      bool     `json:"done"`
-	PIDAlive  *bool    `json:"pid_alive"`
-	DependsOn []string `json:"depends_on,omitempty"`
-	BlockedBy []string `json:"blocked_by,omitempty"`
+	TaskID    string               `json:"task_id"`
+	Status    string               `json:"status"`
+	ExitCode  *int                 `json:"exit_code"`
+	LatestRun string               `json:"latest_run"`
+	Done      bool                 `json:"done"`
+	PIDAlive  *bool                `json:"pid_alive"`
+	DependsOn []string             `json:"depends_on,omitempty"`
+	BlockedBy []string             `json:"blocked_by,omitempty"`
+	Activity  *taskActivitySignals `json:"activity,omitempty"`
+
+	latestRunStart time.Time `json:"-"`
+	latestOutput   string    `json:"-"`
+	latestStdout   string    `json:"-"`
+	latestStderr   string    `json:"-"`
 }
 
 func runStatus(out io.Writer, root, projectID, taskID, statusFilter string, jsonOut, conciseOut bool) error {
+	return runStatusWithOptions(out, root, projectID, taskID, statusFilter, jsonOut, conciseOut, activityOptions{})
+}
+
+func runStatusWithOptions(out io.Writer, root, projectID, taskID, statusFilter string, jsonOut, conciseOut bool, opts activityOptions) error {
 	projectID = strings.TrimSpace(projectID)
 	taskID = strings.TrimSpace(taskID)
 	if projectID == "" {
@@ -108,7 +135,7 @@ func runStatus(out io.Writer, root, projectID, taskID, statusFilter string, json
 
 	rows := make([]statusRow, 0, len(taskIDs))
 	for _, id := range taskIDs {
-		row, err := buildStatusRow(root, projectID, id)
+		row, err := buildStatusRowWithOptions(root, projectID, id, opts)
 		if err != nil {
 			return err
 		}
@@ -127,6 +154,25 @@ func runStatus(out io.Writer, root, projectID, taskID, statusFilter string, json
 			return err
 		}
 		for _, row := range rows {
+			if opts.Enabled {
+				fmt.Fprintf(
+					out,
+					"%s\t%s\t%s\t%s\t%t\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					row.TaskID,
+					row.Status,
+					statusExitCode(row.ExitCode),
+					statusLatestRun(row.LatestRun),
+					row.Done,
+					statusPIDAlive(row.PIDAlive),
+					formatActivityAge(statusActivityAge(row.Activity)),
+					formatActivityRiskFlag(row.Activity),
+					statusActivityBusType(row.Activity),
+					statusActivityBusTimestamp(row.Activity),
+					statusActivityBusPreview(row.Activity),
+					statusActivityOutputRaw(row.Activity),
+				)
+				continue
+			}
 			fmt.Fprintf(
 				out,
 				"%s\t%s\t%s\t%s\t%t\t%s\n",
@@ -142,11 +188,34 @@ func runStatus(out io.Writer, root, projectID, taskID, statusFilter string, json
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "TASK_ID\tSTATUS\tEXIT_CODE\tLATEST_RUN\tDONE\tPID_ALIVE\tBLOCKED_BY")
+	if opts.Enabled {
+		fmt.Fprintln(w, "TASK_ID\tSTATUS\tEXIT_CODE\tLATEST_RUN\tDONE\tPID_ALIVE\tBLOCKED_BY\tLAST_BUS\tLAST_OUTPUT\tMEANINGFUL_AGE\tDRIFT_RISK\tDRIFT_REASON")
+	} else {
+		fmt.Fprintln(w, "TASK_ID\tSTATUS\tEXIT_CODE\tLATEST_RUN\tDONE\tPID_ALIVE\tBLOCKED_BY")
+	}
 	for _, row := range rows {
 		blockedBy := "-"
 		if len(row.BlockedBy) > 0 {
 			blockedBy = strings.Join(row.BlockedBy, ",")
+		}
+		if opts.Enabled {
+			fmt.Fprintf(
+				w,
+				"%s\t%s\t%s\t%s\t%t\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				row.TaskID,
+				row.Status,
+				statusExitCode(row.ExitCode),
+				statusLatestRun(row.LatestRun),
+				row.Done,
+				statusPIDAlive(row.PIDAlive),
+				blockedBy,
+				formatActivityBusSummary(statusActivityBus(row.Activity)),
+				formatActivityTimestamp(statusActivityOutputTimestamp(row.Activity)),
+				formatActivityAge(statusActivityAge(row.Activity)),
+				formatActivityRiskText(row.Activity),
+				statusActivityReason(row.Activity),
+			)
+			continue
 		}
 		fmt.Fprintf(
 			w,
@@ -236,6 +305,10 @@ func statusPIDAlive(alive *bool) string {
 }
 
 func buildStatusRow(root, projectID, taskID string) (statusRow, error) {
+	return buildStatusRowWithOptions(root, projectID, taskID, activityOptions{})
+}
+
+func buildStatusRowWithOptions(root, projectID, taskID string, opts activityOptions) (statusRow, error) {
 	taskDir := filepath.Join(root, projectID, taskID)
 	row := statusRow{
 		TaskID: taskID,
@@ -269,6 +342,7 @@ func buildStatusRow(root, projectID, taskID string) (statusRow, error) {
 					row.BlockedBy = blockedBy
 				}
 			}
+			attachStatusActivity(&row, taskDir, opts)
 			return row, nil
 		}
 		return row, errors.Wrapf(err, "read runs directory for task %s", taskID)
@@ -294,6 +368,7 @@ func buildStatusRow(root, projectID, taskID string) (statusRow, error) {
 				row.BlockedBy = blockedBy
 			}
 		}
+		attachStatusActivity(&row, taskDir, opts)
 		return row, nil
 	}
 
@@ -305,6 +380,7 @@ func buildStatusRow(root, projectID, taskID string) (statusRow, error) {
 	info, err := runstate.ReadRunInfo(infoPath)
 	if err != nil {
 		row.Status = "unknown"
+		attachStatusActivity(&row, taskDir, opts)
 		return row, nil
 	}
 
@@ -315,7 +391,20 @@ func buildStatusRow(root, projectID, taskID string) (statusRow, error) {
 	row.Status = status
 	row.ExitCode = intPointer(info.ExitCode)
 	row.PIDAlive = boolPointer(isRunPIDAlive(info))
+	row.latestRunStart = info.StartTime
+	row.latestOutput = info.OutputPath
+	row.latestStdout = info.StdoutPath
+	row.latestStderr = info.StderrPath
+	attachStatusActivity(&row, taskDir, opts)
 	return row, nil
+}
+
+func attachStatusActivity(row *statusRow, taskDir string, opts activityOptions) {
+	if row == nil || !opts.Enabled {
+		return
+	}
+	signals := collectTaskActivitySignals(taskDir, row.LatestRun, row.Status, row.latestRunStart, row.latestOutput, row.latestStdout, row.latestStderr, opts)
+	row.Activity = &signals
 }
 
 func isRunPIDAlive(info *storage.RunInfo) bool {
@@ -335,6 +424,66 @@ func isRunPIDAlive(info *storage.RunInfo) bool {
 		}
 	}
 	return false
+}
+
+func statusActivityAge(signals *taskActivitySignals) *int64 {
+	if signals == nil {
+		return nil
+	}
+	return signals.MeaningfulSignalAgeSeconds
+}
+
+func statusActivityBus(signals *taskActivitySignals) *activityBusMessage {
+	if signals == nil {
+		return nil
+	}
+	return signals.LatestBusMessage
+}
+
+func statusActivityBusType(signals *taskActivitySignals) string {
+	msg := statusActivityBus(signals)
+	if msg == nil {
+		return "-"
+	}
+	return safeField(msg.Type)
+}
+
+func statusActivityBusTimestamp(signals *taskActivitySignals) string {
+	msg := statusActivityBus(signals)
+	if msg == nil {
+		return "-"
+	}
+	return safeField(msg.Timestamp)
+}
+
+func statusActivityBusPreview(signals *taskActivitySignals) string {
+	msg := statusActivityBus(signals)
+	if msg == nil {
+		return "-"
+	}
+	return safeField(msg.BodyPreview)
+}
+
+func statusActivityOutputTimestamp(signals *taskActivitySignals) *string {
+	if signals == nil {
+		return nil
+	}
+	return signals.LatestOutputActivityAt
+}
+
+func statusActivityOutputRaw(signals *taskActivitySignals) string {
+	ts := statusActivityOutputTimestamp(signals)
+	if ts == nil {
+		return "-"
+	}
+	return safeField(*ts)
+}
+
+func statusActivityReason(signals *taskActivitySignals) string {
+	if signals == nil {
+		return "-"
+	}
+	return safeField(signals.DriftReason)
 }
 
 func intPointer(value int) *int {

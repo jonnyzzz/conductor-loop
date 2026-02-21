@@ -30,6 +30,7 @@
 - [x] Web UI resources bundled with `go:embed` fallback (`web/src`).
 - [x] Fix `task.done` semantics to reflect actual `DONE` marker presence (not merely non-running status).
 - [x] Add first-class status command flow replacing ad-hoc shell loop for latest-run task status (`status`, `exit_code`, `pid_alive`, `DONE`) via `run-agent status --status/--concise` with explicit no-match output (`task-20260222-101250-status-loop-equivalent`).
+- [x] Add CLI progress/activity signals for coordinator monitoring without manual bus file inspection: `run-agent status --activity` and `run-agent list --project ... --activity` now expose latest bus message preview/type/timestamp, latest output/log activity timestamp, meaningful-signal age, and analysis-drift-risk derivation (`task-20260222-101430-cli-progress-signals`).
 
 ### Docs / Process
 

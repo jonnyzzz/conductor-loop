@@ -1425,6 +1425,8 @@ run-agent list [flags]
 | `--task` | string | "" | Task ID (requires `--project`); lists runs for this task if set |
 | `--status` | string | "" | Filter tasks by status: `running`, `active`, `done`, `failed` (only applies when `--project` is set) |
 | `--json` | bool | false | Output as JSON |
+| `--activity` | bool | false | Include per-task progress signals (latest bus message, output/log activity, meaningful-signal age, drift risk) in task-list mode |
+| `--drift-after` | duration | 20m | Drift threshold used by `--activity` to mark `analysis_drift_risk=true` |
 
 **Behavior:**
 - No `--project`: lists all project names in the root directory, one per line
@@ -1432,6 +1434,8 @@ run-agent list [flags]
 - `--project --task`: shows a table of runs with status, exit code, start time, and duration
 - `--task` requires `--project`
 - `--status` filters tasks when `--project` is set; unknown values show all tasks with a warning
+- `--activity` is task-list mode only (`--project` without `--task`)
+- With `--activity`, meaningful bus signals are derived from message types: `FACT`, `DECISION`, `ERROR`, `REVIEW`
 
 **Examples:**
 
@@ -1453,6 +1457,9 @@ run-agent list --root ./runs --project my-project --task task-20260220-140000-he
 
 # JSON output for tasks
 run-agent list --root ./runs --project my-project --json
+
+# Task activity/drift scan for coordinators
+run-agent list --root ./runs --project my-project --status running --activity --drift-after 30m
 ```
 
 **Output examples:**
@@ -1465,10 +1472,16 @@ other-project
 
 Listing tasks (`--project`):
 ```
-TASK_ID                           RUNS  LATEST_STATUS  DONE
-task-20260220-140000-hello        3     success        DONE
-task-20260220-150000-analysis     1     running        -
-task-20260220-160000-failed-task  2     failed         -
+TASK_ID                           RUNS  LATEST_STATUS  DONE  BLOCKED_BY  LAST_ACTIVITY
+task-20260220-140000-hello        3     completed      DONE  -           2026-02-20 14:12
+task-20260220-150000-analysis     1     running        -     -           2026-02-20 15:30
+task-20260220-160000-failed-task  2     failed         -     -           2026-02-20 16:11
+```
+
+Listing tasks with activity signals (`--project --activity`):
+```
+TASK_ID                       RUNS  LATEST_STATUS  DONE  BLOCKED_BY  LAST_ACTIVITY      LAST_BUS                                          LAST_OUTPUT        MEANINGFUL_AGE  DRIFT_RISK  DRIFT_REASON
+task-20260220-150000-analysis 1     running        -     -           2026-02-20 15:30   2026-02-20T15:45:11Z PROGRESS validating paths  2026-02-20 15:46   42m0s           risk        no meaningful bus signal for 42m0s
 ```
 
 Listing runs (`--project --task`):
@@ -1494,8 +1507,37 @@ Listing tasks (`--project --json`):
     {
       "task_id": "task-20260220-140000-hello",
       "runs": 3,
-      "latest_status": "success",
-      "done": true
+      "latest_status": "completed",
+      "done": true,
+      "last_activity": "2026-02-20T14:12:00Z"
+    }
+  ]
+}
+```
+
+Listing tasks with activity signals (`--project --activity --json`):
+```json
+{
+  "tasks": [
+    {
+      "task_id": "task-20260220-150000-analysis",
+      "runs": 1,
+      "latest_status": "running",
+      "done": false,
+      "last_activity": "2026-02-20T15:30:00Z",
+      "activity": {
+        "latest_bus_message": {
+          "timestamp": "2026-02-20T15:45:11Z",
+          "type": "PROGRESS",
+          "body_preview": "validating path handling and collecting edge-case notes"
+        },
+        "latest_output_activity_at": "2026-02-20T15:46:03Z",
+        "last_meaningful_signal_at": "2026-02-20T15:04:40Z",
+        "meaningful_signal_age_seconds": 2520,
+        "analysis_drift_risk": true,
+        "drift_threshold_seconds": 1800,
+        "drift_reason": "no meaningful bus signal for 42m0s"
+      }
     }
   ]
 }
@@ -1536,6 +1578,8 @@ run-agent status --project <id> [flags]
 | `--status` | string | "" | Filter rows by status: `running`, `active`, `completed`, `failed`, `blocked`, `done`, `pending` |
 | `--json` | bool | false | Output as JSON (`{"tasks":[...]}`) |
 | `--concise` | bool | false | Output concise tab-separated rows: `task_id status exit_code latest_run done pid_alive` |
+| `--activity` | bool | false | Include per-task progress signals: latest bus message, latest output/log activity, meaningful-signal age, and drift risk |
+| `--drift-after` | duration | 20m | Drift threshold used by `--activity` to mark `analysis_drift_risk=true` |
 
 **Behavior:**
 - Derives the latest run per task from `<task>/runs/*` (lexicographically last run directory)
@@ -1544,6 +1588,7 @@ run-agent status --project <id> [flags]
 - `--status` filters rows; `active` is an alias for `running`, `done` filters by `DONE` marker, and `pending` matches tasks with no runs (`status = -`)
 - Prints an explicit no-match message when filters yield zero rows (avoids silent output)
 - `--json` and `--concise` are mutually exclusive
+- With `--activity`, meaningful bus signals are derived from message types: `FACT`, `DECISION`, `ERROR`, `REVIEW`
 
 **Examples:**
 
@@ -1556,6 +1601,12 @@ run-agent status --root ./runs --project my-project --status running
 
 # Automation-friendly concise rows
 run-agent status --root ./runs --project my-project --status running --concise
+
+# Coordinator-friendly activity/drift view
+run-agent status --root ./runs --project my-project --status running --activity --drift-after 30m
+
+# JSON activity fields for scripting
+run-agent status --root ./runs --project my-project --status running --activity --json
 ```
 
 **Output examples:**
@@ -1567,14 +1618,54 @@ task-20260220-140000-hello        completed 0         20260220-1401000000-abc123
 task-20260220-150000-analysis     running   -1        20260220-1500000000-def67890   false  true       -
 ```
 
+Table output with activity signals (`--activity`):
+```
+TASK_ID                       STATUS   EXIT_CODE  LATEST_RUN                    DONE   PID_ALIVE  BLOCKED_BY  LAST_BUS                                          LAST_OUTPUT        MEANINGFUL_AGE  DRIFT_RISK  DRIFT_REASON
+task-20260220-150000-analysis running  -1         20260220-1500000000-def67890 false  true       -           2026-02-20T15:45:11Z PROGRESS validating paths  2026-02-20 15:46   42m0s           risk        no meaningful bus signal for 42m0s
+```
+
 Concise output (`--concise`):
 ```
 task-20260220-150000-analysis	running	-1	20260220-1500000000-def67890	false	true
 ```
 
+Concise output with activity (`--concise --activity`):
+```
+task-20260220-150000-analysis	running	-1	20260220-1500000000-def67890	false	true	42m0s	true	PROGRESS	2026-02-20T15:45:11Z	validating paths	2026-02-20T15:46:03Z
+```
+
 No-match output (`--status running --concise` with no active tasks):
 ```
 No status rows matched --status "running" in project my-project.
+```
+
+JSON output with activity (`--activity --json`) adds a stable `activity` object per task:
+```json
+{
+  "tasks": [
+    {
+      "task_id": "task-20260220-150000-analysis",
+      "status": "running",
+      "exit_code": -1,
+      "latest_run": "20260220-1500000000-def67890",
+      "done": false,
+      "pid_alive": true,
+      "activity": {
+        "latest_bus_message": {
+          "timestamp": "2026-02-20T15:45:11Z",
+          "type": "PROGRESS",
+          "body_preview": "validating path handling and collecting edge-case notes"
+        },
+        "latest_output_activity_at": "2026-02-20T15:46:03Z",
+        "last_meaningful_signal_at": "2026-02-20T15:04:40Z",
+        "meaningful_signal_age_seconds": 2520,
+        "analysis_drift_risk": true,
+        "drift_threshold_seconds": 1800,
+        "drift_reason": "no meaningful bus signal for 42m0s"
+      }
+    }
+  ]
+}
 ```
 
 ---

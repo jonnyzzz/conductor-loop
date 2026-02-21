@@ -384,3 +384,114 @@ func TestRunStatusRejectsConciseAndJSON(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestRunStatusJSON_ActivitySignals(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000035-ff"
+	start := time.Date(2026, 2, 21, 22, 0, 0, 0, time.UTC)
+	now := start.Add(40 * time.Minute)
+
+	runDir := makeRunWithPID(t, root, project, task, "run-001", storage.StatusRunning, start, -1, os.Getpid())
+	outputPath := filepath.Join(runDir, "output.md")
+	if err := os.WriteFile(outputPath, []byte("working"), 0o644); err != nil {
+		t.Fatalf("write output.md: %v", err)
+	}
+	outputAt := start.Add(15 * time.Minute)
+	if err := os.Chtimes(outputPath, outputAt, outputAt); err != nil {
+		t.Fatalf("chtimes output.md: %v", err)
+	}
+
+	taskDir := filepath.Join(root, project, task)
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
+	meaningfulAt := start.Add(5 * time.Minute)
+	writeTaskBusMessage(t, busPath, project, task, "FACT", "implemented status parser", meaningfulAt)
+	writeTaskBusMessage(t, busPath, project, task, "PROGRESS", "still exploring edge cases", start.Add(20*time.Minute))
+
+	var buf bytes.Buffer
+	err := runStatusWithOptions(
+		&buf,
+		root,
+		project,
+		task,
+		"",
+		true,
+		false,
+		activityOptions{
+			Enabled:    true,
+			DriftAfter: 20 * time.Minute,
+			Now: func() time.Time {
+				return now
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("runStatusWithOptions: %v", err)
+	}
+
+	var payload statusJSONPayload
+	if err := json.Unmarshal(buf.Bytes(), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if len(payload.Tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(payload.Tasks))
+	}
+
+	row := payload.Tasks[0]
+	if row.Activity == nil {
+		t.Fatalf("expected activity payload")
+	}
+	if row.Activity.LatestBusMessage == nil {
+		t.Fatalf("expected latest_bus_message")
+	}
+	if row.Activity.LatestBusMessage.Type != "PROGRESS" {
+		t.Fatalf("latest bus type=%q, want PROGRESS", row.Activity.LatestBusMessage.Type)
+	}
+	if row.Activity.LatestOutputActivityAt == nil || *row.Activity.LatestOutputActivityAt != outputAt.Format(time.RFC3339) {
+		t.Fatalf("latest_output_activity_at=%v, want %s", row.Activity.LatestOutputActivityAt, outputAt.Format(time.RFC3339))
+	}
+	if row.Activity.LastMeaningfulSignalAt == nil || *row.Activity.LastMeaningfulSignalAt != meaningfulAt.Format(time.RFC3339) {
+		t.Fatalf("last_meaningful_signal_at=%v, want %s", row.Activity.LastMeaningfulSignalAt, meaningfulAt.Format(time.RFC3339))
+	}
+	if row.Activity.MeaningfulSignalAgeSeconds == nil {
+		t.Fatalf("expected meaningful_signal_age_seconds")
+	}
+	if got, want := *row.Activity.MeaningfulSignalAgeSeconds, int64(35*60); got != want {
+		t.Fatalf("meaningful_signal_age_seconds=%d, want %d", got, want)
+	}
+	if !row.Activity.AnalysisDriftRisk {
+		t.Fatalf("expected analysis_drift_risk=true")
+	}
+}
+
+func TestRunStatusText_ActivityColumns(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000036-gg"
+	start := time.Date(2026, 2, 21, 22, 0, 0, 0, time.UTC)
+
+	makeRunWithPID(t, root, project, task, "run-001", storage.StatusRunning, start, -1, os.Getpid())
+	taskDir := filepath.Join(root, project, task)
+	writeTaskBusMessage(t, filepath.Join(taskDir, "TASK-MESSAGE-BUS.md"), project, task, "PROGRESS", "analyzing", start.Add(2*time.Minute))
+
+	var buf bytes.Buffer
+	if err := runStatusWithOptions(
+		&buf,
+		root,
+		project,
+		task,
+		"",
+		false,
+		false,
+		activityOptions{Enabled: true, DriftAfter: 20 * time.Minute, Now: func() time.Time { return start.Add(3 * time.Minute) }},
+	); err != nil {
+		t.Fatalf("runStatusWithOptions: %v", err)
+	}
+
+	output := buf.String()
+	for _, want := range []string{"LAST_BUS", "LAST_OUTPUT", "MEANINGFUL_AGE", "DRIFT_RISK"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("missing %q in output:\n%s", want, output)
+		}
+	}
+}

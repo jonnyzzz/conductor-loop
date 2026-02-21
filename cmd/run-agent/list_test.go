@@ -671,3 +671,100 @@ func TestListTasksStatusInvalid(t *testing.T) {
 		t.Error("task-2 should appear with unknown --status (graceful degradation)")
 	}
 }
+
+func TestListTasksJSON_ActivitySignals(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000020-hh"
+	start := time.Date(2026, 2, 21, 23, 0, 0, 0, time.UTC)
+	now := start.Add(50 * time.Minute)
+
+	runDir := makeRunWithPID(t, root, project, task, "run-001", storage.StatusRunning, start, -1, os.Getpid())
+	outputPath := filepath.Join(runDir, "output.md")
+	if err := os.WriteFile(outputPath, []byte("working"), 0o644); err != nil {
+		t.Fatalf("write output.md: %v", err)
+	}
+	outputAt := start.Add(20 * time.Minute)
+	if err := os.Chtimes(outputPath, outputAt, outputAt); err != nil {
+		t.Fatalf("chtimes output.md: %v", err)
+	}
+
+	taskDir := filepath.Join(root, project, task)
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
+	meaningfulAt := start.Add(10 * time.Minute)
+	writeTaskBusMessage(t, busPath, project, task, "DECISION", "selected implementation path", meaningfulAt)
+	writeTaskBusMessage(t, busPath, project, task, "PROGRESS", "continuing analysis", start.Add(30*time.Minute))
+
+	var buf bytes.Buffer
+	if err := listTasksWithOptions(
+		&buf,
+		root,
+		project,
+		"",
+		true,
+		activityOptions{
+			Enabled:    true,
+			DriftAfter: 20 * time.Minute,
+			Now: func() time.Time {
+				return now
+			},
+		},
+	); err != nil {
+		t.Fatalf("listTasksWithOptions: %v", err)
+	}
+
+	var out map[string][]taskRow
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if len(out["tasks"]) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(out["tasks"]))
+	}
+	row := out["tasks"][0]
+	if row.Activity == nil {
+		t.Fatalf("expected activity payload")
+	}
+	if row.Activity.LastMeaningfulSignalAt == nil || *row.Activity.LastMeaningfulSignalAt != meaningfulAt.Format(time.RFC3339) {
+		t.Fatalf("last_meaningful_signal_at=%v, want %s", row.Activity.LastMeaningfulSignalAt, meaningfulAt.Format(time.RFC3339))
+	}
+	if row.Activity.LatestOutputActivityAt == nil || *row.Activity.LatestOutputActivityAt != outputAt.Format(time.RFC3339) {
+		t.Fatalf("latest_output_activity_at=%v, want %s", row.Activity.LatestOutputActivityAt, outputAt.Format(time.RFC3339))
+	}
+	if !row.Activity.AnalysisDriftRisk {
+		t.Fatalf("expected analysis_drift_risk=true")
+	}
+}
+
+func TestListTasksText_ActivityColumns(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000021-ii"
+	start := time.Date(2026, 2, 21, 23, 0, 0, 0, time.UTC)
+
+	makeRunWithPID(t, root, project, task, "run-001", storage.StatusRunning, start, -1, os.Getpid())
+
+	var buf bytes.Buffer
+	if err := listTasksWithOptions(
+		&buf,
+		root,
+		project,
+		"",
+		false,
+		activityOptions{
+			Enabled:    true,
+			DriftAfter: 20 * time.Minute,
+			Now: func() time.Time {
+				return start.Add(5 * time.Minute)
+			},
+		},
+	); err != nil {
+		t.Fatalf("listTasksWithOptions: %v", err)
+	}
+
+	output := buf.String()
+	for _, want := range []string{"LAST_BUS", "LAST_OUTPUT", "MEANINGFUL_AGE", "DRIFT_RISK"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("missing %q in output:\n%s", want, output)
+		}
+	}
+}

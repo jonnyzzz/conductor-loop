@@ -25,6 +25,8 @@ func newListCmd() *cobra.Command {
 		taskID       string
 		statusFilter string
 		jsonOut      bool
+		activityOut  bool
+		driftAfter   time.Duration
 	)
 
 	cmd := &cobra.Command{
@@ -38,7 +40,18 @@ func newListCmd() *cobra.Command {
 					root = "./runs"
 				}
 			}
-			return runList(cmd.OutOrStdout(), root, projectID, taskID, statusFilter, jsonOut)
+			return runListWithOptions(
+				cmd.OutOrStdout(),
+				root,
+				projectID,
+				taskID,
+				statusFilter,
+				jsonOut,
+				activityOptions{
+					Enabled:    activityOut,
+					DriftAfter: driftAfter,
+				},
+			)
 		},
 	}
 
@@ -47,11 +60,17 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&taskID, "task", "", "task id (requires --project; lists runs if set)")
 	cmd.Flags().StringVar(&statusFilter, "status", "", "filter tasks by status: running, active, done, failed, blocked (only applies when --project is set)")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON")
+	cmd.Flags().BoolVar(&activityOut, "activity", false, "include recent activity signals for task rows (latest bus message, output activity, meaningful-signal age, analysis drift risk)")
+	cmd.Flags().DurationVar(&driftAfter, "drift-after", defaultAnalysisDriftAfter, "mark analysis-drift risk when a running task has no meaningful bus signal for this duration (used with --activity)")
 
 	return cmd
 }
 
 func runList(out io.Writer, root, projectID, taskID, statusFilter string, jsonOut bool) error {
+	return runListWithOptions(out, root, projectID, taskID, statusFilter, jsonOut, activityOptions{})
+}
+
+func runListWithOptions(out io.Writer, root, projectID, taskID, statusFilter string, jsonOut bool, opts activityOptions) error {
 	if projectID == "" && taskID != "" {
 		return fmt.Errorf("--task requires --project")
 	}
@@ -60,7 +79,7 @@ func runList(out io.Writer, root, projectID, taskID, statusFilter string, jsonOu
 	case projectID == "":
 		return listProjects(out, root, jsonOut)
 	case taskID == "":
-		return listTasks(out, root, projectID, statusFilter, jsonOut)
+		return listTasksWithOptions(out, root, projectID, statusFilter, jsonOut, opts)
 	default:
 		return listRuns(out, root, projectID, taskID, jsonOut)
 	}
@@ -96,17 +115,28 @@ func listProjects(out io.Writer, root string, jsonOut bool) error {
 
 // taskRow holds summary data for a task.
 type taskRow struct {
-	TaskID       string `json:"task_id"`
-	Runs         int    `json:"runs"`
-	LatestStatus string `json:"latest_status"`
-	Done         bool   `json:"done"`
-	LastActivity string `json:"last_activity"` // ISO 8601 or ""
-	DependsOn    []string `json:"depends_on,omitempty"`
-	BlockedBy    []string `json:"blocked_by,omitempty"`
+	TaskID       string               `json:"task_id"`
+	Runs         int                  `json:"runs"`
+	LatestStatus string               `json:"latest_status"`
+	Done         bool                 `json:"done"`
+	LastActivity string               `json:"last_activity"` // ISO 8601 or ""
+	DependsOn    []string             `json:"depends_on,omitempty"`
+	BlockedBy    []string             `json:"blocked_by,omitempty"`
+	Activity     *taskActivitySignals `json:"activity,omitempty"`
+
+	latestRunID    string    `json:"-"`
+	latestRunStart time.Time `json:"-"`
+	latestOutput   string    `json:"-"`
+	latestStdout   string    `json:"-"`
+	latestStderr   string    `json:"-"`
 }
 
 // listTasks lists all tasks for a project as a table.
 func listTasks(out io.Writer, root, projectID, statusFilter string, jsonOut bool) error {
+	return listTasksWithOptions(out, root, projectID, statusFilter, jsonOut, activityOptions{})
+}
+
+func listTasksWithOptions(out io.Writer, root, projectID, statusFilter string, jsonOut bool, opts activityOptions) error {
 	projDir := filepath.Join(root, projectID)
 	entries, err := os.ReadDir(projDir)
 	if err != nil {
@@ -161,9 +191,14 @@ func listTasks(out io.Writer, root, projectID, statusFilter string, jsonOut bool
 		if len(runNames) > 0 {
 			sort.Strings(runNames)
 			latest := runNames[len(runNames)-1]
+			row.latestRunID = latest
 			infoPath := filepath.Join(runsDir, latest, "run-info.yaml")
 			if info, err := runstate.ReadRunInfo(infoPath); err == nil {
 				row.LatestStatus = info.Status
+				row.latestRunStart = info.StartTime
+				row.latestOutput = info.OutputPath
+				row.latestStdout = info.StdoutPath
+				row.latestStderr = info.StderrPath
 			}
 		} else if !row.Done && len(dependsOn) > 0 {
 			blockedBy, err := taskdeps.BlockedBy(root, projectID, dependsOn)
@@ -176,6 +211,7 @@ func listTasks(out io.Writer, root, projectID, statusFilter string, jsonOut bool
 			}
 		}
 
+		attachListTaskActivity(&row, taskDir, opts)
 		rows = append(rows, row)
 	}
 
@@ -190,7 +226,11 @@ func listTasks(out io.Writer, root, projectID, statusFilter string, jsonOut bool
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "TASK_ID\tRUNS\tLATEST_STATUS\tDONE\tBLOCKED_BY\tLAST_ACTIVITY")
+	if opts.Enabled {
+		fmt.Fprintln(w, "TASK_ID\tRUNS\tLATEST_STATUS\tDONE\tBLOCKED_BY\tLAST_ACTIVITY\tLAST_BUS\tLAST_OUTPUT\tMEANINGFUL_AGE\tDRIFT_RISK\tDRIFT_REASON")
+	} else {
+		fmt.Fprintln(w, "TASK_ID\tRUNS\tLATEST_STATUS\tDONE\tBLOCKED_BY\tLAST_ACTIVITY")
+	}
 	for _, row := range rows {
 		done := "-"
 		if row.Done {
@@ -206,9 +246,72 @@ func listTasks(out io.Writer, root, projectID, statusFilter string, jsonOut bool
 				lastActivity = t.Local().Format("2006-01-02 15:04")
 			}
 		}
+		if opts.Enabled {
+			fmt.Fprintf(
+				w,
+				"%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				row.TaskID,
+				row.Runs,
+				row.LatestStatus,
+				done,
+				blockedBy,
+				lastActivity,
+				formatActivityBusSummary(listActivityBus(row.Activity)),
+				formatActivityTimestamp(listActivityOutputTimestamp(row.Activity)),
+				formatActivityAge(listActivityAge(row.Activity)),
+				formatActivityRiskText(row.Activity),
+				listActivityReason(row.Activity),
+			)
+			continue
+		}
 		fmt.Fprintf(w, "%s\t%d\t%s\t%s\t%s\t%s\n", row.TaskID, row.Runs, row.LatestStatus, done, blockedBy, lastActivity)
 	}
 	return w.Flush()
+}
+
+func attachListTaskActivity(row *taskRow, taskDir string, opts activityOptions) {
+	if row == nil || !opts.Enabled {
+		return
+	}
+	signals := collectTaskActivitySignals(
+		taskDir,
+		row.latestRunID,
+		row.LatestStatus,
+		row.latestRunStart,
+		row.latestOutput,
+		row.latestStdout,
+		row.latestStderr,
+		opts,
+	)
+	row.Activity = &signals
+}
+
+func listActivityAge(signals *taskActivitySignals) *int64 {
+	if signals == nil {
+		return nil
+	}
+	return signals.MeaningfulSignalAgeSeconds
+}
+
+func listActivityBus(signals *taskActivitySignals) *activityBusMessage {
+	if signals == nil {
+		return nil
+	}
+	return signals.LatestBusMessage
+}
+
+func listActivityOutputTimestamp(signals *taskActivitySignals) *string {
+	if signals == nil {
+		return nil
+	}
+	return signals.LatestOutputActivityAt
+}
+
+func listActivityReason(signals *taskActivitySignals) string {
+	if signals == nil {
+		return "-"
+	}
+	return safeField(signals.DriftReason)
 }
 
 // runRow holds summary data for a run.
