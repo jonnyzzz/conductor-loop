@@ -80,10 +80,10 @@ func ParseStreamJSON(data []byte) (string, bool) {
 	return strings.Join(textParts, "\n"), true
 }
 
-// writeOutputMDFromStream parses the Claude stream-json stdout file and writes
+// WriteOutputMDFromStream parses the Claude stream-json stdout file and writes
 // the extracted final text to output.md in runDir. It is a no-op if output.md
 // already exists. Returns an error if the stdout cannot be parsed.
-func writeOutputMDFromStream(runDir, stdoutPath string) error {
+func WriteOutputMDFromStream(runDir, stdoutPath string) error {
 	outputPath := filepath.Join(runDir, "output.md")
 	if _, err := os.Stat(outputPath); err == nil {
 		return nil // already exists, don't overwrite

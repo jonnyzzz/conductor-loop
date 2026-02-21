@@ -129,8 +129,10 @@ export function App() {
             runInfo={runInfoQuery.data}
             selectedRunId={effectiveRunId}
             onSelectRun={(runId) => {
+              const run = taskQuery.data?.runs?.find((r) => r.id === runId)
+              const firstFile = run?.files?.[0]?.name ?? defaultRunFile
               setSelectedRunId(runId)
-              setRunFileName(defaultRunFile)
+              setRunFileName(firstFile)
             }}
             fileName={runFileName}
             onSelectFile={setRunFileName}

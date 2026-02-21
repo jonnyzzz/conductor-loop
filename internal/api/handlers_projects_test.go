@@ -138,7 +138,7 @@ func TestServeRunFileStream_RunNotFound(t *testing.T) {
 	}
 }
 
-func TestRunFile_OutputMdFallback(t *testing.T) {
+func TestRunFile_OutputMdMissing(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
 	if err != nil {
@@ -151,21 +151,9 @@ func TestRunFile_OutputMdFallback(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	rec := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 for fallback, got %d: %s", rec.Code, rec.Body.String())
-	}
-	var resp map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal response: %v", err)
-	}
-	if resp["fallback"] != "agent-stdout.txt" {
-		t.Errorf("expected fallback=agent-stdout.txt, got %v", resp["fallback"])
-	}
-	if !strings.Contains(resp["content"].(string), "stdout content") {
-		t.Errorf("expected stdout content in response, got: %v", resp["content"])
-	}
-	if resp["name"] != "output.md" {
-		t.Errorf("expected name=output.md, got %v", resp["name"])
+	// output.md is missing and there is no fallback — expect 404
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 when output.md missing, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

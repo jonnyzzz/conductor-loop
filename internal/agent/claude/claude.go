@@ -81,7 +81,7 @@ func (a *ClaudeAgent) Execute(ctx context.Context, runCtx *agent.RunContext) (er
 	// Non-fatal: if parsing fails the caller's CreateOutputMD fallback handles it.
 	if runCtx.StdoutPath != "" {
 		runDir := filepath.Dir(runCtx.StdoutPath)
-		_ = writeOutputMDFromStream(runDir, runCtx.StdoutPath)
+		_ = WriteOutputMDFromStream(runDir, runCtx.StdoutPath)
 	}
 
 	return nil
