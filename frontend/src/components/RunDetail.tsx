@@ -26,6 +26,7 @@ export function RunDetail({
   onDeleteRun,
   onDeleteTask,
   onStopRun,
+  onResumeTask,
 }: {
   task?: TaskDetail
   runInfo?: RunInfo
@@ -38,6 +39,7 @@ export function RunDetail({
   onDeleteRun?: (runId: string) => void
   onDeleteTask?: (taskId: string) => void
   onStopRun?: (runId: string) => void
+  onResumeTask?: (taskId: string) => void
 }) {
   const [runFilter, setRunFilter] = useState<RunStatusFilter>('all')
 
@@ -55,19 +57,33 @@ export function RunDetail({
           <div className="panel-title">Run detail</div>
           <div className="panel-subtitle">{task?.id ?? 'Select a task'}</div>
         </div>
-        {task && task.status !== 'running' && onDeleteTask && (
+        {task && task.status !== 'running' && (onDeleteTask || (onResumeTask && task.done)) && (
           <div className="panel-actions">
-            <Button
-              inline
-              danger
-              onClick={() => {
-                if (window.confirm(`Delete task ${task.id} and all its runs? This cannot be undone.`)) {
-                  onDeleteTask(task.id)
-                }
-              }}
-            >
-              Delete task
-            </Button>
+            {onResumeTask && task.done && (
+              <Button
+                inline
+                onClick={() => {
+                  if (window.confirm(`Resume task ${task.id}? This will clear the DONE marker.`)) {
+                    onResumeTask(task.id)
+                  }
+                }}
+              >
+                Resume task
+              </Button>
+            )}
+            {onDeleteTask && (
+              <Button
+                inline
+                danger
+                onClick={() => {
+                  if (window.confirm(`Delete task ${task.id} and all its runs? This cannot be undone.`)) {
+                    onDeleteTask(task.id)
+                  }
+                }}
+              >
+                Delete task
+              </Button>
+            )}
           </div>
         )}
       </div>

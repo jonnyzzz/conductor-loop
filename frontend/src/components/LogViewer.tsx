@@ -23,6 +23,14 @@ function formatLine(line: LogLine) {
   return ansi.toHtml(prefix + line.line)
 }
 
+function formatAgo(ms: number): string {
+  const s = Math.floor(ms / 1000)
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  return `${Math.floor(m / 60)}h ago`
+}
+
 export function LogViewer({
   streamUrl,
   initialLines = [],
@@ -38,6 +46,21 @@ export function LogViewer({
   const [runFilter, setRunFilter] = useState('')
   const [autoScroll, setAutoScroll] = useState(true)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const [lastLogTime, setLastLogTime] = useState<number | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 5000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const heartbeatStatus = useMemo(() => {
+    if (lastLogTime === null) return 'none'
+    const age = now - lastLogTime
+    if (age < 30_000) return 'recent'
+    if (age < 120_000) return 'stale'
+    return 'silent'
+  }, [lastLogTime, now])
 
   const pushLine = useCallback(
     (line: LogEvent) => {
@@ -48,6 +71,7 @@ export function LogViewer({
         }
         return next
       })
+      setLastLogTime(Date.now())
     },
     [maxLines]
   )
@@ -139,6 +163,11 @@ export function LogViewer({
           <div className="panel-subtitle">Streaming via SSE</div>
         </div>
         <div className="panel-actions">
+          {heartbeatStatus !== 'none' && (
+            <span className={clsx('heartbeat-badge', `heartbeat-${heartbeatStatus}`)}>
+              Last output: {formatAgo(now - (lastLogTime ?? 0))}
+            </span>
+          )}
           <Button inline onClick={() => setLines([])}>Clear</Button>
           <Button inline onClick={exportLogs}>Export</Button>
         </div>

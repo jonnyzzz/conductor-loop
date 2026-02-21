@@ -179,6 +179,13 @@ export class APIClient {
   async getProjectStats(projectId: string): Promise<ProjectStats> {
     return this.request<ProjectStats>(`/api/projects/${encodeURIComponent(projectId)}/stats`)
   }
+
+  async resumeTask(projectId: string, taskId: string): Promise<{ task_id: string; resumed: boolean }> {
+    return this.request<{ task_id: string; resumed: boolean }>(
+      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/resume`,
+      { method: 'POST' }
+    )
+  }
 }
 
 export const createClient = () => {

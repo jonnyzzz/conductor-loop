@@ -4,7 +4,7 @@ import { TaskList } from './components/TaskList'
 import { RunDetail } from './components/RunDetail'
 import { LogViewer } from './components/LogViewer'
 import { MessageBus } from './components/MessageBus'
-import { useDeleteRun, useDeleteTask, useProjects, useRunFile, useRunInfo, useStopRun, useTask, useTaskFile, useTasks } from './hooks/useAPI'
+import { useDeleteRun, useDeleteTask, useProjects, useResumeTask, useRunFile, useRunInfo, useStopRun, useTask, useTaskFile, useTasks } from './hooks/useAPI'
 
 const defaultRunFile = 'output.md'
 
@@ -30,6 +30,7 @@ export function App() {
   const deleteRunMutation = useDeleteRun(effectiveProjectId, effectiveTaskId)
   const deleteTaskMutation = useDeleteTask(effectiveProjectId)
   const stopRunMutation = useStopRun(effectiveProjectId, effectiveTaskId)
+  const resumeTaskMutation = useResumeTask(effectiveProjectId)
 
   const logStreamUrl = effectiveProjectId && effectiveTaskId
     ? `/api/projects/${effectiveProjectId}/tasks/${effectiveTaskId}/runs/stream`
@@ -153,6 +154,9 @@ export function App() {
             }}
             onStopRun={(runId) => {
               stopRunMutation.mutate(runId)
+            }}
+            onResumeTask={(taskId) => {
+              resumeTaskMutation.mutate(taskId)
             }}
           />
         </section>

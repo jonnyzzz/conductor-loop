@@ -167,3 +167,14 @@ export function usePostProjectMessage(projectId?: string) {
       api.postProjectMessage(projectId ?? '', { type: payload.type, message: payload.message }),
   })
 }
+
+export function useResumeTask(projectId?: string) {
+  const api = useAPIClient()
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (taskId: string) => api.resumeTask(projectId ?? '', taskId),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['tasks', projectId] })
+    },
+  })
+}
