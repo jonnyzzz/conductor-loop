@@ -171,3 +171,19 @@ Message: Spec review found implementation blockers: (1) run-agent job/task CLI c
 
 [2026-02-04T21:09:53Z] type=info project=swarm task=planning
 Message: Spec review pass completed. Noted blockers/gaps: missing run-agent job/task CLI contract (flags for project/task/agent/cwd/parent/run lineage), message-bus concurrent writes can lose messages due to temp+swap w/o locking, log SSE 'since' cannot be honored without per-line timestamps/offsets, run_id/msg_id format inconsistencies across storage/API examples, and project-level attachment storage not defined. Logged medium gaps around Ralph loop termination logic, status enum/derivation, and REST adapter process/pid semantics for Perplexity.
+
+[2026-02-21T19:30:00Z] type=task project=swarm task=release-update
+Message: Logged new run-agent task for swarm: review and implement simplified devrig release/update flow based on `/Users/jonnyzzz/Work/devrig/release-process/sync-release.sh` and `/Users/jonnyzzz/Work/devrig/cli/bootstrap/devrig`. Target: always run latest tool build from controlled domain `run-agent.jonnyzzz.com`, sourced from GitHub Releases, preserving checksum/signature validation. Task spec: `tasks/TASK-20260221-devrig-release-update-simplification.md`.
+
+[2026-02-21T22:07:14Z] type=task project=swarm task=release-update-latest-bootstrap
+Message: Logged one more run-agent swarm task focused on implementing a stricter always-latest updater path from `~/Work/devrig*`: bootstrap must always resolve latest binary from GitHub Releases via controlled domain `run-agent.jonnyzzz.com`, with deterministic platform mapping and checksum/signature verification preserved. Task spec: `tasks/TASK-20260221-devrig-release-latest-bootstrap-domain.md`.
+
+---
+msg_id: MSG-20260221-220836-451050000-PID84610-0001
+ts: 2026-02-21T22:08:36.451054Z
+type: INFO
+project_id: swarm
+task_id: release-update-latest-bootstrap
+run_id: ""
+---
+Switching to binary-managed message bus operations. This task and follow-ups are now logged via run-agent bus commands rather than manual file edits.
