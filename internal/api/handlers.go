@@ -50,13 +50,15 @@ type TaskResponse struct {
 
 // RunResponse defines run metadata returned by the API.
 type RunResponse struct {
-	RunID     string    `json:"run_id"`
-	ProjectID string    `json:"project_id"`
-	TaskID    string    `json:"task_id"`
-	Status    string    `json:"status"`
-	StartTime time.Time `json:"start_time"`
-	EndTime   time.Time `json:"end_time,omitempty"`
-	ExitCode  int       `json:"exit_code,omitempty"`
+	RunID        string    `json:"run_id"`
+	ProjectID    string    `json:"project_id"`
+	TaskID       string    `json:"task_id"`
+	Status       string    `json:"status"`
+	StartTime    time.Time `json:"start_time"`
+	EndTime      time.Time `json:"end_time,omitempty"`
+	ExitCode     int       `json:"exit_code,omitempty"`
+	AgentVersion string    `json:"agent_version,omitempty"`
+	ErrorSummary string    `json:"error_summary,omitempty"`
 }
 
 // MessageResponse defines the message bus entry payload.
@@ -638,13 +640,15 @@ func runInfoToResponse(info *storage.RunInfo) RunResponse {
 		return RunResponse{}
 	}
 	return RunResponse{
-		RunID:     info.RunID,
-		ProjectID: info.ProjectID,
-		TaskID:    info.TaskID,
-		Status:    info.Status,
-		StartTime: info.StartTime,
-		EndTime:   info.EndTime,
-		ExitCode:  info.ExitCode,
+		RunID:        info.RunID,
+		ProjectID:    info.ProjectID,
+		TaskID:       info.TaskID,
+		Status:       info.Status,
+		StartTime:    info.StartTime,
+		EndTime:      info.EndTime,
+		ExitCode:     info.ExitCode,
+		AgentVersion: info.AgentVersion,
+		ErrorSummary: info.ErrorSummary,
 	}
 }
 

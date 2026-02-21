@@ -495,3 +495,85 @@ func TestHandleTaskCreate_Attach_DoesNotOverwriteTaskMD(t *testing.T) {
 		t.Fatalf("TASK.md was overwritten: got %q, want %q", string(content), original)
 	}
 }
+
+func TestRunInfoToResponse_AgentVersion(t *testing.T) {
+	info := &storage.RunInfo{
+		RunID:        "run-1",
+		ProjectID:    "project",
+		TaskID:       "task",
+		Status:       storage.StatusCompleted,
+		AgentVersion: "2.1.50 (Claude Code)",
+		ErrorSummary: "agent reported failure",
+	}
+	resp := runInfoToResponse(info)
+	if resp.AgentVersion != "2.1.50 (Claude Code)" {
+		t.Fatalf("expected AgentVersion=%q, got %q", "2.1.50 (Claude Code)", resp.AgentVersion)
+	}
+	if resp.ErrorSummary != "agent reported failure" {
+		t.Fatalf("expected ErrorSummary=%q, got %q", "agent reported failure", resp.ErrorSummary)
+	}
+}
+
+func TestRunInfoToResponse_EmptyAgentVersion(t *testing.T) {
+	info := &storage.RunInfo{
+		RunID:     "run-2",
+		ProjectID: "project",
+		TaskID:    "task",
+		Status:    storage.StatusCompleted,
+	}
+	resp := runInfoToResponse(info)
+	if resp.AgentVersion != "" {
+		t.Fatalf("expected empty AgentVersion for REST agent, got %q", resp.AgentVersion)
+	}
+}
+
+func TestRunInfoToResponse_Nil(t *testing.T) {
+	resp := runInfoToResponse(nil)
+	if resp.RunID != "" {
+		t.Fatalf("expected zero RunResponse for nil info, got %+v", resp)
+	}
+}
+
+func TestHandleRunGet_ErrorSummary(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	runDir := filepath.Join(root, "project", "task", "runs", "run-fail")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	now := time.Now().UTC()
+	info := &storage.RunInfo{
+		RunID:        "run-fail",
+		ProjectID:    "project",
+		TaskID:       "task",
+		Status:       storage.StatusFailed,
+		StartTime:    now,
+		EndTime:      now.Add(5 * time.Second),
+		ExitCode:     1,
+		ErrorSummary: "agent exited with non-zero code",
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/runs/run-fail", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp RunResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.ErrorSummary != "agent exited with non-zero code" {
+		t.Fatalf("expected error_summary=%q, got %q", "agent exited with non-zero code", resp.ErrorSummary)
+	}
+	if resp.Status != storage.StatusFailed {
+		t.Fatalf("expected status=failed, got %s", resp.Status)
+	}
+}

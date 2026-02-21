@@ -140,7 +140,7 @@ Claude CLI and Codex CLI are evolving rapidly. Flag changes, output format chang
 - [ ] Add integration test suite for multiple CLI versions (deferred)
 - [ ] Document supported versions in README (deferred)
 - [x] `run-agent validate` subcommand — IMPLEMENTED in cmd/run-agent/validate.go (checks CLI PATH, version, token availability for all configured agents)
-- [ ] Persist agent_version in run-info.yaml (deferred)
+- [x] Persist agent_version in run-info.yaml — DONE: RunInfo.AgentVersion field (yaml:"agent_version"), detectAgentVersion() in job.go, exposed in RunResponse API
 
 **Resolution**:
 Session #3: Added ValidateAgent with CLI detection via `--version` flag.
