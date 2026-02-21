@@ -213,7 +213,7 @@ func TestNestedRuns(t *testing.T) {
 			WorkingDir:  taskDir,
 			ParentRunID: "root-run",
 			Environment: map[string]string{
-				envOrchStubSleepMs: "400",
+				envOrchStubSleepMs: "800",
 				envOrchStubStdout:  "child-one",
 			},
 		})
@@ -226,13 +226,34 @@ func TestNestedRuns(t *testing.T) {
 			WorkingDir:  taskDir,
 			ParentRunID: "child-run",
 			Environment: map[string]string{
-				envOrchStubSleepMs: "250",
+				envOrchStubSleepMs: "500",
 				envOrchStubStdout:  "child-two",
 			},
 		})
 	}()
 
-	time.Sleep(150 * time.Millisecond)
+	// Poll until both children have registered their run-info.yaml with status=running.
+	// This avoids a race where RunTask calls FindActiveChildren before the goroutines
+	// have finished their setup (dir creation + agent version detection + process spawn).
+	runsDir := filepath.Join(taskDir, "runs")
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		entries, _ := os.ReadDir(runsDir)
+		runningCount := 0
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			info, err := storage.ReadRunInfo(filepath.Join(runsDir, e.Name(), "run-info.yaml"))
+			if err == nil && info.Status == storage.StatusRunning {
+				runningCount++
+			}
+		}
+		if runningCount >= 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	start := time.Now()
 	err := runner.RunTask(projectID, taskID, runner.TaskOptions{
