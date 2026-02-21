@@ -3897,3 +3897,106 @@ New `--follow` flag for `conductor job submit`:
 - HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
 - MEDIUM: 0 open, 0 partially resolved, 6 resolved
 - LOW: 0 open, 0 partially resolved, 2 resolved
+
+---
+msg_id: MSG-20260221-SESSION49-START
+ts: 2026-02-21T10:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 10:00:00] ==========================================
+[2026-02-21 10:00:00] SESSION: 2026-02-21 Session #49
+[2026-02-21 10:00:00] ==========================================
+[2026-02-21 10:00:00] FACT: go build ./... PASS (conductor + run-agent binaries ready)
+[2026-02-21 10:00:00] FACT: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS
+[2026-02-21 10:00:00] FACT: Issues: 0 fully open, 3 partially resolved (Windows-only deferred items)
+[2026-02-21 10:00:00] DECISION: Session #49 work items:
+[2026-02-21 10:00:00]   (1) Feature: conductor project delete - delete entire project via API+CLI
+[2026-02-21 10:00:00]   (2) Feature: conductor task list --status - filter tasks by status (running/done/failed)
+[2026-02-21 10:00:00]   Both improve cleanup and observability in the dog-food workflow
+[2026-02-21 10:00:00] PROGRESS: Writing prompt files and dispatching 2 parallel sub-agents
+[2026-02-21 10:13:00] FACT: Sub-agent A task ID: task-20260221-071317-cph7fq (conductor project delete)
+[2026-02-21 10:13:00] FACT: Sub-agent B task ID: task-20260221-071319-y066km (conductor task list --status filter)
+[2026-02-21 10:13:00] PROGRESS: Both sub-agents running in parallel via ./bin/run-agent job
+[2026-02-21 08:21:18] FACT: Scenario 1 (single agent) passed
+[2026-02-21 08:21:18] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 08:21:18] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 08:21:18] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 08:21:18] FACT: All acceptance tests passed
+
+[2026-02-21 10:20:00] FACT: Sub-agent A (task-20260221-071317-cph7fq): conductor project delete — DONE (exit_code=0, ~4m)
+[2026-02-21 10:20:00] FACT: Sub-agent B (task-20260221-071319-y066km): task list --status filter — DONE (exit_code=0, ~4m)
+[2026-02-21 10:20:00] FACT: Both features committed: 2b1ddcb (task list filter), 1d09a18 (project delete)
+[2026-02-21 10:20:00] QUALITY: go build ./...: PASS
+[2026-02-21 10:20:00] QUALITY: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+[2026-02-21 10:20:00] QUALITY: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+[2026-02-21 10:20:00] FACT: Docs updated: conductor project delete + conductor task list --status added to cli-reference.md (commit 432aff1)
+
+---
+msg_id: MSG-20260221-SESSION49-END
+ts: 2026-02-21T10:20:00Z
+type: SESSION_END
+project_id: conductor-loop
+---
+
+## Session #49 Summary (2026-02-21)
+
+### Features Implemented (via 2 parallel dog-food sub-agents)
+
+**feat(api+cli): add --status filter to conductor task list** (commit 2b1ddcb)
+
+Changes:
+- `internal/api/handlers_projects.go` — `filterTasksByStatus()` function applied after task list is built
+  - `running`/`active` → tasks with Status == "running"
+  - `done` → tasks where `<taskDir>/DONE` file exists
+  - `failed` → tasks with Status == "failed"
+  - unknown → graceful degradation, returns all tasks
+- `cmd/conductor/task.go` — `--status` flag in `newTaskListCmd()`, passed as `?status=` query param
+- `cmd/conductor/commands_test.go` — 4 new tests: `TestTaskListStatusRunning`, `TestTaskListStatusDone`, `TestTaskListNoStatus`, `TestTaskListStatusFlagRegistered`
+- `internal/api/handlers_projects_test.go` — status filter tests (276 lines)
+
+**Why**: When a project has many tasks (dozens of dog-food sub-agent tasks), operators need to quickly filter to see only running, done, or failed tasks. Without filtering, you must scan all tasks visually.
+
+**feat(api+cli): add conductor project delete command** (commit 1d09a18)
+
+Changes:
+- `internal/api/handlers_projects.go` — `handleProjectDelete()` function
+  - Returns 409 if running tasks exist (unless `?force=true`)
+  - With force=true: stops running tasks via SIGTERM, then deletes
+  - Returns `{"project_id": ..., "deleted_tasks": N, "freed_bytes": N}`
+- `cmd/conductor/project.go` — `newProjectDeleteCmd()` + `projectDelete()` + `projectDeleteResponse`
+  - `--force` flag to stop running tasks and delete anyway
+  - `--json` flag for machine-readable output
+  - Display: "Project X deleted (N tasks, X MB freed)."
+- 5 API tests + 4 CLI tests
+
+**Why**: Previously operators could only delete tasks one by one. `conductor project delete` enables clean removal of an entire project (all tasks + all runs) in one command — essential for test cleanup.
+
+**docs(cli): add new commands to cli-reference.md** (commit 432aff1)
+- `conductor task list` section updated with `--status` flag documentation
+- New `conductor project delete` section added
+
+### Dog-Food Success
+- Both tasks dispatched via `./bin/run-agent job` (parallel)
+- task-20260221-071317-cph7fq: project delete — DONE (exit_code=0)
+- task-20260221-071319-y066km: task list filter — DONE (exit_code=0)
+- Sub-agent B also included project delete API handler in its commit (2b1ddcb)
+- Sub-agent A committed only the CLI part (1d09a18) since API was already present
+
+### Quality Gates
+- go build ./...: PASS
+- go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+- ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+
+### Commits This Session
+- 2b1ddcb: feat(api+cli): add --status filter to conductor task list
+- 1d09a18: feat(api+cli): add conductor project delete command
+- 432aff1: docs(cli): add conductor project delete and task list --status to cli-reference
+
+### Issue Status (unchanged)
+- CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows file locking), 5 resolved
+- HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+
