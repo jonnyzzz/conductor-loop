@@ -95,6 +95,7 @@ type taskRow struct {
 	Runs         int    `json:"runs"`
 	LatestStatus string `json:"latest_status"`
 	Done         bool   `json:"done"`
+	LastActivity string `json:"last_activity"` // ISO 8601 or ""
 }
 
 // listTasks lists all tasks for a project as a table.
@@ -121,6 +122,11 @@ func listTasks(out io.Writer, root, projectID string, jsonOut bool) error {
 			row.Done = true
 		}
 
+		// Record task dir modification time as last activity
+		if info, err := e.Info(); err == nil {
+			row.LastActivity = info.ModTime().UTC().Format(time.RFC3339)
+		}
+
 		runsDir := filepath.Join(taskDir, "runs")
 		runEntries, err := os.ReadDir(runsDir)
 		if err != nil && !os.IsNotExist(err) {
@@ -135,7 +141,11 @@ func listTasks(out io.Writer, root, projectID string, jsonOut bool) error {
 		}
 		row.Runs = len(runNames)
 
-		row.LatestStatus = "unknown"
+		// Determine status: "-" when no runs, "done" when DONE file exists and no runs
+		row.LatestStatus = "-"
+		if row.Done && len(runNames) == 0 {
+			row.LatestStatus = "done"
+		}
 		if len(runNames) > 0 {
 			sort.Strings(runNames)
 			latest := runNames[len(runNames)-1]
@@ -157,13 +167,19 @@ func listTasks(out io.Writer, root, projectID string, jsonOut bool) error {
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "TASK_ID\tRUNS\tLATEST_STATUS\tDONE")
+	fmt.Fprintln(w, "TASK_ID\tRUNS\tLATEST_STATUS\tDONE\tLAST_ACTIVITY")
 	for _, row := range rows {
 		done := "-"
 		if row.Done {
 			done = "DONE"
 		}
-		fmt.Fprintf(w, "%s\t%d\t%s\t%s\n", row.TaskID, row.Runs, row.LatestStatus, done)
+		lastActivity := "-"
+		if row.LastActivity != "" {
+			if t, err := time.Parse(time.RFC3339, row.LastActivity); err == nil {
+				lastActivity = t.Local().Format("2006-01-02 15:04")
+			}
+		}
+		fmt.Fprintf(w, "%s\t%d\t%s\t%s\t%s\n", row.TaskID, row.Runs, row.LatestStatus, done, lastActivity)
 	}
 	return w.Flush()
 }

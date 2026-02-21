@@ -313,6 +313,110 @@ func TestListRunsDuration(t *testing.T) {
 	}
 }
 
+func TestListTasks_EmptyRunsNoDONE(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000001-aa"
+	taskDir := filepath.Join(root, project, task)
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if strings.Contains(output, "unknown") {
+		t.Errorf("should not show 'unknown' for task with no runs and no DONE file; got:\n%s", output)
+	}
+	// The tabwriter formats with spaces; check the data row has "-" for LATEST_STATUS
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected at least 2 lines (header + data), got %d", len(lines))
+	}
+	// Data line should contain "  -  " (spaces around "-" for LATEST_STATUS and DONE columns)
+	if !strings.Contains(lines[1], "  -  ") {
+		t.Errorf("expected '-' status in data line; got: %q", lines[1])
+	}
+}
+
+func TestListTasks_EmptyRunsWithDONE(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000001-aa"
+	taskDir := filepath.Join(root, project, task)
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if strings.Contains(output, "unknown") {
+		t.Errorf("should not show 'unknown' for done task with no runs; got:\n%s", output)
+	}
+	if !strings.Contains(output, "done") {
+		t.Errorf("expected 'done' status for task with DONE file and no runs; got:\n%s", output)
+	}
+	if !strings.Contains(output, "DONE") {
+		t.Errorf("expected 'DONE' in DONE column; got:\n%s", output)
+	}
+}
+
+func TestListTasks_LastActivityColumn(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	now := time.Now().UTC().Truncate(time.Second)
+
+	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusCompleted, now.Add(-time.Minute), 0)
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "LAST_ACTIVITY") {
+		t.Errorf("expected LAST_ACTIVITY header in output:\n%s", output)
+	}
+}
+
+func TestListTasksJSON_LastActivity(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	now := time.Now().UTC()
+
+	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusCompleted, now.Add(-time.Minute), 0)
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out map[string][]taskRow
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if len(out["tasks"]) != 1 {
+		t.Fatalf("expected 1 task in JSON, got %d", len(out["tasks"]))
+	}
+	if out["tasks"][0].LastActivity == "" {
+		t.Error("expected non-empty last_activity field in JSON output")
+	}
+	// Verify it parses as RFC3339
+	if _, err := time.Parse(time.RFC3339, out["tasks"][0].LastActivity); err != nil {
+		t.Errorf("last_activity %q is not valid RFC3339: %v", out["tasks"][0].LastActivity, err)
+	}
+}
+
 func TestListRequiresProjectForTask(t *testing.T) {
 	var buf bytes.Buffer
 	err := runList(&buf, "./runs", "", "some-task", false)
