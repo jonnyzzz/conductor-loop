@@ -3471,3 +3471,56 @@ project_id: conductor-loop
 [2026-02-21 06:50:57] FACT: Scenario 3 (Ralph wait) passed
 [2026-02-21 06:50:57] FACT: Scenario 4 (message bus race) passed
 [2026-02-21 06:50:57] FACT: All acceptance tests passed
+
+[2026-02-21 07:10:00] FACT: Sub-agent completed (exit_code: 0) — task_logs.go + task_logs_test.go created
+[2026-02-21 07:10:00] FACT: conductor task logs implementation reviewed and verified
+[2026-02-21 07:10:00] FACT: All 11 new tests pass (TestTaskLogsNormalStreaming, TestTaskLogsEmptyOutput,
+[2026-02-21 07:10:00]       TestTaskLogsAutoDetectLatestRun, TestTaskLogsExplicitRunID, TestTaskLogsTaskNotFound,
+[2026-02-21 07:10:00]       TestTaskLogsStreamNotFound, TestTaskLogsTail, TestTaskLogsNoRuns,
+[2026-02-21 07:10:00]       TestTaskLogsHeartbeat, TestTaskLogsCmdHelp, TestTaskLogsAppearsInTaskHelp)
+[2026-02-21 07:10:00] FACT: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+[2026-02-21 07:10:00] FACT: docs/user/cli-reference.md updated with conductor task logs section
+[2026-02-21 07:10:00] FACT: Commit: a77fd06 feat(cli): add conductor task logs command for streaming task output
+
+---
+msg_id: MSG-20260221-SESSION44-END
+ts: 2026-02-21T07:15:00Z
+type: SESSION_END
+project_id: conductor-loop
+---
+
+## Session #44 Summary (2026-02-21)
+
+### Feature Implemented
+
+**feat(cli): add conductor task logs command for streaming task output** (commit a77fd06)
+
+New `conductor task logs <task-id>` subcommand:
+- `cmd/conductor/task_logs.go` — implementation (223 lines)
+- `cmd/conductor/task_logs_test.go` — 11 tests (370 lines)
+- `cmd/conductor/task.go` — registered newTaskLogsCmd()
+- `docs/user/cli-reference.md` — documentation added
+
+**Features**:
+- Auto-detects latest run (prefers running run over most recent completed)
+- `--run` flag to stream a specific run ID
+- `--follow` flag: keep reconnecting on connection drop (exponential backoff 2s→30s)
+- `--tail N` flag: buffer all lines and print only the last N on completion
+- `--project` and `--server` flags consistent with all other conductor commands
+- Parses SSE format: prints data lines, ignores heartbeats, stops on `event: done`
+
+**Why**: Gap identified in dog-food workflow — there was no way to follow task output
+via the conductor CLI (server-based workflow). `run-agent output --follow` works locally
+but requires direct file access. `conductor task logs` works via the server API.
+
+### Quality Gates
+- go build ./...: PASS
+- go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+- conductor task logs --help: shows correct usage
+
+### Commits This Session
+- a77fd06: feat(cli): add conductor task logs command for streaming task output
+
+### Issue Status (unchanged)
+- CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows file locking), 5 resolved
+- HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
