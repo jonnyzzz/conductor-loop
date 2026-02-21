@@ -425,6 +425,11 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 
 	// Validate project_root if provided.
 	projectRoot := strings.TrimSpace(req.ProjectRoot)
+	if strings.HasPrefix(projectRoot, "~/") {
+		if home, homeErr := os.UserHomeDir(); homeErr == nil {
+			projectRoot = filepath.Join(home, projectRoot[2:])
+		}
+	}
 	if projectRoot != "" {
 		if _, err := os.Stat(projectRoot); err != nil {
 			if os.IsNotExist(err) {
@@ -433,6 +438,7 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 			return apiErrorInternal("stat project_root", err)
 		}
 	}
+	req.ProjectRoot = projectRoot
 
 	// Validate and normalise attach_mode.
 	attachMode := strings.TrimSpace(req.AttachMode)
@@ -648,15 +654,28 @@ func (s *Server) handleRunStop(w http.ResponseWriter, r *http.Request, runID str
 	return writeJSON(w, http.StatusAccepted, map[string]string{"status": "stopping"})
 }
 
+func (s *Server) conductorURL() string {
+	host := strings.TrimSpace(s.apiConfig.Host)
+	if host == "" || host == "0.0.0.0" {
+		host = "127.0.0.1"
+	}
+	port := s.apiConfig.Port
+	if port == 0 {
+		port = 14355
+	}
+	return fmt.Sprintf("http://%s:%d", host, port)
+}
+
 func (s *Server) startTask(req TaskCreateRequest, firstRunDir, prompt string) {
 	opts := runner.TaskOptions{
-		RootDir:     s.rootDir,
-		ConfigPath:  s.configPath,
-		Agent:       req.AgentType,
-		Prompt:      prompt,
-		WorkingDir:  strings.TrimSpace(req.ProjectRoot),
-		Environment: req.Config,
-		FirstRunDir: firstRunDir,
+		RootDir:      s.rootDir,
+		ConfigPath:   s.configPath,
+		Agent:        req.AgentType,
+		Prompt:       prompt,
+		WorkingDir:   strings.TrimSpace(req.ProjectRoot),
+		Environment:  req.Config,
+		FirstRunDir:  firstRunDir,
+		ConductorURL: s.conductorURL(),
 	}
 	s.metrics.IncActiveRuns()
 	if err := runner.RunTask(req.ProjectID, req.TaskID, opts); err != nil {

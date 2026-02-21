@@ -33,6 +33,7 @@ type TaskOptions struct {
 	Environment    map[string]string
 	FirstRunDir    string // optional: pre-allocated run directory used for the first run attempt
 	ResumeMode     bool   // when true, prepend restart prefix even on the first run attempt
+	ConductorURL   string // e.g. "http://127.0.0.1:14355"; passed to JobOptions
 }
 
 // RunTask starts the root agent and enforces the Ralph loop.
@@ -114,6 +115,7 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 			PreviousRunID:  previousRunID,
 			Environment:    opts.Environment,
 			Timeout:        opts.Timeout,
+			ConductorURL:   opts.ConductorURL,
 		}
 		if attempt == 0 && strings.TrimSpace(opts.FirstRunDir) != "" {
 			jobOpts.PreallocatedRunDir = opts.FirstRunDir

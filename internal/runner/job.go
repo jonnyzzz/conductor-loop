@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/agent"
+	"github.com/jonnyzzz/conductor-loop/internal/agent/claude"
 	"github.com/jonnyzzz/conductor-loop/internal/agent/perplexity"
 	"github.com/jonnyzzz/conductor-loop/internal/agent/xai"
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
@@ -32,6 +33,7 @@ type JobOptions struct {
 	Environment        map[string]string
 	PreallocatedRunDir string        // optional: pre-created run directory; skip createRunDir if set
 	Timeout            time.Duration // max agent run duration; 0 means no limit
+	ConductorURL       string        // e.g. "http://127.0.0.1:14355"; if empty, derived from config
 }
 
 // RunJob starts a single agent run and waits for completion.
@@ -170,14 +172,30 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	}
 	defer releaseSem()
 
+	// Derive ConductorURL from opts or fall back to config.
+	conductorURL := strings.TrimSpace(opts.ConductorURL)
+	if conductorURL == "" && cfg != nil && cfg.API.Port > 0 {
+		host := strings.TrimSpace(cfg.API.Host)
+		if host == "" || host == "0.0.0.0" {
+			host = "127.0.0.1"
+		}
+		conductorURL = fmt.Sprintf("http://%s:%d", host, cfg.API.Port)
+	}
+
+	// RepoRoot is the parent of the runs root directory.
+	repoRoot := filepath.Dir(rootDir)
+
 	promptPath := filepath.Join(runDir, "prompt.md")
 	promptContent := buildPrompt(PromptParams{
-		TaskDir:     taskDir,
-		RunDir:      runDir,
-		ProjectID:   projectID,
-		TaskID:      taskID,
-		RunID:       runID,
-		ParentRunID: parentRunID,
+		TaskDir:        taskDir,
+		RunDir:         runDir,
+		ProjectID:      projectID,
+		TaskID:         taskID,
+		RunID:          runID,
+		ParentRunID:    parentRunID,
+		MessageBusPath: busPath,
+		ConductorURL:   conductorURL,
+		RepoRoot:       repoRoot,
 	}, promptText)
 	if err := os.WriteFile(promptPath, []byte(promptContent), 0o644); err != nil {
 		return nil, errors.Wrap(err, "write prompt")
@@ -199,6 +217,9 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		"MESSAGE_BUS":     busPath,
 		"TASK_FOLDER":     taskDir,
 		"RUN_FOLDER":      runDir,
+	}
+	if conductorURL != "" {
+		envOverrides["CONDUCTOR_URL"] = conductorURL
 	}
 	if tokenVar := tokenEnvVar(agentType); tokenVar != "" {
 		if token := strings.TrimSpace(selection.Config.Token); token != "" {
@@ -389,6 +410,14 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 		return nil
 	}); err != nil {
 		return errors.Wrap(err, "update run-info")
+	}
+	// For Claude: extract clean text from JSONL stream before falling back to raw copy.
+	if strings.ToLower(agentType) == "claude" {
+		if parseErr := claude.WriteOutputMDFromStream(runDir, info.StdoutPath); parseErr != nil {
+			log.Printf("JSONL parse for output.md failed (writing placeholder): %v", parseErr)
+			placeholder := "# Agent Output\n\n*The agent did not write output.md. Raw output is available in the stdout tab.*\n"
+			_ = os.WriteFile(filepath.Join(runDir, "output.md"), []byte(placeholder), 0o644)
+		}
 	}
 	if _, err := agent.CreateOutputMD(runDir, ""); err != nil {
 		return errors.Wrap(err, "ensure output.md")

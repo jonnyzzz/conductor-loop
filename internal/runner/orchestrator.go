@@ -133,17 +133,21 @@ func AllocateRunDir(runsDir string) (runID, runDir string, err error) {
 
 // PromptParams holds the values used to build the agent prompt preamble.
 type PromptParams struct {
-	TaskDir     string
-	RunDir      string
-	ProjectID   string
-	TaskID      string
-	RunID       string
-	ParentRunID string
+	TaskDir        string
+	RunDir         string
+	ProjectID      string
+	TaskID         string
+	RunID          string
+	ParentRunID    string
+	MessageBusPath string // absolute path to TASK-MESSAGE-BUS.md
+	ConductorURL   string // e.g. "http://127.0.0.1:14355"
+	RepoRoot       string // absolute path to conductor-loop repo root
 }
 
 func buildPrompt(params PromptParams, prompt string) string {
-	trimmed := strings.TrimSpace(prompt)
 	var b strings.Builder
+
+	// --- Environment variables ---
 	fmt.Fprintf(&b, "TASK_FOLDER=%s\n", params.TaskDir)
 	fmt.Fprintf(&b, "RUN_FOLDER=%s\n", params.RunDir)
 	fmt.Fprintf(&b, "JRUN_PROJECT_ID=%s\n", params.ProjectID)
@@ -152,14 +156,60 @@ func buildPrompt(params PromptParams, prompt string) string {
 	if strings.TrimSpace(params.ParentRunID) != "" {
 		fmt.Fprintf(&b, "JRUN_PARENT_ID=%s\n", params.ParentRunID)
 	}
-	fmt.Fprintf(&b, "Write output.md to %s\n\n", filepath.Join(params.RunDir, "output.md"))
-	if trimmed == "" {
-		return b.String()
+	if params.MessageBusPath != "" {
+		fmt.Fprintf(&b, "MESSAGE_BUS=%s\n", params.MessageBusPath)
 	}
-	if !strings.HasSuffix(trimmed, "\n") {
-		trimmed += "\n"
+	if params.ConductorURL != "" {
+		fmt.Fprintf(&b, "CONDUCTOR_URL=%s\n", params.ConductorURL)
 	}
-	return b.String() + trimmed
+	fmt.Fprintf(&b, "Write output.md to %s\n", filepath.Join(params.RunDir, "output.md"))
+
+	// --- Message Bus usage ---
+	b.WriteString("\n## Message Bus\n")
+	b.WriteString("Report progress using:\n")
+	b.WriteString("  run-agent bus post --type PROGRESS --body \"your message\"\n")
+	b.WriteString("  run-agent bus post --type FACT --body \"key result\"\n")
+	b.WriteString("  run-agent bus post --type ERROR --body \"what failed\"\n")
+	b.WriteString("  run-agent bus post --type DECISION --body \"what was decided\"\n")
+	b.WriteString("Types: FACT, PROGRESS, DECISION, ERROR, QUESTION, INFO\n")
+	b.WriteString("The MESSAGE_BUS env var is set; run-agent bus post uses it automatically.\n")
+
+	// --- Sub-agent spawning ---
+	b.WriteString("\n## Sub-Agent Spawning (RLM Pattern)\n")
+	b.WriteString("For complex tasks, decompose using run-agent:\n")
+	b.WriteString("  run-agent job --project $JRUN_PROJECT_ID --task $JRUN_TASK_ID \\\n")
+	b.WriteString("    --parent-run-id $JRUN_ID --agent claude --prompt \"sub-task description\"\n")
+	b.WriteString("Run multiple sub-agents in PARALLEL for independent sub-tasks.\n")
+	b.WriteString("Use RLM (Recursive Language Model) decomposition:\n")
+	b.WriteString("  1. ASSESS context size and task complexity\n")
+	b.WriteString("  2. DECOMPOSE into independent sub-tasks at natural boundaries\n")
+	b.WriteString("  3. EXECUTE sub-agents in parallel\n")
+	b.WriteString("  4. SYNTHESIZE results\n")
+
+	// --- Reference docs ---
+	if params.RepoRoot != "" {
+		promptV5 := filepath.Join(params.RepoRoot, "THE_PROMPT_v5_conductor.md")
+		if _, err := os.Stat(promptV5); err == nil {
+			fmt.Fprintf(&b, "\n## Methodology\nRead %s for the full orchestration methodology.\n", promptV5)
+		}
+		agentsMd := filepath.Join(params.RepoRoot, "AGENTS.md")
+		if _, err := os.Stat(agentsMd); err == nil {
+			fmt.Fprintf(&b, "Read %s for project conventions.\n", agentsMd)
+		}
+	}
+
+	// --- DONE file ---
+	b.WriteString("\n## Completion\n")
+	fmt.Fprintf(&b, "When done, create: %s/DONE\n", params.TaskDir)
+	b.WriteString("This signals the conductor loop to stop restarting this task.\n")
+
+	b.WriteString("\n---\n\n")
+	trimmed := strings.TrimSpace(prompt)
+	if trimmed != "" {
+		b.WriteString(trimmed)
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 // warnJRunEnvMismatch logs a warning if JRUN_* environment variables from the
