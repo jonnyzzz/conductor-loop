@@ -519,3 +519,37 @@ body {
   color: var(--status-failed);
   background: rgba(240, 123, 123, 0.12);
 }
+
+.task-search-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.task-search-input {
+  width: 100%;
+  padding-right: 28px;
+}
+
+.task-search-clear {
+  position: absolute;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--app-subtle);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.task-search-clear:hover {
+  color: var(--app-text);
+}
+
+.task-count-row {
+  font-size: 11px;
+  color: var(--app-subtle);
+  padding-top: 0;
+  padding-bottom: 4px;
+}

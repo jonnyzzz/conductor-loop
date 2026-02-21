@@ -73,7 +73,7 @@ export class APIClient {
 
   async getTasks(projectId: string): Promise<TaskSummary[]> {
     const data = await this.request<TasksResponse>(
-      `/api/projects/${encodeURIComponent(projectId)}/tasks`
+      `/api/projects/${encodeURIComponent(projectId)}/tasks?limit=500`
     )
     return data.items
   }
@@ -158,6 +158,13 @@ export class APIClient {
     await this.request<void>(
       `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/stop`,
       { method: 'POST' }
+    )
+  }
+
+  async deleteRun(projectId: string, taskId: string, runId: string): Promise<void> {
+    await this.request<void>(
+      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}`,
+      { method: 'DELETE' }
     )
   }
 }

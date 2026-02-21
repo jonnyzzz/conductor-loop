@@ -52,6 +52,7 @@ export function TaskList({
   onRefresh?: () => void
 }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [searchText, setSearchText] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<TaskStartRequest>(emptyForm)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -59,9 +60,16 @@ export function TaskList({
   const startTaskMutation = useStartTask(selectedProjectId)
 
   const filteredTasks = useMemo(() => {
-    const filtered = statusFilter === 'all' ? tasks : tasks.filter((task) => task.status === statusFilter)
+    let filtered = tasks
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase()
+      filtered = filtered.filter((task) => task.id.toLowerCase().includes(q))
+    }
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((task) => task.status === statusFilter)
+    }
     return [...filtered].sort((a, b) => parseDate(b.last_activity) - parseDate(a.last_activity))
-  }, [statusFilter, tasks])
+  }, [statusFilter, searchText, tasks])
 
   const openDialog = () => {
     setForm({ ...emptyForm(), task_id: generateTaskId() })
@@ -130,6 +138,28 @@ export function TaskList({
           + New Task
         </Button>
       </div>
+      <div className="panel-section">
+        <div className="task-search-row">
+          <input
+            className="input task-search-input"
+            type="text"
+            placeholder="Search tasks..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            aria-label="Search tasks"
+          />
+          {searchText && (
+            <button
+              type="button"
+              className="task-search-clear"
+              onClick={() => setSearchText('')}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </div>
       <div className="panel-section filters">
         {statusFilters.map((filter) => (
           <Button
@@ -143,6 +173,11 @@ export function TaskList({
           </Button>
         ))}
       </div>
+      {(searchText.trim() || statusFilter !== 'all') && (
+        <div className="panel-section task-count-row">
+          Showing {filteredTasks.length} of {tasks.length} tasks
+        </div>
+      )}
       <div className="panel-section panel-section-tight">
         <div className="list">
           {filteredTasks.map((task) => (
