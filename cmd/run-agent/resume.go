@@ -80,14 +80,15 @@ func newResumeCmd() *cobra.Command {
 			}
 
 			opts := runner.TaskOptions{
-				RootDir:      rootDir,
-				ConfigPath:   configPath,
-				Agent:        agentType,
-				Prompt:       strings.TrimSpace(prompt),
-				PromptPath:   strings.TrimSpace(promptFile),
-				ResumeMode:   true,
-				MaxRestarts:  3,
-				RestartDelay: time.Second,
+				RootDir:        rootDir,
+				ConfigPath:     configPath,
+				Agent:          agentType,
+				Prompt:         strings.TrimSpace(prompt),
+				PromptPath:     strings.TrimSpace(promptFile),
+				ResumeMode:     true,
+				MaxRestarts:    3,
+				MaxRestartsSet: true,
+				RestartDelay:   time.Second,
 			}
 			return runner.RunTask(projectID, taskID, opts)
 		},

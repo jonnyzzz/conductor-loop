@@ -167,10 +167,11 @@ func TestRunTask_RestartPrefixOnSecondAttempt(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	err := RunTask("project", "task", TaskOptions{
-		RootDir:      root,
-		Agent:        "codex",
-		MaxRestarts:  2,
-		RestartDelay: time.Millisecond,
+		RootDir:        root,
+		Agent:          "codex",
+		MaxRestarts:    2,
+		MaxRestartsSet: true,
+		RestartDelay:   time.Millisecond,
 	})
 	if err == nil {
 		t.Fatalf("expected max restarts error")
@@ -231,10 +232,11 @@ func TestRunTaskMaxRestarts(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	err := RunTask("project", "task", TaskOptions{
-		RootDir:      root,
-		Agent:        "codex",
-		MaxRestarts:  1,
-		RestartDelay: 10 * time.Millisecond,
+		RootDir:        root,
+		Agent:          "codex",
+		MaxRestarts:    1,
+		MaxRestartsSet: true,
+		RestartDelay:   10 * time.Millisecond,
 	})
 	if err == nil {
 		t.Fatalf("expected max restarts error")

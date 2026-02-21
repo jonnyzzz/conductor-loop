@@ -26,6 +26,7 @@ type TaskOptions struct {
 	WorkingDir     string
 	MessageBusPath string
 	MaxRestarts    int
+	MaxRestartsSet bool
 	WaitTimeout    time.Duration
 	PollInterval   time.Duration
 	RestartDelay   time.Duration
@@ -131,7 +132,7 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 		WithProjectTask(projectID, taskID),
 		WithRootRunner(runnerFn),
 	}
-	if opts.MaxRestarts > 0 {
+	if opts.MaxRestartsSet {
 		options = append(options, WithMaxRestarts(opts.MaxRestarts))
 	}
 	if opts.WaitTimeout > 0 {

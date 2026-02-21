@@ -545,13 +545,14 @@ func runTask(root, projectID, taskID string) error {
 	}
 	donePath := filepath.Join(taskDir, "DONE")
 	opts := runner.TaskOptions{
-		RootDir:      root,
-		Agent:        "codex",
-		WorkingDir:   taskDir,
-		MaxRestarts:  1,
-		WaitTimeout:  30 * time.Second,
-		PollInterval: 10 * time.Millisecond,
-		RestartDelay: 10 * time.Millisecond,
+		RootDir:        root,
+		Agent:          "codex",
+		WorkingDir:     taskDir,
+		MaxRestarts:    1,
+		MaxRestartsSet: true,
+		WaitTimeout:    30 * time.Second,
+		PollInterval:   10 * time.Millisecond,
+		RestartDelay:   10 * time.Millisecond,
 		Environment: map[string]string{
 			envPerfStubDoneFile: donePath,
 			envPerfStubSleepMs:  "10",

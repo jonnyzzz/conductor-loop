@@ -77,6 +77,7 @@ func newTaskCmd() *cobra.Command {
 				}
 				opts.ConfigPath = found
 			}
+			opts.MaxRestartsSet = cmd.Flags().Changed("max-restarts")
 			return runner.RunTask(projectID, taskID, opts)
 		},
 	}
@@ -157,6 +158,7 @@ func newTaskResumeCmd() *cobra.Command {
 			}
 			fmt.Fprintf(cmd.ErrOrStderr(), "Resuming task: %s\n", taskID)
 			opts.ResumeMode = true
+			opts.MaxRestartsSet = true
 			return runner.RunTask(projectID, taskID, opts)
 		},
 	}
