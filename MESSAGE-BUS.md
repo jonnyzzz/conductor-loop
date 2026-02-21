@@ -3797,3 +3797,103 @@ Enhanced `conductor status`:
 - HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
 - MEDIUM: 0 open, 0 partially resolved, 6 resolved
 - LOW: 0 open, 0 partially resolved, 2 resolved
+
+---
+msg_id: MSG-20260221-SESSION48-START
+ts: 2026-02-21T09:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 09:00:00] ==========================================
+[2026-02-21 09:00:00] SESSION: 2026-02-21 Session #48
+[2026-02-21 09:00:00] ==========================================
+[2026-02-21 09:00:00] FACT: go build ./... PASS (conductor + run-agent binaries ready)
+[2026-02-21 09:00:00] FACT: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS
+[2026-02-21 09:00:00] FACT: Issues: 0 fully open, 3 partially resolved (Windows-only deferred items)
+[2026-02-21 09:00:00] DECISION: Session #48 work items:
+[2026-02-21 09:00:00]   (1) Feature: run-agent job --follow - stream output while job runs (local file-based)
+[2026-02-21 09:00:00]   (2) Feature: conductor job submit --follow - stream logs via server API after dispatch
+[2026-02-21 09:00:00]   Both improve operator UX: dispatch + monitor in a single command instead of two separate steps
+[2026-02-21 09:05:00] PROGRESS: Sub-agent A dispatched for run-agent job --follow flag
+[2026-02-21 09:05:00] PROGRESS: Sub-agent B dispatched for conductor job submit --follow flag
+[2026-02-21 09:05:30] FACT: Sub-agent A task ID: task-20260221-065652-srb5nc (run-agent job --follow)
+[2026-02-21 09:05:30] FACT: Sub-agent B task ID: task-20260221-065653-gyzdk4 (conductor job submit --follow)
+[2026-02-21 08:01:10] FACT: Scenario 1 (single agent) passed
+[2026-02-21 08:01:10] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 08:01:10] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 08:01:10] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 08:01:10] FACT: All acceptance tests passed
+[2026-02-21 08:05:06] FACT: Scenario 1 (single agent) passed
+[2026-02-21 08:05:06] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 08:05:06] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 08:05:06] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 08:05:06] FACT: All acceptance tests passed
+
+[2026-02-21 09:15:00] FACT: Sub-agent A (task-20260221-065652-srb5nc): exit_code=0, completed in ~4m45s
+[2026-02-21 09:15:00] FACT: Feature: run-agent job --follow (-f) flag added (commit 1bdc5d6)
+[2026-02-21 09:15:00] FACT: Files changed: cmd/run-agent/main.go + new cmd/run-agent/job_follow_test.go (205 test lines)
+[2026-02-21 09:15:00] FACT: Implementation: pre-allocates run dir via runner.AllocateRunDir, starts job in goroutine, follows output in foreground
+[2026-02-21 09:15:00] FACT: Sub-agent B (task-20260221-065653-gyzdk4): exit_code=0, completed in ~4m43s
+[2026-02-21 09:15:00] FACT: Feature: conductor job submit --follow flag added (commit cfec02d)
+[2026-02-21 09:15:00] FACT: Files changed: cmd/conductor/job.go + commands_test.go + docs/user/cli-reference.md
+[2026-02-21 09:15:00] FACT: Implementation: waitForRunStart() polls up to 30s, then calls taskLogs() with follow=true (SSE streaming)
+
+[2026-02-21 09:15:00] QUALITY: go build ./...: PASS
+[2026-02-21 09:15:00] QUALITY: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+[2026-02-21 09:15:00] QUALITY: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+
+---
+msg_id: MSG-20260221-SESSION48-END
+ts: 2026-02-21T09:15:00Z
+type: SESSION_END
+project_id: conductor-loop
+---
+
+## Session #48 Summary (2026-02-21)
+
+### Features Implemented (via 2 parallel dog-food sub-agents)
+
+**feat(cli): run-agent job --follow** (commit 1bdc5d6)
+
+New `-f`/`--follow` flag for `run-agent job`:
+- Pre-allocates run directory via `runner.AllocateRunDir()` before job starts
+- Starts the job in a goroutine
+- Immediately streams `agent-stdout.txt` to stdout via `followOutput()`
+- Blocks until the job completes; propagates the job's exit code
+- 205 test lines in new `cmd/run-agent/job_follow_test.go`
+
+**Why**: Eliminates the 2-step workflow (dispatch + separate `run-agent output --follow`). Operators can now dispatch and monitor in a single command.
+
+**feat(cli): conductor job submit --follow** (commit cfec02d)
+
+New `--follow` flag for `conductor job submit`:
+- After submitting the job, polls up to 30s via `waitForRunStart()` for the first run to start
+- Then calls `taskLogs()` with `follow=true` to stream output via server SSE endpoint
+- Reconnects automatically if connection drops
+- `--follow` takes precedence over `--wait` when both are set
+- Updated docs with flag documentation and usage example
+
+**Why**: Enables submit-and-monitor in one command for server-based deployments (remote `conductor` server), without needing a separate `conductor task logs --follow` invocation.
+
+### Dog-Food Success
+- Both tasks dispatched via `./bin/run-agent job` (parallel)
+- task-20260221-065652-srb5nc: run-agent job --follow — DONE (exit_code=0, ~4m45s)
+- task-20260221-065653-gyzdk4: conductor job submit --follow — DONE (exit_code=0, ~4m43s)
+- Sub-agent A correctly committed its own changes (commit 1bdc5d6)
+- Sub-agent B left changes unstaged; orchestrator committed them (commit cfec02d)
+
+### Quality Gates
+- go build ./...: PASS
+- go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+- ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+
+### Commits This Session
+- 1bdc5d6: feat(cli): add --follow flag to run-agent job for real-time output streaming
+- cfec02d: feat(cli): add --follow flag to conductor job submit for real-time log streaming
+
+### Issue Status (unchanged)
+- CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows file locking), 5 resolved
+- HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
