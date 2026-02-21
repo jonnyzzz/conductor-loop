@@ -101,12 +101,9 @@ func selectAgent(cfg *config.Config, preferred string) (agentSelection, error) {
 }
 
 func newRunID(now time.Time, pid int) string {
-	offset := atomic.AddUint64(&runCounter, 1)
-	if offset != 0 {
-		now = now.Add(time.Duration(offset%10000) * 100 * time.Microsecond)
-	}
+	seq := atomic.AddUint64(&runCounter, 1)
 	stamp := now.UTC().Format("20060102-1504050000")
-	return fmt.Sprintf("%s-%d", stamp, pid)
+	return fmt.Sprintf("%s-%d-%d", stamp, pid, seq)
 }
 
 func createRunDir(runsDir string) (string, string, error) {
