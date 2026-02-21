@@ -24,6 +24,7 @@ export function RunDetail({
   fileContent,
   taskState,
   onDeleteRun,
+  onDeleteTask,
 }: {
   task?: TaskDetail
   runInfo?: RunInfo
@@ -34,6 +35,7 @@ export function RunDetail({
   fileContent?: FileContent
   taskState?: string
   onDeleteRun?: (runId: string) => void
+  onDeleteTask?: (taskId: string) => void
 }) {
   const [runFilter, setRunFilter] = useState<RunStatusFilter>('all')
 
@@ -51,6 +53,21 @@ export function RunDetail({
           <div className="panel-title">Run detail</div>
           <div className="panel-subtitle">{task?.id ?? 'Select a task'}</div>
         </div>
+        {task && task.status !== 'running' && onDeleteTask && (
+          <div className="panel-actions">
+            <Button
+              inline
+              danger
+              onClick={() => {
+                if (window.confirm(`Delete task ${task.id} and all its runs? This cannot be undone.`)) {
+                  onDeleteTask(task.id)
+                }
+              }}
+            >
+              Delete task
+            </Button>
+          </div>
+        )}
       </div>
       <div className="panel-section panel-split">
         <div className="panel-column">

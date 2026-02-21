@@ -128,3 +128,14 @@ export function useDeleteRun(projectId?: string, taskId?: string) {
     },
   })
 }
+
+export function useDeleteTask(projectId?: string) {
+  const api = useAPIClient()
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (taskId: string) => api.deleteTask(projectId ?? '', taskId),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['tasks', projectId] })
+    },
+  })
+}

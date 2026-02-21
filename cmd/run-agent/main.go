@@ -94,6 +94,7 @@ func newTaskCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&opts.RestartDelay, "restart-delay", time.Second, "restart delay")
 
 	cmd.AddCommand(newTaskResumeCmd())
+	cmd.AddCommand(newTaskDeleteCmd())
 
 	return cmd
 }

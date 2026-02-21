@@ -1348,6 +1348,70 @@ func TestProjectTaskRunsPagination_SortNewestFirst(t *testing.T) {
 	}
 }
 
+func TestDeleteTask_Success(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "project", "task-del", "run-1", storage.StatusCompleted, "output\n")
+	makeProjectRun(t, root, "project", "task-del", "run-2", storage.StatusFailed, "fail\n")
+
+	taskDir := filepath.Join(root, "project", "task-del")
+	if _, statErr := os.Stat(taskDir); os.IsNotExist(statErr) {
+		t.Fatalf("task directory should exist before delete")
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/project/tasks/task-del", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204 No Content, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	if _, statErr := os.Stat(taskDir); !os.IsNotExist(statErr) {
+		t.Errorf("expected task directory to be deleted, but it still exists at %s", taskDir)
+	}
+}
+
+func TestDeleteTask_RunningConflict(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "project", "task-running", "run-1", storage.StatusCompleted, "done\n")
+	makeProjectRun(t, root, "project", "task-running", "run-2", storage.StatusRunning, "go\n")
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/project/tasks/task-running", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409 Conflict for task with running runs, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Task directory should still exist.
+	taskDir := filepath.Join(root, "project", "task-running")
+	if _, statErr := os.Stat(taskDir); os.IsNotExist(statErr) {
+		t.Errorf("task directory should NOT be deleted when a run is still running")
+	}
+}
+
+func TestDeleteTask_NotFound(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/project/tasks/task-nonexistent", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 Not Found for non-existent task, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestDeleteRun_Success(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})

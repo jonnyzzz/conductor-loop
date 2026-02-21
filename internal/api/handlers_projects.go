@@ -359,6 +359,11 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 		return writeJSON(w, http.StatusOK, runInfoToProjectRun(found))
 	}
 
+	// task delete endpoint (DELETE)
+	if r.Method == http.MethodDelete {
+		return s.handleTaskDelete(w, projectID, taskID, runs)
+	}
+
 	// task detail - GET only
 	if r.Method != http.MethodGet {
 		return apiErrorMethodNotAllowed()
@@ -413,6 +418,30 @@ func (s *Server) handleRunDelete(w http.ResponseWriter, projectID, taskID string
 	if err := os.RemoveAll(runDir); err != nil {
 		return apiErrorInternal("delete run directory", err)
 	}
+	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+// handleTaskDelete handles DELETE /api/projects/{p}/tasks/{t}.
+// It deletes the task directory (and all its runs) from disk.
+// Returns 409 if any run is still running, 404 if the task does not exist.
+func (s *Server) handleTaskDelete(w http.ResponseWriter, projectID, taskID string, runs []*storage.RunInfo) *apiError {
+	// Check for any running runs belonging to this task.
+	for _, run := range runs {
+		if run.ProjectID == projectID && run.TaskID == taskID && run.Status == storage.StatusRunning {
+			return apiErrorConflict("task has running runs", map[string]string{"status": "running"})
+		}
+	}
+
+	taskDir, ok := findProjectTaskDir(s.rootDir, projectID, taskID)
+	if !ok {
+		return apiErrorNotFound("task not found")
+	}
+
+	if err := os.RemoveAll(taskDir); err != nil {
+		return apiErrorInternal("delete task directory", err)
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }

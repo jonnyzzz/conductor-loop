@@ -169,6 +169,13 @@ export class APIClient {
     )
   }
 
+  async deleteTask(projectId: string, taskId: string): Promise<void> {
+    await this.request<void>(
+      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`,
+      { method: 'DELETE' }
+    )
+  }
+
   async getProjectStats(projectId: string): Promise<ProjectStats> {
     return this.request<ProjectStats>(`/api/projects/${encodeURIComponent(projectId)}/stats`)
   }
