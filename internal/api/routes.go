@@ -1,9 +1,12 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	webui "github.com/jonnyzzz/conductor-loop/web"
 )
 
 func (s *Server) routes() http.Handler {
@@ -30,12 +33,15 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("/api/projects/home-dirs", s.wrap(s.handleProjectHomeDirs))
 	mux.Handle("/api/projects/", s.wrap(s.handleProjectsRouter))
 
-	// Serve web UI static files at root if available
-	if webDir, ok := findWebDir(); ok {
+	// Serve web UI from frontend/dist when present, otherwise from embedded assets.
+	if uiFS, source, ok := findWebFS(); ok {
 		if s.logger != nil {
-			s.logger.Printf("serving web UI from %s at /", webDir)
+			s.logger.Printf("serving web UI from %s", source)
 		}
-		mux.Handle("/", http.FileServer(http.Dir(webDir)))
+		fileServer := http.FileServer(uiFS)
+		mux.Handle("/", fileServer)
+		mux.Handle("/ui/", http.StripPrefix("/ui/", fileServer))
+		mux.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
 	}
 
 	handler := http.Handler(mux)
@@ -45,30 +51,40 @@ func (s *Server) routes() http.Handler {
 	return handler
 }
 
-// findWebDir searches for the web UI directory containing index.html.
-// frontend/dist (built React app) is preferred over web/src (simple UI fallback).
+// findWebFS selects the UI file system.
+// frontend/dist (built React app) is preferred; embedded web/src is fallback.
+func findWebFS() (http.FileSystem, string, bool) {
+	if webDir, ok := findFrontendDistDir(); ok {
+		return http.Dir(webDir), webDir, true
+	}
+	embedded, err := webui.FileSystem()
+	if err != nil {
+		return nil, fmt.Sprintf("embedded web UI unavailable: %v", err), false
+	}
+	return embedded, "embedded:web/src", true
+}
+
+// findFrontendDistDir searches for frontend/dist containing index.html.
 // It checks relative to the executable and to the current working directory.
-func findWebDir() (string, bool) {
+func findFrontendDistDir() (string, bool) {
 	var candidates []string
 
-	// Relative to the executable (handles installed binary and go run)
+	// Relative to the executable (handles installed binary and go run).
 	if exe, err := os.Executable(); err == nil {
 		base := filepath.Dir(exe)
 		candidates = append(candidates,
 			filepath.Join(base, "frontend", "dist"),
 			filepath.Join(base, "..", "frontend", "dist"),
 			filepath.Join(base, "..", "..", "frontend", "dist"),
-			filepath.Join(base, "web", "src"),
-			filepath.Join(base, "..", "web", "src"),
-			filepath.Join(base, "..", "..", "web", "src"),
 		)
 	}
 
-	// Relative to current working directory (handles go run from project root)
+	// Relative to current working directory.
 	if cwd, err := os.Getwd(); err == nil {
 		candidates = append(candidates,
 			filepath.Join(cwd, "frontend", "dist"),
-			filepath.Join(cwd, "web", "src"),
+			filepath.Join(cwd, "..", "frontend", "dist"),
+			filepath.Join(cwd, "..", "..", "frontend", "dist"),
 		)
 	}
 
