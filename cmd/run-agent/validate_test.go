@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -50,7 +51,7 @@ func createValidateCLIScript(t *testing.T, dir, name, versionOutput string) {
 func TestValidateCmd_NoConfig(t *testing.T) {
 	// Use an empty temp dir so FindDefaultConfig finds nothing.
 	t.Chdir(t.TempDir())
-	err := runValidate("", "", "", false)
+	err := runValidate("", "", "", false, false)
 	if err != nil {
 		t.Errorf("expected no error with no config found: %v", err)
 	}
@@ -58,14 +59,14 @@ func TestValidateCmd_NoConfig(t *testing.T) {
 
 func TestValidateCmd_RootDirValid(t *testing.T) {
 	dir := t.TempDir()
-	err := runValidate("", dir, "", false)
+	err := runValidate("", dir, "", false, false)
 	if err != nil {
 		t.Errorf("expected no error with valid root dir: %v", err)
 	}
 }
 
 func TestValidateCmd_RootDirNotExist(t *testing.T) {
-	err := runValidate("", "/nonexistent/path/validate-test-xyz123", "", false)
+	err := runValidate("", "/nonexistent/path/validate-test-xyz123", "", false, false)
 	if err == nil {
 		t.Error("expected error for nonexistent root dir")
 	}
@@ -77,7 +78,7 @@ func TestValidateCmd_RootDirIsFile(t *testing.T) {
 	if err := os.WriteFile(filePath, []byte("x"), 0o644); err != nil {
 		t.Fatalf("create file: %v", err)
 	}
-	err := runValidate("", filePath, "", false)
+	err := runValidate("", filePath, "", false, false)
 	if err == nil {
 		t.Error("expected error when root is a file not a directory")
 	}
@@ -88,7 +89,7 @@ func TestValidateCmd_MissingCLI(t *testing.T) {
 	// Use an isolated PATH so claude CLI is not found.
 	t.Setenv("PATH", t.TempDir())
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	err := runValidate(cfgPath, "", "", false)
+	err := runValidate(cfgPath, "", "", false, false)
 	if err == nil {
 		t.Error("expected error when CLI not found")
 	}
@@ -102,7 +103,7 @@ func TestValidateCmd_ValidConfigWithMockCLI(t *testing.T) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-test-key")
 
-	err := runValidate(cfgPath, "", "", false)
+	err := runValidate(cfgPath, "", "", false, false)
 	if err != nil {
 		t.Errorf("expected no error with mock CLI and token set: %v", err)
 	}
@@ -116,7 +117,7 @@ func TestValidateCmd_MissingToken(t *testing.T) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("ANTHROPIC_API_KEY", "")
 
-	err := runValidate(cfgPath, "", "", false)
+	err := runValidate(cfgPath, "", "", false, false)
 	if err == nil {
 		t.Error("expected error when token is missing")
 	}
@@ -139,7 +140,7 @@ defaults:
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("ANTHROPIC_API_KEY", "")
 
-	err := runValidate(cfgPath, "", "", false)
+	err := runValidate(cfgPath, "", "", false, false)
 	if err != nil {
 		t.Errorf("expected no error when config token is set: %v", err)
 	}
@@ -166,7 +167,7 @@ defaults:
 	t.Setenv("OPENAI_API_KEY", "")
 
 	// Filter to only claude — codex is excluded so its missing CLI/token is ignored.
-	err := runValidate(cfgPath, "", "claude", false)
+	err := runValidate(cfgPath, "", "claude", false, false)
 	if err != nil {
 		t.Errorf("expected no error when filtering to valid agent: %v", err)
 	}
@@ -174,7 +175,7 @@ defaults:
 
 func TestValidateCmd_AgentFilterNotFound(t *testing.T) {
 	cfgPath := writeValidateTestConfig(t, testValidateConfig)
-	err := runValidate(cfgPath, "", "nonexistent-agent", false)
+	err := runValidate(cfgPath, "", "nonexistent-agent", false, false)
 	if err == nil {
 		t.Error("expected error when agent filter doesn't match any configured agent")
 	}
@@ -189,7 +190,7 @@ func TestValidateCmd_OutputContainsExpectedStrings(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-test-key")
 
 	output := captureStdout(t, func() {
-		_ = runValidate(cfgPath, "", "", false)
+		_ = runValidate(cfgPath, "", "", false, false)
 	})
 
 	checks := []string{
@@ -214,7 +215,7 @@ func TestValidateCmd_OutputVersionDisplayed(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-test-key")
 
 	output := captureStdout(t, func() {
-		_ = runValidate(cfgPath, "", "", false)
+		_ = runValidate(cfgPath, "", "", false, false)
 	})
 
 	if !strings.Contains(output, "2.1.49") {
@@ -233,7 +234,7 @@ defaults:
 `
 	cfgPath := writeValidateTestConfig(t, cfgContent)
 
-	err := runValidate(cfgPath, "", "", false)
+	err := runValidate(cfgPath, "", "", false, false)
 	if err != nil {
 		t.Errorf("expected no error with REST agent and token: %v", err)
 	}
@@ -251,7 +252,7 @@ defaults:
 	// Ensure neither the conductor-specific nor the agent-specific env vars are set.
 	t.Setenv("CONDUCTOR_AGENT_PERPLEXITY_TOKEN", "")
 
-	err := runValidate(cfgPath, "", "", false)
+	err := runValidate(cfgPath, "", "", false, false)
 	if err == nil {
 		t.Error("expected error when REST agent has no token")
 	}
@@ -260,7 +261,7 @@ defaults:
 func TestValidateCmd_CheckNetworkFlagNoConfig(t *testing.T) {
 	t.Chdir(t.TempDir())
 	// --check-network with no config should not crash.
-	err := runValidate("", "", "", true)
+	err := runValidate("", "", "", true, false)
 	if err != nil {
 		t.Errorf("expected no error with --check-network and no config: %v", err)
 	}
@@ -288,7 +289,7 @@ defaults:
 	t.Setenv("OPENAI_API_KEY", "sk-openai-test")
 
 	output := captureStdout(t, func() {
-		_ = runValidate(cfgPath, "", "", false)
+		_ = runValidate(cfgPath, "", "", false, false)
 	})
 
 	if !strings.Contains(output, "claude") {
@@ -333,7 +334,7 @@ defaults:
 	t.Setenv("GEMINI_API_KEY", "gemini-test")
 
 	output := captureStdout(t, func() {
-		_ = runValidate(cfgPath, "", "", false)
+		_ = runValidate(cfgPath, "", "", false, false)
 	})
 
 	// Agents should appear in alphabetical order: alpha, mango, zebra.
@@ -366,5 +367,179 @@ func TestExtractValidateVersion(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("extractValidateVersion(%q) = %q, want %q", tc.raw, got, tc.want)
 		}
+	}
+}
+
+// --- --check-tokens tests ---
+
+// makeCheckTokensCLIEnv sets up a fake claude CLI in PATH for token check tests.
+func makeCheckTokensCLIEnv(t *testing.T) {
+	t.Helper()
+	cliDir := t.TempDir()
+	createValidateCLIScript(t, cliDir, "claude", "claude 2.1.49")
+	t.Setenv("PATH", cliDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func TestCheckTokens_ValidTokenFile(t *testing.T) {
+	dir := t.TempDir()
+	tokenFile := filepath.Join(dir, "token.txt")
+	if err := os.WriteFile(tokenFile, []byte("sk-ant-valid-token\n"), 0o600); err != nil {
+		t.Fatalf("write token file: %v", err)
+	}
+
+	cfgContent := fmt.Sprintf(`
+agents:
+  claude:
+    type: claude
+    token_file: %s
+defaults:
+  timeout: 30
+`, tokenFile)
+	cfgPath := writeValidateTestConfig(t, cfgContent)
+
+	makeCheckTokensCLIEnv(t)
+	t.Setenv("CONDUCTOR_AGENT_CLAUDE_TOKEN", "")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+
+	var output string
+	err := func() error {
+		var e error
+		output = captureStdout(t, func() {
+			e = runValidate(cfgPath, "", "", false, true)
+		})
+		return e
+	}()
+
+	if err != nil {
+		t.Errorf("expected no error for valid token file, got: %v\noutput:\n%s", err, output)
+	}
+	if !strings.Contains(output, "[OK]") {
+		t.Errorf("expected '[OK]' in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "token_file") {
+		t.Errorf("expected 'token_file' in output, got:\n%s", output)
+	}
+}
+
+func TestCheckTokens_MissingTokenFile(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "nonexistent-token.txt")
+
+	cfgContent := fmt.Sprintf(`
+agents:
+  claude:
+    type: claude
+    token_file: %s
+defaults:
+  timeout: 30
+`, missingPath)
+	cfgPath := writeValidateTestConfig(t, cfgContent)
+
+	makeCheckTokensCLIEnv(t)
+	t.Setenv("CONDUCTOR_AGENT_CLAUDE_TOKEN", "")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+
+	var output string
+	err := func() error {
+		var e error
+		output = captureStdout(t, func() {
+			e = runValidate(cfgPath, "", "", false, true)
+		})
+		return e
+	}()
+
+	if err == nil {
+		t.Error("expected error for missing token file")
+	}
+	if !strings.Contains(output, "MISSING") {
+		t.Errorf("expected 'MISSING' in output, got:\n%s", output)
+	}
+}
+
+func TestCheckTokens_EmptyTokenFile(t *testing.T) {
+	dir := t.TempDir()
+	tokenFile := filepath.Join(dir, "empty-token.txt")
+	if err := os.WriteFile(tokenFile, []byte("   \n"), 0o600); err != nil {
+		t.Fatalf("write empty token file: %v", err)
+	}
+
+	cfgContent := fmt.Sprintf(`
+agents:
+  claude:
+    type: claude
+    token_file: %s
+defaults:
+  timeout: 30
+`, tokenFile)
+	cfgPath := writeValidateTestConfig(t, cfgContent)
+
+	makeCheckTokensCLIEnv(t)
+	t.Setenv("CONDUCTOR_AGENT_CLAUDE_TOKEN", "")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+
+	var output string
+	err := func() error {
+		var e error
+		output = captureStdout(t, func() {
+			e = runValidate(cfgPath, "", "", false, true)
+		})
+		return e
+	}()
+
+	if err == nil {
+		t.Error("expected error for empty token file")
+	}
+	if !strings.Contains(output, "EMPTY") {
+		t.Errorf("expected 'EMPTY' in output, got:\n%s", output)
+	}
+}
+
+func TestCheckTokens_EnvVarSet(t *testing.T) {
+	cfgPath := writeValidateTestConfig(t, testValidateConfig)
+
+	makeCheckTokensCLIEnv(t)
+	t.Setenv("CONDUCTOR_AGENT_CLAUDE_TOKEN", "")
+	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-from-env")
+
+	var output string
+	err := func() error {
+		var e error
+		output = captureStdout(t, func() {
+			e = runValidate(cfgPath, "", "", false, true)
+		})
+		return e
+	}()
+
+	if err != nil {
+		t.Errorf("expected no error when env var is set, got: %v\noutput:\n%s", err, output)
+	}
+	if !strings.Contains(output, "ANTHROPIC_API_KEY") {
+		t.Errorf("expected 'ANTHROPIC_API_KEY' in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "[OK]") {
+		t.Errorf("expected '[OK]' in output, got:\n%s", output)
+	}
+}
+
+func TestCheckTokens_EnvVarNotSet(t *testing.T) {
+	cfgPath := writeValidateTestConfig(t, testValidateConfig)
+
+	makeCheckTokensCLIEnv(t)
+	t.Setenv("CONDUCTOR_AGENT_CLAUDE_TOKEN", "")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+
+	var output string
+	err := func() error {
+		var e error
+		output = captureStdout(t, func() {
+			e = runValidate(cfgPath, "", "", false, true)
+		})
+		return e
+	}()
+
+	if err == nil {
+		t.Error("expected error when env var is not set")
+	}
+	if !strings.Contains(output, "NOT SET") {
+		t.Errorf("expected 'NOT SET' in output, got:\n%s", output)
 	}
 }

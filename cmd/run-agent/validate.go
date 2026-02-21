@@ -24,13 +24,14 @@ func newValidateCmd() *cobra.Command {
 		rootDir      string
 		agentFilter  string
 		checkNetwork bool
+		checkTokens  bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "validate",
 		Short: "Validate conductor configuration and agent availability",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runValidate(configPath, rootDir, agentFilter, checkNetwork)
+			return runValidate(configPath, rootDir, agentFilter, checkNetwork, checkTokens)
 		},
 	}
 
@@ -38,6 +39,7 @@ func newValidateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&rootDir, "root", "", "root directory to validate")
 	cmd.Flags().StringVar(&agentFilter, "agent", "", "validate only this agent (default: all)")
 	cmd.Flags().BoolVar(&checkNetwork, "check-network", false, "run network connectivity test for REST agents")
+	cmd.Flags().BoolVar(&checkTokens, "check-tokens", false, "verify token files are readable and non-empty")
 
 	return cmd
 }
@@ -51,7 +53,7 @@ type agentCheckResult struct {
 	tokenStatus string
 }
 
-func runValidate(configPath, rootDir, agentFilter string, checkNetwork bool) error {
+func runValidate(configPath, rootDir, agentFilter string, checkNetwork, checkTokens bool) error {
 	fmt.Println("Conductor Loop Configuration Validator")
 	fmt.Println()
 
@@ -91,10 +93,16 @@ func runValidate(configPath, rootDir, agentFilter string, checkNetwork bool) err
 	}
 
 	// Load config if a path was found or specified.
+	// When --check-tokens is set, use LoadConfigForServer so that missing token
+	// files do not cause a load failure — the deep token check handles that.
 	var cfg *config.Config
 	if configPath != "" {
 		var err error
-		cfg, err = config.LoadConfig(configPath)
+		if checkTokens {
+			cfg, err = config.LoadConfigForServer(configPath)
+		} else {
+			cfg, err = config.LoadConfig(configPath)
+		}
 		if err != nil {
 			fmt.Printf("Config: FAIL\n  %v\n\n", err)
 			hasFailure = true
@@ -102,8 +110,9 @@ func runValidate(configPath, rootDir, agentFilter string, checkNetwork bool) err
 	}
 
 	// Validate agents.
+	var names []string
 	if cfg != nil {
-		names := sortedAgentNames(cfg.Agents, agentFilter)
+		names = sortedAgentNames(cfg.Agents, agentFilter)
 		if len(names) == 0 {
 			if agentFilter != "" {
 				fmt.Printf("Agents: (agent %q not found in config)\n", agentFilter)
@@ -116,7 +125,7 @@ func runValidate(configPath, rootDir, agentFilter string, checkNetwork bool) err
 			ctx := context.Background()
 			okCount, warnCount := 0, 0
 			for _, name := range names {
-				result := validateSingleAgent(ctx, name, cfg.Agents[name])
+				result := validateSingleAgent(ctx, name, cfg.Agents[name], checkTokens)
 				printAgentResult(result)
 				if result.ok {
 					okCount++
@@ -134,6 +143,19 @@ func runValidate(configPath, rootDir, agentFilter string, checkNetwork bool) err
 		fmt.Println("Agents: (no config loaded)")
 	}
 
+	// Deep token checks.
+	if checkTokens && cfg != nil && len(names) > 0 {
+		fmt.Println()
+		fmt.Println("Token checks:")
+		for _, name := range names {
+			desc, ok := checkToken(name, cfg.Agents[name])
+			fmt.Printf("  Agent %-14s %s\n", name+":", desc)
+			if !ok {
+				hasFailure = true
+			}
+		}
+	}
+
 	if checkNetwork {
 		fmt.Println()
 		fmt.Println("Note: --check-network is not yet implemented")
@@ -145,7 +167,44 @@ func runValidate(configPath, rootDir, agentFilter string, checkNetwork bool) err
 	return nil
 }
 
-func validateSingleAgent(ctx context.Context, name string, agentCfg config.AgentConfig) agentCheckResult {
+// checkToken performs a deep accessibility check on the token for the given agent.
+// It returns a human-readable description and whether the token is accessible.
+func checkToken(agentName string, agentCfg config.AgentConfig) (string, bool) {
+	agType := strings.ToLower(agentCfg.Type)
+
+	// Token set directly in config (also catches CONDUCTOR_AGENT_<NAME>_TOKEN overrides).
+	if agentCfg.Token != "" {
+		return "token [OK]", true
+	}
+
+	// Token file configured — check existence, readability, and non-empty content.
+	if agentCfg.TokenFile != "" {
+		data, err := os.ReadFile(agentCfg.TokenFile)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Sprintf("token_file %s [MISSING - file not found]", agentCfg.TokenFile), false
+			}
+			return fmt.Sprintf("token_file %s [ERROR - %v]", agentCfg.TokenFile, err), false
+		}
+		if strings.TrimSpace(string(data)) == "" {
+			return fmt.Sprintf("token_file %s [EMPTY]", agentCfg.TokenFile), false
+		}
+		return fmt.Sprintf("token_file %s [OK]", agentCfg.TokenFile), true
+	}
+
+	// No explicit token — check the well-known env var for this agent type.
+	envVar := validateTokenEnvVar(agType)
+	if envVar != "" {
+		if os.Getenv(envVar) != "" {
+			return fmt.Sprintf("env %s [OK]", envVar), true
+		}
+		return fmt.Sprintf("env %s [NOT SET]", envVar), false
+	}
+
+	return "token [NOT SET]", false
+}
+
+func validateSingleAgent(ctx context.Context, name string, agentCfg config.AgentConfig, skipTokenCheck bool) agentCheckResult {
 	result := agentCheckResult{
 		name: name,
 		ok:   true,
@@ -176,12 +235,15 @@ func validateSingleAgent(ctx context.Context, name string, agentCfg config.Agent
 		}
 	}
 
-	// Check token availability.
-	tokenErr := runner.ValidateToken(agentCfg.Type, agentCfg.Token)
-	if tokenErr != nil {
-		result.ok = false
+	// Check token availability — skipped when --check-tokens is set because the
+	// deep token check section handles this separately.
+	if !skipTokenCheck {
+		tokenErr := runner.ValidateToken(agentCfg.Type, agentCfg.Token)
+		if tokenErr != nil {
+			result.ok = false
+		}
+		result.tokenStatus = computeTokenStatus(agType, agentCfg.Token, tokenErr == nil)
 	}
-	result.tokenStatus = computeTokenStatus(agType, agentCfg.Token, tokenErr == nil)
 
 	return result
 }
@@ -191,10 +253,18 @@ func printAgentResult(r agentCheckResult) {
 	if !r.ok {
 		symbol = "✗"
 	}
-	if r.version != "" {
-		fmt.Printf("  %s %-12s %-10s (%s, token: %s)\n", symbol, r.name, r.version, r.cliStatus, r.tokenStatus)
+	if r.tokenStatus != "" {
+		if r.version != "" {
+			fmt.Printf("  %s %-12s %-10s (%s, token: %s)\n", symbol, r.name, r.version, r.cliStatus, r.tokenStatus)
+		} else {
+			fmt.Printf("  %s %-12s (%s, token: %s)\n", symbol, r.name, r.cliStatus, r.tokenStatus)
+		}
 	} else {
-		fmt.Printf("  %s %-12s (%s, token: %s)\n", symbol, r.name, r.cliStatus, r.tokenStatus)
+		if r.version != "" {
+			fmt.Printf("  %s %-12s %-10s (%s)\n", symbol, r.name, r.version, r.cliStatus)
+		} else {
+			fmt.Printf("  %s %-12s (%s)\n", symbol, r.name, r.cliStatus)
+		}
 	}
 }
 
