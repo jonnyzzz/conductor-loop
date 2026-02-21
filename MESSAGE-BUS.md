@@ -2563,3 +2563,95 @@ project_id: conductor-loop
 - d3797ef: docs(user): add watch command, DELETE run endpoint, and UI search to reference docs
 - 0978e07: feat(ui): add project stats dashboard panel showing task and run counts
 - d5bcd7e: feat(api,cli,ui): add task deletion endpoint and run-agent task delete command
+
+---
+msg_id: MSG-20260221-SESSION32-START
+ts: 2026-02-21T01:42:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 01:42:00] ==========================================
+[2026-02-21 01:42:00] SESSION: 2026-02-21 Session #32
+[2026-02-21 01:42:00] ==========================================
+[2026-02-21 01:42:00] PROGRESS: Starting session - read all required docs
+[2026-02-21 01:42:00] FACT: go build ./... passes, binaries: conductor (14.2MB), run-agent (14.4MB)
+[2026-02-21 01:42:00] FACT: All 14 internal/cmd packages green; all 19 test packages green
+[2026-02-21 01:42:00] FACT: 0 fully open issues, 5 partially resolved (deferred items only)
+[2026-02-21 01:42:00] FACT: Agent version detected: 2.1.50 (Claude Code) - up from 2.1.49
+
+[2026-02-21 01:42:01] ASSESSMENT: Gaps identified for Session #32
+[2026-02-21 01:42:01] GAP-1: Session #31 features NOT documented: task-level DELETE API, run-agent task delete CLI
+[2026-02-21 01:42:01] GAP-2: Project stats API (/api/projects/{p}/stats) not in user docs or dev docs sections 15+
+[2026-02-21 01:42:01] GAP-3: bus read/post requires full file path - no project/task aware flags
+
+[2026-02-21 01:42:02] DECISION: Session #32 focus:
+[2026-02-21 01:42:02]   (1) doc-s31-update: Fix documentation gaps from Session #31
+[2026-02-21 01:42:02]   (2) feature-bus-project-aware: Add --project/--task/--root flags to bus read/post
+[2026-02-21 01:42:02]   (3) GC: Clean up accumulated old runs
+
+[2026-02-21 01:42:30] FACT: GC completed - deleted 26 runs, freed 12.6 MB
+[2026-02-21 01:42:30] DOG-FOOD: Dispatching 2 parallel sub-agents via ./bin/run-agent job
+[2026-02-21 01:42:30] FACT: task-20260221-014153-kmia7c - doc-s31-update (PID ~5001)
+[2026-02-21 01:42:30] FACT: task-20260221-014155-4olm9x - feature-bus-project-aware (PID ~5047)
+[2026-02-21 01:42:30] PROGRESS: All 2 sub-agents dispatched, monitoring for completion
+
+[2026-02-21 02:55:00] ==========================================
+[2026-02-21 02:55:00] RESULTS: Session #32 - All 2 sub-agents completed
+[2026-02-21 02:55:00] ==========================================
+[2026-02-21 02:55:00] FACT: task-20260221-014153-kmia7c (doc-s31-update) - COMPLETED (commit 8fa7407)
+[2026-02-21 02:55:00] FACT: task-20260221-014155-4olm9x (feature-bus-project-aware) - COMPLETED (commit 6d3f396)
+[2026-02-21 02:55:00] FACT: go build ./...: PASS (binaries rebuilt)
+[2026-02-21 02:55:00] FACT: go test ./internal/... ./cmd/...: ALL 14 PACKAGES PASS
+[2026-02-21 02:55:00] FACT: go test -race ./internal/... ./cmd/...: PASS (no data races)
+[2026-02-21 02:55:00] FACT: GC deleted 26 runs, freed 12.6 MB before dispatching sub-agents
+[2026-02-21 02:55:00] FACT: Agent version now 2.1.50 (was 2.1.49 in previous sessions)
+
+[2026-02-21 02:55:01] ==========================================
+[2026-02-21 02:55:01] SESSION SUMMARY: 2026-02-21 Session #32
+[2026-02-21 02:55:01] ==========================================
+
+## Features Implemented This Session
+
+1. **docs: update user and dev docs for session #31 features** (commit 8fa7407)
+   - api-reference.md: Added DELETE /api/projects/{p}/tasks/{t} endpoint (204/409/404 behavior)
+   - api-reference.md: Added GET /api/projects/{p}/stats endpoint with full response schema
+   - cli-reference.md: Added run-agent task delete section (--project, --task, --root, --force; exit codes; examples)
+   - subsystems.md: Added sections 15 (API: Task Deletion Endpoint) and 16 (UI: Project Stats Dashboard)
+   - architecture.md: Updated "9 major subsystems" → "16" with extended subsystem table (10-16)
+   - 4 files changed, 258 insertions
+
+2. **feat(cli): add --project/--task/--root flags to bus read and bus post** (commit 6d3f396)
+   - Added resolveBusFilePath() helper: resolves TASK-MESSAGE-BUS.md or PROJECT-MESSAGE-BUS.md from hierarchy
+   - bus read: --project, --task, --root flags; project/task resolution takes highest priority
+   - bus post: --root flag; project/task resolution as fallback for backward compat
+   - Root defaults to RUNS_DIR env var then ./runs
+   - 8 new tests: project-level, task-level, conflict error, env var defaults, level isolation
+   - Example: `./bin/run-agent bus read --project conductor-loop --task task-XXX --root runs --tail 5`
+   - 2 files changed, 394 insertions (bus.go, bus_test.go)
+
+## Dog-Food
+- All 2 tasks dispatched via ./bin/run-agent job (parallel, root: runs/)
+- All 2 DONE files created ✓
+- Sub-agent completion times: ~3.5min (doc), ~8.5min (feature)
+- New feature immediately dog-food-verified: bus read confirmed working with project/task flags
+
+## Quality Gates
+- go build ./...: PASS (binaries rebuilt: conductor, run-agent)
+- go test ./internal/... ./cmd/...: ALL 14 PACKAGES PASS
+- go test -race ./internal/... ./cmd/...: PASS (no data races)
+
+## GC
+- Deleted 26 old completed runs, freed 12.6 MB
+- Remaining tasks in runs/conductor-loop/: 50 (down from 76)
+
+## Current Issue Status
+- CRITICAL: 0 open, 2 partially resolved (ISSUE-002 Windows, ISSUE-004 CLI versions), 4 resolved
+- HIGH: 0 open, 3 partially resolved (ISSUE-003, ISSUE-009, ISSUE-010), 5 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+- Total: 0 fully open, 5 partially resolved, 17 resolved
+
+## Commits This Session
+- 8fa7407: docs: update user and dev docs for session #31 features
+- 6d3f396: feat(cli): add --project/--task/--root flags to bus read and bus post
