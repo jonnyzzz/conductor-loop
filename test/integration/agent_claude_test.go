@@ -17,6 +17,8 @@ import (
 const (
 	envClaudeArgs  = "CLAUDE_STUB_ARGS"
 	envClaudeStdin = "CLAUDE_STUB_STDIN"
+	envClaudeToken = "CLAUDE_STUB_TOKEN"
+	envClaudeMode  = "CLAUDE_STUB_MODE"
 )
 
 func TestClaudeStdioCapture(t *testing.T) {
@@ -24,9 +26,11 @@ func TestClaudeStdioCapture(t *testing.T) {
 	stubPath := buildClaudeStub(t, stubDir)
 	argsPath := filepath.Join(stubDir, "args.txt")
 	stdinPath := filepath.Join(stubDir, "stdin.txt")
+	tokenPath := filepath.Join(stubDir, "token.txt")
 	t.Setenv("PATH", prependPath(filepath.Dir(stubPath)))
 	t.Setenv(envClaudeArgs, argsPath)
 	t.Setenv(envClaudeStdin, stdinPath)
+	t.Setenv(envClaudeToken, tokenPath)
 
 	workingDir := t.TempDir()
 	stdoutPath := filepath.Join(stubDir, "agent-stdout.txt")
@@ -82,15 +86,111 @@ func TestClaudeStdioCapture(t *testing.T) {
 	}
 	args := splitArgs(string(argsBytes))
 	assertArg(t, args, "-p")
-	assertArg(t, args, "--input-format")
-	assertArg(t, args, "text")
-	assertArg(t, args, "--output-format")
-	assertArg(t, args, "text")
+	assertArgPair(t, args, "--input-format", "text")
+	assertArgPair(t, args, "--output-format", "stream-json")
 	assertArg(t, args, "--tools")
 	assertArg(t, args, "default")
+	assertArg(t, args, "--verbose")
 	assertArg(t, args, "--permission-mode")
 	assertArg(t, args, "bypassPermissions")
 	assertArgPair(t, args, "-C", workingDir)
+
+	tokenBytes, err := os.ReadFile(tokenPath)
+	if err != nil {
+		t.Fatalf("read token: %v", err)
+	}
+	if string(tokenBytes) != "stub-token" {
+		t.Fatalf("token mismatch: %q", string(tokenBytes))
+	}
+}
+
+func TestClaudeWritesOutputMDFromStream(t *testing.T) {
+	stubDir := t.TempDir()
+	stubPath := buildClaudeStub(t, stubDir)
+	t.Setenv("PATH", prependPath(filepath.Dir(stubPath)))
+	t.Setenv(envClaudeMode, "stream-json")
+
+	workingDir := t.TempDir()
+	runDir := t.TempDir()
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+	stderrPath := filepath.Join(runDir, "agent-stderr.txt")
+
+	runCtx := &agent.RunContext{
+		Prompt:     "hello claude",
+		WorkingDir: workingDir,
+		StdoutPath: stdoutPath,
+		StderrPath: stderrPath,
+		Environment: map[string]string{
+			"ANTHROPIC_API_KEY": "stub-token",
+		},
+	}
+
+	agentImpl := &claude.ClaudeAgent{}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := agentImpl.Execute(ctx, runCtx); err != nil {
+		stdoutBytes, _ := os.ReadFile(stdoutPath)
+		stderrBytes, _ := os.ReadFile(stderrPath)
+		t.Fatalf("Execute: %v\nstdout:\n%s\nstderr:\n%s", err, stdoutBytes, stderrBytes)
+	}
+
+	outputBytes, err := os.ReadFile(filepath.Join(runDir, "output.md"))
+	if err != nil {
+		t.Fatalf("read output.md: %v", err)
+	}
+	if string(outputBytes) != "final stream result" {
+		t.Fatalf("unexpected output.md contents: %q", string(outputBytes))
+	}
+
+	stdoutBytes, err := os.ReadFile(stdoutPath)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	if !strings.Contains(string(stdoutBytes), "\"type\":\"result\"") {
+		t.Fatalf("stdout missing result event: %q", string(stdoutBytes))
+	}
+}
+
+func TestClaudeExecutionFailurePropagatesError(t *testing.T) {
+	stubDir := t.TempDir()
+	stubPath := buildClaudeStub(t, stubDir)
+	t.Setenv("PATH", prependPath(filepath.Dir(stubPath)))
+	t.Setenv(envClaudeMode, "fail")
+
+	workingDir := t.TempDir()
+	stdoutPath := filepath.Join(stubDir, "agent-stdout.txt")
+	stderrPath := filepath.Join(stubDir, "agent-stderr.txt")
+
+	runCtx := &agent.RunContext{
+		Prompt:     "hello claude",
+		WorkingDir: workingDir,
+		StdoutPath: stdoutPath,
+		StderrPath: stderrPath,
+		Environment: map[string]string{
+			"ANTHROPIC_API_KEY": "stub-token",
+		},
+	}
+
+	agentImpl := &claude.ClaudeAgent{}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := agentImpl.Execute(ctx, runCtx)
+	if err == nil {
+		t.Fatalf("expected Execute to fail")
+	}
+	if !strings.Contains(err.Error(), "claude execution failed") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	stderrBytes, readErr := os.ReadFile(stderrPath)
+	if readErr != nil {
+		t.Fatalf("read stderr: %v", readErr)
+	}
+	if !strings.Contains(string(stderrBytes), "forced failure from stub") {
+		t.Fatalf("stderr missing failure details: %q", string(stderrBytes))
+	}
 }
 
 func TestClaudeExecution(t *testing.T) {
@@ -155,8 +255,22 @@ func main() {
 	} else {
 		_, _ = io.Copy(io.Discard, os.Stdin)
 	}
-	_, _ = os.Stdout.WriteString("stub stdout\n")
-	_, _ = os.Stderr.WriteString("stub stderr\n")
+	if path := os.Getenv("` + envClaudeToken + `"); path != "" {
+		_ = os.WriteFile(path, []byte(os.Getenv("ANTHROPIC_API_KEY")), 0o644)
+	}
+
+	switch os.Getenv("` + envClaudeMode + `") {
+	case "stream-json":
+		_, _ = os.Stdout.WriteString("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"intermediate\"}]}}\n")
+		_, _ = os.Stdout.WriteString("{\"type\":\"result\",\"result\":\"final stream result\",\"is_error\":false}\n")
+		_, _ = os.Stderr.WriteString("stub stderr\n")
+	case "fail":
+		_, _ = os.Stderr.WriteString("forced failure from stub\n")
+		os.Exit(23)
+	default:
+		_, _ = os.Stdout.WriteString("stub stdout\n")
+		_, _ = os.Stderr.WriteString("stub stderr\n")
+	}
 }
 `
 

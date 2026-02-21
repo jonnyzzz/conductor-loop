@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ const (
 	envCodexExpectedCwd      = "CODEX_EXPECT_CWD"
 	envCodexExpectedEnvKey   = "CODEX_EXPECT_ENV_KEY"
 	envCodexExpectedEnvValue = "CODEX_EXPECT_ENV_VALUE"
+	envCodexHelperExitCode   = "CODEX_HELPER_EXIT_CODE"
 )
 
 func TestCodexExecution(t *testing.T) {
@@ -45,11 +47,8 @@ func TestCodexExecution(t *testing.T) {
 	pathEnv := root + string(os.PathListSeparator) + os.Getenv("PATH")
 	t.Setenv("PATH", pathEnv)
 
-	envKey := fmt.Sprintf("CODEX_RUNCTX_ENV_%d", time.Now().UnixNano())
-	envValue := "runctx-value"
-	if os.Getenv(envKey) != "" {
-		t.Fatalf("expected %s to be unset in test environment", envKey)
-	}
+	envKey := "OPENAI_API_KEY"
+	envValue := "runctx-openai-token"
 
 	t.Setenv(envCodexHelperMode, "1")
 	t.Setenv(envCodexExpectedPrompt, prompt)
@@ -96,6 +95,134 @@ func TestCodexExecution(t *testing.T) {
 	}
 	if !strings.Contains(stderrText, envKey+"="+envValue) {
 		t.Fatalf("stderr missing env value, got %q", stderrText)
+	}
+}
+
+func TestCodexExecutionPromptFromFile(t *testing.T) {
+	root := t.TempDir()
+	workingDir := filepath.Join(root, "work")
+	if err := os.MkdirAll(workingDir, 0o755); err != nil {
+		t.Fatalf("mkdir working dir: %v", err)
+	}
+	resolvedWorkingDir := workingDir
+	if resolved, err := filepath.EvalSymlinks(workingDir); err == nil {
+		resolvedWorkingDir = resolved
+	}
+
+	promptText := "prompt loaded from file"
+	promptPath := filepath.Join(root, "prompt.txt")
+	if err := os.WriteFile(promptPath, []byte(promptText), 0o644); err != nil {
+		t.Fatalf("write prompt file: %v", err)
+	}
+
+	stdoutPath := filepath.Join(root, "agent-stdout.txt")
+	stderrPath := filepath.Join(root, "agent-stderr.txt")
+
+	codexPath := filepath.Join(root, codexBinaryName())
+	if err := copyFile(os.Args[0], codexPath, 0o755); err != nil {
+		t.Fatalf("copy codex helper: %v", err)
+	}
+	pathEnv := root + string(os.PathListSeparator) + os.Getenv("PATH")
+	t.Setenv("PATH", pathEnv)
+
+	envKey := "OPENAI_API_KEY"
+	envValue := "token-from-prompt-file-test"
+
+	t.Setenv(envCodexHelperMode, "1")
+	t.Setenv(envCodexExpectedPrompt, promptText)
+	t.Setenv(envCodexExpectedCwd, resolvedWorkingDir)
+	t.Setenv(envCodexExpectedEnvKey, envKey)
+	t.Setenv(envCodexExpectedEnvValue, envValue)
+
+	agentImpl := &codex.CodexAgent{}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	runCtx := &agent.RunContext{
+		Prompt:     promptPath,
+		WorkingDir: resolvedWorkingDir,
+		StdoutPath: stdoutPath,
+		StderrPath: stderrPath,
+		Environment: map[string]string{
+			envKey: envValue,
+		},
+	}
+
+	if err := agentImpl.Execute(ctx, runCtx); err != nil {
+		stdoutBytes, _ := os.ReadFile(stdoutPath)
+		stderrBytes, _ := os.ReadFile(stderrPath)
+		t.Fatalf("Execute: %v\nstdout:\n%s\nstderr:\n%s", err, stdoutBytes, stderrBytes)
+	}
+
+	stdoutBytes, err := os.ReadFile(stdoutPath)
+	if err != nil {
+		t.Fatalf("read stdout file: %v", err)
+	}
+	if !strings.Contains(string(stdoutBytes), promptText) {
+		t.Fatalf("stdout missing file prompt, got %q", string(stdoutBytes))
+	}
+}
+
+func TestCodexExecutionFailurePropagatesError(t *testing.T) {
+	root := t.TempDir()
+	workingDir := filepath.Join(root, "work")
+	if err := os.MkdirAll(workingDir, 0o755); err != nil {
+		t.Fatalf("mkdir working dir: %v", err)
+	}
+	resolvedWorkingDir := workingDir
+	if resolved, err := filepath.EvalSymlinks(workingDir); err == nil {
+		resolvedWorkingDir = resolved
+	}
+
+	prompt := "prompt from failure test"
+	stdoutPath := filepath.Join(root, "agent-stdout.txt")
+	stderrPath := filepath.Join(root, "agent-stderr.txt")
+
+	codexPath := filepath.Join(root, codexBinaryName())
+	if err := copyFile(os.Args[0], codexPath, 0o755); err != nil {
+		t.Fatalf("copy codex helper: %v", err)
+	}
+	pathEnv := root + string(os.PathListSeparator) + os.Getenv("PATH")
+	t.Setenv("PATH", pathEnv)
+
+	envKey := "OPENAI_API_KEY"
+	envValue := "token-for-failure-test"
+
+	t.Setenv(envCodexHelperMode, "1")
+	t.Setenv(envCodexExpectedPrompt, prompt)
+	t.Setenv(envCodexExpectedCwd, resolvedWorkingDir)
+	t.Setenv(envCodexExpectedEnvKey, envKey)
+	t.Setenv(envCodexExpectedEnvValue, envValue)
+	t.Setenv(envCodexHelperExitCode, "17")
+
+	agentImpl := &codex.CodexAgent{}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	runCtx := &agent.RunContext{
+		Prompt:     prompt,
+		WorkingDir: resolvedWorkingDir,
+		StdoutPath: stdoutPath,
+		StderrPath: stderrPath,
+		Environment: map[string]string{
+			envKey: envValue,
+		},
+	}
+
+	err := agentImpl.Execute(ctx, runCtx)
+	if err == nil {
+		t.Fatalf("expected Execute to fail")
+	}
+	if !strings.Contains(err.Error(), "codex execution failed") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	stderrBytes, readErr := os.ReadFile(stderrPath)
+	if readErr != nil {
+		t.Fatalf("read stderr file: %v", readErr)
+	}
+	if !strings.Contains(string(stderrBytes), "forced codex failure") {
+		t.Fatalf("stderr missing forced failure marker, got %q", string(stderrBytes))
 	}
 }
 
@@ -152,6 +279,15 @@ func runCodexHelper() error {
 
 	if got := os.Getenv(expectedEnvKey); got != expectedEnvValue {
 		return fmt.Errorf("env mismatch: %s=%q want %q", expectedEnvKey, got, expectedEnvValue)
+	}
+
+	if exitCodeText := strings.TrimSpace(os.Getenv(envCodexHelperExitCode)); exitCodeText != "" {
+		code, err := strconv.Atoi(exitCodeText)
+		if err != nil {
+			return fmt.Errorf("invalid %s value %q: %w", envCodexHelperExitCode, exitCodeText, err)
+		}
+		_, _ = fmt.Fprintf(os.Stderr, "forced codex failure\n")
+		os.Exit(code)
 	}
 
 	_, _ = fmt.Fprintf(os.Stdout, "prompt:%s\n", string(data))
