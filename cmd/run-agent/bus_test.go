@@ -323,3 +323,145 @@ func TestBusReadProjectLevelVsTaskLevel(t *testing.T) {
 		t.Errorf("project-only msg should not appear in task bus output, got: %q", out2)
 	}
 }
+
+func TestDiscoverBusFilePathPrefersTaskProjectLegacy(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "MESSAGE-BUS.md"), []byte("legacy\n"), 0o644); err != nil {
+		t.Fatalf("write legacy bus: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "PROJECT-MESSAGE-BUS.md"), []byte("project\n"), 0o644); err != nil {
+		t.Fatalf("write project bus: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "TASK-MESSAGE-BUS.md"), []byte("task\n"), 0o644); err != nil {
+		t.Fatalf("write task bus: %v", err)
+	}
+
+	got, err := discoverBusFilePath(root)
+	if err != nil {
+		t.Fatalf("discoverBusFilePath: %v", err)
+	}
+	want := filepath.Join(root, "TASK-MESSAGE-BUS.md")
+	if got != want {
+		t.Fatalf("discovered %q, want %q", got, want)
+	}
+}
+
+func TestBusDiscoverCmdFindsNearestBus(t *testing.T) {
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "runs", "proj", "task-1")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task dir: %v", err)
+	}
+	taskBus := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
+	if err := os.WriteFile(taskBus, []byte(""), 0o644); err != nil {
+		t.Fatalf("write task bus: %v", err)
+	}
+
+	nested := filepath.Join(taskDir, "runs", "2026")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
+	}
+	t.Chdir(nested)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"bus", "discover"})
+
+	var output string
+	var runErr error
+	output = captureStdout(t, func() {
+		runErr = cmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("bus discover failed: %v", runErr)
+	}
+	if strings.TrimSpace(output) != taskBus {
+		t.Fatalf("discover output=%q, want %q", strings.TrimSpace(output), taskBus)
+	}
+}
+
+func TestBusReadAutoDiscoversLegacyBusFromCWD(t *testing.T) {
+	t.Setenv("MESSAGE_BUS", "")
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "MESSAGE-BUS.md"), []byte(`# legacy bus
+[2026-02-01 10:00:00] FACT: first
+[2026-02-01 10:00:01] DECISION: second
+`), 0o644); err != nil {
+		t.Fatalf("write legacy bus: %v", err)
+	}
+
+	workDir := filepath.Join(root, "nested", "deeper")
+	if err := os.MkdirAll(workDir, 0o755); err != nil {
+		t.Fatalf("mkdir work dir: %v", err)
+	}
+	t.Chdir(workDir)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"bus", "read", "--tail", "1"})
+
+	var output string
+	var runErr error
+	output = captureStdout(t, func() {
+		runErr = cmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("bus read failed: %v", runErr)
+	}
+	if !strings.Contains(output, "(DECISION) second") {
+		t.Fatalf("expected latest legacy message in output, got: %q", output)
+	}
+	if strings.Contains(output, "first") {
+		t.Fatalf("expected only tail=1 output, got: %q", output)
+	}
+}
+
+func TestBusPostAutoDiscoversLegacyBusAndInfersProject(t *testing.T) {
+	t.Setenv("MESSAGE_BUS", "")
+	t.Setenv("JRUN_PROJECT_ID", "")
+	t.Setenv("JRUN_TASK_ID", "")
+	t.Setenv("JRUN_ID", "")
+
+	root := t.TempDir()
+	busPath := filepath.Join(root, "MESSAGE-BUS.md")
+	if err := os.WriteFile(busPath, []byte("# bus\n[2026-02-01 10:00:00] FACT: bootstrap\n"), 0o644); err != nil {
+		t.Fatalf("write legacy bus: %v", err)
+	}
+	t.Chdir(root)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"bus", "post", "--type", "FACT", "--body", "auto discovered post"})
+
+	var output string
+	var runErr error
+	output = captureStdout(t, func() {
+		runErr = cmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("bus post failed: %v", runErr)
+	}
+	if !strings.Contains(output, "msg_id:") {
+		t.Fatalf("expected msg_id output, got %q", output)
+	}
+
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("open bus: %v", err)
+	}
+	msgs, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(msgs) == 0 {
+		t.Fatal("expected at least one parsed message")
+	}
+
+	last := msgs[len(msgs)-1]
+	if last.Body != "auto discovered post" {
+		t.Fatalf("last body=%q, want %q", last.Body, "auto discovered post")
+	}
+	if last.Type != "FACT" {
+		t.Fatalf("last type=%q, want FACT", last.Type)
+	}
+	if last.ProjectID != filepath.Base(root) {
+		t.Fatalf("last project_id=%q, want %q", last.ProjectID, filepath.Base(root))
+	}
+}

@@ -108,14 +108,14 @@ func parseParents(node yaml.Node) []Parent {
 
 // MessageBus manages append-only message bus files.
 type MessageBus struct {
-	path             string
-	now              func() time.Time
-	lockTimeout      time.Duration
-	pollInterval     time.Duration
-	maxRetries       int
-	retryBackoff     time.Duration
-	fsync            bool
-	autoRotateBytes  int64
+	path            string
+	now             func() time.Time
+	lockTimeout     time.Duration
+	pollInterval    time.Duration
+	maxRetries      int
+	retryBackoff    time.Duration
+	fsync           bool
+	autoRotateBytes int64
 
 	attempts int64
 	retries  int64
@@ -524,6 +524,7 @@ func parseMessages(data []byte) ([]*Message, error) {
 	var bodyBuf bytes.Buffer
 	var current *Message
 	messages := make([]*Message, 0)
+	lineNo := 0
 
 	for {
 		line, err := reader.ReadString('\n')
@@ -533,12 +534,15 @@ func parseMessages(data []byte) ([]*Message, error) {
 		if err == io.EOF && line == "" {
 			break
 		}
+		lineNo++
 		trimmed := strings.TrimRight(line, "\r\n")
 		switch state {
 		case stateSeekHeader:
 			if trimmed == "---" {
 				state = stateHeader
 				headerBuf.Reset()
+			} else if msg, ok := parseLegacyMessageLine(trimmed, lineNo); ok {
+				messages = append(messages, msg)
 			}
 		case stateHeader:
 			if trimmed == "---" {
@@ -592,6 +596,93 @@ func parseMessages(data []byte) ([]*Message, error) {
 		}
 	}
 	return messages, nil
+}
+
+var legacyTimestampLayouts = []string{
+	"2006-01-02 15:04:05",
+	"2006-01-02T15:04:05",
+	time.RFC3339,
+}
+
+// parseLegacyMessageLine parses legacy markdown log lines:
+// [YYYY-MM-DD HH:MM:SS] TYPE: body
+// Lines that do not match this format are ignored by design.
+func parseLegacyMessageLine(line string, lineNo int) (*Message, bool) {
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, "[") {
+		return nil, false
+	}
+
+	closing := strings.Index(trimmed, "]")
+	if closing <= 1 {
+		return nil, false
+	}
+
+	tsRaw := strings.TrimSpace(trimmed[1:closing])
+	ts, ok := parseLegacyTimestamp(tsRaw)
+	if !ok {
+		return nil, false
+	}
+
+	content := strings.TrimSpace(trimmed[closing+1:])
+	if content == "" {
+		return nil, false
+	}
+
+	msgType := "INFO"
+	body := content
+	if colon := strings.Index(content, ":"); colon > 0 {
+		candidateType := strings.TrimSpace(content[:colon])
+		candidateBody := strings.TrimSpace(content[colon+1:])
+		if isLegacyTypeToken(candidateType) {
+			msgType = strings.ToUpper(candidateType)
+			body = candidateBody
+		}
+	}
+	if body == "" {
+		body = content
+	}
+
+	return &Message{
+		MsgID:     fmt.Sprintf("LEGACY-LINE-%09d", lineNo),
+		Timestamp: ts.UTC(),
+		Type:      msgType,
+		Body:      body,
+	}, true
+}
+
+func parseLegacyTimestamp(raw string) (time.Time, bool) {
+	for _, layout := range legacyTimestampLayouts {
+		ts, err := time.Parse(layout, raw)
+		if err == nil {
+			return ts.UTC(), true
+		}
+	}
+	return time.Time{}, false
+}
+
+func isLegacyTypeToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	for _, ch := range token {
+		if ch >= 'a' && ch <= 'z' {
+			continue
+		}
+		if ch >= 'A' && ch <= 'Z' {
+			continue
+		}
+		if ch >= '0' && ch <= '9' {
+			continue
+		}
+		switch ch {
+		case '_', '-', '/':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func finalizeBody(body []byte) string {

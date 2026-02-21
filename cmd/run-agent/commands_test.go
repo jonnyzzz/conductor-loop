@@ -179,6 +179,7 @@ func TestBusPostCmd_UsesMessageBusEnvVar(t *testing.T) {
 
 func TestBusPostCmd_FailsWithoutBusOrEnvVar(t *testing.T) {
 	t.Setenv("MESSAGE_BUS", "")
+	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{

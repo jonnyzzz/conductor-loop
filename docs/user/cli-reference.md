@@ -1764,23 +1764,27 @@ run-agent bus <subcommand> [flags]
 Post a message to a message bus file.
 
 ```bash
-run-agent bus post [--bus PATH] [--type TYPE] [--body BODY] [flags]
+run-agent bus post [--type TYPE] [--body BODY] [flags]
 ```
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--bus` | string | "" | Path to message bus file (uses `$MESSAGE_BUS` env var if not set) |
+| `--bus` | string | "" | Path to message bus file (highest precedence) |
 | `--root` | string | "" | Root directory for project/task bus resolution (default: `$RUNS_DIR`, then `./runs`) |
 | `--type` | string | "INFO" | Message type |
-| `--project` | string | "" | Project ID (used with `--root`/`--task` to resolve bus path; also sets message `project_id`) |
+| `--project` | string | "" | Project ID (used with `--root`/`--task` to resolve bus path; also sets message `project_id`; falls back to `$JRUN_PROJECT_ID`) |
 | `--task` | string | "" | Task ID (used with `--project` to resolve task-level bus; also sets message `task_id`) |
-| `--run` | string | "" | Run ID |
+| `--run` | string | "" | Run ID (falls back to `$JRUN_ID`) |
 | `--body` | string | "" | Message body (reads stdin if not provided and stdin is a pipe) |
 
 **Examples:**
 
 ```bash
-# Post to a task-scoped bus (TASK-MESSAGE-BUS.md)
+# Auto-discovery mode (from repo/task dir; no --bus needed)
+cd ~/Work/conductor-loop
+run-agent bus post --type PROGRESS --body "starting analysis"
+
+# Explicit project/task mode (resolved from <root>/<project>/<task>/TASK-MESSAGE-BUS.md)
 run-agent bus post \
   --project my-project \
   --task task-20260221-120000-feat \
@@ -1788,16 +1792,26 @@ run-agent bus post \
   --type PROGRESS \
   --body "starting implementation"
 
-# Post to a project-scoped bus (PROJECT-MESSAGE-BUS.md)
+# Explicit project mode (resolved from <root>/<project>/PROJECT-MESSAGE-BUS.md)
 run-agent bus post \
   --project my-project \
   --root ./runs \
   --type DECISION \
   --body "using approach B for retries"
 
-# Post using MESSAGE_BUS (common inside agent runs)
-MESSAGE_BUS=/data/runs/my-project/task-20260221-120000-feat/TASK-MESSAGE-BUS.md \
-  run-agent bus post --type FACT --body "tests passed"
+# Explicit --bus mode (works for legacy repo-local MESSAGE-BUS.md too)
+run-agent bus post \
+  --bus /tmp/custom-bus.md \
+  --project my-project \
+  --type FACT \
+  --body "tests passed"
+
+# Cross-repo usage: operate on a different repository bus path
+run-agent bus post \
+  --bus ~/Work/swarm/MESSAGE-BUS.md \
+  --project swarm \
+  --type FACT \
+  --body "coordinator handoff complete"
 
 # Post from stdin
 echo "waiting for human input" | run-agent bus post --project my-project --type QUESTION
@@ -1821,12 +1835,12 @@ echo "waiting for human input" | run-agent bus post --project my-project --type 
 Read messages from a message bus file.
 
 ```bash
-run-agent bus read [--bus PATH] [--tail N] [--follow]
+run-agent bus read [--tail N] [--follow] [flags]
 ```
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--bus` | string | "" | Path to message bus file (uses `$MESSAGE_BUS` env var if not set) |
+| `--bus` | string | "" | Path to message bus file |
 | `--root` | string | "" | Root directory for project/task bus resolution (default: `$RUNS_DIR`, then `./runs`) |
 | `--project` | string | "" | Project ID (with `--root` to resolve bus path; reads project-level bus without `--task`) |
 | `--task` | string | "" | Task ID (requires `--project`; resolves task-level bus) |
@@ -1836,18 +1850,52 @@ run-agent bus read [--bus PATH] [--tail N] [--follow]
 **Examples:**
 
 ```bash
-# Follow task-scoped messages in real time
+# Auto-discovery mode (from repo/task dir)
+cd ~/Work/conductor-loop
+run-agent bus read --tail 10
+
+# Explicit project/task mode
 run-agent bus read \
   --project my-project \
   --task task-20260221-120000-feat \
   --root ./runs \
   --follow
 
-# Read the latest project-scoped messages
+# Explicit project mode
 run-agent bus read --project my-project --root ./runs --tail 50
 
-# Read from an explicit file path
+# Explicit --bus mode
 run-agent bus read --bus /tmp/custom-bus.md --tail 10
+
+# Cross-repo usage
+run-agent bus read --bus ~/Work/swarm/MESSAGE-BUS.md --tail 30
+```
+
+##### `run-agent bus discover`
+
+Detect the nearest message bus file by searching upward from current directory.
+
+```bash
+run-agent bus discover [--from DIR]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--from` | string | "" | Start directory (defaults to current working directory) |
+
+Search priority within each directory:
+1. `TASK-MESSAGE-BUS.md`
+2. `PROJECT-MESSAGE-BUS.md`
+3. `MESSAGE-BUS.md`
+
+**Examples:**
+
+```bash
+# Discover from current directory
+run-agent bus discover
+
+# Discover from an explicit path
+run-agent bus discover --from ~/Work/swarm/tasks/task-123/runs/latest
 ```
 
 **Read/Post/Follow workflow (recommended):**
@@ -1869,12 +1917,20 @@ run-agent bus post --project my-project --task task-20260221-120000-feat --root 
 
 **Path resolution rules:**
 
-- `run-agent bus post`: `--bus` -> `$MESSAGE_BUS` -> resolved from `--project`/`--task` (+ `--root`).
-- `run-agent bus read`: resolved from `--project`/`--task` (+ `--root`) -> `--bus` -> `$MESSAGE_BUS`.
+- `run-agent bus post`: `--bus` -> `$MESSAGE_BUS` -> resolved from `--project`/`--task` (+ `--root`) -> auto-discover from CWD.
+- `run-agent bus read`: resolved from `--project`/`--task` (+ `--root`) -> `--bus` -> `$MESSAGE_BUS` -> auto-discover from CWD.
 - For `read`, `--bus` and `--project` are mutually exclusive.
 - Resolved paths are:
   - Project scope: `<root>/<project>/PROJECT-MESSAGE-BUS.md`
   - Task scope: `<root>/<project>/<task>/TASK-MESSAGE-BUS.md`
+
+**Legacy format compatibility:**
+
+- `run-agent bus read` supports both:
+  - current YAML bus entries
+  - legacy line-based entries like `[2026-02-01 10:00:00] FACT: message`
+- In mixed files, entries are read in file order.
+- Non-matching legacy lines are skipped deterministically (no parse failure).
 
 ---
 

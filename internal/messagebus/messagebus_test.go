@@ -515,6 +515,87 @@ func TestParentsBackwardCompat(t *testing.T) {
 	}
 }
 
+func TestParseMessagesLegacyMarkdownLines(t *testing.T) {
+	raw := []byte(`# title
+[2026-02-01 10:00:00] FACT: first
+this is not a message line
+[bad ts] FACT: skipped
+[2026-02-01 10:00:01] just informational text
+`)
+
+	msgs, err := parseMessages(raw)
+	if err != nil {
+		t.Fatalf("parseMessages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 legacy messages, got %d", len(msgs))
+	}
+
+	if msgs[0].MsgID != "LEGACY-LINE-000000002" {
+		t.Fatalf("unexpected first legacy msg_id: %q", msgs[0].MsgID)
+	}
+	if msgs[0].Type != "FACT" || msgs[0].Body != "first" {
+		t.Fatalf("unexpected first legacy message: type=%q body=%q", msgs[0].Type, msgs[0].Body)
+	}
+	if msgs[1].Type != "INFO" || msgs[1].Body != "just informational text" {
+		t.Fatalf("unexpected second legacy message: type=%q body=%q", msgs[1].Type, msgs[1].Body)
+	}
+}
+
+func TestParseMessagesMixedLegacyAndYAML(t *testing.T) {
+	raw := []byte(`[2026-02-01 10:00:00] FACT: legacy
+---
+msg_id: msg-001
+ts: 2026-02-01T10:00:01Z
+type: FACT
+project_id: project
+---
+yaml body
+`)
+
+	msgs, err := parseMessages(raw)
+	if err != nil {
+		t.Fatalf("parseMessages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(msgs))
+	}
+	if msgs[0].Type != "FACT" || msgs[0].Body != "legacy" {
+		t.Fatalf("unexpected legacy message: type=%q body=%q", msgs[0].Type, msgs[0].Body)
+	}
+	if msgs[1].MsgID != "msg-001" {
+		t.Fatalf("unexpected YAML msg_id: %q", msgs[1].MsgID)
+	}
+	if msgs[1].Body != "yaml body" {
+		t.Fatalf("unexpected YAML body: %q", msgs[1].Body)
+	}
+}
+
+func TestReadLastNLegacyMarkdown(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	if err := os.WriteFile(path, []byte(`[2026-02-01 10:00:00] FACT: one
+[2026-02-01 10:00:01] DECISION: two
+[2026-02-01 10:00:02] ERROR: three
+`), 0o644); err != nil {
+		t.Fatalf("write bus: %v", err)
+	}
+
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	msgs, err := bus.ReadLastN(2)
+	if err != nil {
+		t.Fatalf("ReadLastN: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(msgs))
+	}
+	if msgs[0].Body != "two" || msgs[1].Body != "three" {
+		t.Fatalf("unexpected tail bodies: %q, %q", msgs[0].Body, msgs[1].Body)
+	}
+}
+
 func TestIssueIDAutoSet(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
 	bus, err := NewMessageBus(path)
