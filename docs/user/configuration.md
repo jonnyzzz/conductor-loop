@@ -53,6 +53,8 @@ api:
   cors_origins:                               # CORS allowed origins
     - http://localhost:3000
     - http://localhost:8080
+  auth_enabled: false                         # Enable API key authentication
+  # api_key: "your-secret-key"               # API key (set to enable auth)
 
 storage:
   runs_dir: /data/runs                        # Directory for run storage
@@ -220,6 +222,8 @@ api:
   cors_origins:                    # CORS allowed origins
     - http://localhost:3000
     - https://app.example.com
+  auth_enabled: true               # Enable API key authentication
+  api_key: "your-secret-key"       # API key (required when auth_enabled: true)
 ```
 
 | Field | Type | Default | Description |
@@ -227,6 +231,27 @@ api:
 | `host` | string | `0.0.0.0` | Server listen address |
 | `port` | int | `8080` | Server listen port |
 | `cors_origins` | []string | `[]` | CORS allowed origins |
+| `auth_enabled` | bool | `false` | Enable API key authentication |
+| `api_key` | string | `""` | API key value; required when `auth_enabled` is `true` |
+
+**API key authentication:**
+
+When `auth_enabled: true` and `api_key` is set, all API requests (except `/api/v1/health`, `/api/v1/version`, `/metrics`, and `/ui/`) must include the key via `Authorization: Bearer <key>` or `X-API-Key: <key>` header.
+
+The API key can also be set via the `CONDUCTOR_API_KEY` environment variable, which automatically enables authentication:
+
+```bash
+export CONDUCTOR_API_KEY="your-secret-key"
+./conductor --config config.yaml
+```
+
+Or via the `--api-key` CLI flag:
+
+```bash
+./conductor --config config.yaml --api-key "your-secret-key"
+```
+
+If `auth_enabled: true` is set without an `api_key`, a warning is logged and authentication is disabled.
 
 #### Host Configuration
 
@@ -356,6 +381,7 @@ Environment variables override config file values:
 | `CONDUCTOR_CONFIG` | N/A | Path to config file |
 | `CONDUCTOR_ROOT` | N/A | Root directory for run-agent |
 | `CONDUCTOR_DISABLE_TASK_START` | N/A | Disable task execution |
+| `CONDUCTOR_API_KEY` | `api.api_key` | Sets API key and enables authentication |
 
 ### Example with Environment Variables
 

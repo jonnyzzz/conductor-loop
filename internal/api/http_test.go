@@ -175,12 +175,13 @@ func TestMessagesEndpoint(t *testing.T) {
 
 func TestMiddlewareAuthAndCORS(t *testing.T) {
 	root := t.TempDir()
-	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true, APIConfig: config.APIConfig{AuthEnabled: true, CORSOrigins: []string{"*"}}, Logger: log.New(io.Discard, "", 0)})
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true, APIConfig: config.APIConfig{AuthEnabled: true, APIKey: "test-key", CORSOrigins: []string{"*"}}, Logger: log.New(io.Discard, "", 0)})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
+	// Protected endpoint without credentials returns 401 + CORS header.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tasks", nil)
 	req.Header.Set("Origin", "https://example.com")
 	rec := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rec, req)
@@ -191,7 +192,16 @@ func TestMiddlewareAuthAndCORS(t *testing.T) {
 		t.Fatalf("expected CORS header")
 	}
 
-	req = httptest.NewRequest(http.MethodOptions, "/api/v1/health", nil)
+	// Exempt path (health) passes through even without credentials.
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
+	rec = httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for exempt path, got %d", rec.Code)
+	}
+
+	// OPTIONS preflight passes through without credentials.
+	req = httptest.NewRequest(http.MethodOptions, "/api/v1/tasks", nil)
 	rec = httptest.NewRecorder()
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusNoContent {

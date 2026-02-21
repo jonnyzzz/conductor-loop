@@ -37,12 +37,67 @@ api:
 
 ## Authentication
 
-Currently, the API does not require authentication. This is suitable for local development and trusted environments.
+By default the conductor API is unauthenticated. To enable API key authentication, set an API key using one of the methods below. When a key is configured, all requests to protected endpoints must supply it.
 
-For production deployments, consider:
+### Enabling authentication
+
+**Via config file (`config.yaml`):**
+```yaml
+api:
+  auth_enabled: true
+  api_key: "your-secret-key"
+```
+
+**Via environment variable (overrides config; also enables auth):**
+```bash
+export CONDUCTOR_API_KEY="your-secret-key"
+```
+
+**Via CLI flag (overrides config):**
+```bash
+./conductor --api-key "your-secret-key"
+```
+
+If `auth_enabled: true` is set without an `api_key`, a warning is logged and authentication is disabled.
+
+### Sending the API key
+
+Include the key in one of these headers on every request:
+
+```bash
+# Authorization: Bearer
+curl -H "Authorization: Bearer your-secret-key" http://localhost:8080/api/v1/tasks
+
+# X-API-Key
+curl -H "X-API-Key: your-secret-key" http://localhost:8080/api/v1/tasks
+```
+
+### Exempt paths
+
+The following paths never require authentication:
+
+| Path | Description |
+|------|-------------|
+| `/api/v1/health` | Health check |
+| `/api/v1/version` | Version info |
+| `/metrics` | Prometheus metrics |
+| `/ui/` | Web UI static files |
+
+### Unauthorized response
+
+Requests without a valid key receive:
+
+```
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer realm="conductor"
+Content-Type: application/json
+
+{"error":"unauthorized","message":"valid API key required"}
+```
+
+For production deployments without API key auth, consider:
 - Running behind a reverse proxy with authentication (nginx, Caddy)
 - Using network isolation (VPN, private network)
-- Implementing custom authentication middleware
 
 ## Response Format
 

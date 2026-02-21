@@ -33,6 +33,7 @@ func newRootCmd() *cobra.Command {
 		disableTaskStart bool
 		host             string
 		port             int
+		apiKey           string
 	)
 
 	cmd := &cobra.Command{
@@ -51,7 +52,7 @@ func newRootCmd() *cobra.Command {
 			if cmd.Flags().Changed("port") {
 				cliPort = port
 			}
-			return runServer(configPath, rootDir, disableTaskStart, cliHost, cliPort)
+			return runServer(configPath, rootDir, disableTaskStart, cliHost, cliPort, apiKey)
 		},
 	}
 	cmd.SetVersionTemplate("{{.Version}}\n")
@@ -61,6 +62,7 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&disableTaskStart, "disable-task-start", false, "disable task execution")
 	cmd.Flags().StringVar(&host, "host", "0.0.0.0", "HTTP listen host (overrides config)")
 	cmd.Flags().IntVar(&port, "port", 8080, "HTTP listen port (overrides config)")
+	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key for authentication (enables auth when set)")
 
 	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newTaskCmd())
@@ -72,7 +74,7 @@ func newRootCmd() *cobra.Command {
 }
 
 
-func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string, cliPort int) error {
+func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string, cliPort int, cliAPIKey string) error {
 	logger := log.New(os.Stdout, "conductor ", log.LstdFlags)
 
 	configPath = strings.TrimSpace(configPath)
@@ -125,6 +127,14 @@ func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string
 	}
 	if cliPort != 0 {
 		apiConfig.Port = cliPort
+	}
+	if cliAPIKey != "" {
+		apiConfig.AuthEnabled = true
+		apiConfig.APIKey = cliAPIKey
+	}
+	if apiConfig.AuthEnabled && apiConfig.APIKey == "" {
+		logger.Printf("WARNING: auth_enabled=true but no api_key set; authentication disabled")
+		apiConfig.AuthEnabled = false
 	}
 
 	var extraRoots []string

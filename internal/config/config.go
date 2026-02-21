@@ -110,6 +110,7 @@ func LoadConfig(path string) (*Config, error) {
 	applyAgentDefaults(cfg)
 	applyAPIDefaults(cfg)
 	applyTokenEnvOverrides(cfg)
+	applyAPIEnvOverrides(cfg)
 
 	baseDir := filepath.Dir(path)
 	if err := resolveTokenFilePaths(cfg, baseDir); err != nil {
@@ -145,6 +146,7 @@ func LoadConfigForServer(path string) (*Config, error) {
 	applyAgentDefaults(cfg)
 	applyAPIDefaults(cfg)
 	applyTokenEnvOverrides(cfg)
+	applyAPIEnvOverrides(cfg)
 
 	baseDir := filepath.Dir(path)
 	if err := resolveTokenFilePaths(cfg, baseDir); err != nil {
@@ -241,6 +243,9 @@ func parseHCLConfig(path string, data []byte) (*Config, error) {
 		}
 		if b, ok := m["auth_enabled"].(bool); ok {
 			cfg.API.AuthEnabled = b
+		}
+		if s, ok := m["api_key"].(string); ok {
+			cfg.API.APIKey = s
 		}
 		if list, ok := m["cors_origins"].([]interface{}); ok {
 			for _, item := range list {

@@ -1,6 +1,9 @@
 package config
 
-import "strings"
+import (
+	"os"
+	"strings"
+)
 
 // APIConfig defines the REST API configuration settings.
 type APIConfig struct {
@@ -8,6 +11,7 @@ type APIConfig struct {
 	Port        int       `yaml:"port"`
 	CORSOrigins []string  `yaml:"cors_origins"`
 	AuthEnabled bool      `yaml:"auth_enabled"`
+	APIKey      string    `yaml:"api_key,omitempty"`
 	SSE         SSEConfig `yaml:"sse"`
 }
 
@@ -17,6 +21,18 @@ type SSEConfig struct {
 	DiscoveryIntervalMs int `yaml:"discovery_interval_ms"`
 	HeartbeatIntervalS  int `yaml:"heartbeat_interval_s"`
 	MaxClientsPerRun    int `yaml:"max_clients_per_run"`
+}
+
+// applyAPIEnvOverrides applies environment variable overrides for API config.
+// CONDUCTOR_API_KEY sets the API key and enables authentication.
+func applyAPIEnvOverrides(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+	if v := strings.TrimSpace(os.Getenv("CONDUCTOR_API_KEY")); v != "" {
+		cfg.API.APIKey = v
+		cfg.API.AuthEnabled = true
+	}
 }
 
 func applyAPIDefaults(cfg *Config) {

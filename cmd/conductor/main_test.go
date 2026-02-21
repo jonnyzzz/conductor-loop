@@ -44,7 +44,7 @@ func TestRunServerInvalidPort(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	if err := runServer(configPath, dir, true, "", 0); err == nil {
+	if err := runServer(configPath, dir, true, "", 0, ""); err == nil {
 		t.Fatalf("expected error for invalid port")
 	}
 }
@@ -67,7 +67,7 @@ func TestRunServerConfigFromEnv(t *testing.T) {
 	t.Setenv("CONDUCTOR_CONFIG", configPath)
 	t.Setenv("CONDUCTOR_DISABLE_TASK_START", "yes")
 
-	if err := runServer("", "", false, "", 0); err == nil {
+	if err := runServer("", "", false, "", 0, ""); err == nil {
 		t.Fatalf("expected error for invalid port from env config")
 	}
 }

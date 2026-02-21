@@ -131,21 +131,14 @@ func (s *Server) withCORS(next http.Handler) http.Handler {
 }
 
 func (s *Server) withAuth(next http.Handler) http.Handler {
-	if s == nil || !s.apiConfig.AuthEnabled {
+	if s == nil {
 		return next
 	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			next.ServeHTTP(w, r)
-			return
-		}
-		auth := strings.TrimSpace(r.Header.Get("Authorization"))
-		if auth == "" {
-			s.writeError(w, apiErrorUnauthorized("missing authorization header"))
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	key := ""
+	if s.apiConfig.AuthEnabled {
+		key = s.apiConfig.APIKey
+	}
+	return RequireAPIKey(key)(next)
 }
 
 type responseRecorder struct {
