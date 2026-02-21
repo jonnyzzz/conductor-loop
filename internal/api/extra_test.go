@@ -5,7 +5,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,6 +33,97 @@ func TestStartTask(t *testing.T) {
 		t.Fatalf("NewServer: %v", err)
 	}
 	server.startTask(TaskCreateRequest{ProjectID: "project", TaskID: "task", AgentType: "codex", Prompt: "prompt"}, "", "prompt")
+}
+
+func TestStartTask_ProcessImport(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-based process fixture is unix-only")
+	}
+
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "project", "task")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte("prompt"), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+
+	stdoutSource := filepath.Join(root, "external-stdout.log")
+	stderrSource := filepath.Join(root, "external-stderr.log")
+	scriptPath := filepath.Join(root, "external.sh")
+	script := `#!/bin/sh
+echo "api-stdout-1" >> "$SRC_STDOUT"
+echo "api-stderr-1" >> "$SRC_STDERR"
+sleep 0.2
+echo "api-stdout-2" >> "$SRC_STDOUT"
+echo "api-stderr-2" >> "$SRC_STDERR"
+sleep 0.2
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	cmd := exec.Command(scriptPath)
+	cmd.Env = append(os.Environ(),
+		"SRC_STDOUT="+stdoutSource,
+		"SRC_STDERR="+stderrSource,
+	)
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start fixture process: %v", err)
+	}
+	waitDone := make(chan error, 1)
+	go func() {
+		waitDone <- cmd.Wait()
+	}()
+
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: false, Logger: log.New(io.Discard, "", 0)})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	server.startTask(TaskCreateRequest{
+		ProjectID: "project",
+		TaskID:    "task",
+		AgentType: "codex",
+		Prompt:    "prompt",
+		ProcessImport: &ProcessImportRequest{
+			PID:         cmd.Process.Pid,
+			CommandLine: scriptPath,
+			StdoutPath:  stdoutSource,
+			StderrPath:  stderrSource,
+		},
+	}, "", "prompt")
+	if waitErr := <-waitDone; waitErr != nil {
+		t.Fatalf("fixture process wait: %v", waitErr)
+	}
+
+	runsDir := filepath.Join(root, "project", "task", "runs")
+	entries, err := os.ReadDir(runsDir)
+	if err != nil {
+		t.Fatalf("read runs dir: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected one run, got %d", len(entries))
+	}
+
+	runDir := filepath.Join(runsDir, entries[0].Name())
+	info, err := storage.ReadRunInfo(filepath.Join(runDir, "run-info.yaml"))
+	if err != nil {
+		t.Fatalf("read run-info: %v", err)
+	}
+	if info.Status != storage.StatusCompleted {
+		t.Fatalf("status=%q, want completed", info.Status)
+	}
+	if storage.EffectiveProcessOwnership(info) != storage.ProcessOwnershipExternal {
+		t.Fatalf("process_ownership=%q, want external", info.ProcessOwnership)
+	}
+	stdoutData, err := os.ReadFile(filepath.Join(runDir, "agent-stdout.txt"))
+	if err != nil {
+		t.Fatalf("read mirrored stdout: %v", err)
+	}
+	if !strings.Contains(string(stdoutData), "api-stdout-2") {
+		t.Fatalf("missing mirrored stdout content: %q", string(stdoutData))
+	}
 }
 
 func TestStopTaskRuns(t *testing.T) {

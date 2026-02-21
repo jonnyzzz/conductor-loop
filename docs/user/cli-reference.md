@@ -1167,6 +1167,116 @@ run-agent job \
 | 1 | Agent failed |
 | 2 | Configuration error |
 
+#### `run-agent wrap`
+
+Run an agent CLI command as-is while recording it as a tracked Conductor task/run.
+
+This is intended for shell alias wrappers (for example `claude`, `codex`, `gemini`)
+so normal console usage is persisted into `<root>/<project>/<task>/runs/<run_id>/`.
+
+```bash
+run-agent wrap --agent <agent> [wrap-flags] -- [agent-args...]
+```
+
+**Required Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--agent` | string | Agent command to execute (for example `claude`, `codex`, `gemini`) |
+
+**Optional Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--project` | string | `JRUN_PROJECT_ID` or sanitized CWD basename | Project ID for tracked metadata |
+| `--task` | string | auto-generated | Task ID (`task-<timestamp>-<slug>`) |
+| `--root` | string | `~/run-agent` | Run-agent root directory |
+| `--cwd` | string | current working directory | Working directory for wrapped command |
+| `--message-bus` | string | `<task>/TASK-MESSAGE-BUS.md` | Message bus file path |
+| `--parent-run-id` | string | `JRUN_ID` (if set) | Parent run ID |
+| `--previous-run-id` | string | "" | Previous run ID |
+| `--timeout` | duration | 0 | Max wrapped command duration; 0 means no limit |
+| `--task-prompt` | string | auto-generated | TASK.md content when creating a new task |
+
+**Examples:**
+
+```bash
+# Track a Claude prompt invocation as a task/run
+run-agent wrap --agent claude -- -p "Explain this codebase"
+
+# Wrap codex exec flags unchanged
+run-agent wrap --agent codex -- exec --dangerously-bypass-approvals-and-sandbox "Refactor this file"
+
+# Use explicit project/task
+run-agent wrap \
+  --project my-project \
+  --task task-20260222-100100-shell-wrap \
+  --agent gemini \
+  -- --help
+```
+
+**Behavior:**
+
+1. Resolves/creates project + task directories and writes `TASK.md` if missing.
+2. Creates a new run directory and `run-info.yaml`.
+3. Executes the wrapped CLI command with passed args unchanged.
+4. Preserves terminal behavior by passing through stdio directly.
+5. Writes run lifecycle events (`RUN_START`, `RUN_STOP` or `RUN_CRASH`) to task message bus.
+
+**Note:** Because stdio is passed through to preserve CLI behavior, terminal transcript
+is not mirrored into `agent-stdout.txt`/`agent-stderr.txt`; those files contain a notice.
+
+#### `run-agent shell-setup`
+
+Install or remove a managed shell init block that aliases `claude`, `codex`, and `gemini`
+to `run-agent wrap --agent <agent> --`.
+
+This feature is safe opt-in: no shell files are edited unless you run this command explicitly.
+
+```bash
+run-agent shell-setup install [flags]
+run-agent shell-setup uninstall [flags]
+```
+
+**Install Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--shell` | string | inferred from `$SHELL` | Shell type (`zsh` or `bash`) |
+| `--rc-file` | string | shell default (`~/.zshrc` or `~/.bashrc`) | Init file to edit (overrides `--shell`) |
+| `--run-agent-bin` | string | `run-agent` | Executable token used in alias command |
+
+**Uninstall Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--shell` | string | inferred from `$SHELL` | Shell type (`zsh` or `bash`) |
+| `--rc-file` | string | shell default (`~/.zshrc` or `~/.bashrc`) | Init file to edit (overrides `--shell`) |
+
+**Examples:**
+
+```bash
+# Install aliases in your inferred shell init file
+run-agent shell-setup install
+
+# Install aliases in bash init file
+run-agent shell-setup install --shell bash
+
+# Install aliases into an explicit file
+run-agent shell-setup install --rc-file ~/.zshrc
+
+# Remove the managed alias block
+run-agent shell-setup uninstall
+```
+
+**Behavior:**
+
+1. Adds a managed block with begin/end markers so changes are isolated.
+2. `install` is idempotent: re-running updates/reuses the same managed block without duplicates.
+3. `uninstall` is idempotent: re-running when absent is a no-op.
+4. `uninstall` removes only the managed block added by this command.
+5. Alias changes take effect after `source <rc-file>` or opening a new shell.
+
 #### `run-agent serve`
 
 Start a read-only HTTP server exposing the runs API and web UI. Task execution is disabled.

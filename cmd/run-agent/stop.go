@@ -61,6 +61,9 @@ func runStop(runDir, root, projectID, taskID, runID string, force bool) error {
 		fmt.Fprintf(os.Stderr, "run %s is not running (status: %s)\n", info.RunID, info.Status)
 		return nil
 	}
+	if !storage.CanTerminateProcess(info) {
+		return fmt.Errorf("run %s is externally owned and cannot be stopped by conductor", info.RunID)
+	}
 
 	pgid := info.PGID
 	if pgid <= 0 {

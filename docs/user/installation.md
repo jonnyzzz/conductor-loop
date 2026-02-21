@@ -291,6 +291,22 @@ conductor version
 run-agent --version
 ```
 
+### Optional: Enable Wrapped Shell Aliases (Safe Opt-In)
+
+If you want `claude`, `codex`, and `gemini` terminal calls to be tracked automatically as
+Conductor tasks/runs, install shell aliases explicitly:
+
+```bash
+run-agent shell-setup install
+```
+
+This only edits your shell init file when you run it. It writes a managed block so it can be
+removed cleanly later:
+
+```bash
+run-agent shell-setup uninstall
+```
+
 ### Test the Server
 
 ```bash

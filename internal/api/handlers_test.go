@@ -12,6 +12,7 @@ import (
 
 	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
+	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 )
 
 func TestValidateIdentifier(t *testing.T) {
@@ -195,6 +196,62 @@ func TestHandleStatus(t *testing.T) {
 	}
 	if resp.RunningTasks[0].TaskID != "task" {
 		t.Fatalf("expected running task task_id=task, got %s", resp.RunningTasks[0].TaskID)
+	}
+}
+
+func TestHandleStatus_ReconcilesStaleRunningPID(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	runDir := filepath.Join(root, "project", "task", "runs", "run-stale")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	infoPath := filepath.Join(runDir, "run-info.yaml")
+	stale := &storage.RunInfo{
+		RunID:     "run-stale",
+		ProjectID: "project",
+		TaskID:    "task",
+		Status:    storage.StatusRunning,
+		ExitCode:  -1,
+		StartTime: time.Now().Add(-time.Minute).UTC(),
+		PID:       99999999,
+		PGID:      99999999,
+	}
+	if err := storage.WriteRunInfo(infoPath, stale); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp StatusResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.ActiveRunsCount != 0 {
+		t.Fatalf("expected 0 active runs after reconciliation, got %d", resp.ActiveRunsCount)
+	}
+	if len(resp.RunningTasks) != 0 {
+		t.Fatalf("expected no running tasks after reconciliation, got %d", len(resp.RunningTasks))
+	}
+
+	reloaded, err := storage.ReadRunInfo(infoPath)
+	if err != nil {
+		t.Fatalf("read reconciled run-info: %v", err)
+	}
+	if reloaded.Status != storage.StatusFailed {
+		t.Fatalf("expected reconciled status=%q, got %q", storage.StatusFailed, reloaded.Status)
+	}
+	if reloaded.EndTime.IsZero() {
+		t.Fatalf("expected end_time to be set during reconciliation")
 	}
 }
 
@@ -472,6 +529,213 @@ func TestHandleTaskCreate_AttachMode_Values(t *testing.T) {
 	}
 }
 
+func TestHandleTaskCreate_ProcessImport_InvalidPID(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	payload := TaskCreateRequest{
+		ProjectID: "project",
+		TaskID:    "task",
+		AgentType: "codex",
+		Prompt:    "hello",
+		ProcessImport: &ProcessImportRequest{
+			PID:        0,
+			StdoutPath: filepath.Join(root, "stdout.log"),
+		},
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid process_import.pid, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestHandleTaskCreate_ProcessImport_RequiresLogSource(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	payload := TaskCreateRequest{
+		ProjectID: "project",
+		TaskID:    "task",
+		AgentType: "codex",
+		Prompt:    "hello",
+		ProcessImport: &ProcessImportRequest{
+			PID: 123,
+		},
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 when process_import has no stdout/stderr paths, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestHandleTaskCreate_ProcessImport_OwnershipValidation(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	payload := TaskCreateRequest{
+		ProjectID: "project",
+		TaskID:    "task",
+		AgentType: "codex",
+		Prompt:    "hello",
+		ProcessImport: &ProcessImportRequest{
+			PID:        123,
+			StdoutPath: filepath.Join(root, "stdout.log"),
+			Ownership:  "invalid",
+		},
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid process_import.ownership, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestHandleTaskCreate_DependsOnPersisted(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	payload := TaskCreateRequest{
+		ProjectID: "project",
+		TaskID:    "task-main",
+		AgentType: "codex",
+		Prompt:    "hello",
+		DependsOn: []string{"task-a", " task-b "},
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var createResp TaskCreateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	want := []string{"task-a", "task-b"}
+	if len(createResp.DependsOn) != len(want) {
+		t.Fatalf("depends_on=%v, want %v", createResp.DependsOn, want)
+	}
+	for i := range want {
+		if createResp.DependsOn[i] != want[i] {
+			t.Fatalf("depends_on[%d]=%q, want %q", i, createResp.DependsOn[i], want[i])
+		}
+	}
+
+	taskDir := filepath.Join(root, "project", "task-main")
+	savedDependsOn, err := taskdeps.ReadDependsOn(taskDir)
+	if err != nil {
+		t.Fatalf("ReadDependsOn: %v", err)
+	}
+	if len(savedDependsOn) != len(want) {
+		t.Fatalf("saved depends_on=%v, want %v", savedDependsOn, want)
+	}
+	for i := range want {
+		if savedDependsOn[i] != want[i] {
+			t.Fatalf("saved depends_on[%d]=%q, want %q", i, savedDependsOn[i], want[i])
+		}
+	}
+}
+
+func TestHandleTaskCreate_DependsOnCycleRejected(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	taskADir := filepath.Join(root, "project", "task-a")
+	if err := os.MkdirAll(taskADir, 0o755); err != nil {
+		t.Fatalf("mkdir task-a: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskADir, "TASK.md"), []byte("prompt\n"), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+	if err := taskdeps.WriteDependsOn(taskADir, []string{"task-b"}); err != nil {
+		t.Fatalf("WriteDependsOn: %v", err)
+	}
+
+	payload := TaskCreateRequest{
+		ProjectID: "project",
+		TaskID:    "task-b",
+		AgentType: "codex",
+		Prompt:    "hello",
+		DependsOn: []string{"task-a"},
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for dependency cycle, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestHandleTaskGet_BlockedByDependencies(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	taskMainDir := filepath.Join(root, "project", "task-main")
+	taskDepDir := filepath.Join(root, "project", "task-dep")
+	if err := os.MkdirAll(taskMainDir, 0o755); err != nil {
+		t.Fatalf("mkdir task-main: %v", err)
+	}
+	if err := os.MkdirAll(taskDepDir, 0o755); err != nil {
+		t.Fatalf("mkdir task-dep: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskMainDir, "TASK.md"), []byte("main\n"), 0o644); err != nil {
+		t.Fatalf("write main TASK.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDepDir, "TASK.md"), []byte("dep\n"), 0o644); err != nil {
+		t.Fatalf("write dep TASK.md: %v", err)
+	}
+	if err := taskdeps.WriteDependsOn(taskMainDir, []string{"task-dep"}); err != nil {
+		t.Fatalf("WriteDependsOn: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/task-main?project_id=project", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp TaskResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Status != "blocked" {
+		t.Fatalf("status=%q, want blocked", resp.Status)
+	}
+	if len(resp.DependsOn) != 1 || resp.DependsOn[0] != "task-dep" {
+		t.Fatalf("depends_on=%v, want [task-dep]", resp.DependsOn)
+	}
+	if len(resp.BlockedBy) != 1 || resp.BlockedBy[0] != "task-dep" {
+		t.Fatalf("blocked_by=%v, want [task-dep]", resp.BlockedBy)
+	}
+}
+
 func TestHandleTaskCreate_Attach_DoesNotOverwriteTaskMD(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
@@ -633,5 +897,39 @@ func TestHandleRunGet_ErrorSummary(t *testing.T) {
 	}
 	if resp.Status != storage.StatusFailed {
 		t.Fatalf("expected status=failed, got %s", resp.Status)
+	}
+}
+
+func TestHandleRunStop_ExternalOwnership(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	runDir := filepath.Join(root, "project", "task", "runs", "run-external")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	info := &storage.RunInfo{
+		RunID:            "run-external",
+		ProjectID:        "project",
+		TaskID:           "task",
+		Status:           storage.StatusRunning,
+		StartTime:        time.Now().UTC(),
+		PID:              os.Getpid(),
+		PGID:             os.Getpid(),
+		ProcessOwnership: storage.ProcessOwnershipExternal,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runs/run-external/stop", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

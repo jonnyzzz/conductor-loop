@@ -14,7 +14,9 @@ import (
 
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 	"github.com/jonnyzzz/conductor-loop/internal/runner"
+	"github.com/jonnyzzz/conductor-loop/internal/runstate"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
+	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 	"github.com/pkg/errors"
 )
 
@@ -22,21 +24,34 @@ const maxJSONBodySize = 1 << 20
 
 // TaskCreateRequest defines the payload for task creation.
 type TaskCreateRequest struct {
-	ProjectID   string            `json:"project_id"`
-	TaskID      string            `json:"task_id"`
-	AgentType   string            `json:"agent_type"`
-	Prompt      string            `json:"prompt"`
-	Config      map[string]string `json:"config,omitempty"`
-	ProjectRoot string            `json:"project_root,omitempty"` // working directory for the task
-	AttachMode  string            `json:"attach_mode,omitempty"`  // "create" | "attach" | "resume"
+	ProjectID     string                `json:"project_id"`
+	TaskID        string                `json:"task_id"`
+	AgentType     string                `json:"agent_type"`
+	Prompt        string                `json:"prompt"`
+	Config        map[string]string     `json:"config,omitempty"`
+	ProjectRoot   string                `json:"project_root,omitempty"` // working directory for the task
+	AttachMode    string                `json:"attach_mode,omitempty"`  // "create" | "attach" | "resume"
+	ProcessImport *ProcessImportRequest `json:"process_import,omitempty"`
+	DependsOn     []string              `json:"depends_on,omitempty"`
+}
+
+// ProcessImportRequest configures adoption of an already-running process into a new run.
+type ProcessImportRequest struct {
+	PID         int    `json:"pid"`
+	PGID        int    `json:"pgid,omitempty"`
+	CommandLine string `json:"commandline,omitempty"`
+	StdoutPath  string `json:"stdout_path,omitempty"`
+	StderrPath  string `json:"stderr_path,omitempty"`
+	Ownership   string `json:"ownership,omitempty"` // "managed" | "external" (default)
 }
 
 // TaskCreateResponse defines the response for task creation.
 type TaskCreateResponse struct {
-	ProjectID string `json:"project_id"`
-	TaskID    string `json:"task_id"`
-	RunID     string `json:"run_id"` // the run ID that was allocated
-	Status    string `json:"status"`
+	ProjectID string   `json:"project_id"`
+	TaskID    string   `json:"task_id"`
+	RunID     string   `json:"run_id"` // the run ID that was allocated
+	Status    string   `json:"status"`
+	DependsOn []string `json:"depends_on,omitempty"`
 }
 
 // TaskResponse defines the task response payload.
@@ -45,20 +60,23 @@ type TaskResponse struct {
 	TaskID       string        `json:"task_id"`
 	Status       string        `json:"status"`
 	LastActivity time.Time     `json:"last_activity"`
+	DependsOn    []string      `json:"depends_on,omitempty"`
+	BlockedBy    []string      `json:"blocked_by,omitempty"`
 	Runs         []RunResponse `json:"runs,omitempty"`
 }
 
 // RunResponse defines run metadata returned by the API.
 type RunResponse struct {
-	RunID        string    `json:"run_id"`
-	ProjectID    string    `json:"project_id"`
-	TaskID       string    `json:"task_id"`
-	Status       string    `json:"status"`
-	StartTime    time.Time `json:"start_time"`
-	EndTime      time.Time `json:"end_time,omitempty"`
-	ExitCode     int       `json:"exit_code,omitempty"`
-	AgentVersion string    `json:"agent_version,omitempty"`
-	ErrorSummary string    `json:"error_summary,omitempty"`
+	RunID            string    `json:"run_id"`
+	ProjectID        string    `json:"project_id"`
+	TaskID           string    `json:"task_id"`
+	Status           string    `json:"status"`
+	ProcessOwnership string    `json:"process_ownership,omitempty"`
+	StartTime        time.Time `json:"start_time"`
+	EndTime          time.Time `json:"end_time,omitempty"`
+	ExitCode         int       `json:"exit_code,omitempty"`
+	AgentVersion     string    `json:"agent_version,omitempty"`
+	ErrorSummary     string    `json:"error_summary,omitempty"`
 }
 
 // MessageResponse defines the message bus entry payload.
@@ -440,6 +458,19 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 	}
 	req.ProjectRoot = projectRoot
 
+	var (
+		dependsOn      []string
+		dependsUpdated bool
+	)
+	if req.DependsOn != nil {
+		var err error
+		dependsOn, err = taskdeps.Normalize(req.TaskID, req.DependsOn)
+		if err != nil {
+			return apiErrorBadRequest(err.Error())
+		}
+		dependsUpdated = true
+	}
+
 	// Validate and normalise attach_mode.
 	attachMode := strings.TrimSpace(req.AttachMode)
 	if attachMode == "" {
@@ -451,6 +482,21 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 		return apiErrorBadRequest(fmt.Sprintf("invalid attach_mode %q: must be create, attach, or resume", attachMode))
 	}
 
+	if req.ProcessImport != nil {
+		if req.ProcessImport.PID <= 0 {
+			return apiErrorBadRequest("process_import.pid must be > 0")
+		}
+		if strings.TrimSpace(req.ProcessImport.StdoutPath) == "" && strings.TrimSpace(req.ProcessImport.StderrPath) == "" {
+			return apiErrorBadRequest("process_import requires stdout_path and/or stderr_path")
+		}
+		if ownership := strings.TrimSpace(req.ProcessImport.Ownership); ownership != "" {
+			normalized := storage.NormalizeProcessOwnership(ownership)
+			if normalized != strings.ToLower(ownership) {
+				return apiErrorBadRequest("process_import.ownership must be managed or external")
+			}
+		}
+	}
+
 	// Use the existing task directory if found, otherwise create at the default location.
 	taskDir, ok := findProjectTaskDir(s.rootDir, req.ProjectID, req.TaskID)
 	if !ok {
@@ -459,6 +505,23 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 	if err := os.MkdirAll(taskDir, 0o755); err != nil {
 		return apiErrorInternal("create task directory", err)
 	}
+
+	if !dependsUpdated {
+		var err error
+		dependsOn, err = taskdeps.ReadDependsOn(taskDir)
+		if err != nil {
+			return apiErrorInternal("read task dependencies", err)
+		}
+	}
+	if err := taskdeps.ValidateNoCycle(s.rootDir, req.ProjectID, req.TaskID, dependsOn); err != nil {
+		return apiErrorConflict(err.Error(), map[string]string{"task_id": req.TaskID})
+	}
+	if dependsUpdated {
+		if err := taskdeps.WriteDependsOn(taskDir, dependsOn); err != nil {
+			return apiErrorInternal("write task dependencies", err)
+		}
+	}
+	req.DependsOn = dependsOn
 
 	prompt := strings.TrimSpace(req.Prompt)
 	if !strings.HasSuffix(prompt, "\n") {
@@ -509,6 +572,7 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 		TaskID:    req.TaskID,
 		RunID:     runID,
 		Status:    "started",
+		DependsOn: dependsOn,
 	}
 	return writeJSON(w, http.StatusCreated, resp)
 }
@@ -525,6 +589,8 @@ func (s *Server) handleTaskList(w http.ResponseWriter, r *http.Request) *apiErro
 			TaskID:       task.TaskID,
 			Status:       task.Status,
 			LastActivity: task.LastActivity,
+			DependsOn:    task.DependsOn,
+			BlockedBy:    task.BlockedBy,
 		})
 	}
 	return writeJSON(w, http.StatusOK, map[string][]TaskResponse{"tasks": resp})
@@ -563,6 +629,8 @@ func (s *Server) handleTaskGet(w http.ResponseWriter, r *http.Request, projectID
 		TaskID:       task.TaskID,
 		Status:       task.Status,
 		LastActivity: task.LastActivity,
+		DependsOn:    task.DependsOn,
+		BlockedBy:    task.BlockedBy,
 		Runs:         runs,
 	}
 	return writeJSON(w, http.StatusOK, resp)
@@ -649,6 +717,9 @@ func (s *Server) handleRunStop(w http.ResponseWriter, r *http.Request, runID str
 	if !info.EndTime.IsZero() {
 		return apiErrorConflict("run already finished", map[string]string{"run_id": runID})
 	}
+	if !storage.CanTerminateProcess(info) {
+		return apiErrorConflict("run is externally owned and cannot be stopped by conductor", map[string]string{"run_id": runID})
+	}
 	if err := runner.TerminateProcessGroup(info.PGID); err != nil {
 		return apiErrorInternal("stop run", err)
 	}
@@ -668,6 +739,33 @@ func (s *Server) conductorURL() string {
 }
 
 func (s *Server) startTask(req TaskCreateRequest, firstRunDir, prompt string) {
+	if req.ProcessImport != nil {
+		opts := runner.ImportOptions{
+			RootDir:            s.rootDir,
+			WorkingDir:         strings.TrimSpace(req.ProjectRoot),
+			PreallocatedRunDir: firstRunDir,
+			Process: runner.ImportedProcess{
+				PID:         req.ProcessImport.PID,
+				PGID:        req.ProcessImport.PGID,
+				AgentType:   req.AgentType,
+				CommandLine: req.ProcessImport.CommandLine,
+				StdoutPath:  req.ProcessImport.StdoutPath,
+				StderrPath:  req.ProcessImport.StderrPath,
+				Ownership:   req.ProcessImport.Ownership,
+			},
+		}
+		s.metrics.IncActiveRuns()
+		if err := runner.RunImportedProcess(req.ProjectID, req.TaskID, opts); err != nil {
+			s.logger.Printf("task %s/%s import failed: %v", req.ProjectID, req.TaskID, err)
+			s.metrics.DecActiveRuns()
+			s.metrics.IncFailedRuns()
+		} else {
+			s.metrics.DecActiveRuns()
+			s.metrics.IncCompletedRuns()
+		}
+		return
+	}
+
 	opts := runner.TaskOptions{
 		RootDir:      s.rootDir,
 		ConfigPath:   s.configPath,
@@ -677,6 +775,7 @@ func (s *Server) startTask(req TaskCreateRequest, firstRunDir, prompt string) {
 		Environment:  req.Config,
 		FirstRunDir:  firstRunDir,
 		ConductorURL: s.conductorURL(),
+		DependsOn:    req.DependsOn,
 	}
 	s.metrics.IncActiveRuns()
 	if err := runner.RunTask(req.ProjectID, req.TaskID, opts); err != nil {
@@ -694,15 +793,16 @@ func runInfoToResponse(info *storage.RunInfo) RunResponse {
 		return RunResponse{}
 	}
 	return RunResponse{
-		RunID:        info.RunID,
-		ProjectID:    info.ProjectID,
-		TaskID:       info.TaskID,
-		Status:       info.Status,
-		StartTime:    info.StartTime,
-		EndTime:      info.EndTime,
-		ExitCode:     info.ExitCode,
-		AgentVersion: info.AgentVersion,
-		ErrorSummary: info.ErrorSummary,
+		RunID:            info.RunID,
+		ProjectID:        info.ProjectID,
+		TaskID:           info.TaskID,
+		Status:           info.Status,
+		ProcessOwnership: storage.EffectiveProcessOwnership(info),
+		StartTime:        info.StartTime,
+		EndTime:          info.EndTime,
+		ExitCode:         info.ExitCode,
+		AgentVersion:     info.AgentVersion,
+		ErrorSummary:     info.ErrorSummary,
 	}
 }
 
@@ -778,6 +878,8 @@ type taskInfo struct {
 	Path         string
 	Status       string
 	LastActivity time.Time
+	DependsOn    []string
+	BlockedBy    []string
 }
 
 var (
@@ -832,7 +934,7 @@ func listProjectTasks(projectID, projectDir string) ([]taskInfo, error) {
 			}
 			return nil, errors.Wrapf(err, "stat TASK.md for %s/%s", projectID, taskID)
 		}
-		info, err := buildTaskInfo(projectID, taskID, taskPath)
+		info, err := buildTaskInfo(filepath.Dir(projectDir), projectID, taskID, taskPath)
 		if err != nil {
 			return nil, err
 		}
@@ -853,7 +955,7 @@ func getTask(root, projectID, taskID string) (taskInfo, error) {
 		}
 		return taskInfo{}, errors.Wrap(err, "stat TASK.md")
 	}
-	info, err := buildTaskInfo(projectID, taskID, taskPath)
+	info, err := buildTaskInfo(root, projectID, taskID, taskPath)
 	if err != nil {
 		return taskInfo{}, err
 	}
@@ -880,10 +982,16 @@ func findTask(root, taskID string) (taskInfo, error) {
 	return matches[0], nil
 }
 
-func buildTaskInfo(projectID, taskID, taskPath string) (taskInfo, error) {
+func buildTaskInfo(rootDir, projectID, taskID, taskPath string) (taskInfo, error) {
 	status := "idle"
+	done := false
 	if _, err := os.Stat(filepath.Join(taskPath, "DONE")); err == nil {
 		status = "completed"
+		done = true
+	}
+	dependsOn, err := taskdeps.ReadDependsOn(taskPath)
+	if err != nil {
+		return taskInfo{}, errors.Wrapf(err, "read task dependencies for %s/%s", projectID, taskID)
 	}
 	runs, err := listTaskRuns(taskPath)
 	if err != nil {
@@ -902,6 +1010,16 @@ func buildTaskInfo(projectID, taskID, taskPath string) (taskInfo, error) {
 			status = "running"
 		}
 	}
+	blockedBy := []string(nil)
+	if !done && status == "idle" && len(dependsOn) > 0 {
+		blockedBy, err = taskdeps.BlockedBy(rootDir, projectID, dependsOn)
+		if err != nil {
+			return taskInfo{}, errors.Wrapf(err, "resolve blocked dependencies for %s/%s", projectID, taskID)
+		}
+		if len(blockedBy) > 0 {
+			status = "blocked"
+		}
+	}
 	if lastActivity.IsZero() {
 		if info, err := os.Stat(filepath.Join(taskPath, "TASK.md")); err == nil {
 			lastActivity = info.ModTime()
@@ -913,6 +1031,8 @@ func buildTaskInfo(projectID, taskID, taskPath string) (taskInfo, error) {
 		Path:         taskPath,
 		Status:       status,
 		LastActivity: lastActivity,
+		DependsOn:    dependsOn,
+		BlockedBy:    blockedBy,
 	}, nil
 }
 
@@ -931,7 +1051,7 @@ func listTaskRuns(taskPath string) ([]RunResponse, error) {
 			continue
 		}
 		path := filepath.Join(runsDir, entry.Name(), "run-info.yaml")
-		info, err := storage.ReadRunInfo(path)
+		info, err := runstate.ReadRunInfo(path)
 		if err != nil {
 			if os.IsNotExist(errors.Cause(err)) || os.IsNotExist(err) {
 				// Pre-allocated run directory without run-info.yaml yet; skip it.
@@ -963,7 +1083,7 @@ func allRunInfos(root string) ([]*storage.RunInfo, error) {
 		if d.Name() != "run-info.yaml" {
 			return nil
 		}
-		info, err := storage.ReadRunInfo(path)
+		info, err := runstate.ReadRunInfo(path)
 		if err != nil {
 			return err
 		}
@@ -995,7 +1115,7 @@ func listRunResponses(root string) ([]RunResponse, error) {
 		if d.Name() != "run-info.yaml" {
 			return nil
 		}
-		info, err := storage.ReadRunInfo(path)
+		info, err := runstate.ReadRunInfo(path)
 		if err != nil {
 			return err
 		}
@@ -1019,7 +1139,7 @@ func getRunInfo(root, runID string) (*storage.RunInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	info, err := storage.ReadRunInfo(path)
+	info, err := runstate.ReadRunInfo(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "read run-info")
 	}
@@ -1053,6 +1173,9 @@ func stopTaskRuns(taskPath string) (int, error) {
 	stopped := 0
 	for _, info := range runs {
 		if info.EndTime.IsZero() {
+			if !storage.CanTerminateProcess(info) {
+				continue
+			}
 			if err := runner.TerminateProcessGroup(info.PGID); err != nil {
 				return stopped, err
 			}
@@ -1081,7 +1204,7 @@ func listRunResponsesFlat(root string) ([]RunResponse, error) {
 		}
 		dir := filepath.Join(runsDir, entry.Name())
 		// prefer run-info.yaml
-		if info, err := storage.ReadRunInfo(filepath.Join(dir, "run-info.yaml")); err == nil {
+		if info, err := runstate.ReadRunInfo(filepath.Join(dir, "run-info.yaml")); err == nil {
 			runs = append(runs, runInfoToResponse(info))
 			continue
 		}
@@ -1111,7 +1234,7 @@ func listTaskRunInfos(taskPath string) ([]*storage.RunInfo, error) {
 			continue
 		}
 		path := filepath.Join(runsDir, entry.Name(), "run-info.yaml")
-		info, err := storage.ReadRunInfo(path)
+		info, err := runstate.ReadRunInfo(path)
 		if err != nil {
 			if os.IsNotExist(errors.Cause(err)) || os.IsNotExist(err) {
 				// Pre-allocated run directory without run-info.yaml yet; skip it.

@@ -2,12 +2,14 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
+	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 	"github.com/pkg/errors"
 )
 
@@ -15,6 +17,7 @@ import (
 const RestartPrefix = "Continue working on the following:\n\n"
 
 const restartPrefix = RestartPrefix
+const defaultDependencyPollInterval = 2 * time.Second
 
 // TaskOptions controls execution for the run-agent task command.
 type TaskOptions struct {
@@ -35,6 +38,10 @@ type TaskOptions struct {
 	FirstRunDir    string // optional: pre-allocated run directory used for the first run attempt
 	ResumeMode     bool   // when true, prepend restart prefix even on the first run attempt
 	ConductorURL   string // e.g. "http://127.0.0.1:14355"; passed to JobOptions
+	DependsOn      []string
+	// DependencyPollInterval controls how often dependency status is checked while blocked.
+	// Zero means a default interval is used.
+	DependencyPollInterval time.Duration
 }
 
 // RunTask starts the root agent and enforces the Ralph loop.
@@ -100,6 +107,15 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 		return errors.Wrap(err, "new message bus")
 	}
 
+	dependsOn, err := resolveTaskDependencies(rootDir, projectID, taskID, taskDir, opts.DependsOn)
+	if err != nil {
+		return err
+	}
+
+	if err := waitForDependencies(taskDir, rootDir, projectID, taskID, dependsOn, opts.DependencyPollInterval, bus); err != nil {
+		return err
+	}
+
 	previousRunID := ""
 	runnerFn := func(ctx context.Context, attempt int) error {
 		jobPrompt := prompt
@@ -150,4 +166,80 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 		return err
 	}
 	return loop.Run(context.Background())
+}
+
+func resolveTaskDependencies(rootDir, projectID, taskID, taskDir string, requested []string) ([]string, error) {
+	dependsOn, err := taskdeps.ReadDependsOn(taskDir)
+	if err != nil {
+		return nil, errors.Wrap(err, "read task dependencies")
+	}
+
+	if requested != nil {
+		dependsOn, err = taskdeps.Normalize(taskID, requested)
+		if err != nil {
+			return nil, errors.Wrap(err, "normalize task dependencies")
+		}
+	}
+
+	if err := taskdeps.ValidateNoCycle(rootDir, projectID, taskID, dependsOn); err != nil {
+		return nil, errors.Wrap(err, "validate task dependencies")
+	}
+
+	if requested != nil {
+		if err := taskdeps.WriteDependsOn(taskDir, dependsOn); err != nil {
+			return nil, errors.Wrap(err, "write task dependencies")
+		}
+	}
+
+	return dependsOn, nil
+}
+
+func waitForDependencies(taskDir, rootDir, projectID, taskID string, dependsOn []string, pollInterval time.Duration, bus *messagebus.MessageBus) error {
+	if len(dependsOn) == 0 {
+		return nil
+	}
+	if pollInterval <= 0 {
+		pollInterval = defaultDependencyPollInterval
+	}
+
+	lastBlocked := ""
+	for {
+		if _, err := os.Stat(filepath.Join(taskDir, "DONE")); err == nil {
+			return nil
+		} else if err != nil && !os.IsNotExist(err) {
+			return errors.Wrap(err, "stat DONE while waiting for dependencies")
+		}
+
+		blockedBy, err := taskdeps.BlockedBy(rootDir, projectID, dependsOn)
+		if err != nil {
+			return errors.Wrap(err, "resolve blocked dependencies")
+		}
+		if len(blockedBy) == 0 {
+			if lastBlocked != "" {
+				appendDependencyMessage(bus, projectID, taskID, "FACT", "dependencies satisfied; starting task")
+			}
+			return nil
+		}
+
+		current := strings.Join(blockedBy, ",")
+		if current != lastBlocked {
+			body := fmt.Sprintf("task blocked by dependencies: %s", strings.Join(blockedBy, ", "))
+			appendDependencyMessage(bus, projectID, taskID, "PROGRESS", body)
+			lastBlocked = current
+		}
+
+		time.Sleep(pollInterval)
+	}
+}
+
+func appendDependencyMessage(bus *messagebus.MessageBus, projectID, taskID, msgType, body string) {
+	if bus == nil {
+		return
+	}
+	_, _ = bus.AppendMessage(&messagebus.Message{
+		Type:      msgType,
+		ProjectID: projectID,
+		TaskID:    taskID,
+		Body:      body,
+	})
 }

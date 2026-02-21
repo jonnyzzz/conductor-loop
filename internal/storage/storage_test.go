@@ -30,23 +30,24 @@ func TestUpdateRunInfoValidation(t *testing.T) {
 
 func TestRunInfoRoundtrip(t *testing.T) {
 	info := &RunInfo{
-		RunID:       "run-1",
-		ParentRunID: "parent",
-		ProjectID:   "project",
-		TaskID:      "task",
-		AgentType:   "codex",
-		PID:         123,
-		PGID:        456,
-		StartTime:   time.Date(2026, 2, 4, 8, 0, 0, 0, time.UTC),
-		EndTime:     time.Date(2026, 2, 4, 8, 5, 0, 0, time.UTC),
-		ExitCode:    0,
-		Status:      StatusCompleted,
-		CWD:         "/tmp",
-		PromptPath:  "/tmp/prompt.md",
-		OutputPath:  "/tmp/output.md",
-		StdoutPath:  "/tmp/stdout.txt",
-		StderrPath:  "/tmp/stderr.txt",
-		CommandLine: "echo hi",
+		RunID:            "run-1",
+		ParentRunID:      "parent",
+		ProjectID:        "project",
+		TaskID:           "task",
+		AgentType:        "codex",
+		ProcessOwnership: ProcessOwnershipManaged,
+		PID:              123,
+		PGID:             456,
+		StartTime:        time.Date(2026, 2, 4, 8, 0, 0, 0, time.UTC),
+		EndTime:          time.Date(2026, 2, 4, 8, 5, 0, 0, time.UTC),
+		ExitCode:         0,
+		Status:           StatusCompleted,
+		CWD:              "/tmp",
+		PromptPath:       "/tmp/prompt.md",
+		OutputPath:       "/tmp/output.md",
+		StdoutPath:       "/tmp/stdout.txt",
+		StderrPath:       "/tmp/stderr.txt",
+		CommandLine:      "echo hi",
 	}
 	path := filepath.Join(t.TempDir(), "run-info.yaml")
 	if err := WriteRunInfo(path, info); err != nil {
@@ -58,6 +59,27 @@ func TestRunInfoRoundtrip(t *testing.T) {
 	}
 	if got.RunID != info.RunID || got.ProjectID != info.ProjectID || got.Status != info.Status {
 		t.Fatalf("unexpected run-info: %+v", got)
+	}
+	if got.ProcessOwnership != ProcessOwnershipManaged {
+		t.Fatalf("unexpected process ownership: %q", got.ProcessOwnership)
+	}
+}
+
+func TestProcessOwnershipHelpers(t *testing.T) {
+	if NormalizeProcessOwnership("") != ProcessOwnershipManaged {
+		t.Fatalf("empty ownership should default to managed")
+	}
+	if NormalizeProcessOwnership("external") != ProcessOwnershipExternal {
+		t.Fatalf("external ownership should remain external")
+	}
+	if NormalizeProcessOwnership("invalid") != ProcessOwnershipManaged {
+		t.Fatalf("invalid ownership should normalize to managed")
+	}
+	if CanTerminateProcess(&RunInfo{ProcessOwnership: ProcessOwnershipExternal}) {
+		t.Fatalf("externally owned run should not be terminable")
+	}
+	if !CanTerminateProcess(&RunInfo{ProcessOwnership: ProcessOwnershipManaged}) {
+		t.Fatalf("managed run should be terminable")
 	}
 }
 

@@ -80,6 +80,7 @@ func newJobSubmitCmd() *cobra.Command {
 		promptFile  string
 		projectRoot string
 		attachMode  string
+		dependsOn   []string
 		wait        bool
 		follow      bool
 		jsonOutput  bool
@@ -103,6 +104,7 @@ func newJobSubmitCmd() *cobra.Command {
 				Prompt:      promptText,
 				ProjectRoot: projectRoot,
 				AttachMode:  attachMode,
+				DependsOn:   dependsOn,
 			}
 			return jobSubmit(cmd.OutOrStdout(), server, req, wait, follow, jsonOutput)
 		},
@@ -116,6 +118,7 @@ func newJobSubmitCmd() *cobra.Command {
 	cmd.Flags().StringVar(&promptFile, "prompt-file", "", "path to file containing task prompt (mutually exclusive with --prompt)")
 	cmd.Flags().StringVar(&projectRoot, "project-root", "", "working directory for the task")
 	cmd.Flags().StringVar(&attachMode, "attach-mode", "create", "attach mode: create, attach, or resume")
+	cmd.Flags().StringArrayVar(&dependsOn, "depends-on", nil, "task dependencies (repeat or comma-separate)")
 	cmd.Flags().BoolVar(&wait, "wait", false, "wait for task completion by polling run status")
 	cmd.Flags().BoolVar(&follow, "follow", false, "stream task output after submission (implies --wait)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
@@ -155,6 +158,7 @@ type jobCreateRequest struct {
 	Prompt      string `json:"prompt"`
 	ProjectRoot string `json:"project_root,omitempty"`
 	AttachMode  string `json:"attach_mode,omitempty"`
+	DependsOn   []string `json:"depends_on,omitempty"`
 }
 
 // jobCreateResponse is the JSON response from POST /api/v1/tasks.

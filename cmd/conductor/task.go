@@ -60,6 +60,8 @@ type taskDetailResponse struct {
 	TaskID       string           `json:"task_id"`
 	Status       string           `json:"status"`
 	LastActivity time.Time        `json:"last_activity"`
+	DependsOn    []string         `json:"depends_on,omitempty"`
+	BlockedBy    []string         `json:"blocked_by,omitempty"`
 	Runs         []taskRunSummary `json:"runs"`
 }
 
@@ -158,7 +160,7 @@ func newTaskListCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID")
-	cmd.Flags().StringVar(&status, "status", "", "filter by status: running, active, done, failed")
+	cmd.Flags().StringVar(&status, "status", "", "filter by status: running, active, done, failed, blocked")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 	cobra.MarkFlagRequired(cmd.Flags(), "project") //nolint:errcheck
 
@@ -172,6 +174,7 @@ type taskListItem struct {
 	Status       string    `json:"status"`
 	LastActivity time.Time `json:"last_activity"`
 	RunCount     int       `json:"run_count"`
+	BlockedBy    []string  `json:"blocked_by,omitempty"`
 }
 
 // taskListAPIResponse is the paginated JSON response from GET /api/projects/{id}/tasks.
@@ -213,13 +216,17 @@ func taskList(server, project, status string, jsonOutput bool) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "TASK ID\tSTATUS\tRUNS\tLAST ACTIVITY")
+	fmt.Fprintln(w, "TASK ID\tSTATUS\tRUNS\tBLOCKED_BY\tLAST ACTIVITY")
 	for _, t := range result.Items {
 		lastActivity := "-"
 		if !t.LastActivity.IsZero() {
 			lastActivity = t.LastActivity.Format("2006-01-02 15:04")
 		}
-		fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", t.ID, t.Status, t.RunCount, lastActivity)
+		blockedBy := "-"
+		if len(t.BlockedBy) > 0 {
+			blockedBy = strings.Join(t.BlockedBy, ",")
+		}
+		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\n", t.ID, t.Status, t.RunCount, blockedBy, lastActivity)
 	}
 	if err := w.Flush(); err != nil {
 		return err
@@ -324,6 +331,12 @@ func taskStatus(server, taskID, project string, jsonOutput bool) error {
 
 	fmt.Printf("Task:   %s/%s\n", result.ProjectID, result.TaskID)
 	fmt.Printf("Status: %s\n", result.Status)
+	if len(result.DependsOn) > 0 {
+		fmt.Printf("Depends on: %s\n", strings.Join(result.DependsOn, ", "))
+	}
+	if len(result.BlockedBy) > 0 {
+		fmt.Printf("Blocked by: %s\n", strings.Join(result.BlockedBy, ", "))
+	}
 	if !result.LastActivity.IsZero() {
 		fmt.Printf("Last activity: %s\n", result.LastActivity.Format(time.RFC3339))
 	}

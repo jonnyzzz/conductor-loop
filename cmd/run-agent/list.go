@@ -11,18 +11,20 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/runstate"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
+	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
 func newListCmd() *cobra.Command {
 	var (
-		root      string
-		projectID string
-		taskID    string
+		root         string
+		projectID    string
+		taskID       string
 		statusFilter string
-		jsonOut   bool
+		jsonOut      bool
 	)
 
 	cmd := &cobra.Command{
@@ -43,7 +45,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&root, "root", "", "root directory (default: ./runs or RUNS_DIR env)")
 	cmd.Flags().StringVar(&projectID, "project", "", "project id (optional; lists tasks if set)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id (requires --project; lists runs if set)")
-	cmd.Flags().StringVar(&statusFilter, "status", "", "filter tasks by status: running, active, done, failed (only applies when --project is set)")
+	cmd.Flags().StringVar(&statusFilter, "status", "", "filter tasks by status: running, active, done, failed, blocked (only applies when --project is set)")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON")
 
 	return cmd
@@ -99,6 +101,8 @@ type taskRow struct {
 	LatestStatus string `json:"latest_status"`
 	Done         bool   `json:"done"`
 	LastActivity string `json:"last_activity"` // ISO 8601 or ""
+	DependsOn    []string `json:"depends_on,omitempty"`
+	BlockedBy    []string `json:"blocked_by,omitempty"`
 }
 
 // listTasks lists all tasks for a project as a table.
@@ -120,6 +124,11 @@ func listTasks(out io.Writer, root, projectID, statusFilter string, jsonOut bool
 		taskID := e.Name()
 		taskDir := filepath.Join(projDir, taskID)
 		row := taskRow{TaskID: taskID}
+		dependsOn, err := taskdeps.ReadDependsOn(taskDir)
+		if err != nil {
+			return errors.Wrapf(err, "read task dependencies for task %s", taskID)
+		}
+		row.DependsOn = dependsOn
 
 		if _, err := os.Stat(filepath.Join(taskDir, "DONE")); err == nil {
 			row.Done = true
@@ -153,8 +162,17 @@ func listTasks(out io.Writer, root, projectID, statusFilter string, jsonOut bool
 			sort.Strings(runNames)
 			latest := runNames[len(runNames)-1]
 			infoPath := filepath.Join(runsDir, latest, "run-info.yaml")
-			if info, err := storage.ReadRunInfo(infoPath); err == nil {
+			if info, err := runstate.ReadRunInfo(infoPath); err == nil {
 				row.LatestStatus = info.Status
+			}
+		} else if !row.Done && len(dependsOn) > 0 {
+			blockedBy, err := taskdeps.BlockedBy(root, projectID, dependsOn)
+			if err != nil {
+				return errors.Wrapf(err, "resolve blocked dependencies for task %s", taskID)
+			}
+			if len(blockedBy) > 0 {
+				row.LatestStatus = "blocked"
+				row.BlockedBy = blockedBy
 			}
 		}
 
@@ -172,11 +190,15 @@ func listTasks(out io.Writer, root, projectID, statusFilter string, jsonOut bool
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "TASK_ID\tRUNS\tLATEST_STATUS\tDONE\tLAST_ACTIVITY")
+	fmt.Fprintln(w, "TASK_ID\tRUNS\tLATEST_STATUS\tDONE\tBLOCKED_BY\tLAST_ACTIVITY")
 	for _, row := range rows {
 		done := "-"
 		if row.Done {
 			done = "DONE"
+		}
+		blockedBy := "-"
+		if len(row.BlockedBy) > 0 {
+			blockedBy = strings.Join(row.BlockedBy, ",")
 		}
 		lastActivity := "-"
 		if row.LastActivity != "" {
@@ -184,7 +206,7 @@ func listTasks(out io.Writer, root, projectID, statusFilter string, jsonOut bool
 				lastActivity = t.Local().Format("2006-01-02 15:04")
 			}
 		}
-		fmt.Fprintf(w, "%s\t%d\t%s\t%s\t%s\n", row.TaskID, row.Runs, row.LatestStatus, done, lastActivity)
+		fmt.Fprintf(w, "%s\t%d\t%s\t%s\t%s\t%s\n", row.TaskID, row.Runs, row.LatestStatus, done, blockedBy, lastActivity)
 	}
 	return w.Flush()
 }
@@ -218,7 +240,7 @@ func listRuns(out io.Writer, root, projectID, taskID string, jsonOut bool) error
 		infoPath := filepath.Join(runsDir, runID, "run-info.yaml")
 		row := runRow{RunID: runID}
 
-		info, err := storage.ReadRunInfo(infoPath)
+		info, err := runstate.ReadRunInfo(infoPath)
 		if err != nil {
 			row.Status = "unknown"
 			row.Duration = "-"
@@ -254,7 +276,7 @@ func listRuns(out io.Writer, root, projectID, taskID string, jsonOut bool) error
 	return w.Flush()
 }
 
-// filterRowsByStatus filters task rows by status. Supported values: "running"/"active", "done", "failed".
+// filterRowsByStatus filters task rows by status. Supported values: "running"/"active", "done", "failed", "blocked".
 // Unknown values log a warning and return all rows unchanged.
 func filterRowsByStatus(rows []taskRow, filter string) []taskRow {
 	switch strings.ToLower(filter) {
@@ -280,6 +302,14 @@ func filterRowsByStatus(rows []taskRow, filter string) []taskRow {
 		var out []taskRow
 		for _, r := range rows {
 			if r.LatestStatus == "failed" {
+				out = append(out, r)
+			}
+		}
+		return out
+	case "blocked":
+		var out []taskRow
+		for _, r := range rows {
+			if r.LatestStatus == "blocked" {
 				out = append(out, r)
 			}
 		}

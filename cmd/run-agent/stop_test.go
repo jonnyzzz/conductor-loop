@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,6 +119,28 @@ func TestStopCmd_RunDirWithDeadProcess(t *testing.T) {
 	err := runStop(runDir, "", "", "", "", false)
 	if err != nil {
 		t.Fatalf("expected no error when process is not alive, got: %v", err)
+	}
+}
+
+func TestStopCmd_ExternalOwnership(t *testing.T) {
+	root := t.TempDir()
+	runDir := makeRunWithPID(t, root, "proj", "task1", "run-001", storage.StatusRunning, time.Now(), 0, os.Getpid())
+	path := filepath.Join(runDir, "run-info.yaml")
+	info, err := storage.ReadRunInfo(path)
+	if err != nil {
+		t.Fatalf("read run-info: %v", err)
+	}
+	info.ProcessOwnership = storage.ProcessOwnershipExternal
+	if err := storage.WriteRunInfo(path, info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	err = runStop(runDir, "", "", "", "", false)
+	if err == nil {
+		t.Fatal("expected error for externally owned run")
+	}
+	if !strings.Contains(err.Error(), "externally owned") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

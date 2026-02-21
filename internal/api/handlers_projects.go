@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/runner"
+	"github.com/jonnyzzz/conductor-loop/internal/runstate"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
+	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 	"github.com/pkg/errors"
 )
 
@@ -56,17 +58,18 @@ type RunFile struct {
 
 // projectRun is the run summary shape the project API returns.
 type projectRun struct {
-	ID            string     `json:"id"`
-	Agent         string     `json:"agent"`
-	AgentVersion  string     `json:"agent_version,omitempty"`
-	Status        string     `json:"status"`
-	ExitCode      int        `json:"exit_code"`
-	StartTime     time.Time  `json:"start_time"`
-	EndTime       *time.Time `json:"end_time,omitempty"`
-	ParentRunID   string     `json:"parent_run_id,omitempty"`
-	PreviousRunID string     `json:"previous_run_id,omitempty"`
-	ErrorSummary  string     `json:"error_summary,omitempty"`
-	Files         []RunFile  `json:"files,omitempty"`
+	ID               string     `json:"id"`
+	Agent            string     `json:"agent"`
+	AgentVersion     string     `json:"agent_version,omitempty"`
+	Status           string     `json:"status"`
+	ProcessOwnership string     `json:"process_ownership,omitempty"`
+	ExitCode         int        `json:"exit_code"`
+	StartTime        time.Time  `json:"start_time"`
+	EndTime          *time.Time `json:"end_time,omitempty"`
+	ParentRunID      string     `json:"parent_run_id,omitempty"`
+	PreviousRunID    string     `json:"previous_run_id,omitempty"`
+	ErrorSummary     string     `json:"error_summary,omitempty"`
+	Files            []RunFile  `json:"files,omitempty"`
 }
 
 // projectTask is the task shape the project API returns.
@@ -78,6 +81,8 @@ type projectTask struct {
 	CreatedAt    time.Time    `json:"created_at"`
 	Done         bool         `json:"done"`
 	State        string       `json:"state"`
+	DependsOn    []string     `json:"depends_on,omitempty"`
+	BlockedBy    []string     `json:"blocked_by,omitempty"`
 	Runs         []projectRun `json:"runs"`
 }
 
@@ -346,6 +351,8 @@ func (s *Server) handleProjectTasks(w http.ResponseWriter, r *http.Request) *api
 			"last_activity": t.LastActivity,
 			"run_count":     len(t.Runs),
 			"run_counts":    runCounts,
+			"depends_on":    t.DependsOn,
+			"blocked_by":    t.BlockedBy,
 		})
 	}
 	return writeJSON(w, http.StatusOK, paginatedResponse{
@@ -483,6 +490,9 @@ func (s *Server) handleStopRun(w http.ResponseWriter, run *storage.RunInfo) *api
 	if run.Status != storage.StatusRunning {
 		return apiErrorConflict("run is not running", map[string]string{"status": run.Status})
 	}
+	if !storage.CanTerminateProcess(run) {
+		return apiErrorConflict("run is externally owned and cannot be stopped by conductor", map[string]string{"run_id": run.RunID})
+	}
 
 	// Use PGID if available, otherwise fall back to PID.
 	pgid := run.PGID
@@ -600,6 +610,9 @@ func (s *Server) handleProjectDelete(w http.ResponseWriter, r *http.Request, pro
 	// If force=true, send SIGTERM to all running runs (best-effort).
 	if force {
 		for _, run := range runningRuns {
+			if !storage.CanTerminateProcess(run) {
+				continue
+			}
 			pgid := run.PGID
 			if pgid <= 0 {
 				pgid = run.PID
@@ -845,7 +858,7 @@ func (s *Server) serveRunFileStream(w http.ResponseWriter, r *http.Request, run 
 			// Re-read run-info.yaml to detect completion.
 			currentStatus := run.Status
 			if runInfoPath != "" {
-				if current, err := storage.ReadRunInfo(runInfoPath); err == nil {
+				if current, err := runstate.ReadRunInfo(runInfoPath); err == nil {
 					currentStatus = current.Status
 				}
 			}
@@ -869,7 +882,7 @@ func (s *Server) allRunInfos() ([]*storage.RunInfo, error) {
 		if err != nil || d.IsDir() || d.Name() != "run-info.yaml" {
 			return err
 		}
-		info, err := storage.ReadRunInfo(path)
+		info, err := runstate.ReadRunInfo(path)
 		if err != nil {
 			return errors.Wrapf(err, "read %s", path)
 		}
@@ -895,7 +908,7 @@ func (s *Server) allRunInfos() ([]*storage.RunInfo, error) {
 				continue
 			}
 			dir := filepath.Join(runsDir, entry.Name())
-			if info, err := storage.ReadRunInfo(filepath.Join(dir, "run-info.yaml")); err == nil {
+			if info, err := runstate.ReadRunInfo(filepath.Join(dir, "run-info.yaml")); err == nil {
 				all = append(all, info)
 				continue
 			}
@@ -918,14 +931,34 @@ func buildTasks(rootDir, projectID string, runs []*storage.RunInfo) []projectTas
 		taskMap[run.TaskID] = append(taskMap[run.TaskID], runInfoToProjectRun(run))
 	}
 
+	if projectDir, ok := findProjectDir(rootDir, projectID); ok {
+		entries, err := os.ReadDir(projectDir)
+		if err == nil {
+			for _, entry := range entries {
+				if !entry.IsDir() {
+					continue
+				}
+				taskID := entry.Name()
+				taskDir := filepath.Join(projectDir, taskID)
+				if !isTaskDirectory(taskDir) {
+					continue
+				}
+				if _, exists := taskMap[taskID]; !exists {
+					taskMap[taskID] = nil
+				}
+			}
+		}
+	}
+
 	tasks := make([]projectTask, 0, len(taskMap))
 	for taskID, taskRuns := range taskMap {
 		sort.Slice(taskRuns, func(i, j int) bool {
 			return taskRuns[i].StartTime.Before(taskRuns[j].StartTime)
 		})
 
+		taskDir, hasTaskDir := findProjectTaskDir(rootDir, projectID, taskID)
 		var lastActivity time.Time
-		status := "completed"
+		status := "-"
 		running := false
 		for _, run := range taskRuns {
 			t := run.StartTime
@@ -940,7 +973,7 @@ func buildTasks(rootDir, projectID string, runs []*storage.RunInfo) []projectTas
 				status = "running"
 			}
 		}
-		if !running && len(taskRuns) > 0 {
+		if len(taskRuns) > 0 && !running {
 			status = taskRuns[len(taskRuns)-1].Status
 		}
 
@@ -953,10 +986,36 @@ func buildTasks(rootDir, projectID string, runs []*storage.RunInfo) []projectTas
 		if running {
 			state = "running"
 		}
+
 		done := false
-		if taskDir, ok := findProjectTaskDir(rootDir, projectID, taskID); ok {
+		dependsOn := []string(nil)
+		blockedBy := []string(nil)
+		if hasTaskDir {
+			if cfgDepends, err := taskdeps.ReadDependsOn(taskDir); err == nil {
+				dependsOn = cfgDepends
+			}
 			if _, err := os.Stat(filepath.Join(taskDir, "DONE")); err == nil {
 				done = true
+			}
+			if createdAt.IsZero() {
+				if info, err := os.Stat(filepath.Join(taskDir, "TASK.md")); err == nil {
+					createdAt = info.ModTime().UTC()
+				}
+			}
+			if lastActivity.IsZero() {
+				if info, err := os.Stat(filepath.Join(taskDir, "TASK.md")); err == nil {
+					lastActivity = info.ModTime().UTC()
+				}
+			}
+		}
+		if done && len(taskRuns) == 0 {
+			status = "done"
+		}
+		if len(taskRuns) == 0 && !done && len(dependsOn) > 0 {
+			if unresolved, err := taskdeps.BlockedBy(rootDir, projectID, dependsOn); err == nil && len(unresolved) > 0 {
+				blockedBy = unresolved
+				status = "blocked"
+				state = "blocked"
 			}
 		}
 
@@ -968,6 +1027,8 @@ func buildTasks(rootDir, projectID string, runs []*storage.RunInfo) []projectTas
 			CreatedAt:    createdAt,
 			Done:         done,
 			State:        state,
+			DependsOn:    dependsOn,
+			BlockedBy:    blockedBy,
 			Runs:         taskRuns,
 		})
 	}
@@ -1006,10 +1067,28 @@ func filterTasksByStatus(tasks []projectTask, filter, rootDir, projectID string)
 			}
 		}
 		return out
+	case "blocked":
+		var out []projectTask
+		for _, t := range tasks {
+			if t.Status == "blocked" {
+				out = append(out, t)
+			}
+		}
+		return out
 	default:
 		// Unknown status: graceful degradation — return all tasks.
 		return tasks
 	}
+}
+
+func isTaskDirectory(taskDir string) bool {
+	if _, err := os.Stat(filepath.Join(taskDir, "TASK.md")); err == nil {
+		return true
+	}
+	if _, err := os.Stat(filepath.Join(taskDir, taskdeps.ConfigFileName)); err == nil {
+		return true
+	}
+	return dirExists(filepath.Join(taskDir, "runs"))
 }
 
 // buildRunFiles returns the list of files available for a run, checking existence on disk.
@@ -1040,16 +1119,17 @@ func buildRunFiles(info *storage.RunInfo) []RunFile {
 
 func runInfoToProjectRun(info *storage.RunInfo) projectRun {
 	r := projectRun{
-		ID:            info.RunID,
-		Agent:         info.AgentType,
-		AgentVersion:  info.AgentVersion,
-		Status:        info.Status,
-		ExitCode:      info.ExitCode,
-		StartTime:     info.StartTime,
-		ParentRunID:   info.ParentRunID,
-		PreviousRunID: info.PreviousRunID,
-		ErrorSummary:  info.ErrorSummary,
-		Files:         buildRunFiles(info),
+		ID:               info.RunID,
+		Agent:            info.AgentType,
+		AgentVersion:     info.AgentVersion,
+		Status:           info.Status,
+		ProcessOwnership: storage.EffectiveProcessOwnership(info),
+		ExitCode:         info.ExitCode,
+		StartTime:        info.StartTime,
+		ParentRunID:      info.ParentRunID,
+		PreviousRunID:    info.PreviousRunID,
+		ErrorSummary:     info.ErrorSummary,
+		Files:            buildRunFiles(info),
 	}
 	if !info.EndTime.IsZero() {
 		t := info.EndTime
@@ -1387,7 +1467,7 @@ func (s *Server) handleProjectStats(w http.ResponseWriter, r *http.Request) *api
 			}
 			stats.TotalRuns++
 			runInfoPath := filepath.Join(runsDir, runEntry.Name(), "run-info.yaml")
-			runInfo, err := storage.ReadRunInfo(runInfoPath)
+			runInfo, err := runstate.ReadRunInfo(runInfoPath)
 			if err != nil {
 				continue
 			}

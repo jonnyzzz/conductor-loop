@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
+	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 )
 
 func makeProjectRun(t *testing.T, root, projectID, taskID, runID string, status string, stdoutContent string) *storage.RunInfo {
@@ -56,6 +57,75 @@ func TestServeRunFileStream_UnknownFile(t *testing.T) {
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for unknown file, got %d", rec.Code)
+	}
+}
+
+func TestProjectTasksIncludesBlockedTaskWithoutRuns(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	taskMainDir := filepath.Join(root, "project", "task-main")
+	taskDepDir := filepath.Join(root, "project", "task-dep")
+	if err := os.MkdirAll(taskMainDir, 0o755); err != nil {
+		t.Fatalf("mkdir task-main: %v", err)
+	}
+	if err := os.MkdirAll(taskDepDir, 0o755); err != nil {
+		t.Fatalf("mkdir task-dep: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskMainDir, "TASK.md"), []byte("main\n"), 0o644); err != nil {
+		t.Fatalf("write main TASK.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDepDir, "TASK.md"), []byte("dep\n"), 0o644); err != nil {
+		t.Fatalf("write dep TASK.md: %v", err)
+	}
+	if err := taskdeps.WriteDependsOn(taskMainDir, []string{"task-dep"}); err != nil {
+		t.Fatalf("WriteDependsOn: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/tasks", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Items []struct {
+			ID        string   `json:"id"`
+			Status    string   `json:"status"`
+			RunCount  int      `json:"run_count"`
+			DependsOn []string `json:"depends_on"`
+			BlockedBy []string `json:"blocked_by"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var found bool
+	for _, item := range resp.Items {
+		if item.ID != "task-main" {
+			continue
+		}
+		found = true
+		if item.Status != "blocked" {
+			t.Fatalf("status=%q, want blocked", item.Status)
+		}
+		if item.RunCount != 0 {
+			t.Fatalf("run_count=%d, want 0", item.RunCount)
+		}
+		if len(item.DependsOn) != 1 || item.DependsOn[0] != "task-dep" {
+			t.Fatalf("depends_on=%v, want [task-dep]", item.DependsOn)
+		}
+		if len(item.BlockedBy) != 1 || item.BlockedBy[0] != "task-dep" {
+			t.Fatalf("blocked_by=%v, want [task-dep]", item.BlockedBy)
+		}
+	}
+	if !found {
+		t.Fatalf("task-main not found in response: %+v", resp.Items)
 	}
 }
 
@@ -197,7 +267,7 @@ func TestStopRun_Success(t *testing.T) {
 		t.Fatalf("NewServer: %v", err)
 	}
 
-	// Create a running run with a non-existent PID/PGID (best-effort SIGTERM will fail, but 202 still returned).
+	// Create a running run without PID/PGID metadata; handler still returns 202.
 	runDir := filepath.Join(root, "project", "task", "runs", "run-stop-1")
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -211,8 +281,8 @@ func TestStopRun_Success(t *testing.T) {
 		Status:     storage.StatusRunning,
 		StartTime:  time.Now().UTC(),
 		StdoutPath: stdoutPath,
-		PID:        99999999,
-		PGID:       99999999,
+		PID:        0,
+		PGID:       0,
 	}
 	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), stopInfo); err != nil {
 		t.Fatalf("write run-info: %v", err)
@@ -247,6 +317,46 @@ func TestStopRun_NotRunning(t *testing.T) {
 
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestStopRun_ExternalOwnership(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	runDir := filepath.Join(root, "project", "task", "runs", "run-stop-external")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+	_ = os.WriteFile(stdoutPath, []byte(""), 0o644)
+	info := &storage.RunInfo{
+		RunID:            "run-stop-external",
+		ProjectID:        "project",
+		TaskID:           "task",
+		Status:           storage.StatusRunning,
+		StartTime:        time.Now().UTC(),
+		StdoutPath:       stdoutPath,
+		PID:              os.Getpid(),
+		PGID:             os.Getpid(),
+		ProcessOwnership: storage.ProcessOwnershipExternal,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/project/tasks/task/runs/run-stop-external/stop", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "externally owned") {
+		t.Fatalf("expected externally owned error, got: %s", rec.Body.String())
 	}
 }
 
@@ -354,6 +464,39 @@ func writeProjectBus(t *testing.T, busPath, msgID, msgType, body string) {
 	}
 }
 
+func assertMessageTypeByBody(t *testing.T, server *Server, listURL, body, expectedType string) {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, listURL, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var response struct {
+		Messages []struct {
+			Type string `json:"type"`
+			Body string `json:"body"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("unmarshal list response: %v", err)
+	}
+
+	for _, message := range response.Messages {
+		if message.Body != body {
+			continue
+		}
+		if message.Type != expectedType {
+			t.Fatalf("expected type %q for body %q, got %q", expectedType, body, message.Type)
+		}
+		return
+	}
+
+	t.Fatalf("expected message body %q in response", body)
+}
+
 func TestProjectMessages_ListEmpty(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
@@ -429,6 +572,33 @@ func TestProjectMessages_Post(t *testing.T) {
 	busPath := filepath.Join(root, "proj1", "PROJECT-MESSAGE-BUS.md")
 	if _, statErr := os.Stat(busPath); os.IsNotExist(statErr) {
 		t.Errorf("expected bus file to be created at %s", busPath)
+	}
+}
+
+func TestProjectMessages_PostSupportedTypes(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	types := []string{"PROGRESS", "FACT", "DECISION", "ERROR", "QUESTION"}
+	for _, messageType := range types {
+		messageType := messageType
+		t.Run(messageType, func(t *testing.T) {
+			bodyText := "project type " + messageType
+			body := strings.NewReader(`{"type":"` + messageType + `","body":"` + bodyText + `"}`)
+			url := "/api/projects/proj1/messages"
+			req := httptest.NewRequest(http.MethodPost, url, body)
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			server.Handler().ServeHTTP(rec, req)
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+			}
+
+			assertMessageTypeByBody(t, server, url, bodyText, messageType)
+		})
 	}
 }
 
@@ -518,6 +688,34 @@ func TestTaskMessages_Post(t *testing.T) {
 	busPath := filepath.Join(root, "proj1", "task-a", "TASK-MESSAGE-BUS.md")
 	if _, statErr := os.Stat(busPath); os.IsNotExist(statErr) {
 		t.Errorf("expected task bus file to be created at %s", busPath)
+	}
+}
+
+func TestTaskMessages_PostSupportedTypes(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "proj1", "task-a", "run-1", storage.StatusCompleted, "")
+
+	types := []string{"PROGRESS", "FACT", "DECISION", "ERROR", "QUESTION"}
+	for _, messageType := range types {
+		messageType := messageType
+		t.Run(messageType, func(t *testing.T) {
+			bodyText := "task type " + messageType
+			body := strings.NewReader(`{"type":"` + messageType + `","body":"` + bodyText + `"}`)
+			url := "/api/projects/proj1/tasks/task-a/messages"
+			req := httptest.NewRequest(http.MethodPost, url, body)
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			server.Handler().ServeHTTP(rec, req)
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+			}
+
+			assertMessageTypeByBody(t, server, url, bodyText, messageType)
+		})
 	}
 }
 

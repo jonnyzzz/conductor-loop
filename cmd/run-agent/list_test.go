@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
+	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 )
 
 // makeRunWithEnd creates a run directory with a run-info.yaml including EndTime.
@@ -234,6 +235,41 @@ func TestListTasksJSON(t *testing.T) {
 	}
 }
 
+func TestListTasks_ReconcilesStaleRunningPID(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	start := time.Now().Add(-time.Minute).UTC()
+	runDir := makeRunWithPID(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusRunning, start, -1, 99999999)
+	infoPath := filepath.Join(runDir, "run-info.yaml")
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, "", true); err != nil {
+		t.Fatalf("listTasks: %v", err)
+	}
+
+	var out map[string][]taskRow
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if len(out["tasks"]) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(out["tasks"]))
+	}
+	if out["tasks"][0].LatestStatus != storage.StatusFailed {
+		t.Fatalf("expected latest_status=%q, got %q", storage.StatusFailed, out["tasks"][0].LatestStatus)
+	}
+
+	reloaded, err := storage.ReadRunInfo(infoPath)
+	if err != nil {
+		t.Fatalf("ReadRunInfo: %v", err)
+	}
+	if reloaded.Status != storage.StatusFailed {
+		t.Fatalf("expected reconciled status=%q, got %q", storage.StatusFailed, reloaded.Status)
+	}
+	if reloaded.EndTime.IsZero() {
+		t.Fatalf("expected end_time to be set after reconciliation")
+	}
+}
+
 func TestListRuns(t *testing.T) {
 	root := t.TempDir()
 	project := "proj"
@@ -254,6 +290,39 @@ func TestListRuns(t *testing.T) {
 		if !strings.Contains(output, want) {
 			t.Errorf("missing %q in output:\n%s", want, output)
 		}
+	}
+}
+
+func TestListRuns_ReconcilesStaleRunningPID(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000001-aa"
+	start := time.Now().Add(-time.Minute).UTC()
+	runDir := makeRunWithPID(t, root, project, task, "run-001", storage.StatusRunning, start, -1, 99999999)
+	infoPath := filepath.Join(runDir, "run-info.yaml")
+
+	var buf bytes.Buffer
+	if err := listRuns(&buf, root, project, task, true); err != nil {
+		t.Fatalf("listRuns: %v", err)
+	}
+
+	var out map[string][]runRow
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if len(out["runs"]) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(out["runs"]))
+	}
+	if out["runs"][0].Status != storage.StatusFailed {
+		t.Fatalf("expected status=%q, got %q", storage.StatusFailed, out["runs"][0].Status)
+	}
+
+	reloaded, err := storage.ReadRunInfo(infoPath)
+	if err != nil {
+		t.Fatalf("ReadRunInfo: %v", err)
+	}
+	if reloaded.Status != storage.StatusFailed {
+		t.Fatalf("expected reconciled status=%q, got %q", storage.StatusFailed, reloaded.Status)
 	}
 }
 
@@ -520,6 +589,42 @@ func TestListTasksStatusFailed(t *testing.T) {
 	}
 	if strings.Contains(output, "task-20260101-000002-bb") {
 		t.Error("completed task should not appear with --status failed")
+	}
+}
+
+func TestListTasksStatusBlocked(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	taskMain := "task-20260101-000010-zz"
+	taskDep := "task-20260101-000011-yy"
+	taskMainDir := filepath.Join(root, project, taskMain)
+	taskDepDir := filepath.Join(root, project, taskDep)
+	if err := os.MkdirAll(taskMainDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(taskDepDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := taskdeps.WriteDependsOn(taskMainDir, []string{taskDep}); err != nil {
+		t.Fatalf("WriteDependsOn: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, "blocked", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, taskMain) {
+		t.Fatalf("blocked task should appear, output:\n%s", output)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), taskDep) {
+			t.Fatalf("non-blocked dependency task should not appear with --status blocked, output:\n%s", output)
+		}
+	}
+	if !strings.Contains(output, "blocked") {
+		t.Fatalf("expected blocked status in output:\n%s", output)
 	}
 }
 

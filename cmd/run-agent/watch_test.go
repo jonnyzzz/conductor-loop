@@ -229,6 +229,92 @@ func TestWatchJSONOutput(t *testing.T) {
 	}
 }
 
+// TestWatchOutputFormatting verifies phase counts and task line formatting.
+func TestWatchOutputFormatting(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000010-aa"
+	now := time.Now().UTC()
+
+	makeWatchRun(t, root, project, task, "run-001", storage.StatusCompleted, now.Add(-time.Minute), now, 0)
+
+	var buf bytes.Buffer
+	err := runWatch(&buf, root, project, []string{task}, 5*time.Second, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "phase counts: active=0 blocked=0 completed=1 failed=0 pending=0") {
+		t.Fatalf("expected phase counts in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "[completed] completed") {
+		t.Fatalf("expected formatted task status line with completed phase, got:\n%s", output)
+	}
+	if !strings.Contains(output, "transition: unknown -> completed") {
+		t.Fatalf("expected initial transition line, got:\n%s", output)
+	}
+}
+
+// TestWatchTransitionActiveToCompleted verifies active -> completed transition logging.
+func TestWatchTransitionActiveToCompleted(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000011-bb"
+	now := time.Now().UTC()
+
+	infoPath := makeWatchRun(t, root, project, task, "run-001", storage.StatusRunning, now, time.Time{}, 0)
+	go func() {
+		time.Sleep(120 * time.Millisecond)
+		updateRunStatus(t, infoPath, storage.StatusCompleted, 0)
+	}()
+
+	var buf bytes.Buffer
+	err := runWatch(&buf, root, project, []string{task}, 10*time.Second, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "transition: unknown -> active") {
+		t.Fatalf("expected unknown -> active transition, got:\n%s", output)
+	}
+	if !strings.Contains(output, "transition: active -> completed") {
+		t.Fatalf("expected active -> completed transition, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Waiting for 1 active and 0 blocked task(s)") {
+		t.Fatalf("expected active waiting line, got:\n%s", output)
+	}
+}
+
+// TestWatchTransitionActiveToFailed verifies active -> failed transition logging.
+func TestWatchTransitionActiveToFailed(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000012-cc"
+	now := time.Now().UTC()
+
+	infoPath := makeWatchRun(t, root, project, task, "run-001", storage.StatusRunning, now, time.Time{}, 0)
+	go func() {
+		time.Sleep(120 * time.Millisecond)
+		updateRunStatus(t, infoPath, storage.StatusFailed, 1)
+	}()
+
+	var buf bytes.Buffer
+	err := runWatch(&buf, root, project, []string{task}, 10*time.Second, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "transition: active -> failed") {
+		t.Fatalf("expected active -> failed transition, got:\n%s", output)
+	}
+	if !strings.Contains(output, "phase counts: active=0 blocked=0 completed=0 failed=1 pending=0") {
+		t.Fatalf("expected final failed phase counts, got:\n%s", output)
+	}
+}
+
 // TestWatchCmd_HelpText verifies that the watch command is registered and shows help.
 func TestWatchCmd_HelpText(t *testing.T) {
 	cmd := newRootCmd()

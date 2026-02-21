@@ -170,6 +170,8 @@ type serverTaskDetail struct {
 	TaskID       string               `json:"task_id"`
 	Status       string               `json:"status"`
 	LastActivity time.Time            `json:"last_activity"`
+	DependsOn    []string             `json:"depends_on,omitempty"`
+	BlockedBy    []string             `json:"blocked_by,omitempty"`
 	Runs         []serverTaskRunEntry `json:"runs"`
 }
 
@@ -187,6 +189,7 @@ type serverTaskListItem struct {
 	Status       string    `json:"status"`
 	LastActivity time.Time `json:"last_activity"`
 	RunCount     int       `json:"run_count"`
+	BlockedBy    []string  `json:"blocked_by,omitempty"`
 }
 
 type serverTaskListResponse struct {
@@ -267,6 +270,12 @@ func newServerTaskStatusCmd() *cobra.Command {
 
 			fmt.Printf("Task:   %s/%s\n", result.ProjectID, result.TaskID)
 			fmt.Printf("Status: %s\n", result.Status)
+			if len(result.DependsOn) > 0 {
+				fmt.Printf("Depends on: %s\n", strings.Join(result.DependsOn, ", "))
+			}
+			if len(result.BlockedBy) > 0 {
+				fmt.Printf("Blocked by: %s\n", strings.Join(result.BlockedBy, ", "))
+			}
 			if !result.LastActivity.IsZero() {
 				fmt.Printf("Last activity: %s\n", result.LastActivity.Format(time.RFC3339))
 			}
@@ -402,13 +411,17 @@ func newServerTaskListCmd() *cobra.Command {
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "TASK ID\tSTATUS\tRUNS\tLAST ACTIVITY")
+			fmt.Fprintln(w, "TASK ID\tSTATUS\tRUNS\tBLOCKED_BY\tLAST ACTIVITY")
 			for _, t := range result.Items {
 				lastActivity := "-"
 				if !t.LastActivity.IsZero() {
 					lastActivity = t.LastActivity.Format("2006-01-02 15:04")
 				}
-				fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", t.ID, t.Status, t.RunCount, lastActivity)
+				blockedBy := "-"
+				if len(t.BlockedBy) > 0 {
+					blockedBy = strings.Join(t.BlockedBy, ",")
+				}
+				fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\n", t.ID, t.Status, t.RunCount, blockedBy, lastActivity)
 			}
 			if err := w.Flush(); err != nil {
 				return err
@@ -422,7 +435,7 @@ func newServerTaskListCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&serverURL, "server", defaultServerURL, "run-agent server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
-	cmd.Flags().StringVar(&status, "status", "", "filter by status: running, active, done, failed")
+	cmd.Flags().StringVar(&status, "status", "", "filter by status: running, active, done, failed, blocked")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 	cobra.MarkFlagRequired(cmd.Flags(), "project") //nolint:errcheck
 
@@ -871,6 +884,7 @@ type serverJobCreateRequest struct {
 	Prompt      string `json:"prompt"`
 	ProjectRoot string `json:"project_root,omitempty"`
 	AttachMode  string `json:"attach_mode,omitempty"`
+	DependsOn   []string `json:"depends_on,omitempty"`
 }
 
 type serverJobCreateResponse struct {
@@ -960,6 +974,7 @@ func newServerJobSubmitCmd() *cobra.Command {
 		promptFile  string
 		projectRoot string
 		attachMode  string
+		dependsOn   []string
 		wait        bool
 		follow      bool
 		jsonOutput  bool
@@ -983,6 +998,7 @@ func newServerJobSubmitCmd() *cobra.Command {
 				Prompt:      promptText,
 				ProjectRoot: projectRoot,
 				AttachMode:  attachMode,
+				DependsOn:   dependsOn,
 			}
 			return serverJobSubmit(cmd.OutOrStdout(), serverURL, reqBody, wait, follow, jsonOutput)
 		},
@@ -996,6 +1012,7 @@ func newServerJobSubmitCmd() *cobra.Command {
 	cmd.Flags().StringVar(&promptFile, "prompt-file", "", "path to file containing task prompt")
 	cmd.Flags().StringVar(&projectRoot, "project-root", "", "working directory for the task")
 	cmd.Flags().StringVar(&attachMode, "attach-mode", "create", "attach mode: create, attach, or resume")
+	cmd.Flags().StringArrayVar(&dependsOn, "depends-on", nil, "task dependencies (repeat or comma-separate)")
 	cmd.Flags().BoolVar(&wait, "wait", false, "wait for task completion by polling run status")
 	cmd.Flags().BoolVar(&follow, "follow", false, "stream task output after submission (implies --wait)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")

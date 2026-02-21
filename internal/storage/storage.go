@@ -64,15 +64,16 @@ func (s *FileStorage) CreateRun(projectID, taskID, agentType string) (*RunInfo, 
 
 	pid := s.pid()
 	info := &RunInfo{
-		RunID:     runID,
-		ProjectID: projectID,
-		TaskID:    taskID,
-		AgentType: agentType,
-		PID:       pid,
-		PGID:      pid,
-		StartTime: s.now().UTC(),
-		ExitCode:  -1,
-		Status:    StatusRunning,
+		RunID:            runID,
+		ProjectID:        projectID,
+		TaskID:           taskID,
+		AgentType:        agentType,
+		ProcessOwnership: ProcessOwnershipManaged,
+		PID:              pid,
+		PGID:             pid,
+		StartTime:        s.now().UTC(),
+		ExitCode:         -1,
+		Status:           StatusRunning,
 	}
 	path := filepath.Join(runDir, "run-info.yaml")
 	if err := WriteRunInfo(path, info); err != nil {

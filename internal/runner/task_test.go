@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 )
 
 func TestRunTaskDone(t *testing.T) {
@@ -276,5 +278,137 @@ func TestRunTaskMaxRestarts(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected max restarts error")
+	}
+}
+
+func TestRunTask_PersistsDependsOn(t *testing.T) {
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "project", "task")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte("prompt"), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write DONE: %v", err)
+	}
+
+	binDir := t.TempDir()
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if err := RunTask("project", "task", TaskOptions{
+		RootDir:   root,
+		Agent:     "codex",
+		DependsOn: []string{"task-a", "task-b"},
+	}); err != nil {
+		t.Fatalf("RunTask: %v", err)
+	}
+
+	dependsOn, err := taskdeps.ReadDependsOn(taskDir)
+	if err != nil {
+		t.Fatalf("ReadDependsOn: %v", err)
+	}
+	if len(dependsOn) != 2 || dependsOn[0] != "task-a" || dependsOn[1] != "task-b" {
+		t.Fatalf("depends_on=%v, want [task-a task-b]", dependsOn)
+	}
+}
+
+func TestRunTask_RejectsDependencyCycle(t *testing.T) {
+	root := t.TempDir()
+
+	taskADir := filepath.Join(root, "project", "task-a")
+	if err := os.MkdirAll(taskADir, 0o755); err != nil {
+		t.Fatalf("mkdir task-a: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskADir, "TASK.md"), []byte("task a"), 0o644); err != nil {
+		t.Fatalf("write task-a TASK.md: %v", err)
+	}
+	if err := taskdeps.WriteDependsOn(taskADir, []string{"task-b"}); err != nil {
+		t.Fatalf("WriteDependsOn(task-a): %v", err)
+	}
+
+	taskBDir := filepath.Join(root, "project", "task-b")
+	if err := os.MkdirAll(taskBDir, 0o755); err != nil {
+		t.Fatalf("mkdir task-b: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskBDir, "TASK.md"), []byte("task b"), 0o644); err != nil {
+		t.Fatalf("write task-b TASK.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskBDir, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write DONE: %v", err)
+	}
+
+	binDir := t.TempDir()
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	err := RunTask("project", "task-b", TaskOptions{
+		RootDir:   root,
+		Agent:     "codex",
+		DependsOn: []string{"task-a"},
+	})
+	if err == nil {
+		t.Fatalf("expected dependency cycle error")
+	}
+	if !strings.Contains(err.Error(), "dependency cycle") {
+		t.Fatalf("expected dependency cycle error, got: %v", err)
+	}
+}
+
+func TestRunTask_WaitsForDependencies(t *testing.T) {
+	root := t.TempDir()
+
+	taskMainDir := filepath.Join(root, "project", "task-main")
+	taskDepDir := filepath.Join(root, "project", "task-dep")
+	if err := os.MkdirAll(taskMainDir, 0o755); err != nil {
+		t.Fatalf("mkdir task-main: %v", err)
+	}
+	if err := os.MkdirAll(taskDepDir, 0o755); err != nil {
+		t.Fatalf("mkdir task-dep: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskMainDir, "TASK.md"), []byte("main"), 0o644); err != nil {
+		t.Fatalf("write task-main TASK.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDepDir, "TASK.md"), []byte("dep"), 0o644); err != nil {
+		t.Fatalf("write task-dep TASK.md: %v", err)
+	}
+
+	binDir := t.TempDir()
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	done := make(chan error, 1)
+	go func() {
+		done <- RunTask("project", "task-main", TaskOptions{
+			RootDir:                 root,
+			Agent:                   "codex",
+			DependsOn:               []string{"task-dep"},
+			DependencyPollInterval:  20 * time.Millisecond,
+		})
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("RunTask returned early while dependency unresolved: %v", err)
+	case <-time.After(150 * time.Millisecond):
+		// expected: task is blocked
+	}
+
+	if err := os.WriteFile(filepath.Join(taskDepDir, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write task-dep DONE: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskMainDir, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write task-main DONE: %v", err)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("RunTask returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("RunTask did not finish after dependencies were resolved")
 	}
 }

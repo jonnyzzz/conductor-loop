@@ -142,3 +142,37 @@ func TestJobDoesNotPrintExplicitTaskID(t *testing.T) {
 		t.Errorf("expected no 'task: ...' line when --task is provided, got: %q", out)
 	}
 }
+
+func TestRunAgentWrapValidation(t *testing.T) {
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"wrap"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for missing --agent")
+	}
+	if !strings.Contains(err.Error(), "agent is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveWrapProjectIDFromEnv(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "env-project")
+	got, err := resolveWrapProjectID("", "")
+	if err != nil {
+		t.Fatalf("resolveWrapProjectID: %v", err)
+	}
+	if got != "env-project" {
+		t.Fatalf("project=%q, want env-project", got)
+	}
+}
+
+func TestResolveWrapProjectIDFromWorkingDir(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "")
+	got, err := resolveWrapProjectID("", "/tmp/My Project")
+	if err != nil {
+		t.Fatalf("resolveWrapProjectID: %v", err)
+	}
+	if got != "my-project" {
+		t.Fatalf("project=%q, want my-project", got)
+	}
+}
