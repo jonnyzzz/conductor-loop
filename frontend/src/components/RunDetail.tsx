@@ -90,6 +90,16 @@ export function RunDetail({
     if (!task) {
       return null
     }
+    if (task.status === 'blocked') {
+      const blockedBy = task.blocked_by && task.blocked_by.length > 0
+        ? task.blocked_by.join(', ')
+        : 'dependencies'
+      return {
+        state: 'task-restart-hint-open',
+        title: 'Blocked by dependencies',
+        detail: `Task is waiting for: ${blockedBy}.`,
+      }
+    }
     if (task.done) {
       return {
         state: 'task-restart-hint-done',
@@ -124,14 +134,32 @@ export function RunDetail({
     return task?.status ?? 'unknown'
   }, [runInfo, task?.status])
 
+  if (!task) {
+    return (
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <div className="panel-title">Run detail</div>
+            <div className="panel-subtitle">Select a task</div>
+          </div>
+        </div>
+        <div className="panel-section panel-section-tight">
+          <div className="section-title">Task details</div>
+          <div className="empty-state">Select a task from the tree to inspect metadata and run files.</div>
+          <div className="panel-subtitle">Project message bus remains visible below with live updates.</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="panel">
       <div className="panel-header">
         <div>
           <div className="panel-title">Run detail</div>
-          <div className="panel-subtitle">{task ? `${task.project_id} / ${task.id}` : 'Select a task'}</div>
+          <div className="panel-subtitle">{`${task.project_id} / ${task.id}`}</div>
         </div>
-        {task && task.status !== 'running' && (onDeleteTask || (onResumeTask && task.done)) && (
+        {task.status !== 'running' && (onDeleteTask || (onResumeTask && task.done)) && (
           <div className="panel-actions">
             {onResumeTask && task.done && (
               <Button
@@ -161,55 +189,53 @@ export function RunDetail({
           </div>
         )}
       </div>
-      {task && (
-        <div className="panel-section panel-section-tight task-overview">
-          <div className="section-title">Task at a glance</div>
-          <div className="task-overview-grid">
-            <div className="task-overview-item">
-              <div className="metadata-label">Task status</div>
-              <div className="metadata-value">
-                <span className={clsx('status-pill', `status-${task.status}`)}>{task.status}</span>
-              </div>
+      <div className="panel-section panel-section-tight task-overview">
+        <div className="section-title">Task at a glance</div>
+        <div className="task-overview-grid">
+          <div className="task-overview-item">
+            <div className="metadata-label">Task status</div>
+            <div className="metadata-value">
+              <span className={clsx('status-pill', `status-${task.status}`)}>{task.status}</span>
             </div>
-            <div className="task-overview-item">
-              <div className="metadata-label">Restart policy</div>
-              <div className="task-overview-restart-value">{restartHint?.title ?? 'Unknown'}</div>
-              {restartHint && <div className="task-overview-note">{restartHint.detail}</div>}
-            </div>
-            <div className="task-overview-item">
-              <div className="metadata-label">Runs</div>
-              <div className="metadata-value">{task.runs.length}</div>
-              <div className="task-overview-note">{runMix}</div>
-            </div>
-            <div className="task-overview-item">
-              <div className="metadata-label">Last activity</div>
-              <div className="metadata-value">{formatDateTime(task.last_activity)}</div>
-            </div>
-            {runInfo && (
-              <>
-                <div className="task-overview-item">
-                  <div className="metadata-label">Selected run</div>
-                  <div className="metadata-value">{runInfo.run_id}</div>
-                </div>
-                <div className="task-overview-item">
-                  <div className="metadata-label">Agent</div>
-                  <div className="metadata-value">{runInfo.agent}</div>
-                </div>
-                <div className="task-overview-item">
-                  <div className="metadata-label">Run start</div>
-                  <div className="metadata-value">{formatDateTime(runInfo.start_time)}</div>
-                </div>
-              </>
-            )}
           </div>
-          {restartHint && (
-            <div className={clsx('task-restart-hint', restartHint.state)}>
-              <span className="task-restart-title">{restartHint.title}</span>
-              <span>{restartHint.detail}</span>
-            </div>
+          <div className="task-overview-item">
+            <div className="metadata-label">Restart policy</div>
+            <div className="task-overview-restart-value">{restartHint?.title ?? 'Unknown'}</div>
+            {restartHint && <div className="task-overview-note">{restartHint.detail}</div>}
+          </div>
+          <div className="task-overview-item">
+            <div className="metadata-label">Runs</div>
+            <div className="metadata-value">{task.runs.length}</div>
+            <div className="task-overview-note">{runMix}</div>
+          </div>
+          <div className="task-overview-item">
+            <div className="metadata-label">Last activity</div>
+            <div className="metadata-value">{formatDateTime(task.last_activity)}</div>
+          </div>
+          {runInfo && (
+            <>
+              <div className="task-overview-item">
+                <div className="metadata-label">Selected run</div>
+                <div className="metadata-value">{runInfo.run_id}</div>
+              </div>
+              <div className="task-overview-item">
+                <div className="metadata-label">Agent</div>
+                <div className="metadata-value">{runInfo.agent}</div>
+              </div>
+              <div className="task-overview-item">
+                <div className="metadata-label">Run start</div>
+                <div className="metadata-value">{formatDateTime(runInfo.start_time)}</div>
+              </div>
+            </>
           )}
         </div>
-      )}
+        {restartHint && (
+          <div className={clsx('task-restart-hint', restartHint.state)}>
+            <span className="task-restart-title">{restartHint.title}</span>
+            <span>{restartHint.detail}</span>
+          </div>
+        )}
+      </div>
       <div className="panel-section panel-split">
         <div className="panel-column">
           <div className="section-title">Selected run metadata</div>

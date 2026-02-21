@@ -65,4 +65,22 @@ describe('RunDetail', () => {
     expect(screen.getByText('Hello output')).toBeInTheDocument()
     expect(screen.getByText('Task state')).toBeInTheDocument()
   })
+
+  it('renders compact empty state when no task is selected', () => {
+    render(
+      <RunDetail
+        task={undefined}
+        runInfo={undefined}
+        selectedRunId={undefined}
+        onSelectRun={() => undefined}
+        fileName="output.md"
+        onSelectFile={() => undefined}
+        fileContent={undefined}
+      />
+    )
+
+    expect(screen.getByText('Select a task')).toBeInTheDocument()
+    expect(screen.getByText('Select a task from the tree to inspect metadata and run files.')).toBeInTheDocument()
+    expect(screen.queryByText('Run files')).not.toBeInTheDocument()
+  })
 })

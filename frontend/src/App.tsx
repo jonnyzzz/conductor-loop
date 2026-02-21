@@ -4,7 +4,7 @@ import { TreePanel } from './components/TreePanel'
 import { RunDetail } from './components/RunDetail'
 import { LogViewer } from './components/LogViewer'
 import { MessageBus } from './components/MessageBus'
-import { useDeleteRun, useDeleteTask, useProjects, useResumeTask, useRunFile, useRunInfo, useStopRun, useTask, useTaskFile, useTasks } from './hooks/useAPI'
+import { useDeleteRun, useDeleteTask, useProjects, useResumeTask, useRunFile, useRunInfo, useStopRun, useTask, useTaskFile } from './hooks/useAPI'
 
 const defaultRunFile = 'output.md'
 
@@ -18,9 +18,9 @@ export function App() {
   const projectsQuery = useProjects()
   const effectiveProjectId = selectedProjectId ?? projectsQuery.data?.[0]?.id
 
-  const tasksQuery = useTasks(effectiveProjectId)
-  const effectiveTaskId = selectedTaskId ?? tasksQuery.data?.[0]?.id
   const explicitTaskId = selectedTaskId
+  const effectiveTaskId = explicitTaskId
+  const effectiveBusScope: 'project' | 'task' = explicitTaskId ? busScope : 'project'
 
   const taskQuery = useTask(effectiveProjectId, effectiveTaskId)
   const effectiveRunId = selectedRunId ?? taskQuery.data?.runs?.[taskQuery.data.runs.length - 1]?.id
@@ -37,7 +37,7 @@ export function App() {
   const stopRunMutation = useStopRun(effectiveProjectId, effectiveTaskId)
   const resumeTaskMutation = useResumeTask(effectiveProjectId)
 
-  const logStreamUrl = effectiveProjectId && effectiveTaskId
+  const logStreamUrl = effectiveProjectId && explicitTaskId
     ? `/api/projects/${effectiveProjectId}/tasks/${effectiveTaskId}/runs/stream`
     : undefined
 
@@ -45,14 +45,14 @@ export function App() {
     if (!effectiveProjectId) {
       return undefined
     }
-    if (busScope === 'project') {
+    if (effectiveBusScope === 'project') {
       return `/api/projects/${effectiveProjectId}/messages/stream`
     }
     if (!explicitTaskId) {
       return undefined
     }
     return `/api/projects/${effectiveProjectId}/tasks/${explicitTaskId}/messages/stream`
-  }, [busScope, effectiveProjectId, explicitTaskId])
+  }, [effectiveBusScope, effectiveProjectId, explicitTaskId])
 
   useEffect(() => {
     if (!effectiveRun?.files || effectiveRun.files.length === 0) {
@@ -148,24 +148,29 @@ export function App() {
               }}
             />
             <MessageBus
-              key={busStreamUrl ?? `bus-${busScope}-none`}
+              key={busStreamUrl ?? `bus-${effectiveBusScope}-none`}
               streamUrl={busStreamUrl}
-              title="Message bus"
+              title={effectiveBusScope === 'project' ? 'Project message bus' : 'Task message bus'}
               projectId={effectiveProjectId}
               taskId={explicitTaskId}
-              scope={busScope}
+              scope={effectiveBusScope}
               headerActions={(
                 <>
                   <Button
                     inline
-                    className={busScope === 'task' ? 'filter-button-active' : undefined}
-                    onClick={() => setBusScope('task')}
+                    className={effectiveBusScope === 'task' ? 'filter-button-active' : undefined}
+                    onClick={() => {
+                      if (explicitTaskId) {
+                        setBusScope('task')
+                      }
+                    }}
+                    disabled={!explicitTaskId}
                   >
                     Task
                   </Button>
                   <Button
                     inline
-                    className={busScope === 'project' ? 'filter-button-active' : undefined}
+                    className={effectiveBusScope === 'project' ? 'filter-button-active' : undefined}
                     onClick={() => setBusScope('project')}
                   >
                     Project
