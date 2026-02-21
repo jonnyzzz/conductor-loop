@@ -2163,3 +2163,77 @@ project_id: conductor-loop
 - 672306a: docs(issues): fix ISSUES.md table + update dev docs for session #25 features
 - 55bdefa: feat(cli): add --follow flag to run-agent output for live log tailing
 
+
+[2026-02-21 01:20:00] ==========================================
+[2026-02-21 01:20:00] SESSION: 2026-02-21 Session #27
+[2026-02-21 01:20:00] ==========================================
+[2026-02-21 01:20:00] PROGRESS: Starting session - read all required docs
+[2026-02-21 01:20:00] FACT: go build ./... passes, all test packages green (including test/integration, test/docker, etc.)
+[2026-02-21 01:20:00] FACT: Binaries rebuilt: conductor (14MB), run-agent (14MB)
+
+[2026-02-21 01:20:01] FACT: Session assessment complete:
+[2026-02-21 01:20:01] - 0 fully open issues (5 partially resolved - all deferred items)
+[2026-02-21 01:20:01] - All 9 design questions in QUESTIONS.md answered
+[2026-02-21 01:20:01] - task resume feature already implemented (run-agent task resume subcommand)
+[2026-02-21 01:20:01] - /api/v1/status endpoint already implemented
+
+[2026-02-21 01:23:00] ==========================================
+[2026-02-21 01:23:00] DOG-FOOD: Session #27 sub-agent task via ./bin/run-agent job
+[2026-02-21 01:23:00] ==========================================
+[2026-02-21 01:23:00] PROGRESS: Launched sub-agent via ./bin/run-agent job for agent_version+error_summary feature
+[2026-02-21 01:23:00] FACT: Task ID: task-20260220-235739-djv260, Run ID: 20260220-2357390000-65279
+[2026-02-21 01:23:00] FACT: Sub-agent completed (exit_code=0, elapsed ~4min)
+
+[2026-02-21 01:25:00] ==========================================
+[2026-02-21 01:25:00] FEATURE: agent_version + error_summary (commit 5f2ddf7)
+[2026-02-21 01:25:00] ==========================================
+[2026-02-21 01:25:00] FACT: Added AgentVersion field to storage.RunInfo (yaml: agent_version,omitempty)
+[2026-02-21 01:25:00] FACT: detectAgentVersion() helper in job.go - best-effort CLI version detection
+[2026-02-21 01:25:00] FACT: CLI agents (claude/codex/gemini): calls agent.DetectCLIVersion() on startup
+[2026-02-21 01:25:00] FACT: REST agents (perplexity/xai): returns empty string (no CLI binary)
+[2026-02-21 01:25:00] FACT: Exposed AgentVersion and ErrorSummary in projectRun API struct
+[2026-02-21 01:25:00] FACT: Added agent_version and error_summary to RunSummary and RunInfo frontend types
+[2026-02-21 01:25:00] FACT: RunDetail component shows agent_version (under Agent) and error_summary (full-width, red styling)
+[2026-02-21 01:25:00] FACT: 7 new tests (4 unit in job_test.go, 3 HTTP in handlers_projects_test.go)
+[2026-02-21 01:25:00] FACT: React frontend rebuilt (frontend/dist/ updated)
+
+[2026-02-21 01:30:00] ==========================================
+[2026-02-21 01:30:00] FIX: TestNestedRuns timing race (commit d95efb8)
+[2026-02-21 01:30:00] ==========================================
+[2026-02-21 01:30:00] FACT: TestNestedRuns had a pre-existing race condition: fixed time.Sleep(150ms) before RunTask
+[2026-02-21 01:30:00] FACT: With new detectAgentVersion() in runJob(), goroutine setup time increased
+[2026-02-21 01:30:00] FACT: Fix: replaced time.Sleep with polling loop waiting for both run-info.yaml files to show status=running
+[2026-02-21 01:30:00] FACT: This ensures FindActiveChildren() detects children before RunTask scans
+[2026-02-21 01:30:00] FACT: All test/integration tests now pass consistently
+
+[2026-02-21 01:35:00] ==========================================
+[2026-02-21 01:35:00] SESSION SUMMARY: 2026-02-21 Session #27
+[2026-02-21 01:35:00] ==========================================
+
+## Quality Gates
+- go build ./... passes
+- go test ./... ALL packages green (test/integration, test/docker, test/acceptance, test/performance, test/unit, all internal + cmd)
+- go test -race ./internal/... ./cmd/...: PASS (no races)
+- All changes committed
+
+## Features Implemented This Session
+1. agent_version field in run-info.yaml - captures exact CLI version used (e.g., "2.1.49 (Claude Code)")
+2. error_summary and agent_version exposed in /api/projects/{p}/tasks/{t}/runs/{r} API response
+3. error_summary and agent_version displayed in web UI RunDetail component
+4. TestNestedRuns timing race fixed - robust polling replaces brittle time.Sleep
+
+## Dog-Food
+- Session used ./bin/run-agent job to spawn Claude sub-agent (task-20260220-235739-djv260)
+- Sub-agent implemented all backend + frontend changes autonomously
+- Output visible at: runs/conductor-loop/task-20260220-235739-djv260/runs/20260220-2357390000-65279/output.md
+
+## Current Issue Status
+- CRITICAL: 0 open, 2 partially resolved (ISSUE-002 Windows, ISSUE-004 CLI versions), 4 resolved
+- HIGH: 0 open, 3 partially resolved (ISSUE-003, ISSUE-009, ISSUE-010), 5 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+- Total: 0 fully open, 5 partially resolved, 17 resolved
+
+## Commits This Session
+- 5f2ddf7: feat(runner,api,ui): add agent_version and error_summary to run metadata
+- d95efb8: fix(test): fix TestNestedRuns timing race in integration test
