@@ -326,7 +326,7 @@ func TestRunJobCLIExitFailure(t *testing.T) {
 
 func TestExecuteCLICommandError(t *testing.T) {
 	info := &storage.RunInfo{RunID: "run-1", ProjectID: "project", TaskID: "task", AgentType: "unknown"}
-	if err := executeCLI(context.Background(), "unknown", "prompt.md", t.TempDir(), nil, t.TempDir(), "", info); err == nil {
+	if _, err := executeCLI(context.Background(), "unknown", "prompt.md", t.TempDir(), nil, t.TempDir(), "", info, 0); err == nil {
 		t.Fatalf("expected error for unknown agent type")
 	}
 }
@@ -346,7 +346,7 @@ func TestExecuteCLISpawnError(t *testing.T) {
 		Status:    storage.StatusRunning,
 	}
 	env := []string{"PATH=" + t.TempDir()}
-	if err := executeCLI(context.Background(), "codex", promptPath, runDir, env, runDir, "", info); err == nil {
+	if _, err := executeCLI(context.Background(), "codex", promptPath, runDir, env, runDir, "", info, 0); err == nil {
 		t.Fatalf("expected spawn error")
 	}
 	updated, err := storage.ReadRunInfo(filepath.Join(runDir, "run-info.yaml"))
@@ -385,7 +385,7 @@ func TestExecuteCLIPostRunEventError(t *testing.T) {
 		Status:    storage.StatusRunning,
 	}
 	env := []string{"PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH")}
-	if err := executeCLI(context.Background(), "codex", promptPath, runDir, env, runDir, busPath, info); err == nil {
+	if _, err := executeCLI(context.Background(), "codex", promptPath, runDir, env, runDir, busPath, info, 0); err == nil {
 		t.Fatalf("expected postRunEvent error")
 	}
 }
@@ -618,6 +618,21 @@ func createSlowCLI(t *testing.T, dir, name string, sleepSec int) {
 	}
 }
 
+func createPeriodicOutputCLI(t *testing.T, dir, name string, ticks int, sleepPerTick string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("periodic output CLI not supported on Windows")
+	}
+	path := filepath.Join(dir, name)
+	content := fmt.Sprintf(
+		"#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo '%s 1.0.0'; exit 0; fi\ncat >/dev/null\ni=0\nwhile [ $i -lt %d ]; do\n  echo \"tick $i\"\n  sleep %s\n  i=$((i+1))\ndone\n",
+		name, ticks, sleepPerTick,
+	)
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatalf("write periodic output cli script: %v", err)
+	}
+}
+
 // TestRunJobTimeout verifies that when Timeout is set, the job is killed after the timeout expires.
 func TestRunJobTimeout(t *testing.T) {
 	if runtime.GOOS == "windows" {
@@ -666,6 +681,38 @@ func TestRunJobTimeout(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected timeout warning in message bus, messages: %v", msgs)
+	}
+}
+
+func TestRunJobTimeoutAllowsActiveOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sleep command not supported on Windows")
+	}
+	root := t.TempDir()
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	createPeriodicOutputCLI(t, binDir, "codex", 8, "0.12")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	start := time.Now()
+	info, err := runJob("project", "task", JobOptions{
+		RootDir: root,
+		Agent:   "codex",
+		Prompt:  "hello",
+		Timeout: 200 * time.Millisecond,
+	})
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("runJob returned unexpected timeout/failure: %v", err)
+	}
+	if info == nil || info.Status != storage.StatusCompleted {
+		t.Fatalf("expected completed status, got %+v", info)
+	}
+	if elapsed < 800*time.Millisecond {
+		t.Fatalf("job completed too quickly (%v); expected it to run longer than idle timeout", elapsed)
 	}
 }
 

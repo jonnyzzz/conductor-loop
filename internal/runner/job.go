@@ -32,7 +32,7 @@ type JobOptions struct {
 	PreviousRunID      string
 	Environment        map[string]string
 	PreallocatedRunDir string        // optional: pre-created run directory; skip createRunDir if set
-	Timeout            time.Duration // max agent run duration; 0 means no limit
+	Timeout            time.Duration // idle output timeout for CLI agents; 0 means no limit
 	ConductorURL       string        // e.g. "http://127.0.0.1:14355"; if empty, derived from config
 }
 
@@ -146,15 +146,12 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		_ = storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), sentinel)
 	}
 
-	// Detect agent version before starting the timeout clock.
-	// detectAgentVersion spawns an external process, so it must not eat into the
-	// run timeout budget.
+	// detectAgentVersion spawns an external process and is best-effort.
 	agentVersion := detectAgentVersion(context.Background(), agentType)
 
-	// Start the timeout clock now. From this point on, time counts toward the
-	// configured Timeout (including any time spent waiting for a semaphore slot).
+	restAgent := isRestAgent(agentType)
 	ctx := context.Background()
-	if opts.Timeout > 0 {
+	if restAgent && opts.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(context.Background(), opts.Timeout)
 		defer cancel()
@@ -267,16 +264,21 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		StderrPath:    stderrPathAbs,
 	}
 
+	timedOut := false
 	var execErr error
-	if isRestAgent(agentType) {
+	if restAgent {
 		execErr = executeREST(ctx, agentType, selection, promptContent, workingDir, env, runDir, busPath, info)
+		timedOut = opts.Timeout > 0 && ctx.Err() == context.DeadlineExceeded
 	} else {
-		execErr = executeCLI(ctx, agentType, promptPathAbs, workingDir, env, runDir, busPath, info)
+		timedOut, execErr = executeCLI(ctx, agentType, promptPathAbs, workingDir, env, runDir, busPath, info, opts.Timeout)
 	}
 
-	// Post timeout warning to bus if context expired due to deadline.
-	if opts.Timeout > 0 && ctx.Err() == context.DeadlineExceeded {
-		_ = postRunEvent(busPath, info, "WARN", fmt.Sprintf("agent job timed out after %s", opts.Timeout))
+	if timedOut {
+		timeoutBody := fmt.Sprintf("agent job timed out after %s", opts.Timeout)
+		if !restAgent {
+			timeoutBody = fmt.Sprintf("agent job timed out after %s of idle output", opts.Timeout)
+		}
+		_ = postRunEvent(busPath, info, "WARN", timeoutBody)
 	}
 
 	// Send webhook notification asynchronously (non-blocking; failures are logged to message bus).
@@ -324,21 +326,24 @@ func isRestAgent(agentType string) bool {
 	}
 }
 
-func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, env []string, runDir, busPath string, info *storage.RunInfo) error {
+func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, env []string, runDir, busPath string, info *storage.RunInfo, idleOutputTimeout time.Duration) (bool, error) {
 	command, args, err := commandForAgent(agentType)
 	if err != nil {
-		return err
+		return false, err
 	}
 	promptFile, err := os.Open(promptPath)
 	if err != nil {
-		return errors.Wrap(err, "open prompt")
+		return false, errors.Wrap(err, "open prompt")
 	}
 	pm, err := NewProcessManager(runDir)
 	if err != nil {
 		_ = promptFile.Close()
-		return err
+		return false, err
 	}
-	proc, err := pm.SpawnAgent(ctx, agentType, SpawnOptions{
+	processCtx, processCancel := context.WithCancel(ctx)
+	defer processCancel()
+
+	proc, err := pm.SpawnAgent(processCtx, agentType, SpawnOptions{
 		Command: command,
 		Args:    args,
 		Dir:     workingDir,
@@ -358,9 +363,9 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 		info.ExitCode = -1
 		info.Status = storage.StatusFailed
 		if writeErr := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); writeErr != nil {
-			return errors.Wrap(writeErr, "write run-info")
+			return false, errors.Wrap(writeErr, "write run-info")
 		}
-		return errors.Wrap(err, "spawn agent")
+		return false, errors.Wrap(err, "spawn agent")
 	}
 	info.PID = proc.PID
 	info.PGID = proc.PGID
@@ -368,7 +373,7 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
 		_ = proc.Cmd.Process.Kill()
 		_ = proc.Wait()
-		return errors.Wrap(err, "write run-info")
+		return false, errors.Wrap(err, "write run-info")
 	}
 	startBody := fmt.Sprintf("run started\nrun_dir: %s\nprompt: %s\nstdout: %s\nstderr: %s\noutput: %s",
 		runDir,
@@ -380,10 +385,10 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 	if err := postRunEvent(busPath, info, messagebus.EventTypeRunStart, startBody); err != nil {
 		_ = proc.Cmd.Process.Kill()
 		_ = proc.Wait()
-		return err
+		return false, err
 	}
 
-	waitErr := proc.Wait()
+	waitErr, idleTimedOut := waitForProcessWithIdleOutputTimeout(processCtx, processCancel, proc, idleOutputTimeout)
 	exitCode := 0
 	if proc.Cmd.ProcessState != nil {
 		exitCode = proc.Cmd.ProcessState.ExitCode()
@@ -396,7 +401,7 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 		info.Status = storage.StatusFailed
 	}
 	if info.Status == storage.StatusFailed {
-		if ctx.Err() == context.DeadlineExceeded {
+		if idleTimedOut {
 			info.ErrorSummary = "timed out"
 		} else {
 			info.ErrorSummary = classifyExitCode(exitCode)
@@ -409,7 +414,7 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 		update.ErrorSummary = info.ErrorSummary
 		return nil
 	}); err != nil {
-		return errors.Wrap(err, "update run-info")
+		return idleTimedOut, errors.Wrap(err, "update run-info")
 	}
 	// For Claude: extract clean text from JSONL stream before falling back to raw copy.
 	if strings.ToLower(agentType) == "claude" {
@@ -420,7 +425,7 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 		}
 	}
 	if _, err := agent.CreateOutputMD(runDir, ""); err != nil {
-		return errors.Wrap(err, "ensure output.md")
+		return idleTimedOut, errors.Wrap(err, "ensure output.md")
 	}
 	stopBody := fmt.Sprintf("run stopped with code %d\nrun_dir: %s\noutput: %s",
 		info.ExitCode,
@@ -437,12 +442,73 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 		stopEvent = messagebus.EventTypeRunCrash
 	}
 	if err := postRunEvent(busPath, info, stopEvent, stopBody); err != nil {
-		return err
+		return idleTimedOut, err
 	}
 	if waitErr != nil || exitCode != 0 {
-		return errors.Wrap(waitErr, "agent execution failed")
+		return idleTimedOut, errors.Wrap(waitErr, "agent execution failed")
 	}
-	return nil
+	return idleTimedOut, nil
+}
+
+func waitForProcessWithIdleOutputTimeout(ctx context.Context, cancel context.CancelFunc, proc *Process, idleOutputTimeout time.Duration) (error, bool) {
+	waitDone := make(chan error, 1)
+	go func() {
+		waitDone <- proc.Wait()
+	}()
+
+	if idleOutputTimeout <= 0 {
+		return <-waitDone, false
+	}
+
+	pollInterval := idleOutputTimeout / 4
+	if pollInterval < 50*time.Millisecond {
+		pollInterval = 50 * time.Millisecond
+	}
+	if pollInterval > 250*time.Millisecond {
+		pollInterval = 250 * time.Millisecond
+	}
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	lastStdoutSize := fileSize(proc.StdoutPath)
+	lastStderrSize := fileSize(proc.StderrPath)
+	lastOutputAt := time.Now()
+	for {
+		select {
+		case err := <-waitDone:
+			return err, false
+		case <-ticker.C:
+			currentStdoutSize := fileSize(proc.StdoutPath)
+			currentStderrSize := fileSize(proc.StderrPath)
+			if currentStdoutSize > lastStdoutSize || currentStderrSize > lastStderrSize {
+				lastOutputAt = time.Now()
+				if currentStdoutSize > lastStdoutSize {
+					lastStdoutSize = currentStdoutSize
+				}
+				if currentStderrSize > lastStderrSize {
+					lastStderrSize = currentStderrSize
+				}
+				continue
+			}
+			if time.Since(lastOutputAt) >= idleOutputTimeout {
+				cancel()
+				return <-waitDone, true
+			}
+		case <-ctx.Done():
+			return <-waitDone, false
+		}
+	}
+}
+
+func fileSize(path string) int64 {
+	if strings.TrimSpace(path) == "" {
+		return -1
+	}
+	stat, err := os.Stat(path)
+	if err != nil {
+		return -1
+	}
+	return stat.Size()
 }
 
 func executeREST(ctx context.Context, agentType string, selection agentSelection, promptContent, workingDir string, env []string, runDir, busPath string, info *storage.RunInfo) error {
