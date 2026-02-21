@@ -154,6 +154,29 @@ restarted to continue work (e.g. you ran out of context mid-task).
 
 ---
 
+## Test Integrity (Non-Negotiable)
+
+Tests in this project must be **real**. A test is fake if it:
+
+- Asserts `true == true` or other trivially-true statements
+- Mocks away the unit under test so only the mock is exercised
+- Has an empty test body (calls code but checks nothing)
+- Uses `t.Skip()` without a documented, legitimate reason
+- Catches an expected error and discards it silently
+
+**If a scenario is hard to test, make the code more testable. Do not fake the test.**
+
+All contributors (human and AI) must follow this rule. Reviewers should reject PRs that
+introduce fake tests. The `test-coverage` Makefile target enforces a minimum coverage
+threshold to prevent coverage regression:
+
+```bash
+make test-coverage          # runs tests, generates cover.html, enforces >= 60% threshold
+COVERAGE_THRESHOLD=75 make test-coverage  # enforce a higher threshold
+```
+
+---
+
 ## Web UI
 
 The conductor server web UI is at `http://localhost:14355/` (default port).
