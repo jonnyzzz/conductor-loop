@@ -29,13 +29,12 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("/api/projects", s.wrap(s.handleProjectsList))
 	mux.Handle("/api/projects/", s.wrap(s.handleProjectsRouter))
 
-	// Serve web UI static files if available
+	// Serve web UI static files at root if available
 	if webDir, ok := findWebDir(); ok {
 		if s.logger != nil {
-			s.logger.Printf("serving web UI from %s at /ui/", webDir)
+			s.logger.Printf("serving web UI from %s at /", webDir)
 		}
-		mux.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(http.Dir(webDir))))
-		mux.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
+		mux.Handle("/", http.FileServer(http.Dir(webDir)))
 	}
 
 	handler := http.Handler(mux)
