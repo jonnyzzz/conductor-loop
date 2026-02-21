@@ -14,6 +14,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// loadPrompt returns the prompt text from inline --prompt or --prompt-file.
+// Exactly one of promptText or promptFile must be non-empty; returns an error otherwise.
+func loadPrompt(promptText, promptFile string) (string, error) {
+	switch {
+	case promptText != "" && promptFile != "":
+		return "", fmt.Errorf("--prompt and --prompt-file are mutually exclusive")
+	case promptText != "":
+		return promptText, nil
+	case promptFile != "":
+		data, err := os.ReadFile(promptFile)
+		if err != nil {
+			return "", fmt.Errorf("read prompt file: %w", err)
+		}
+		if len(bytes.TrimSpace(data)) == 0 {
+			return "", fmt.Errorf("prompt file %q is empty", promptFile)
+		}
+		return string(data), nil
+	default:
+		return "", fmt.Errorf("one of --prompt or --prompt-file is required")
+	}
+}
+
 func newJobCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "job",
@@ -34,6 +56,7 @@ func newJobSubmitCmd() *cobra.Command {
 		taskID      string
 		agent       string
 		prompt      string
+		promptFile  string
 		projectRoot string
 		attachMode  string
 		wait        bool
@@ -44,11 +67,15 @@ func newJobSubmitCmd() *cobra.Command {
 		Use:   "submit",
 		Short: "Submit a job to the conductor server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			promptText, err := loadPrompt(prompt, promptFile)
+			if err != nil {
+				return err
+			}
 			req := jobCreateRequest{
 				ProjectID:   project,
 				TaskID:      taskID,
 				AgentType:   agent,
-				Prompt:      prompt,
+				Prompt:      promptText,
 				ProjectRoot: projectRoot,
 				AttachMode:  attachMode,
 			}
@@ -60,7 +87,8 @@ func newJobSubmitCmd() *cobra.Command {
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task ID (required)")
 	cmd.Flags().StringVar(&agent, "agent", "", "agent type, e.g. claude (required)")
-	cmd.Flags().StringVar(&prompt, "prompt", "", "task prompt (required)")
+	cmd.Flags().StringVar(&prompt, "prompt", "", "task prompt (mutually exclusive with --prompt-file)")
+	cmd.Flags().StringVar(&promptFile, "prompt-file", "", "path to file containing task prompt (mutually exclusive with --prompt)")
 	cmd.Flags().StringVar(&projectRoot, "project-root", "", "working directory for the task")
 	cmd.Flags().StringVar(&attachMode, "attach-mode", "create", "attach mode: create, attach, or resume")
 	cmd.Flags().BoolVar(&wait, "wait", false, "wait for task completion by polling run status")
@@ -68,7 +96,6 @@ func newJobSubmitCmd() *cobra.Command {
 	_ = cmd.MarkFlagRequired("project")
 	_ = cmd.MarkFlagRequired("task")
 	_ = cmd.MarkFlagRequired("agent")
-	_ = cmd.MarkFlagRequired("prompt")
 
 	return cmd
 }

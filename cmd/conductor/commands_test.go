@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -542,5 +544,138 @@ func TestTaskCmdHelp(t *testing.T) {
 	cmd.SetArgs([]string{"task"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("task (no subcommand): %v", err)
+	}
+}
+
+// --- loadPrompt tests ---
+
+func TestLoadPromptInline(t *testing.T) {
+	got, err := loadPrompt("hello world", "")
+	if err != nil {
+		t.Fatalf("loadPrompt: %v", err)
+	}
+	if got != "hello world" {
+		t.Errorf("expected 'hello world', got %q", got)
+	}
+}
+
+func TestLoadPromptFromFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "prompt.md")
+	content := "# Task\nDo the thing.\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := loadPrompt("", path)
+	if err != nil {
+		t.Fatalf("loadPrompt: %v", err)
+	}
+	if got != content {
+		t.Errorf("expected file content, got %q", got)
+	}
+}
+
+func TestLoadPromptBothFlagsError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "prompt.md")
+	_ = os.WriteFile(path, []byte("x"), 0o644)
+
+	_, err := loadPrompt("inline text", path)
+	if err == nil {
+		t.Fatal("expected error when both --prompt and --prompt-file are set")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("expected 'mutually exclusive' in error, got: %v", err)
+	}
+}
+
+func TestLoadPromptNeitherFlagError(t *testing.T) {
+	_, err := loadPrompt("", "")
+	if err == nil {
+		t.Fatal("expected error when neither --prompt nor --prompt-file is set")
+	}
+	if !strings.Contains(err.Error(), "required") {
+		t.Errorf("expected 'required' in error, got: %v", err)
+	}
+}
+
+func TestLoadPromptFileNotFound(t *testing.T) {
+	_, err := loadPrompt("", "/nonexistent/path/prompt.md")
+	if err == nil {
+		t.Fatal("expected error for missing file")
+	}
+	if !strings.Contains(err.Error(), "read prompt file") {
+		t.Errorf("expected 'read prompt file' in error, got: %v", err)
+	}
+}
+
+func TestLoadPromptEmptyFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.md")
+	if err := os.WriteFile(path, []byte("   \n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := loadPrompt("", path)
+	if err == nil {
+		t.Fatal("expected error for empty file")
+	}
+	if !strings.Contains(err.Error(), "empty") {
+		t.Errorf("expected 'empty' in error, got: %v", err)
+	}
+}
+
+// TestJobSubmitPromptFile verifies that --prompt-file is wired into the submit command.
+func TestJobSubmitPromptFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "my-prompt.md")
+	promptContent := "Do the important task now.\n"
+	if err := os.WriteFile(path, []byte(promptContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var receivedPrompt string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req jobCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		receivedPrompt = req.Prompt
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(jobCreateResponse{
+			ProjectID: "p", TaskID: "t", RunID: "r", Status: "started",
+		})
+	}))
+	defer srv.Close()
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"job", "submit",
+		"--server", srv.URL,
+		"--project", "p",
+		"--task", "task-20260221-120000-test",
+		"--agent", "claude",
+		"--prompt-file", path,
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("job submit --prompt-file: %v", err)
+	}
+	if receivedPrompt != promptContent {
+		t.Errorf("server received prompt %q, want %q", receivedPrompt, promptContent)
+	}
+}
+
+// TestJobSubmitHelpShowsPromptFile verifies the help text mentions --prompt-file.
+func TestJobSubmitHelpShowsPromptFile(t *testing.T) {
+	cmd := newRootCmd()
+	var buf strings.Builder
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"job", "submit", "--help"})
+	_ = cmd.Execute()
+	if !strings.Contains(buf.String(), "prompt-file") {
+		t.Errorf("expected 'prompt-file' in job submit help, got:\n%s", buf.String())
 	}
 }
