@@ -30,7 +30,8 @@ type JobOptions struct {
 	ParentRunID        string
 	PreviousRunID      string
 	Environment        map[string]string
-	PreallocatedRunDir string // optional: pre-created run directory; skip createRunDir if set
+	PreallocatedRunDir string        // optional: pre-created run directory; skip createRunDir if set
+	Timeout            time.Duration // max agent run duration; 0 means no limit
 }
 
 // RunJob starts a single agent run and waits for completion.
@@ -185,11 +186,23 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		StderrPath:    stderrPathAbs,
 	}
 
+	ctx := context.Background()
+	if opts.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), opts.Timeout)
+		defer cancel()
+	}
+
 	var execErr error
 	if isRestAgent(agentType) {
-		execErr = executeREST(ctxOrBackground(), agentType, selection, promptContent, workingDir, env, runDir, busPath, info)
+		execErr = executeREST(ctx, agentType, selection, promptContent, workingDir, env, runDir, busPath, info)
 	} else {
-		execErr = executeCLI(ctxOrBackground(), agentType, promptPathAbs, workingDir, env, runDir, busPath, info)
+		execErr = executeCLI(ctx, agentType, promptPathAbs, workingDir, env, runDir, busPath, info)
+	}
+
+	// Post timeout warning to bus if context expired due to deadline.
+	if opts.Timeout > 0 && ctx.Err() == context.DeadlineExceeded {
+		_ = postRunEvent(busPath, info, "WARN", fmt.Sprintf("agent job timed out after %s", opts.Timeout))
 	}
 
 	// Send webhook notification asynchronously (non-blocking; failures are logged to message bus).
@@ -309,7 +322,11 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 		info.Status = storage.StatusFailed
 	}
 	if info.Status == storage.StatusFailed {
-		info.ErrorSummary = classifyExitCode(exitCode)
+		if ctx.Err() == context.DeadlineExceeded {
+			info.ErrorSummary = "timed out"
+		} else {
+			info.ErrorSummary = classifyExitCode(exitCode)
+		}
 	}
 	if err := storage.UpdateRunInfo(filepath.Join(runDir, "run-info.yaml"), func(update *storage.RunInfo) error {
 		update.ExitCode = info.ExitCode

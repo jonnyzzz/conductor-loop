@@ -29,6 +29,7 @@ type TaskOptions struct {
 	WaitTimeout    time.Duration
 	PollInterval   time.Duration
 	RestartDelay   time.Duration
+	Timeout        time.Duration // max agent run duration per job; 0 means no limit
 	Environment    map[string]string
 	FirstRunDir    string // optional: pre-allocated run directory used for the first run attempt
 	ResumeMode     bool   // when true, prepend restart prefix even on the first run attempt
@@ -112,6 +113,7 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 			MessageBusPath: busPath,
 			PreviousRunID:  previousRunID,
 			Environment:    opts.Environment,
+			Timeout:        opts.Timeout,
 		}
 		if attempt == 0 && strings.TrimSpace(opts.FirstRunDir) != "" {
 			jobOpts.PreallocatedRunDir = opts.FirstRunDir

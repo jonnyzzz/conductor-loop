@@ -605,6 +605,94 @@ func TestRunJobCLIEmitsRunCrash(t *testing.T) {
 	assertBusEvent(t, msgs, messagebus.EventTypeRunStop, false)
 }
 
+// createSlowCLI creates a fake agent CLI that sleeps for the given number of seconds after consuming stdin.
+func createSlowCLI(t *testing.T, dir, name string, sleepSec int) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("slow CLI not supported on Windows")
+	}
+	path := filepath.Join(dir, name)
+	content := fmt.Sprintf("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo '%s 1.0.0'; exit 0; fi\ncat >/dev/null\nsleep %d\n", name, sleepSec)
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatalf("write slow cli script: %v", err)
+	}
+}
+
+// TestRunJobTimeout verifies that when Timeout is set, the job is killed after the timeout expires.
+func TestRunJobTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sleep command not supported on Windows")
+	}
+	root := t.TempDir()
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	createSlowCLI(t, binDir, "codex", 60)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	busPath := filepath.Join(root, "TASK-MESSAGE-BUS.md")
+	start := time.Now()
+	info, err := runJob("project", "task", JobOptions{
+		RootDir:        root,
+		Agent:          "codex",
+		Prompt:         "hello",
+		MessageBusPath: busPath,
+		Timeout:        200 * time.Millisecond,
+	})
+	elapsed := time.Since(start)
+
+	if elapsed > 5*time.Second {
+		t.Fatalf("job took too long: %v (expected < 5s with 200ms timeout)", elapsed)
+	}
+	if err == nil {
+		t.Fatalf("expected error from timed out job")
+	}
+	if info == nil || info.Status != storage.StatusFailed {
+		t.Fatalf("expected failed status, got %+v", info)
+	}
+	if info.ErrorSummary != "timed out" {
+		t.Fatalf("expected 'timed out' error summary, got %q", info.ErrorSummary)
+	}
+
+	// Bus should contain a timeout warning message.
+	msgs := readBusMessages(t, busPath)
+	found := false
+	for _, m := range msgs {
+		if strings.Contains(m.Body, "timed out") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected timeout warning in message bus, messages: %v", msgs)
+	}
+}
+
+// TestRunJobNoTimeoutCompletes verifies that Timeout=0 does not kill a normally completing job.
+func TestRunJobNoTimeoutCompletes(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	info, err := runJob("project", "task", JobOptions{
+		RootDir: root,
+		Agent:   "codex",
+		Prompt:  "hello",
+		Timeout: 0, // no timeout
+	})
+	if err != nil {
+		t.Fatalf("runJob with no timeout failed unexpectedly: %v", err)
+	}
+	if info == nil || info.Status != storage.StatusCompleted {
+		t.Fatalf("expected completed status, got %+v", info)
+	}
+}
+
 func TestDetectAgentVersion_RestAgents(t *testing.T) {
 	for _, agentType := range []string{"perplexity", "xai"} {
 		t.Run(agentType, func(t *testing.T) {

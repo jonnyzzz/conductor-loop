@@ -93,6 +93,7 @@ func newTaskCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&opts.WaitTimeout, "child-wait-timeout", 0, "child wait timeout")
 	cmd.Flags().DurationVar(&opts.PollInterval, "child-poll-interval", 0, "child poll interval")
 	cmd.Flags().DurationVar(&opts.RestartDelay, "restart-delay", time.Second, "restart delay")
+	cmd.Flags().DurationVar(&opts.Timeout, "timeout", 0, "maximum agent run duration per job (e.g. 30m, 2h); 0 means no limit")
 
 	cmd.AddCommand(newTaskResumeCmd())
 	cmd.AddCommand(newTaskDeleteCmd())
@@ -219,6 +220,7 @@ func newJobCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.MessageBusPath, "message-bus", "", "message bus path")
 	cmd.Flags().StringVar(&opts.ParentRunID, "parent-run-id", "", "parent run id")
 	cmd.Flags().StringVar(&opts.PreviousRunID, "previous-run-id", "", "previous run id")
+	cmd.Flags().DurationVar(&opts.Timeout, "timeout", 0, "maximum agent run duration (e.g. 30m, 2h); 0 means no limit")
 
 	return cmd
 }

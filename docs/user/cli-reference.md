@@ -512,6 +512,7 @@ run-agent task --project <id> --task <id> [flags]
 | `--child-wait-timeout` | duration | 0 | Child wait timeout |
 | `--child-poll-interval` | duration | 0 | Child poll interval |
 | `--restart-delay` | duration | 1s | Delay between restarts |
+| `--timeout` | duration | 0 | Maximum agent run duration per job (e.g. `30m`, `2h`); 0 means no limit |
 
 **Examples:**
 
@@ -739,6 +740,7 @@ run-agent job --project <id> --task <id> [flags]
 | `--message-bus` | string | "" | Message bus path |
 | `--parent-run-id` | string | "" | Parent run ID |
 | `--previous-run-id` | string | "" | Previous run ID |
+| `--timeout` | duration | 0 | Maximum agent run duration (e.g. `30m`, `2h`); 0 means no limit |
 
 **Examples:**
 
