@@ -67,6 +67,7 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key for authentication (enables auth when set)")
 
 	cmd.AddCommand(newStatusCmd())
+	cmd.AddCommand(newGoalCmd())
 	cmd.AddCommand(newTaskCmd())
 	cmd.AddCommand(newJobCmd())
 	cmd.AddCommand(newProjectCmd())
@@ -75,7 +76,6 @@ func newRootCmd() *cobra.Command {
 
 	return cmd
 }
-
 
 func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string, cliPort int, explicitPort bool, cliAPIKey string) error {
 	logger := log.New(os.Stdout, "conductor ", log.LstdFlags)

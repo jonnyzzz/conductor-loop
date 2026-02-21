@@ -101,7 +101,7 @@
 - [x] `task-20260222-100900-ui-messagebus-type`: add message-type selector (PROGRESS/FACT/DECISION/ERROR/QUESTION) in compose UI.
 - [x] `task-20260222-101000-ui-project-bus`: expose project-level message bus view by default when no task is selected.
 - [x] `task-20260222-101100-docs-rlm-flow`: document RLM + `THE_PROMPT_v5` recursive orchestration using `run-agent job` + bus posting.
-- [ ] `task-20260222-102100-goal-decompose-cli`: implement `conductor goal decompose` / `run-agent goal decompose` skeleton with deterministic workflow spec output (`--json`, `--out`).
+- [x] `task-20260222-102100-goal-decompose-cli`: implement `conductor goal decompose` / `run-agent goal decompose` skeleton with deterministic workflow spec output (`--json`, `--out`).
 - [ ] `task-20260222-102110-job-batch-cli`: implement `run-agent job batch` + `conductor job submit-batch` for fan-out/fan-in orchestration from spec files.
 - [ ] `task-20260222-102120-workflow-runner-cli`: implement `run-agent workflow run` + `conductor workflow run` with stage state persistence/resume.
 - [ ] `task-20260222-102130-output-synthesize-cli`: implement `run-agent output synthesize` + `conductor task synthesize` with merge/reduce/vote strategies and provenance.

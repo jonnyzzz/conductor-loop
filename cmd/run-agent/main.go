@@ -31,6 +31,7 @@ func newRootCmd() *cobra.Command {
 	cmd.SetVersionTemplate("{{.Version}}\n")
 
 	cmd.AddCommand(newTaskCmd())
+	cmd.AddCommand(newGoalCmd())
 	cmd.AddCommand(newJobCmd())
 	cmd.AddCommand(newWrapCmd())
 	cmd.AddCommand(newShellSetupCmd())

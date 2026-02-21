@@ -463,6 +463,46 @@ my-project  task-20260220-140000-hello        success  2026-02-20T14:01:30Z
 my-project  task-20260220-150000-analysis     running  2026-02-20T15:02:00Z
 ```
 
+#### `conductor goal`
+
+Generate deterministic workflow specs from a high-level project goal.
+
+```bash
+conductor goal decompose --project PROJECT (--goal TEXT | --goal-file PATH) [flags]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--project` | string | "" | Project ID (required) |
+| `--goal` | string | "" | Inline goal text (mutually exclusive with `--goal-file`) |
+| `--goal-file` | string | "" | Goal file path (mutually exclusive with `--goal`) |
+| `--strategy` | string | `rlm` | Decomposition strategy (currently only `rlm`) |
+| `--template` | string | `THE_PROMPT_v5` | Orchestration template label |
+| `--max-parallel` | int | `6` | Max parallel tasks recorded in spec metadata |
+| `--root` | string | "" | Optional root-dir hint stored in spec metadata |
+| `--json` | bool | false | Print JSON to stdout (default: YAML) |
+| `--out` | string | "" | Write spec to file; extension controls format (`.json`, `.yaml`, `.yml`) |
+
+**Behavior:**
+- Uses `/Users/jonnyzzz/Work/jonnyzzz.com-src/RLM.md` and `THE_PROMPT_v5.md` as declared semantics sources.
+- Generates a stable workflow DAG with deterministic task ordering and dependency links.
+- Same `--project` + goal content + strategy/template yields the same `workflow_id` and task IDs.
+
+**Examples:**
+```bash
+# YAML to stdout
+conductor goal decompose \
+  --project my-project \
+  --goal-file ./GOAL.md
+
+# JSON to stdout + YAML on disk
+conductor goal decompose \
+  --project my-project \
+  --goal-file ./GOAL.md \
+  --json \
+  --out ./workflow/goal.yaml
+```
+
 #### `conductor project`
 
 Manage projects via the conductor server API.
@@ -1082,6 +1122,48 @@ run-agent resume \
 |---------|-------------|
 | `run-agent resume` | The task reached its `maxRestarts` limit and was marked DONE. Use this to clear the exhausted state and optionally kick off a fresh run. |
 | `run-agent task resume` | The task's Ralph Loop process stopped or failed before the task was marked DONE (e.g. host restart). Use this to re-enter the loop from the existing task directory. |
+
+---
+
+#### `run-agent goal`
+
+Generate deterministic workflow specs from a high-level project goal (offline/local mode).
+
+```bash
+run-agent goal decompose --project PROJECT (--goal TEXT | --goal-file PATH) [flags]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--project` | string | "" | Project ID (required) |
+| `--goal` | string | "" | Inline goal text (mutually exclusive with `--goal-file`) |
+| `--goal-file` | string | "" | Goal file path (mutually exclusive with `--goal`) |
+| `--strategy` | string | `rlm` | Decomposition strategy (currently only `rlm`) |
+| `--template` | string | `THE_PROMPT_v5` | Orchestration template label |
+| `--max-parallel` | int | `6` | Max parallel tasks recorded in spec metadata |
+| `--root` | string | "" | Optional root-dir hint stored in spec metadata |
+| `--json` | bool | false | Print JSON to stdout (default: YAML) |
+| `--out` | string | "" | Write spec to file; extension controls format (`.json`, `.yaml`, `.yml`) |
+
+**Behavior:**
+- Uses `/Users/jonnyzzz/Work/jonnyzzz.com-src/RLM.md` and `THE_PROMPT_v5.md` as declared semantics sources.
+- Produces a predictable workflow schema with `workflow_id`, `tasks[]`, `depends_on[]`, `prompt_file`, and `agent`.
+- Deterministic: same input goal + project + strategy/template yields the same IDs and ordering.
+
+**Examples:**
+```bash
+# YAML to stdout
+run-agent goal decompose \
+  --project my-project \
+  --goal-file ./GOAL.md
+
+# JSON to stdout + JSON file output
+run-agent goal decompose \
+  --project my-project \
+  --goal-file ./GOAL.md \
+  --json \
+  --out ./workflow/goal.json
+```
 
 ---
 
