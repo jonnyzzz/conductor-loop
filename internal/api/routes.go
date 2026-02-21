@@ -27,6 +27,7 @@ func (s *Server) routes() http.Handler {
 
 	// Project-centric API (used by the web UI)
 	mux.Handle("/api/projects", s.wrap(s.handleProjectsList))
+	mux.Handle("/api/projects/home-dirs", s.wrap(s.handleProjectHomeDirs))
 	mux.Handle("/api/projects/", s.wrap(s.handleProjectsRouter))
 
 	// Serve web UI static files at root if available

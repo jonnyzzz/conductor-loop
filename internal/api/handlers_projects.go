@@ -734,20 +734,7 @@ func (s *Server) serveRunFile(w http.ResponseWriter, r *http.Request, run *stora
 		return apiErrorNotFound("file path not set for " + name)
 	}
 
-	var fallbackName string
-	actualPath := filePath
 	data, err := os.ReadFile(filePath)
-	if err != nil && os.IsNotExist(err) && name == "output.md" {
-		// Try agent-stdout.txt as fallback
-		if run.StdoutPath != "" {
-			if fb, ferr := os.ReadFile(run.StdoutPath); ferr == nil {
-				data = fb
-				err = nil
-				fallbackName = "agent-stdout.txt"
-				actualPath = run.StdoutPath
-			}
-		}
-	}
 	if err != nil {
 		if os.IsNotExist(err) {
 			return apiErrorNotFound("file not found: " + name)
@@ -755,21 +742,17 @@ func (s *Server) serveRunFile(w http.ResponseWriter, r *http.Request, run *stora
 		return apiErrorInternal("read file", err)
 	}
 
-	fi, _ := os.Stat(actualPath)
+	fi, _ := os.Stat(filePath)
 	var modified time.Time
 	if fi != nil {
 		modified = fi.ModTime().UTC()
 	}
-	resp := map[string]interface{}{
+	return writeJSON(w, http.StatusOK, map[string]interface{}{
 		"name":       name,
 		"content":    string(data),
 		"modified":   modified,
 		"size_bytes": len(data),
-	}
-	if fallbackName != "" {
-		resp["fallback"] = fallbackName
-	}
-	return writeJSON(w, http.StatusOK, resp)
+	})
 }
 
 // serveRunFileStream streams a growing file using SSE (text/event-stream).

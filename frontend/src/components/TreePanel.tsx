@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react'
+import { type FormEvent, useMemo, useState } from 'react'
+import Button from '@jetbrains/ring-ui-built/components/button/button'
+import Dialog from '@jetbrains/ring-ui-built/components/dialog/dialog'
 import clsx from 'clsx'
-import { useProjects, useProjectRunsFlat, useTasks } from '../hooks/useAPI'
+import { useHomeDirs, useProjects, useProjectRunsFlat, useStartTask, useTasks } from '../hooks/useAPI'
 import { buildTree, type TreeNode } from '../utils/treeBuilder'
+import type { TaskStartRequest } from '../api/client'
 
 interface TreePanelProps {
   projectId: string | undefined
@@ -12,6 +15,22 @@ interface TreePanelProps {
   onSelectTask: (projectId: string, taskId: string) => void
   onSelectRun: (projectId: string, taskId: string, runId: string) => void
 }
+
+function generateTaskId(): string {
+  const now = new Date()
+  const date = now.toISOString().slice(0, 10).replace(/-/g, '')
+  const time = now.toTimeString().slice(0, 8).replace(/:/g, '')
+  const rand = Math.random().toString(36).slice(2, 8)
+  return `task-${date}-${time}-${rand}`
+}
+
+const emptyForm = (): TaskStartRequest => ({
+  task_id: generateTaskId(),
+  prompt: '',
+  project_root: '',
+  attach_mode: 'create',
+  agent_type: 'claude',
+})
 
 function statusDot(status: string): string {
   switch (status) {
@@ -171,6 +190,14 @@ export function TreePanel({
   const projectsQuery = useProjects()
   const tasksQuery = useTasks(projectId)
   const flatRunsQuery = useProjectRunsFlat(projectId)
+  const homeDirsQuery = useHomeDirs()
+  const startTaskMutation = useStartTask(projectId)
+
+  const [showCreate, setShowCreate] = useState(false)
+  const [form, setForm] = useState<TaskStartRequest>(emptyForm)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const homeDirs = homeDirsQuery.data?.dirs ?? []
 
   const tree = useMemo(() => {
     if (!projectId) return null
@@ -181,6 +208,28 @@ export function TreePanel({
 
   const projects = projectsQuery.data ?? []
 
+  const openDialog = () => {
+    setForm({ ...emptyForm(), task_id: generateTaskId() })
+    setSubmitError(null)
+    setShowCreate(true)
+  }
+
+  const closeDialog = () => {
+    setShowCreate(false)
+    setSubmitError(null)
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setSubmitError(null)
+    try {
+      await startTaskMutation.mutateAsync(form)
+      closeDialog()
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to create task')
+    }
+  }
+
   return (
     <div className="panel panel-scroll tree-panel">
       <div className="panel-header">
@@ -188,6 +237,15 @@ export function TreePanel({
           <div className="panel-title">Tree</div>
           <div className="panel-subtitle">Project · Task · Run</div>
         </div>
+        <Button
+          inline
+          onClick={openDialog}
+          disabled={!projectId}
+          aria-label="Create new task"
+          title={projectId ? 'Create new task' : 'Select a project first'}
+        >
+          + New Task
+        </Button>
       </div>
 
       {/* Project selector */}
@@ -230,6 +288,117 @@ export function TreePanel({
           />
         )}
       </div>
+
+      <Dialog
+        show={showCreate}
+        label="Create new task"
+        showCloseButton
+        onCloseAttempt={closeDialog}
+      >
+        <div className="dialog-content">
+          <div className="dialog-title">
+            New Task — {projectId}
+          </div>
+          <form onSubmit={handleSubmit}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span className="form-label">Task ID</span>
+                <input
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={form.task_id}
+                  onChange={(e) => setForm((f) => ({ ...f, task_id: e.target.value }))}
+                  required
+                  placeholder="task-20260220-120000-my-task"
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span className="form-label">Agent</span>
+                <select
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={form.agent_type ?? 'claude'}
+                  onChange={(e) => setForm((f) => ({ ...f, agent_type: e.target.value }))}
+                >
+                  <option value="claude">claude</option>
+                  <option value="codex">codex</option>
+                  <option value="gemini">gemini</option>
+                </select>
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span className="form-label">Prompt *</span>
+                <textarea
+                  className="input"
+                  style={{ width: '100%', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit' }}
+                  value={form.prompt}
+                  onChange={(e) => setForm((f) => ({ ...f, prompt: e.target.value }))}
+                  required
+                  placeholder="Describe what the agent should do..."
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span className="form-label">Project Home Directory</span>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    className="input"
+                    style={{ width: '100%' }}
+                    list="home-dir-suggestions"
+                    value={form.project_root}
+                    onChange={(e) => setForm((f) => ({ ...f, project_root: e.target.value }))}
+                    placeholder="~/Work/my-project  or  /absolute/path/to/project"
+                    autoComplete="off"
+                  />
+                  <datalist id="home-dir-suggestions">
+                    {homeDirs.map((dir) => (
+                      <option key={dir} value={dir} />
+                    ))}
+                  </datalist>
+                </div>
+                <span className="form-hint">
+                  Working directory where the agent will run. Use ~ for home directory.
+                  The conductor-loop task folder is managed separately.
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span className="form-label">Attach Mode</span>
+                <select
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={form.attach_mode}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, attach_mode: e.target.value as TaskStartRequest['attach_mode'] }))
+                  }
+                >
+                  <option value="create">create</option>
+                  <option value="attach">attach</option>
+                  <option value="resume">resume</option>
+                </select>
+              </label>
+
+              {submitError && (
+                <div className="form-error">{submitError}</div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                <Button inline onClick={closeDialog} type="button">
+                  Cancel
+                </Button>
+                <Button
+                  primary
+                  type="submit"
+                  disabled={startTaskMutation.isPending}
+                >
+                  {startTaskMutation.isPending ? 'Creating…' : 'Create Task'}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </Dialog>
     </div>
   )
 }

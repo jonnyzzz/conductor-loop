@@ -188,3 +188,12 @@ export function useProjectRunsFlat(projectId: string | undefined) {
     refetchInterval: 5000,
   })
 }
+
+export function useHomeDirs() {
+  const api = useAPIClient()
+  return useQuery({
+    queryKey: ['home-dirs'],
+    queryFn: () => api.getHomeDirs(),
+    staleTime: 30_000,
+  })
+}

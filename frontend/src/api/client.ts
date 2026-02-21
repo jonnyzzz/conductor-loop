@@ -195,6 +195,10 @@ export class APIClient {
     )
     return data.runs
   }
+
+  async getHomeDirs(): Promise<{ dirs: string[] }> {
+    return this.request<{ dirs: string[] }>('/api/projects/home-dirs')
+  }
 }
 
 export const createClient = () => {
