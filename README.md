@@ -105,6 +105,7 @@ See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
 - [Web UI Guide](docs/user/web-ui.md) - Using the web interface
 - [Troubleshooting](docs/user/troubleshooting.md) - Common issues and solutions
 - [FAQ](docs/user/faq.md) - Frequently asked questions
+- [RLM Orchestration](docs/user/rlm-orchestration.md) - Recursive orchestration with parallel sub-agents
 
 ### Developer Documentation
 

@@ -50,7 +50,7 @@
 
 - [ ] Review documents across workspace/project repos; move/deprecate duplicates while preserving git history.
 - [ ] Use conductor-loop to fix GitHub builds for itself and keep workflow self-hosted.
-- [ ] Run orchestration using `RLM.md` and `THE_PROMPT_v5.md` as required context inputs.
+- [x] Run orchestration using `RLM.md` and `THE_PROMPT_v5.md` as required context inputs.
 - [ ] Keep root-agent delegation model: sub-agents execute implementation/review tasks instead of manual shell loops where feasible.
 - [x] Commit `go.mod` normalization change.
 - [ ] Commit/push all repositories with logical grouping once all pending implementation tasks are complete.
@@ -94,4 +94,4 @@
 - [ ] `task-20260222-100800-ui-tree-density`: further compact tree spacing; merge single-run rows; show duration/restart badges clearly.
 - [ ] `task-20260222-100900-ui-messagebus-type`: add message-type selector (PROGRESS/FACT/DECISION/ERROR/QUESTION) in compose UI.
 - [ ] `task-20260222-101000-ui-project-bus`: expose project-level message bus view by default when no task is selected.
-- [ ] `task-20260222-101100-docs-rlm-flow`: document RLM + `THE_PROMPT_v5` recursive orchestration using `run-agent job` + bus posting.
+- [x] `task-20260222-101100-docs-rlm-flow`: document RLM + `THE_PROMPT_v5` recursive orchestration using `run-agent job` + bus posting.

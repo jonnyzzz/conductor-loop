@@ -193,17 +193,34 @@ Features visible while your task is running:
 
 ## RLM Pattern (for large tasks)
 
-For tasks that require systematic decomposition:
+Activate RLM when context > 50 K tokens, files > 5, or multi-hop reasoning is needed.
 
-1. **ASSESS** — read TASK.md, read relevant source files, understand full scope
-2. **DECOMPOSE** — split at natural boundaries (one sub-agent per subsystem or concern)
-3. **EXECUTE** — spawn sub-agents in parallel with `run-agent job ... &`
-4. **SYNTHESIZE** — collect results, resolve conflicts, integrate changes
-5. **VERIFY** — run all tests (`go test ./...`), check build, verify acceptance tests pass
+Six-step protocol:
 
-Post PROGRESS messages at each phase boundary.
+1. **ASSESS** — peek at file sizes/counts before reading; post a FACT with scope
+2. **DECIDE** — match context size to strategy (grep first / partition / sub-agents)
+3. **DECOMPOSE** — split at natural boundaries (one sub-agent per subsystem or concern)
+4. **EXECUTE** — spawn sub-agents in parallel with `run-agent job ... &`; use `wait`
+5. **SYNTHESIZE** — collect sub-agent outputs; merge, deduplicate, resolve conflicts
+6. **VERIFY** — `go test ./...`, `go build ./...`, spot-check 2–3 claims
 
-See `THE_PROMPT_v5.md` and `THE_PROMPT_v5_orchestrator.md` for the full methodology.
+Post PROGRESS at each phase boundary; post FACT for every commit.
+
+```bash
+# Parallel sub-agent spawn pattern
+run-agent job --project "$JRUN_PROJECT_ID" --root "$CONDUCTOR_ROOT" \
+  --agent claude --parent-run-id "$JRUN_ID" --timeout 30m \
+  --prompt "Fix internal/runner race conditions; post FACT per commit" &
+
+run-agent job --project "$JRUN_PROJECT_ID" --root "$CONDUCTOR_ROOT" \
+  --agent claude --parent-run-id "$JRUN_ID" --timeout 30m \
+  --prompt "Fix pkg/storage edge cases; post FACT per commit" &
+
+wait   # synthesize after all complete
+```
+
+See `docs/user/rlm-orchestration.md` for the full guide with templates.
+See `THE_PROMPT_v5.md` and `THE_PROMPT_v5_orchestrator.md` for role-prompt conventions.
 
 ---
 
