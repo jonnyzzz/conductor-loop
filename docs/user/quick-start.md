@@ -268,46 +268,77 @@ Example with explicit restart settings via `run-agent task --max-restarts 3`:
 
 If the task fails, it will restart up to 3 times before giving up.
 
-## Step 10: View the Message Bus
+## Step 10: Work with the Message Bus
 
-The message bus enables cross-task communication:
+The bus has two scopes:
+- **Task scope**: `TASK-MESSAGE-BUS.md` for one task
+- **Project scope**: `PROJECT-MESSAGE-BUS.md` for cross-task coordination
+
+For local runs, use `run-agent bus` (direct file access):
 
 ```bash
-# View all messages for a project
-curl "http://localhost:14355/api/v1/messages?project_id=my-project"
+# Follow task-scoped messages while a task is running
+./bin/run-agent bus read \
+  --project my-project \
+  --task task-20260205-100000-hello-world \
+  --root ./runs \
+  --follow
 
-# Stream project messages in real-time (SSE)
-curl -N "http://localhost:14355/api/v1/messages/stream?project_id=my-project"
+# Read recent project-scoped messages
+./bin/run-agent bus read --project my-project --root ./runs --tail 50
+
+# Post a task-scoped progress update
+./bin/run-agent bus post \
+  --project my-project \
+  --task task-20260205-100000-hello-world \
+  --root ./runs \
+  --type PROGRESS \
+  --body "started auth module refactor"
+
+# Post a project-scoped decision
+./bin/run-agent bus post \
+  --project my-project \
+  --root ./runs \
+  --type DECISION \
+  --body "standardizing on OAuth2"
+```
+
+You can also read and post through the server API:
+
+```bash
+# Read all project-level messages
+curl "http://localhost:14355/api/v1/messages?project_id=my-project"
 
 # Stream task-level messages
 curl -N "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world/messages/stream"
-```
 
-Tasks can write to the message bus for coordination:
-- Requesting child tasks
-- Reporting progress
-- Sharing data between tasks
-- Signaling completion
-
-### Post a Message to the Bus
-
-You (or an agent) can post messages directly via the API:
-
-```bash
-# Post to the task-level message bus
+# Post to task-level message bus
 curl -X POST \
   "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world/messages" \
   -H "Content-Type: application/json" \
-  -d '{"type": "USER", "body": "Please focus on the authentication module next"}'
-
-# Post to the project-level message bus
-curl -X POST \
-  "http://localhost:14355/api/projects/my-project/messages" \
-  -H "Content-Type: application/json" \
-  -d '{"type": "DECISION", "body": "Switching to OAuth2 for all auth"}'
+  -d '{"type": "PROGRESS", "body": "starting test run"}'
 ```
 
-The web UI also has a compose form in the Messages tab for posting messages interactively.
+### Recommended Message Types
+
+- `PROGRESS`: start/end of major steps
+- `FACT`: concrete outcomes (tests passed, files changed, run IDs)
+- `DECISION`: chosen approach and short rationale
+- `ERROR`: blocker and attempted remediation
+- `QUESTION`: explicit request for input
+- `INFO`: neutral status updates
+
+`RUN_START`, `RUN_STOP`, and `RUN_CRASH` are emitted by the runner automatically.
+
+### Typical Local Orchestration Workflow
+
+1. Start a root task (`run-agent task` or `conductor job submit`).
+2. Follow task messages with `run-agent bus read --project ... --task ... --follow`.
+3. Post `PROGRESS` before major steps and `FACT` after concrete outcomes.
+4. Post `DECISION` for strategy changes and `ERROR` for blockers.
+5. Use project-scoped messages to communicate cross-task coordination points.
+
+The Web UI Message Bus panels read and write these same task/project bus files via API. If UI compose is unavailable or feed context looks stale after switching scope/task, use `run-agent bus read/post` as the source of truth.
 
 ## Common Use Cases
 

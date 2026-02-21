@@ -1518,12 +1518,41 @@ run-agent bus post [--bus PATH] [--type TYPE] [--body BODY] [flags]
 **Examples:**
 
 ```bash
-# Post a message
-run-agent bus post --bus ./task-bus.md --type INFO --body "Processing started"
+# Post to a task-scoped bus (TASK-MESSAGE-BUS.md)
+run-agent bus post \
+  --project my-project \
+  --task task-20260221-120000-feat \
+  --root ./runs \
+  --type PROGRESS \
+  --body "starting implementation"
+
+# Post to a project-scoped bus (PROJECT-MESSAGE-BUS.md)
+run-agent bus post \
+  --project my-project \
+  --root ./runs \
+  --type DECISION \
+  --body "using approach B for retries"
+
+# Post using MESSAGE_BUS (common inside agent runs)
+MESSAGE_BUS=/data/runs/my-project/task-20260221-120000-feat/TASK-MESSAGE-BUS.md \
+  run-agent bus post --type FACT --body "tests passed"
 
 # Post from stdin
-echo "Done!" | run-agent bus post --bus ./task-bus.md --type DONE
+echo "waiting for human input" | run-agent bus post --project my-project --type QUESTION
 ```
+
+**Practical type conventions:**
+
+| Type | When to use |
+|------|-------------|
+| `PROGRESS` | Start of a major step or checkpoint |
+| `FACT` | Concrete outcome (tests, files, run IDs, commit SHAs) |
+| `DECISION` | Non-obvious choice and brief rationale |
+| `ERROR` | Blocker plus attempted remediation |
+| `QUESTION` | Explicit request for input |
+| `INFO` | Neutral status updates |
+
+`RUN_START`, `RUN_STOP`, and `RUN_CRASH` are typically emitted by the runner automatically.
 
 ##### `run-agent bus read`
 
@@ -1545,12 +1574,28 @@ run-agent bus read [--bus PATH] [--tail N] [--follow]
 **Examples:**
 
 ```bash
-# Read last 20 messages
-run-agent bus read --bus ./task-bus.md
+# Follow task-scoped messages in real time
+run-agent bus read \
+  --project my-project \
+  --task task-20260221-120000-feat \
+  --root ./runs \
+  --follow
 
-# Follow new messages
-run-agent bus read --bus ./task-bus.md --follow
+# Read the latest project-scoped messages
+run-agent bus read --project my-project --root ./runs --tail 50
+
+# Read from an explicit file path
+run-agent bus read --bus /tmp/custom-bus.md --tail 10
 ```
+
+**Path resolution rules:**
+
+- `run-agent bus post`: `--bus` -> `$MESSAGE_BUS` -> resolved from `--project`/`--task` (+ `--root`).
+- `run-agent bus read`: resolved from `--project`/`--task` (+ `--root`) -> `--bus` -> `$MESSAGE_BUS`.
+- For `read`, `--bus` and `--project` are mutually exclusive.
+- Resolved paths are:
+  - Project scope: `<root>/<project>/PROJECT-MESSAGE-BUS.md`
+  - Task scope: `<root>/<project>/<task>/TASK-MESSAGE-BUS.md`
 
 ---
 

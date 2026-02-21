@@ -97,7 +97,7 @@ Completed and failed runs show a **🗑 Delete run** button in the run detail pa
 
 ### Project Message Bus Panel & Compose Form
 
-When a project is selected, a compact live feed of `PROJECT-MESSAGE-BUS.md` appears in the left panel, showing recent project-level messages.
+When a project is selected, the left panel shows a live project-scoped feed from `PROJECT-MESSAGE-BUS.md`.
 
 Below the message feed is a **compose form** that lets you post new messages directly from the browser:
 
@@ -106,6 +106,15 @@ Below the message feed is a **compose form** that lets you post new messages dir
 3. Click **Post** to submit (calls `POST /api/projects/{p}/messages` or `POST /api/projects/{p}/tasks/{t}/messages` depending on scope)
 
 The same compose form is available on the **MESSAGES** tab inside a run detail view for posting task-scoped messages.
+
+Scope-to-file mapping:
+
+| UI Scope | API Endpoint | Backing File |
+|----------|--------------|--------------|
+| `Project` | `POST /api/projects/{project}/messages` | `<root>/<project>/PROJECT-MESSAGE-BUS.md` |
+| `Task` | `POST /api/projects/{project}/tasks/{task}/messages` | `<root>/<project>/<task>/TASK-MESSAGE-BUS.md` |
+
+The Web UI does not maintain a separate bus. It reads/writes the same files that `run-agent bus read/post` uses.
 
 Screenshot: [The main interface shows a clean, modern design with a task list on the left and log viewer on the right]
 
@@ -277,23 +286,19 @@ Screenshot: [Message bus viewer shows a feed of messages with type indicators an
 
 ### Message Types
 
-| Type | Icon | Description |
-|------|------|-------------|
-| task_start | 🚀 | Task started |
-| task_complete | ✅ | Task completed |
-| task_failed | ❌ | Task failed |
-| progress | 📊 | Progress update |
-| child_request | 👶 | Child task request |
-| custom | 📝 | Custom message |
+| Type | Description |
+|------|-------------|
+| `PROGRESS` | In-flight status update for a major step |
+| `FACT` | Concrete outcome (test result, file path, run ID) |
+| `DECISION` | Chosen approach and rationale |
+| `ERROR` | Blocker and what was attempted |
+| `QUESTION` | Explicit request for input |
+| `INFO` / `USER` | General operational notes or human guidance |
+| `RUN_START` / `RUN_STOP` / `RUN_CRASH` | Runner lifecycle events emitted automatically |
 
 ### Filtering Messages
 
-Use the filter dropdown to show only specific message types:
-- All Types (default)
-- Task Events (start, complete, failed)
-- Progress Updates
-- Child Requests
-- Custom Messages
+Use scope controls to switch between task-level and project-level feeds. When investigating one run/task, keep scope on `Task` so unrelated project chatter does not mix into your view.
 
 ## Run Tree Visualization
 
@@ -438,6 +443,18 @@ Access via the settings icon (⚙️) in the top-right corner.
 3. Verify runs_dir is correctly configured
 4. Refresh the page
 5. Check network tab for failed API requests
+
+### Message Bus Compose Disabled or Feed Looks Stale
+
+**Problem**: Compose input is disabled, or messages appear to carry over after changing task/scope.
+
+**Solutions:**
+1. Click `Refresh all` and re-select the task.
+2. Switch Message Bus scope (`Task`/`Project`) again to force a stream reset.
+3. Use CLI as the source of truth:
+   - `run-agent bus read --project <project> --task <task> --root <runs-root> --follow`
+   - `run-agent bus post --project <project> --task <task> --root <runs-root> --type PROGRESS --body "..."`.
+4. If you need server-only access, use `conductor bus read/post` instead.
 
 ## Browser Compatibility
 
