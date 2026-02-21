@@ -24,6 +24,7 @@ func newProjectCmd() *cobra.Command {
 	cmd.AddCommand(newProjectListCmd())
 	cmd.AddCommand(newProjectStatsCmd())
 	cmd.AddCommand(newProjectGCCmd())
+	cmd.AddCommand(newProjectDeleteCmd())
 	return cmd
 }
 
@@ -240,6 +241,88 @@ func projectGC(out io.Writer, server, project, olderThan string, dryRun, keepFai
 	} else {
 		fmt.Fprintf(out, "Deleted %d runs, freed %s\n", result.DeletedRuns, formatBytes(result.FreedBytes))
 	}
+	return nil
+}
+
+func newProjectDeleteCmd() *cobra.Command {
+	var (
+		server     string
+		force      bool
+		jsonOutput bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "delete <project-id>",
+		Short: "Delete an entire project (all tasks and runs)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return projectDelete(cmd.OutOrStdout(), server, args[0], force, jsonOutput)
+		},
+	}
+
+	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().BoolVar(&force, "force", false, "stop running tasks and delete anyway")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
+
+	return cmd
+}
+
+// projectDeleteResponse is the JSON response from DELETE /api/projects/{id}.
+type projectDeleteResponse struct {
+	ProjectID    string `json:"project_id"`
+	DeletedTasks int    `json:"deleted_tasks"`
+	FreedBytes   int64  `json:"freed_bytes"`
+}
+
+func projectDelete(out io.Writer, server, projectID string, force, jsonOutput bool) error {
+	url := server + "/api/projects/" + projectID
+	if force {
+		url += "?force=true"
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, url, nil) //nolint:noctx
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("delete project: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusConflict {
+		var errResp map[string]interface{}
+		if jsonErr := json.Unmarshal(data, &errResp); jsonErr == nil {
+			if errObj, ok := errResp["error"].(map[string]interface{}); ok {
+				if msg, ok := errObj["message"].(string); ok {
+					return fmt.Errorf("%s", msg)
+				}
+			}
+		}
+		return fmt.Errorf("project has running tasks; stop them first or use --force")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+
+	if jsonOutput {
+		fmt.Fprintf(out, "%s\n", strings.TrimSpace(string(data)))
+		return nil
+	}
+
+	var result projectDeleteResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+
+	fmt.Fprintf(out, "Project %s deleted (%d tasks, %s freed).\n",
+		result.ProjectID, result.DeletedTasks, formatBytes(result.FreedBytes))
 	return nil
 }
 
