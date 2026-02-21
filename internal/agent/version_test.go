@@ -22,7 +22,7 @@ func TestDetectCLIVersionMissing(t *testing.T) {
 }
 
 func TestDetectCLIVersionNilContext(t *testing.T) {
-	if _, err := DetectCLIVersion(nil, "nonexistent-binary-12345"); err == nil {
+	if _, err := DetectCLIVersion(context.TODO(), "nonexistent-binary-12345"); err == nil {
 		t.Fatalf("expected error for missing binary with nil context")
 	}
 }

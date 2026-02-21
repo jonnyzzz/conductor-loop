@@ -3,7 +3,6 @@ package unit_test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -127,11 +126,3 @@ func TestRunDiscoveryLatency(t *testing.T) {
 	}
 }
 
-func decodeResponse[T any](t *testing.T, body []byte) T {
-	t.Helper()
-	var resp T
-	if err := json.Unmarshal(body, &resp); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	return resp
-}

@@ -37,10 +37,6 @@ func apiErrorConflict(message string, details map[string]string) *apiError {
 	return &apiError{Status: http.StatusConflict, Code: "CONFLICT", Message: message, Details: details}
 }
 
-func apiErrorUnauthorized(message string) *apiError {
-	return &apiError{Status: http.StatusUnauthorized, Code: "UNAUTHORIZED", Message: message}
-}
-
 func apiErrorMethodNotAllowed() *apiError {
 	return &apiError{Status: http.StatusMethodNotAllowed, Code: "METHOD_NOT_ALLOWED", Message: "method not allowed"}
 }

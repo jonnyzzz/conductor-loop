@@ -87,12 +87,3 @@ func notifySemHook(delta int64) {
 		fn(delta)
 	}
 }
-
-// resetSemaphoreForTest replaces the package-level semaphore directly.
-// Only for use in tests within this package.
-func resetSemaphoreForTest(ch chan struct{}) {
-	semMu.Lock()
-	defer semMu.Unlock()
-	semChan = ch
-	semSet = true
-}

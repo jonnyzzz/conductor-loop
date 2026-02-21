@@ -385,7 +385,7 @@ func runLockHelper() error {
 	if err := messagebus.LockExclusive(file, 5*time.Second); err != nil {
 		return err
 	}
-	defer messagebus.Unlock(file)
+	defer func() { _ = messagebus.Unlock(file) }()
 	if err := os.WriteFile(ready, []byte("ready"), 0o644); err != nil {
 		return err
 	}

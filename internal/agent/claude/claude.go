@@ -20,7 +20,6 @@ const claudeCommand = "claude"
 // ClaudeAgent implements the Claude CLI backend.
 type ClaudeAgent struct {
 	token string
-	model string
 }
 
 // Execute runs the Claude CLI for the provided run context.

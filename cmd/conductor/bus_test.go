@@ -44,7 +44,7 @@ func TestBusReadProjectLevel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/projects/proj/messages" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(busMessagesResponse{Messages: msgs})
+			_ = json.NewEncoder(w).Encode(busMessagesResponse{Messages: msgs})
 			return
 		}
 		t.Errorf("unexpected request: %s", r.URL.Path)
@@ -81,7 +81,7 @@ func TestBusReadTaskLevel(t *testing.T) {
 		expected := "/api/projects/proj/tasks/" + taskID + "/messages"
 		if r.URL.Path == expected {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(busMessagesResponse{Messages: msgs})
+			_ = json.NewEncoder(w).Encode(busMessagesResponse{Messages: msgs})
 			return
 		}
 		t.Errorf("unexpected request: %s (expected %s)", r.URL.Path, expected)
@@ -116,7 +116,7 @@ func TestBusReadTail(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(busMessagesResponse{Messages: msgs})
+		_ = json.NewEncoder(w).Encode(busMessagesResponse{Messages: msgs})
 	}))
 	defer srv.Close()
 
@@ -143,7 +143,7 @@ func TestBusReadTail(t *testing.T) {
 func TestBusReadEmptyBus(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(busMessagesResponse{Messages: []busMessage{}})
+		_ = json.NewEncoder(w).Encode(busMessagesResponse{Messages: []busMessage{}})
 	}))
 	defer srv.Close()
 
@@ -167,7 +167,7 @@ func TestBusReadJSONOutput(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(busMessagesResponse{Messages: msgs})
+		_ = json.NewEncoder(w).Encode(busMessagesResponse{Messages: msgs})
 	}))
 	defer srv.Close()
 
@@ -243,7 +243,7 @@ func TestBusReadFollowSSE(t *testing.T) {
 		}
 		// Non-stream: return initial messages.
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(busMessagesResponse{Messages: initialMsgs})
+		_ = json.NewEncoder(w).Encode(busMessagesResponse{Messages: initialMsgs})
 	}))
 	defer srv.Close()
 
@@ -282,7 +282,7 @@ func TestBusReadHeartbeatIgnored(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(busMessagesResponse{Messages: []busMessage{}})
+		_ = json.NewEncoder(w).Encode(busMessagesResponse{Messages: []busMessage{}})
 	}))
 	defer srv.Close()
 
@@ -361,7 +361,7 @@ func TestBusPostSuccess(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(busPostResponse{MsgID: "MSG-20260221-110000-abc123"})
+		_ = json.NewEncoder(w).Encode(busPostResponse{MsgID: "MSG-20260221-110000-abc123"})
 	}))
 	defer srv.Close()
 
@@ -387,7 +387,7 @@ func TestBusPostWithTask(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(busPostResponse{MsgID: "MSG-20260221-120000-task01"})
+		_ = json.NewEncoder(w).Encode(busPostResponse{MsgID: "MSG-20260221-120000-task01"})
 	}))
 	defer srv.Close()
 
@@ -412,7 +412,7 @@ func TestBusPostFromStdin(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(busPostResponse{MsgID: "MSG-stdin-001"})
+		_ = json.NewEncoder(w).Encode(busPostResponse{MsgID: "MSG-stdin-001"})
 	}))
 	defer srv.Close()
 

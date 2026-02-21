@@ -132,8 +132,7 @@ func TestGCDryRunDoesNotDelete(t *testing.T) {
 	old := time.Now().Add(-48 * time.Hour)
 	runDir := makeRun(t, root, "proj", "task1", "run-old", storage.StatusCompleted, old, 0)
 
-	var output string
-	output = captureStdout(t, func() {
+	output := captureStdout(t, func() {
 		if err := runGC(root, "", 24*time.Hour, true, false, false, 0, false); err != nil {
 			t.Errorf("runGC dry-run: %v", err)
 		}
@@ -193,8 +192,7 @@ func TestGCSummaryOutput(t *testing.T) {
 	makeRun(t, root, "proj", "task1", "run-old1", storage.StatusCompleted, old, 0)
 	makeRun(t, root, "proj", "task1", "run-old2", storage.StatusCompleted, old, 0)
 
-	var output string
-	output = captureStdout(t, func() {
+	output := captureStdout(t, func() {
 		if err := runGC(root, "", 24*time.Hour, false, false, false, 0, false); err != nil {
 			t.Errorf("runGC: %v", err)
 		}
@@ -259,8 +257,7 @@ func TestGCRotateBus_LargeFileGetsRotated(t *testing.T) {
 	// 2MB file, threshold 1MB
 	makeBusFile(t, taskBus, 2*1024*1024)
 
-	var output string
-	output = captureStdout(t, func() {
+	output := captureStdout(t, func() {
 		if err := runGC(root, "", 168*time.Hour, false, false, true, 1*1024*1024, false); err != nil {
 			t.Fatalf("runGC: %v", err)
 		}
@@ -314,8 +311,7 @@ func TestGCRotateBus_DryRunDoesNotRotate(t *testing.T) {
 	// 2MB file, threshold 1MB
 	makeBusFile(t, taskBus, 2*1024*1024)
 
-	var output string
-	output = captureStdout(t, func() {
+	output := captureStdout(t, func() {
 		if err := runGC(root, "", 168*time.Hour, true, false, true, 1*1024*1024, false); err != nil {
 			t.Fatalf("runGC: %v", err)
 		}
@@ -463,8 +459,7 @@ func TestGCDeleteDoneTasksWithDONE(t *testing.T) {
 		t.Fatalf("chtimes: %v", err)
 	}
 
-	var output string
-	output = captureStdout(t, func() {
+	output := captureStdout(t, func() {
 		if err := runGC(root, "", 24*time.Hour, false, false, false, 0, true); err != nil {
 			t.Fatalf("runGC: %v", err)
 		}
@@ -506,8 +501,7 @@ func TestGCDeleteDoneTasksDryRun(t *testing.T) {
 		t.Fatalf("chtimes: %v", err)
 	}
 
-	var output string
-	output = captureStdout(t, func() {
+	output := captureStdout(t, func() {
 		if err := runGC(root, "", 24*time.Hour, true, false, false, 0, true); err != nil {
 			t.Fatalf("runGC dry-run: %v", err)
 		}

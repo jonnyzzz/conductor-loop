@@ -1128,12 +1128,11 @@ func main() {
 // UI adapter and Playwright helpers
 
 type uiAdapter struct {
-	rootDir     string
-	conductor   string
-	httpClient  *http.Client
-	pollDelay   time.Duration
-	heartbeat   time.Duration
-	maxMessages int
+	rootDir    string
+	conductor  string
+	httpClient *http.Client
+	pollDelay  time.Duration
+	heartbeat  time.Duration
 }
 
 type uiProject struct {
