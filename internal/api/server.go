@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/config"
+	"github.com/jonnyzzz/conductor-loop/internal/metrics"
 	"github.com/pkg/errors"
 )
 
@@ -28,6 +29,7 @@ type Options struct {
 	Logger           *log.Logger
 	DisableTaskStart bool
 	Now              func() time.Time
+	Metrics          *metrics.Registry
 }
 
 // Server serves REST API endpoints for tasks and runs.
@@ -44,6 +46,7 @@ type Server struct {
 	startTasks bool
 	handler    http.Handler
 	server     *http.Server
+	metrics    *metrics.Registry
 
 	mu     sync.Mutex
 	taskWg sync.WaitGroup
@@ -89,6 +92,11 @@ func NewServer(opts Options) (*Server, error) {
 		version = "dev"
 	}
 
+	m := opts.Metrics
+	if m == nil {
+		m = metrics.New()
+	}
+
 	s := &Server{
 		apiConfig:  cfg,
 		rootDir:    rootDir,
@@ -100,6 +108,7 @@ func NewServer(opts Options) (*Server, error) {
 		logger:     logger,
 		now:        now,
 		startTasks: !opts.DisableTaskStart,
+		metrics:    m,
 	}
 	s.handler = s.routes()
 	return s, nil

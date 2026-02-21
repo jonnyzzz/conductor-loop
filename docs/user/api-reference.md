@@ -64,6 +64,63 @@ All responses are JSON with appropriate HTTP status codes.
 
 ## Endpoints
 
+### Metrics
+
+#### GET /metrics
+
+Returns server metrics in Prometheus text format (content-type: `text/plain; version=0.0.4`).
+Suitable for scraping by Prometheus, Grafana, or any compatible monitoring tool.
+
+**Request:**
+```bash
+curl http://localhost:8080/metrics
+```
+
+**Response:** `200 OK` (`text/plain; version=0.0.4`)
+```
+# HELP conductor_uptime_seconds Server uptime in seconds
+# TYPE conductor_uptime_seconds gauge
+conductor_uptime_seconds 42.5
+
+# HELP conductor_active_runs_total Currently active (running) agent runs
+# TYPE conductor_active_runs_total gauge
+conductor_active_runs_total 3
+
+# HELP conductor_completed_runs_total Total completed agent runs since startup
+# TYPE conductor_completed_runs_total counter
+conductor_completed_runs_total 47
+
+# HELP conductor_failed_runs_total Total failed agent runs since startup
+# TYPE conductor_failed_runs_total counter
+conductor_failed_runs_total 2
+
+# HELP conductor_messagebus_appends_total Total message bus append operations
+# TYPE conductor_messagebus_appends_total counter
+conductor_messagebus_appends_total 1234
+
+# HELP conductor_api_requests_total Total API requests by method and status
+# TYPE conductor_api_requests_total counter
+conductor_api_requests_total{method="GET",status="200"} 100
+conductor_api_requests_total{method="POST",status="201"} 5
+```
+
+**Metrics exposed:**
+
+| Metric | Type | Description |
+|---|---|---|
+| `conductor_uptime_seconds` | gauge | Server uptime in seconds |
+| `conductor_active_runs_total` | gauge | Currently active (running) agent runs |
+| `conductor_completed_runs_total` | counter | Total completed agent runs since startup |
+| `conductor_failed_runs_total` | counter | Total failed agent runs since startup |
+| `conductor_messagebus_appends_total` | counter | Total message bus append operations |
+| `conductor_api_requests_total` | counter | Total API requests, labeled by `method` and `status` |
+
+**Notes:**
+- No external dependencies: implemented using Go's `sync/atomic` and Prometheus text format manually.
+- The `/metrics` endpoint itself is not counted in `conductor_api_requests_total` (it bypasses the logging middleware).
+
+---
+
 ### Health and Version
 
 #### GET /api/v1/health

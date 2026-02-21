@@ -630,8 +630,14 @@ func (s *Server) startTask(req TaskCreateRequest, firstRunDir, prompt string) {
 		Environment: req.Config,
 		FirstRunDir: firstRunDir,
 	}
+	s.metrics.IncActiveRuns()
 	if err := runner.RunTask(req.ProjectID, req.TaskID, opts); err != nil {
 		s.logger.Printf("task %s/%s failed: %v", req.ProjectID, req.TaskID, err)
+		s.metrics.DecActiveRuns()
+		s.metrics.IncFailedRuns()
+	} else {
+		s.metrics.DecActiveRuns()
+		s.metrics.IncCompletedRuns()
 	}
 }
 

@@ -97,6 +97,7 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 		if s.logger != nil {
 			s.logger.Printf("%s %s %d %dB %s", r.Method, r.URL.Path, status, recorder.bytes, duration.Truncate(time.Millisecond))
 		}
+		s.metrics.RecordRequest(r.Method, status)
 	})
 }
 
