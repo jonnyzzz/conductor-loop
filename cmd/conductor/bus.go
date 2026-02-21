@@ -77,7 +77,7 @@ func newBusPostCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task ID (optional; posts to task-level bus if set)")
 	cmd.Flags().StringVar(&msgType, "type", "INFO", "message type")
@@ -142,7 +142,7 @@ func newBusReadCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task ID (optional; reads task-level bus if set)")
 	cmd.Flags().IntVar(&tail, "tail", 0, "show last N messages (0 = all)")

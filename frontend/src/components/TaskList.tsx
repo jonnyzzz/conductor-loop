@@ -43,6 +43,7 @@ export function TaskList({
   onSelectProject,
   onSelectTask,
   onRefresh,
+  homeDirs = [],
 }: {
   projects: Project[]
   tasks: TaskSummary[]
@@ -51,6 +52,7 @@ export function TaskList({
   onSelectProject: (projectId: string) => void
   onSelectTask: (taskId: string) => void
   onRefresh?: () => void
+  homeDirs?: string[]
 }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchText, setSearchText] = useState('')
@@ -127,7 +129,7 @@ export function TaskList({
       <div className="panel-header">
         <div>
           <div className="panel-title">Tasks</div>
-          <div className="panel-subtitle">Filter by status</div>
+          <div className="panel-subtitle">{selectedProjectId ? `Project: ${selectedProjectId}` : 'No project selected'}</div>
         </div>
         <Button
           inline
@@ -216,16 +218,14 @@ export function TaskList({
         showCloseButton
         onCloseAttempt={closeDialog}
       >
-        <div style={{ padding: '20px 24px', minWidth: '420px', maxWidth: '560px' }}>
-          <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px' }}>
+        <div className="dialog-content">
+          <div className="dialog-title">
             New Task — {selectedProjectId}
           </div>
           <form onSubmit={handleSubmit}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--app-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Task ID
-                </span>
+                <span className="form-label">Task ID</span>
                 <input
                   className="input"
                   style={{ width: '100%' }}
@@ -237,9 +237,7 @@ export function TaskList({
               </label>
 
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--app-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Agent
-                </span>
+                <span className="form-label">Agent</span>
                 <select
                   className="input"
                   style={{ width: '100%' }}
@@ -253,9 +251,7 @@ export function TaskList({
               </label>
 
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--app-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Prompt *
-                </span>
+                <span className="form-label">Prompt *</span>
                 <textarea
                   className="input"
                   style={{ width: '100%', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit' }}
@@ -267,22 +263,31 @@ export function TaskList({
               </label>
 
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--app-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Project Root
+                <span className="form-label">Project Home Directory</span>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    className="input"
+                    style={{ width: '100%' }}
+                    list="home-dir-suggestions"
+                    value={form.project_root}
+                    onChange={(e) => setForm((f) => ({ ...f, project_root: e.target.value }))}
+                    placeholder="~/Work/my-project  or  /absolute/path/to/project"
+                    autoComplete="off"
+                  />
+                  <datalist id="home-dir-suggestions">
+                    {homeDirs.map((dir) => (
+                      <option key={dir} value={dir} />
+                    ))}
+                  </datalist>
+                </div>
+                <span className="form-hint">
+                  Working directory where the agent will run. Use ~ for home directory.
+                  The conductor-loop task folder is managed separately.
                 </span>
-                <input
-                  className="input"
-                  style={{ width: '100%' }}
-                  value={form.project_root}
-                  onChange={(e) => setForm((f) => ({ ...f, project_root: e.target.value }))}
-                  placeholder="/path/to/project"
-                />
               </label>
 
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--app-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Attach Mode
-                </span>
+                <span className="form-label">Attach Mode</span>
                 <select
                   className="input"
                   style={{ width: '100%' }}
@@ -298,9 +303,7 @@ export function TaskList({
               </label>
 
               {submitError && (
-                <div style={{ fontSize: '12px', color: 'var(--status-failed)', padding: '8px', background: 'rgba(240,123,123,0.1)', borderRadius: '8px' }}>
-                  {submitError}
-                </div>
+                <div className="form-error">{submitError}</div>
               )}
 
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>

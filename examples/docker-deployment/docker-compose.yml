@@ -17,9 +17,9 @@ services:
       - conductor-secrets:/secrets:ro
       - ./config.yaml:/config/config.yaml:ro
     ports:
-      - "8080:8080"
+      - "14355:14355"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:14355/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3

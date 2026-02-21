@@ -256,7 +256,7 @@ type DefaultConfig struct {
 ```go
 type APIConfig struct {
     Host string // Bind host (e.g., "0.0.0.0")
-    Port int    // Bind port (e.g., 8080)
+    Port int    // Bind port (e.g., 14355)
     SSE  SSEConfig
 }
 
@@ -344,7 +344,7 @@ defaults:
 
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 14355
   sse:
     poll_interval_ms: 100
     discovery_interval_ms: 1000
@@ -1560,7 +1560,7 @@ serves all files under `web/src/` at the `/ui/` path.
 
 ```
 # Open in browser after starting conductor:
-http://localhost:8080/ui/
+http://localhost:14355/ui/
 ```
 
 ### Performance Characteristics

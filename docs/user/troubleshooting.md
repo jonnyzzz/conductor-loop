@@ -191,7 +191,7 @@ python -c "import yaml; yaml.safe_load(open('config.yaml'))"
 
 **Symptom:**
 ```
-Error: listen tcp :8080: bind: address already in use
+Error: listen tcp :14355: bind: address already in use
 ```
 
 **Solution:**
@@ -199,11 +199,11 @@ Error: listen tcp :8080: bind: address already in use
 **Option 1: Find and kill process**
 ```bash
 # macOS/Linux
-lsof -i :8080
+lsof -i :14355
 kill -9 <PID>
 
 # Windows
-netstat -ano | findstr :8080
+netstat -ano | findstr :14355
 taskkill /PID <PID> /F
 ```
 
@@ -228,7 +228,7 @@ Ports < 1024 require root on Unix systems.
 **Option 1: Use higher port**
 ```yaml
 api:
-  port: 8080  # Use port >= 1024
+  port: 14355  # Use port >= 1024
 ```
 
 **Option 2: Run as root (not recommended)**
@@ -282,15 +282,15 @@ ps aux | grep conductor
 2. Check if port is listening:
 ```bash
 # macOS/Linux
-lsof -i :8080
+lsof -i :14355
 
 # Windows
-netstat -ano | findstr :8080
+netstat -ano | findstr :14355
 ```
 
 3. Test with curl:
 ```bash
-curl -v http://localhost:8080/api/v1/health
+curl -v http://localhost:14355/api/v1/health
 ```
 
 4. Check firewall:
@@ -384,7 +384,7 @@ agents:
 
 Or per-task:
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -d '{
     "agent_type": "codex",
     "timeout": 600
@@ -429,7 +429,7 @@ ls -la /tmp/core.*
 
 **Symptom:**
 ```
-curl: (7) Failed to connect to localhost port 8080: Connection refused
+curl: (7) Failed to connect to localhost port 14355: Connection refused
 ```
 
 **Solution:**
@@ -447,17 +447,17 @@ conductor --config config.yaml
 3. Check correct host/port:
 ```bash
 # If server listens on 127.0.0.1
-curl http://127.0.0.1:8080/api/v1/health
+curl http://127.0.0.1:14355/api/v1/health
 
 # If server listens on 0.0.0.0
-curl http://localhost:8080/api/v1/health
+curl http://localhost:14355/api/v1/health
 ```
 
 ### CORS Errors
 
 **Symptom:**
 ```
-Access to fetch at 'http://localhost:8080/api/v1/tasks' from origin 'http://localhost:3000' has been blocked by CORS policy
+Access to fetch at 'http://localhost:14355/api/v1/tasks' from origin 'http://localhost:3000' has been blocked by CORS policy
 ```
 
 **Solution:**
@@ -484,15 +484,15 @@ Restart server after config change.
 1. Check URL path:
 ```bash
 # Wrong
-curl http://localhost:8080/tasks
+curl http://localhost:14355/tasks
 
 # Right
-curl http://localhost:8080/api/v1/tasks
+curl http://localhost:14355/api/v1/tasks
 ```
 
 2. Check API version:
 ```bash
-curl http://localhost:8080/api/v1/version
+curl http://localhost:14355/api/v1/version
 ```
 
 ### 400 Bad Request
@@ -507,11 +507,11 @@ curl http://localhost:8080/api/v1/version
 Check request body:
 ```bash
 # Bad: missing required fields
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -d '{"prompt":"test"}'
 
 # Good: all required fields
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "my-project",
@@ -570,7 +570,7 @@ Log viewer shows old logs but doesn't update.
 1. Check SSE connection in browser (F12 → Network → EventStream)
 2. Verify run is still active:
 ```bash
-curl http://localhost:8080/api/v1/runs/<run-id>/info
+curl http://localhost:14355/api/v1/runs/<run-id>/info
 ```
 3. Check CORS if frontend on different origin
 4. Refresh the page
@@ -586,7 +586,7 @@ No tasks showing despite tasks existing.
 
 1. Verify tasks exist:
 ```bash
-curl http://localhost:8080/api/v1/tasks
+curl http://localhost:14355/api/v1/tasks
 ```
 
 2. Check browser console for errors
@@ -730,7 +730,7 @@ docker inspect conductor | grep HostPort
 
 3. Test from container:
 ```bash
-docker exec conductor curl http://localhost:8080/api/v1/health
+docker exec conductor curl http://localhost:14355/api/v1/health
 ```
 
 4. Check Docker network:

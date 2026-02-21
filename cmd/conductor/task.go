@@ -47,7 +47,7 @@ func newTaskStatusCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 
@@ -88,7 +88,7 @@ func newTaskStopCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 
@@ -156,7 +156,7 @@ func newTaskListCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID")
 	cmd.Flags().StringVar(&status, "status", "", "filter by status: running, active, done, failed")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
@@ -247,7 +247,7 @@ func newTaskDeleteCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 	cobra.MarkFlagRequired(cmd.Flags(), "project") //nolint:errcheck

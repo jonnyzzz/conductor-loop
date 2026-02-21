@@ -20,7 +20,7 @@ conductor [command] [flags]
 | `--config` | string | "" | Path to config file |
 | `--root` | string | "" | Root directory for run-agent |
 | `--host` | string | "0.0.0.0" | HTTP listen host (overrides config) |
-| `--port` | int | 8080 | HTTP listen port (overrides config) |
+| `--port` | int | 14355 | HTTP listen port (overrides config) |
 | `--disable-task-start` | bool | false | Disable task execution (API-only mode) |
 | `--version` | bool | false | Print version and exit |
 | `--help` | bool | false | Show help and exit |
@@ -67,7 +67,7 @@ conductor \
   --config /etc/conductor/config.yaml \
   --root /opt/conductor \
   --host 127.0.0.1 \
-  --port 8080 \
+  --port 14355 \
   --disable-task-start
 ```
 
@@ -87,7 +87,7 @@ conductor \
 conductor 2026/02/05 10:00:00 Starting Conductor Loop server
 conductor 2026/02/05 10:00:00 Config loaded from: config.yaml
 conductor 2026/02/05 10:00:00 Root directory: /Users/you/conductor-loop
-conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:8080
+conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:14355
 conductor 2026/02/05 10:00:00 Task execution: enabled
 ```
 
@@ -101,13 +101,13 @@ conductor status [--server URL] [--json]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--json` | bool | false | Output raw JSON response |
 
 **Example:**
 ```bash
 conductor status
-conductor status --server http://prod-conductor:8080
+conductor status --server http://prod-conductor:14355
 conductor status --json
 ```
 
@@ -141,7 +141,7 @@ conductor task stop <task-id> [--server URL] [--project PROJECT] [--json]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--project` | string | "" | Project ID (optional filter) |
 | `--json` | bool | false | Output raw JSON response |
 
@@ -168,7 +168,7 @@ conductor task status <task-id> [--server URL] [--project PROJECT] [--json]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--project` | string | "" | Project ID (optional filter) |
 | `--json` | bool | false | Output raw JSON response |
 
@@ -197,7 +197,7 @@ conductor task list --project <id> [--status <filter>] [--server URL] [--json]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--project` | string | "" | Project ID (required) |
 | `--status` | string | "" | Filter by status: `running`, `active`, `done`, `failed` |
 | `--json` | bool | false | Output raw JSON response |
@@ -239,7 +239,7 @@ conductor task delete <task-id> --project <id> [--server URL] [--json]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--project` | string | "" | Project ID (required) |
 | `--json` | bool | false | Output raw JSON response |
 
@@ -269,7 +269,7 @@ conductor task logs <task-id> --project PROJECT [--run RUN] [--follow] [--tail N
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--project` | string | "" | Project ID (required) |
 | `--run` | string | "" | Specific run ID to stream (default: latest active or most recent) |
 | `--follow` | bool | false | Keep streaming; reconnect if connection drops |
@@ -307,7 +307,7 @@ conductor task runs <task-id> --project PROJECT [--limit N] [--json] [--server U
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--project` | string | "" | Project ID (required) |
 | `--limit` | int | 50 | Maximum number of runs to show |
 | `--json` | bool | false | Output as JSON |
@@ -343,7 +343,7 @@ conductor task resume <task-id> --project PROJECT [--server URL] [--json]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--project` | string | "" | Project ID (required) |
 | `--json` | bool | false | Output raw JSON response |
 
@@ -387,7 +387,7 @@ conductor job submit --project PROJECT --agent AGENT (--prompt PROMPT | --prompt
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--project` | string | "" | Project ID (required) |
 | `--task` | string | "" | Task ID (optional; auto-generated as `task-YYYYMMDD-HHMMSS-xxxxxx` if omitted) |
 | `--agent` | string | "" | Agent type, e.g. claude (required) |
@@ -447,7 +447,7 @@ conductor job list [--server URL] [--project PROJECT] [--json]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--project` | string | "" | Filter by project ID |
 | `--json` | bool | false | Output raw JSON response |
 
@@ -483,7 +483,7 @@ conductor project list [--server URL] [--json]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--json` | bool | false | Output raw JSON response |
 
 **Example:**
@@ -511,7 +511,7 @@ conductor project stats --project <id> [--server URL] [--json]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--project` | string | "" | Project ID (required) |
 | `--json` | bool | false | Output raw JSON response |
 
@@ -550,7 +550,7 @@ conductor project gc --project PROJECT [--older-than DURATION] [--dry-run] [--ke
 | `--older-than` | `168h` | Delete runs older than this duration (e.g. `24h`, `168h` for 7 days) |
 | `--dry-run` | false | Show what would be deleted without actually deleting |
 | `--keep-failed` | false | Keep runs that exited with a non-zero exit code |
-| `--server` | `http://localhost:8080` | Conductor server URL |
+| `--server` | `http://localhost:14355` | Conductor server URL |
 | `--json` | false | Output as JSON |
 
 **Examples:**
@@ -580,7 +580,7 @@ conductor project delete <project-id> [--force] [--server URL] [--json]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--force` | bool | false | Stop running tasks and delete anyway |
 | `--json` | bool | false | Output raw JSON response |
 
@@ -630,7 +630,7 @@ conductor bus read --project <project> [flags]
 |------|------|---------|-------------|
 | `--project` | string | "" | Project ID (required) |
 | `--task` | string | "" | Task ID (optional; reads task-level bus if set, project-level otherwise) |
-| `--server` | string | `http://localhost:8080` | Conductor server URL |
+| `--server` | string | `http://localhost:14355` | Conductor server URL |
 | `--tail` | int | 0 | Show last N messages (0 = all) |
 | `--follow` | bool | false | Stream new messages via SSE (keep watching) |
 | `--json` | bool | false | Output as raw JSON array |
@@ -651,7 +651,7 @@ conductor bus read --project myproject --task task-20260221-070000-myfeature --f
 conductor bus read --project myproject --json
 
 # Use a different server
-conductor bus read --project myproject --server http://conductor.example.com:8080
+conductor bus read --project myproject --server http://conductor.example.com:14355
 ```
 
 **Output (formatted text):**
@@ -678,7 +678,7 @@ conductor bus post --project PROJECT [--task TASK] [--type TYPE] [--body BODY] [
 | `--task` | string | "" | Task ID (optional; posts to task-level bus if set) |
 | `--type` | string | "INFO" | Message type |
 | `--body` | string | "" | Message body (reads from stdin if not provided and stdin is a pipe) |
-| `--server` | string | `http://localhost:8080` | Conductor server URL |
+| `--server` | string | `http://localhost:14355` | Conductor server URL |
 
 **Examples:**
 
@@ -693,7 +693,7 @@ conductor bus post --project my-project --task task-20260221-120000-feat --type 
 echo "Deployment complete" | conductor bus post --project my-project --type FACT
 
 # Use a remote server
-conductor bus post --project my-project --type INFO --body "Hello" --server http://conductor.example.com:8080
+conductor bus post --project my-project --type INFO --body "Hello" --server http://conductor.example.com:14355
 ```
 
 **Output:**
@@ -715,7 +715,7 @@ conductor watch --project PROJECT [--task TASK-ID ...] [--timeout DURATION] [--i
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
 | `--project` | string | "" | Project ID (required) |
 | `--task` | stringArray | [] | Task ID(s) to watch (repeatable; default: watch all tasks in project) |
 | `--timeout` | duration | 30m | Max wait time; exits with code 1 if timeout is reached |
@@ -1199,7 +1199,7 @@ run-agent serve --root ./runs --host 0.0.0.0 --port 14355
 ```
 
 **Note:** When opening the web UI via `file://`, the `API_BASE` in `web/src/app.js` defaults to
-`http://localhost:8080` (conductor's port). If using `run-agent serve`, either open the UI
+`http://localhost:14355` (conductor's port). If using `run-agent serve`, either open the UI
 through the server at `http://127.0.0.1:14355/ui/` or update `API_BASE` manually.
 
 #### `run-agent stop`

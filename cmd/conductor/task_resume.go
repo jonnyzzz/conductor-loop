@@ -26,7 +26,7 @@ func newTaskResumeCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 	cobra.MarkFlagRequired(cmd.Flags(), "project") //nolint:errcheck

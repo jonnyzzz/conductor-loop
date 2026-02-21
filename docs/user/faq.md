@@ -55,11 +55,11 @@ Yes! Each task runs in its own `run-agent` process. You can create multiple task
 Example:
 ```bash
 # Create task 1
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -d '{"project_id":"proj","task_id":"task-1","agent_type":"codex","prompt":"Task 1"}'
 
 # Create task 2
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -d '{"project_id":"proj","task_id":"task-2","agent_type":"claude","prompt":"Task 2"}'
 
 # Both run in parallel
@@ -110,7 +110,7 @@ Named after the tenacious character who never gives up.
 Set `max_restarts` in the task creation:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -d '{
     "project_id": "proj",
     "task_id": "task-1",
@@ -155,7 +155,7 @@ This executes the agent once without restart logic.
 Via the REST API:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "my-project",
@@ -171,27 +171,27 @@ See [API Reference](api-reference.md) for details.
 
 ```bash
 # Via API
-curl -X POST http://localhost:8080/api/v1/runs/<run-id>/stop
+curl -X POST http://localhost:14355/api/v1/runs/<run-id>/stop
 
 # Or delete the task
-curl -X DELETE "http://localhost:8080/api/v1/tasks/task-001?project_id=my-project"
+curl -X DELETE "http://localhost:14355/api/v1/tasks/task-001?project_id=my-project"
 ```
 
 ### How do I view task logs?
 
 **Option 1: Stream logs (recommended)**
 ```bash
-curl -N http://localhost:8080/api/v1/runs/<run-id>/stream
+curl -N http://localhost:14355/api/v1/runs/<run-id>/stream
 ```
 
 **Option 2: Get full logs**
 ```bash
-curl http://localhost:8080/api/v1/runs/<run-id>
+curl http://localhost:14355/api/v1/runs/<run-id>
 ```
 
 **Option 3: Web UI**
 
-Open http://localhost:8080 and click on the run.
+Open http://localhost:14355 and click on the run.
 
 **Option 4: Direct file access**
 ```bash
@@ -318,7 +318,7 @@ Not built-in, but you can:
 
 Example webhook dispatcher:
 ```bash
-curl -N http://localhost:8080/api/v1/messages/stream | \
+curl -N http://localhost:14355/api/v1/messages/stream | \
   while read line; do
     curl -X POST https://your-webhook.com -d "$line"
   done
@@ -372,8 +372,8 @@ Yes, but be careful about security:
 
 **Option 1: SSH tunnel (secure)**
 ```bash
-ssh -L 8080:localhost:8080 user@remote-server
-# Access at http://localhost:8080
+ssh -L 14355:localhost:14355 user@remote-server
+# Access at http://localhost:14355
 ```
 
 **Option 2: Reverse proxy with auth (secure)**
@@ -382,7 +382,7 @@ ssh -L 8080:localhost:8080 user@remote-server
 location / {
   auth_basic "Conductor Loop";
   auth_basic_user_file /etc/nginx/.htpasswd;
-  proxy_pass http://localhost:8080;
+  proxy_pass http://localhost:14355;
 }
 ```
 
@@ -486,7 +486,7 @@ services:
       - ./config.yaml:/app/config.yaml
       - ./runs:/data/runs
     ports:
-      - "8080:8080"
+      - "14355:14355"
     restart: unless-stopped
 ```
 
@@ -546,13 +546,13 @@ Common causes:
 Debug with:
 ```bash
 # Check run status
-curl http://localhost:8080/api/v1/runs/<run-id>/info
+curl http://localhost:14355/api/v1/runs/<run-id>/info
 
 # Stream logs
-curl -N http://localhost:8080/api/v1/runs/<run-id>/stream
+curl -N http://localhost:14355/api/v1/runs/<run-id>/stream
 
 # Check message bus
-curl http://localhost:8080/api/v1/messages?project_id=<project>
+curl http://localhost:14355/api/v1/messages?project_id=<project>
 ```
 
 ### How do I report a bug?

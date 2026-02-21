@@ -163,7 +163,7 @@ func TestDockerNetworkIsolation(t *testing.T) {
 	defer composeDown(t, env)
 
 	waitForHTTP(t, env.healthURL())
-	composeExec(t, env, "conductor", []string{"curl", "-f", "http://conductor:8080/api/v1/health"})
+	composeExec(t, env, "conductor", []string{"curl", "-f", "http://conductor:14355/api/v1/health"})
 }
 
 func TestDockerVolumes(t *testing.T) {
@@ -219,7 +219,7 @@ func TestDockerMultiContainer(t *testing.T) {
 		"run", "-d",
 		"--name", secondaryName,
 		"--network", network,
-		"-p", fmt.Sprintf("%d:8080", secondaryPort),
+		"-p", fmt.Sprintf("%d:14355", secondaryPort),
 		"-v", env.dataDir + ":/data/runs",
 		"-v", env.configPath + ":/data/config/config.yaml:ro",
 		"-e", "CONDUCTOR_CONFIG=/data/config/config.yaml",

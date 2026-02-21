@@ -30,7 +30,7 @@ storage:
 
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 14355
   cors_origins:
     # Production frontend
     - https://conductor.example.com

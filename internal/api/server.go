@@ -3,6 +3,8 @@ package api
 
 import (
 	"context"
+	stderrors "errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -11,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/config"
@@ -49,6 +52,8 @@ type Server struct {
 	server     *http.Server
 	metrics    *metrics.Registry
 
+	actualPort int
+
 	mu     sync.Mutex
 	taskWg sync.WaitGroup
 
@@ -75,7 +80,7 @@ func NewServer(opts Options) (*Server, error) {
 		cfg.Host = "0.0.0.0"
 	}
 	if cfg.Port == 0 {
-		cfg.Port = 8080
+		cfg.Port = 14355
 	}
 
 	logger := opts.Logger
@@ -128,22 +133,56 @@ func (s *Server) Handler() http.Handler {
 	return s.handler
 }
 
+// findFreeListener tries to bind on host:basePort, incrementing up to maxAttempts times.
+// Returns the listener and the port it bound to.
+func findFreeListener(host string, basePort, maxAttempts int) (net.Listener, int, error) {
+	for i := 0; i < maxAttempts; i++ {
+		port := basePort + i
+		addr := net.JoinHostPort(host, strconv.Itoa(port))
+		ln, err := net.Listen("tcp", addr)
+		if err == nil {
+			return ln, port, nil
+		}
+		var opErr *net.OpError
+		if stderrors.As(err, &opErr) && stderrors.Is(opErr.Err, syscall.EADDRINUSE) {
+			continue
+		}
+		return nil, 0, err
+	}
+	return nil, 0, fmt.Errorf("no free port in range %d-%d", basePort, basePort+maxAttempts-1)
+}
+
 // ListenAndServe starts the HTTP server.
-func (s *Server) ListenAndServe() error {
+// When explicit is true the configured port must be free or an error is returned.
+// When explicit is false (default port) up to 100 consecutive ports are tried.
+func (s *Server) ListenAndServe(explicit bool) error {
 	if s == nil {
 		return errors.New("server is nil")
 	}
+	maxAttempts := 1
+	if !explicit {
+		maxAttempts = 100
+	}
+	ln, actualPort, err := findFreeListener(s.apiConfig.Host, s.apiConfig.Port, maxAttempts)
+	if err != nil {
+		return err
+	}
 	s.mu.Lock()
+	s.actualPort = actualPort
 	if s.server == nil {
-		addr := net.JoinHostPort(s.apiConfig.Host, intToString(s.apiConfig.Port))
-		s.server = &http.Server{
-			Addr:    addr,
-			Handler: s.handler,
-		}
+		s.server = &http.Server{Handler: s.handler}
 	}
 	srv := s.server
 	s.mu.Unlock()
-	return srv.ListenAndServe()
+	s.logger.Printf("conductor: listening on http://%s:%d", s.apiConfig.Host, actualPort)
+	return srv.Serve(ln)
+}
+
+// ActualPort returns the port the server bound to after ListenAndServe was called.
+func (s *Server) ActualPort() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.actualPort
 }
 
 // Shutdown gracefully stops the HTTP server.

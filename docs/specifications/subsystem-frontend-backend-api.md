@@ -22,7 +22,7 @@ Defines the REST/JSON + SSE API contract between the React monitoring UI (fronte
 - Format: JSON for REST; text/event-stream for SSE.
 - Base path: `/api/v1`.
 - Host: localhost only for MVP, optional remote host for future.
-- Port: configurable (default 8080).
+- Port: configurable (default 14355).
 
 ## Host Selection
 - UI can store multiple backend base URLs (local storage or config).

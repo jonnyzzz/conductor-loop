@@ -28,7 +28,7 @@ func newStatusCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 
 	return cmd

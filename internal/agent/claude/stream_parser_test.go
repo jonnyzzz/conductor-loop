@@ -110,8 +110,8 @@ func TestWriteOutputMDFromStreamCreatesFile(t *testing.T) {
 		t.Fatalf("write stdout: %v", err)
 	}
 
-	if err := writeOutputMDFromStream(dir, stdoutPath); err != nil {
-		t.Fatalf("writeOutputMDFromStream: %v", err)
+	if err := WriteOutputMDFromStream(dir, stdoutPath); err != nil {
+		t.Fatalf("WriteOutputMDFromStream: %v", err)
 	}
 
 	outputPath := filepath.Join(dir, "output.md")
@@ -140,8 +140,8 @@ func TestWriteOutputMDFromStreamSkipsIfExists(t *testing.T) {
 		t.Fatalf("write stdout: %v", err)
 	}
 
-	if err := writeOutputMDFromStream(dir, stdoutPath); err != nil {
-		t.Fatalf("writeOutputMDFromStream: %v", err)
+	if err := WriteOutputMDFromStream(dir, stdoutPath); err != nil {
+		t.Fatalf("WriteOutputMDFromStream: %v", err)
 	}
 
 	content, err := os.ReadFile(outputPath)
@@ -161,7 +161,7 @@ func TestWriteOutputMDFromStreamNoResult(t *testing.T) {
 		t.Fatalf("write stdout: %v", err)
 	}
 
-	err := writeOutputMDFromStream(dir, stdoutPath)
+	err := WriteOutputMDFromStream(dir, stdoutPath)
 	if err == nil {
 		t.Fatal("expected error for non-JSON stdout")
 	}
@@ -177,7 +177,7 @@ func TestWriteOutputMDFromStreamMissingStdout(t *testing.T) {
 	dir := t.TempDir()
 	stdoutPath := filepath.Join(dir, "nonexistent.txt")
 
-	err := writeOutputMDFromStream(dir, stdoutPath)
+	err := WriteOutputMDFromStream(dir, stdoutPath)
 	if err == nil {
 		t.Fatal("expected error for missing stdout file")
 	}

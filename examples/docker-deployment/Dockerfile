@@ -53,13 +53,13 @@ COPY --from=builder --chown=conductor:conductor /app/conductor /app/run-agent ./
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8080/api/v1/health || exit 1
+    CMD curl -f http://localhost:14355/api/v1/health || exit 1
 
 # Switch to non-root user
 USER conductor
 
 # Expose API port
-EXPOSE 8080
+EXPOSE 14355
 
 # Run conductor
 CMD ["./conductor", "--config", "/config/config.yaml", "serve"]

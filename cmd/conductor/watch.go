@@ -37,7 +37,7 @@ func newWatchCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
 	cmd.Flags().StringArrayVar(&taskIDs, "task", nil, "task ID(s) to watch (can repeat; default: all tasks in project)")
 	cmd.Flags().DurationVar(&timeout, "timeout", 30*time.Minute, "max wait time (exit code 1 on timeout)")

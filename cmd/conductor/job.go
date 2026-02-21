@@ -108,7 +108,7 @@ func newJobSubmitCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task ID (optional; auto-generated if omitted)")
 	cmd.Flags().StringVar(&agent, "agent", "", "agent type, e.g. claude (required)")
@@ -140,7 +140,7 @@ func newJobListCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "filter by project ID")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 

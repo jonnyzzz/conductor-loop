@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import Button from '@jetbrains/ring-ui-built/components/button/button'
-import { TaskList } from './components/TaskList'
+import { TreePanel } from './components/TreePanel'
 import { RunDetail } from './components/RunDetail'
 import { LogViewer } from './components/LogViewer'
 import { MessageBus } from './components/MessageBus'
@@ -63,27 +63,28 @@ export function App() {
 
       <main className="app-grid">
         <section className="app-panel">
-          <TaskList
-            projects={projectsQuery.data ?? []}
-            tasks={tasksQuery.data ?? []}
+          <TreePanel
+            projectId={effectiveProjectId}
             selectedProjectId={effectiveProjectId}
-            selectedTaskId={effectiveTaskId}
-            onSelectProject={(projectId) => {
-              setSelectedProjectId(projectId)
+            selectedTaskId={selectedTaskId}
+            selectedRunId={selectedRunId}
+            onSelectProject={(pid) => {
+              setSelectedProjectId(pid)
               setSelectedTaskId(undefined)
               setSelectedRunId(undefined)
               setRunFileName(defaultRunFile)
             }}
-            onSelectTask={(taskId) => {
-              setSelectedTaskId(taskId)
+            onSelectTask={(pid, tid) => {
+              setSelectedProjectId(pid)
+              setSelectedTaskId(tid)
               setSelectedRunId(undefined)
               setRunFileName(defaultRunFile)
             }}
-            onRefresh={() => {
-              projectsQuery.refetch()
-              if (effectiveProjectId) {
-                tasksQuery.refetch()
-              }
+            onSelectRun={(pid, tid, rid) => {
+              setSelectedProjectId(pid)
+              setSelectedTaskId(tid)
+              setSelectedRunId(rid)
+              setRunFileName(defaultRunFile)
             }}
           />
         </section>

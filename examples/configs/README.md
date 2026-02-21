@@ -136,7 +136,7 @@ storage:
 ```yaml
 api:
   host: 0.0.0.0            # Bind address (0.0.0.0 for all interfaces)
-  port: 8080               # Port number
+  port: 14355               # Port number
   cors_origins:            # Allowed CORS origins
     - http://localhost:3000
     - https://app.example.com
@@ -209,7 +209,7 @@ conductor --config config.yaml task create \
   --prompt-file test-prompt.md
 
 # Check API server
-curl http://localhost:8080/api/v1/health
+curl http://localhost:14355/api/v1/health
 ```
 
 ## Troubleshooting
@@ -230,7 +230,7 @@ curl http://localhost:8080/api/v1/health
 - Ensure token file is readable
 
 ### API connection refused
-- Verify port is not in use: `lsof -i :8080`
+- Verify port is not in use: `lsof -i :14355`
 - Check firewall settings
 - Ensure host is correct (localhost vs 0.0.0.0)
 

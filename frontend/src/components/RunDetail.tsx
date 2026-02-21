@@ -8,13 +8,6 @@ import { RunTree } from './RunTree'
 const runStatusFilters = ['all', 'running', 'completed', 'failed'] as const
 type RunStatusFilter = (typeof runStatusFilters)[number]
 
-const fileOptions = [
-  { label: 'output.md', name: 'output.md' },
-  { label: 'stdout', name: 'agent-stdout.txt' },
-  { label: 'stderr', name: 'agent-stderr.txt' },
-  { label: 'prompt', name: 'prompt.md' },
-]
-
 export function RunDetail({
   task,
   runInfo,
@@ -56,7 +49,7 @@ export function RunDetail({
       <div className="panel-header">
         <div>
           <div className="panel-title">Run detail</div>
-          <div className="panel-subtitle">{task?.id ?? 'Select a task'}</div>
+          <div className="panel-subtitle">{task ? `${task.project_id} / ${task.id}` : 'Select a task'}</div>
         </div>
         {task && task.status !== 'running' && (onDeleteTask || (onResumeTask && task.done)) && (
           <div className="panel-actions">
@@ -209,7 +202,7 @@ export function RunDetail({
           <div className="panel-subtitle">Default view: output.md</div>
         </div>
         <div className="panel-actions">
-          {fileOptions.map((option) => (
+          {(task?.runs?.find((r) => r.id === selectedRunId)?.files ?? []).map((option) => (
             <Button
               key={option.name}
               inline

@@ -165,7 +165,7 @@ defaults:
 
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 14355
 
 storage:
   runs_dir: ~/run-agent
@@ -186,7 +186,7 @@ go run ./cmd/conductor serve --config ~/.conductor/config.yaml
 # Or use built binary
 ./bin/conductor serve --config ~/.conductor/config.yaml
 
-# Server should start on http://localhost:8080
+# Server should start on http://localhost:14355
 ```
 
 ### Run Task Manually
@@ -304,7 +304,7 @@ log.Printf("Debug: entering function %s", funcName)
 
 **Browser DevTools:**
 
-Open http://localhost:8080/ui/ in your browser, press F12 to open DevTools, and use the Console and Network tabs.
+Open http://localhost:14355/ui/ in your browser, press F12 to open DevTools, and use the Console and Network tabs.
 
 ### Logging
 
@@ -413,12 +413,12 @@ docker images | grep conductor-loop
 
 ```bash
 # Run conductor server
-docker run -p 8080:8080 \
+docker run -p 14355:14355 \
   -v ~/.conductor:/root/.conductor \
   -v ~/run-agent:/root/run-agent \
   conductor-loop:dev
 
-# Access at http://localhost:8080
+# Access at http://localhost:14355
 ```
 
 ### Docker Compose
@@ -432,7 +432,7 @@ services:
   conductor:
     build: .
     ports:
-      - "8080:8080"
+      - "14355:14355"
     volumes:
       - ~/.conductor:/root/.conductor
       - ~/run-agent:/root/run-agent
@@ -525,11 +525,11 @@ export AGENT_CLAUDE_TOKEN="your-token"
 
 ### Port Already in Use
 
-**Problem:** `address already in use: :8080`
+**Problem:** `address already in use: :14355`
 
 ```bash
 # Solution: Kill process using port
-lsof -ti:8080 | xargs kill -9
+lsof -ti:14355 | xargs kill -9
 
 # Or use different port
 ./bin/conductor serve --config ~/.conductor/config.yaml --port 8081
@@ -590,7 +590,7 @@ defaults:
 
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 14355
 
 storage:
   runs_dir: ~/run-agent
@@ -600,7 +600,7 @@ echo "Setup complete!"
 echo "Next steps:"
 echo "1. Add your API tokens to ~/.conductor/config.yaml"
 echo "2. Run backend: ./bin/conductor serve --config ~/.conductor/config.yaml"
-echo "3. Open http://localhost:8080/ui/ in your browser"
+echo "3. Open http://localhost:14355/ui/ in your browser"
 ```
 
 **Usage:**

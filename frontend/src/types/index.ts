@@ -18,6 +18,7 @@ export interface ProjectDetail extends Project {
 export interface TaskSummary {
   id: string
   name?: string
+  project_id?: string
   status: RunStatus
   last_activity: string
   run_count?: number
@@ -36,6 +37,11 @@ export interface TaskDetail {
   runs: RunSummary[]
 }
 
+export interface RunFile {
+  name: string
+  label: string
+}
+
 export interface RunSummary {
   id: string
   agent: string
@@ -47,6 +53,7 @@ export interface RunSummary {
   parent_run_id?: string
   previous_run_id?: string
   error_summary?: string
+  files?: RunFile[]
 }
 
 export interface RunInfo {

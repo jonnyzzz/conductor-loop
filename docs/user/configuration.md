@@ -49,10 +49,10 @@ defaults:
 
 api:
   host: 0.0.0.0                               # API server host
-  port: 8080                                  # API server port
+  port: 14355                                  # API server port
   cors_origins:                               # CORS allowed origins
     - http://localhost:3000
-    - http://localhost:8080
+    - http://localhost:14355
   auth_enabled: false                         # Enable API key authentication
   # api_key: "your-secret-key"               # API key (set to enable auth)
 
@@ -234,7 +234,7 @@ Configure the REST API server.
 ```yaml
 api:
   host: 0.0.0.0                    # Listen address
-  port: 8080                       # Listen port
+  port: 14355                       # Listen port
   cors_origins:                    # CORS allowed origins
     - http://localhost:3000
     - https://app.example.com
@@ -245,7 +245,7 @@ api:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `host` | string | `0.0.0.0` | Server listen address |
-| `port` | int | `8080` | Server listen port |
+| `port` | int | `14355` | Server listen port |
 | `cors_origins` | []string | `[]` | CORS allowed origins |
 | `auth_enabled` | bool | `false` | Enable API key authentication |
 | `api_key` | string | `""` | API key value; required when `auth_enabled` is `true` |
@@ -448,7 +448,7 @@ defaults:
 
 api:
   host: 127.0.0.1  # Localhost only
-  port: 8080
+  port: 14355
   cors_origins:
     - http://localhost:3000
     - http://localhost:5173  # Vite dev server
@@ -479,7 +479,7 @@ defaults:
 
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 14355
   cors_origins:
     - https://conductor.example.com
 
@@ -519,7 +519,7 @@ defaults:
 
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 14355
   cors_origins:
     - http://localhost:3000
 
@@ -531,11 +531,11 @@ Then specify the agent per task:
 
 ```bash
 # Use fast agent
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -d '{"agent": "codex-fast", "prompt": "Quick task"}'
 
 # Use slow agent
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -d '{"agent": "codex-slow", "prompt": "Complex task"}'
 ```
 
@@ -555,7 +555,7 @@ defaults:
 
 api:
   host: 0.0.0.0  # Listen on all interfaces
-  port: 8080
+  port: 14355
   cors_origins:
     - http://localhost:3000
 
@@ -610,10 +610,10 @@ Fix: Use valid agent type: `codex`, `claude`, `gemini`, `perplexity`, `xai`.
 #### Port In Use
 
 ```
-Error: listen tcp :8080: bind: address already in use
+Error: listen tcp :14355: bind: address already in use
 ```
 
-Fix: Change port or stop the process using port 8080.
+Fix: Change port or stop the process using port 14355.
 
 #### Permission Denied
 

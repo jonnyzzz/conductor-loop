@@ -30,7 +30,7 @@ func newTaskLogsCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
 	cmd.Flags().StringVar(&runID, "run", "", "specific run ID (default: latest)")
 	cmd.Flags().BoolVar(&follow, "follow", false, "keep streaming; reconnect if connection drops")

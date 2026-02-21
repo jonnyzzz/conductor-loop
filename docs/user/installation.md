@@ -85,7 +85,7 @@ defaults:
 
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 14355
   cors_origins:
     - http://localhost:3000
 
@@ -128,7 +128,7 @@ docker-compose down
 ```
 
 The docker-compose setup includes:
-- Conductor server on port 8080
+- Conductor server on port 14355
 - Frontend on port 3000
 - Persistent storage volumes
 
@@ -140,7 +140,7 @@ docker build -t conductor-loop:latest .
 
 # Run the container
 docker run -d \
-  -p 8080:8080 \
+  -p 14355:14355 \
   -v $(pwd)/config.yaml:/app/config.yaml \
   -v $(pwd)/secrets:/secrets \
   -v $(pwd)/runs:/data/runs \
@@ -275,7 +275,7 @@ run-agent --version
 conductor --config ~/.conductor/config.yaml --root $(pwd)
 
 # In another terminal, test the health endpoint
-curl http://localhost:8080/api/v1/health
+curl http://localhost:14355/api/v1/health
 
 # Expected output:
 # {"status":"ok","version":"dev"}
@@ -285,7 +285,7 @@ curl http://localhost:8080/api/v1/health
 
 ```bash
 # Create a test task via the API
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "agent": "codex",
@@ -294,7 +294,7 @@ curl -X POST http://localhost:8080/api/v1/tasks \
   }'
 
 # Check the runs
-curl http://localhost:8080/api/v1/runs
+curl http://localhost:14355/api/v1/runs
 ```
 
 ## Upgrading
@@ -367,13 +367,13 @@ go build -o conductor ./cmd/conductor
 ### Port Already in Use
 
 ```bash
-# Find process using port 8080
+# Find process using port 14355
 # macOS/Linux:
-lsof -i :8080
+lsof -i :14355
 kill -9 <PID>
 
 # Windows:
-netstat -ano | findstr :8080
+netstat -ano | findstr :14355
 taskkill /PID <PID> /F
 
 # Or change port in config.yaml

@@ -776,6 +776,43 @@ body {
   white-space: pre-wrap;
 }
 
+/* New Task dialog */
+.dialog-content {
+  padding: 20px 24px;
+  min-width: 420px;
+  max-width: 560px;
+  background: var(--app-panel);
+  color: var(--app-text);
+}
+
+.dialog-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--app-text);
+}
+
+.form-label {
+  font-size: 11px;
+  color: var(--app-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.form-hint {
+  font-size: 11px;
+  color: var(--app-subtle);
+  line-height: 1.4;
+}
+
+.form-error {
+  font-size: 12px;
+  color: var(--status-failed);
+  padding: 8px;
+  background: rgba(240, 123, 123, 0.1);
+  border-radius: 8px;
+}
+
 /* Message bus JSON body */
 .bus-message-json {
   font-size: 11px;
@@ -785,4 +822,141 @@ body {
   margin: 4px 0 0;
   white-space: pre-wrap;
   color: var(--app-subtle);
+}
+
+/* Tree panel */
+.tree-panel {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.tree-content {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.tree-node {
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+  padding: 3px 8px;
+  text-align: left;
+  transition: background 0.15s ease;
+  min-height: 24px;
+}
+
+.tree-row:hover {
+  background: rgba(90, 210, 167, 0.06);
+  border-color: rgba(90, 210, 167, 0.15);
+}
+
+.tree-row-active {
+  background: rgba(90, 210, 167, 0.1) !important;
+  border-color: rgba(90, 210, 167, 0.4) !important;
+}
+
+.tree-toggle {
+  display: inline-block;
+  width: 12px;
+  font-size: 10px;
+  color: var(--app-subtle);
+  flex-shrink: 0;
+}
+
+.tree-toggle-empty {
+  cursor: default;
+}
+
+.tree-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+  color: var(--app-accent);
+}
+
+.tree-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.tree-label-project {
+  font-weight: 600;
+  color: var(--app-accent);
+}
+
+.tree-label-run {
+  color: var(--app-subtle);
+  font-size: 11px;
+}
+
+.tree-label-active {
+  color: var(--status-running);
+}
+
+.tree-status-dot {
+  font-size: 10px;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
+
+.tree-status-running {
+  color: var(--status-running);
+}
+
+.tree-status-completed {
+  color: var(--status-completed);
+}
+
+.tree-status-failed {
+  color: var(--status-failed);
+}
+
+.tree-status-unknown {
+  color: var(--status-unknown);
+}
+
+.tree-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.tree-badge-count {
+  background: rgba(90, 210, 167, 0.12);
+  color: var(--app-accent);
+}
+
+.tree-badge-restart {
+  background: rgba(242, 201, 76, 0.12);
+  color: var(--status-running);
+}
+
+.tree-time {
+  font-size: 10px;
+  color: var(--app-subtle);
+  flex-shrink: 0;
+}
+
+.tree-children {
+  /* indent handled by paddingLeft on tree-row */
+}
+
+.list-item-compact {
+  padding: 6px 10px;
 }

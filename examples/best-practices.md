@@ -493,7 +493,7 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/conductor .
-EXPOSE 8080
+EXPOSE 14355
 CMD ["./conductor", "serve"]
 ```
 
@@ -508,7 +508,7 @@ CMD ["./conductor", "serve"]
 **nginx configuration:**
 ```nginx
 upstream conductor {
-    server conductor:8080;
+    server conductor:14355;
 }
 
 server {
@@ -541,14 +541,14 @@ server {
 livenessProbe:
   httpGet:
     path: /api/v1/health
-    port: 8080
+    port: 14355
   initialDelaySeconds: 30
   periodSeconds: 10
 
 readinessProbe:
   httpGet:
     path: /api/v1/health
-    port: 8080
+    port: 14355
   initialDelaySeconds: 5
   periodSeconds: 5
 ```
@@ -601,7 +601,7 @@ docker pull conductor:v2.0
 docker-compose -f docker-compose.blue.yml up -d
 
 # Health check
-curl http://blue.conductor.internal:8080/api/v1/health
+curl http://blue.conductor.internal:14355/api/v1/health
 
 # Switch traffic (update load balancer)
 # Rollback if issues

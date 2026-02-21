@@ -7,10 +7,10 @@ Conductor Loop includes a web UI for monitoring and managing tasks, viewing logs
 ### Default URL
 
 ```
-http://localhost:8080/ui/
+http://localhost:14355/
 ```
 
-The web UI is served by the conductor server at the `/ui/` path on the same port as the API.
+The web UI is served by the conductor server at the root `/` path (also accessible at `/ui/`) on the same port as the API. The default port is **14355**.
 
 ### Configuration
 
@@ -19,20 +19,20 @@ Port and host are configured in config.yaml:
 ```yaml
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 14355
 ```
 
 ### Opening the UI
 
 ```bash
 # macOS
-open http://localhost:8080/ui/
+open http://localhost:14355/
 
 # Linux
-xdg-open http://localhost:8080/ui/
+xdg-open http://localhost:14355/
 
 # Windows
-start http://localhost:8080/ui/
+start http://localhost:14355/
 
 # Or open in your browser
 # Chrome, Firefox, Safari, Edge
@@ -54,25 +54,58 @@ When viewing a run, the following tabs are available:
 | Tab | Description |
 |-----|-------------|
 | **TASK.MD** | Content of `TASK.md` from the task directory |
-| **OUTPUT** | Content of `output.md` (default tab; falls back to `agent-stdout.txt`) |
-| **STDOUT** | Raw agent stdout |
+| **OUTPUT** | Content of `output.md` (default tab; falls back to `agent-stdout.txt`). Rendered as JSON if the file is JSONL (e.g. agent crashed before writing output.md — extracted automatically). |
+| **STDOUT** | Raw agent stdout, rendered with JSON/thinking block support |
 | **STDERR** | Agent stderr |
 | **PROMPT** | The prompt used for this run |
 | **MESSAGES** | Task-level message bus (TASK-MESSAGE-BUS.md), live SSE stream |
 
 Tabs stream live via SSE while the run is active.
 
+### Agent Output Viewer (JSON / Thinking Blocks)
+
+When the agent produces JSONL output (Claude's `--output-format stream-json` mode), the STDOUT tab renders each JSON object with full structure:
+
+- **Text blocks** are rendered as plain text
+- **Thinking blocks** appear as expandable `<details>` sections with a "Thinking..." summary, letting you inspect the agent's reasoning without cluttering the view
+- **Tool use / tool result** blocks are rendered with syntax highlighting
+- If `agent-stdout.txt` contains JSONL, `output.md` is automatically extracted from the JSONL stream, so the OUTPUT tab always shows clean text even when the agent terminates unexpectedly
+
+### Agent Heartbeat Indicator
+
+The run detail header shows a live heartbeat badge based on recent activity in `agent-stdout.txt`:
+
+| Badge | Meaning |
+|-------|---------|
+| `● LIVE` (green) | Output written in the last 60 seconds |
+| `● STALE` (yellow) | No output for 1–5 minutes |
+| `● SILENT` (red) | No output for more than 5 minutes |
+
+This helps you quickly spot stuck or crashed agents without tailing the log.
+
 ### Stop Button
 
 Running tasks show a **■ Stop** button in the run detail panel header. Clicking it sends SIGTERM to the agent process via `POST /api/projects/{p}/tasks/{t}/runs/{r}/stop`.
+
+### Resume Task Button
+
+When a task is stopped (the `DONE` file is present), a **▶ Resume** button appears in the task header. Clicking it calls `POST /api/projects/{p}/tasks/{t}/resume`, which removes the `DONE` file and resets the run counter so the Ralph Loop can restart the task.
 
 ### Delete Run Button
 
 Completed and failed runs show a **🗑 Delete run** button in the run detail panel header. Clicking it permanently removes the run directory (output files, logs, metadata) via `DELETE /api/projects/{p}/tasks/{t}/runs/{r}`. The button is only visible when the run has reached a terminal status (completed or failed); it is hidden for running runs.
 
-### Project Message Bus Panel
+### Project Message Bus Panel & Compose Form
 
 When a project is selected, a compact live feed of `PROJECT-MESSAGE-BUS.md` appears in the left panel, showing recent project-level messages.
+
+Below the message feed is a **compose form** that lets you post new messages directly from the browser:
+
+1. Select a message type: `USER`, `FACT`, `PROGRESS`, `DECISION`, `ERROR`, or `QUESTION`
+2. Type the message body in the text area
+3. Click **Post** to submit (calls `POST /api/projects/{p}/messages` or `POST /api/projects/{p}/tasks/{t}/messages` depending on scope)
+
+The same compose form is available on the **MESSAGES** tab inside a run detail view for posting task-scoped messages.
 
 Screenshot: [The main interface shows a clean, modern design with a task list on the left and log viewer on the right]
 
@@ -86,6 +119,7 @@ A search bar at the top of the task list lets you filter tasks by ID substring (
 
 - **Real-time Updates**: Tasks update automatically as they progress
 - **Status Indicators**: Color-coded status badges
+- **Project ID**: Each task card shows the `project_id`; the run detail header also displays project and task identifiers
 - **Quick Navigation**: Click any task to view details
 - **Search Bar**: Filter tasks by ID substring (case-insensitive); shows match count
 - **Run Status Filters**: Filter buttons (All / Running / Completed / Failed) narrow the run list inside a task detail view
@@ -367,7 +401,7 @@ Access via the settings icon (⚙️) in the top-right corner.
 
 **Solutions:**
 1. Check that conductor server is running
-2. Verify the URL is correct (http://localhost:8080)
+2. Verify the URL is correct (http://localhost:14355)
 3. Check browser console for errors (F12 → Console)
 4. Clear browser cache and reload (Ctrl+Shift+R)
 5. Try a different browser
@@ -399,7 +433,7 @@ Access via the settings icon (⚙️) in the top-right corner.
 **Problem**: No tasks showing despite tasks existing
 
 **Solutions:**
-1. Check that tasks exist via API: `curl http://localhost:8080/api/projects`
+1. Check that tasks exist via API: `curl http://localhost:14355/api/projects`
 2. Check browser console for errors
 3. Verify runs_dir is correctly configured
 4. Refresh the page
@@ -432,7 +466,7 @@ Access via the settings icon (⚙️) in the top-right corner.
 For frontend development:
 
 ```bash
-# Start backend (built React UI served at http://localhost:8080/ui/)
+# Start backend (built React UI served at http://localhost:14355/)
 ./bin/conductor --config config.yaml
 
 # Or start Vite dev server for hot-reload development (in frontend/)
@@ -441,7 +475,7 @@ npm install
 npm run dev
 
 # Vite dev server: http://localhost:5173
-# Backend API: http://localhost:8080
+# Backend API: http://localhost:14355
 ```
 
 Configure CORS for development:

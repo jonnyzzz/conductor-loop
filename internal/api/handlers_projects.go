@@ -48,6 +48,12 @@ func parsePagination(r *http.Request) (limit, offset int) {
 	return limit, offset
 }
 
+// RunFile describes a file available for a run.
+type RunFile struct {
+	Name  string `json:"name"`  // logical name for ?name=X
+	Label string `json:"label"` // display label
+}
+
 // projectRun is the run summary shape the project API returns.
 type projectRun struct {
 	ID            string     `json:"id"`
@@ -60,6 +66,7 @@ type projectRun struct {
 	ParentRunID   string     `json:"parent_run_id,omitempty"`
 	PreviousRunID string     `json:"previous_run_id,omitempty"`
 	ErrorSummary  string     `json:"error_summary,omitempty"`
+	Files         []RunFile  `json:"files,omitempty"`
 }
 
 // projectTask is the task shape the project API returns.
@@ -81,6 +88,24 @@ type projectSummary struct {
 	TaskCount    int       `json:"task_count"`
 }
 
+// flatRunItem is the shape of a single run in the flat runs endpoint response.
+type flatRunItem struct {
+	ID            string     `json:"id"`
+	TaskID        string     `json:"task_id"`
+	Agent         string     `json:"agent"`
+	Status        string     `json:"status"`
+	ExitCode      int        `json:"exit_code"`
+	StartTime     time.Time  `json:"start_time"`
+	EndTime       *time.Time `json:"end_time,omitempty"`
+	ParentRunID   string     `json:"parent_run_id,omitempty"`
+	PreviousRunID string     `json:"previous_run_id,omitempty"`
+}
+
+// flatRunsResponse is the JSON response for GET /api/projects/{p}/runs/flat.
+type flatRunsResponse struct {
+	Runs []flatRunItem `json:"runs"`
+}
+
 // handleProjectsRouter dispatches /api/projects/{...} sub-paths.
 func (s *Server) handleProjectsRouter(w http.ResponseWriter, r *http.Request) *apiError {
 	parts := splitPath(r.URL.Path, "/api/projects/")
@@ -97,6 +122,10 @@ func (s *Server) handleProjectsRouter(w http.ResponseWriter, r *http.Request) *a
 	// /api/projects/{id}/stats
 	if parts[1] == "stats" {
 		return s.handleProjectStats(w, r)
+	}
+	// /api/projects/{id}/runs/flat
+	if parts[1] == "runs" && len(parts) == 3 && parts[2] == "flat" {
+		return s.handleProjectRunsFlat(w, r)
 	}
 	// /api/projects/{id}/tasks[/...]
 	if parts[1] == "tasks" {
@@ -119,6 +148,57 @@ func (s *Server) handleProjectsRouter(w http.ResponseWriter, r *http.Request) *a
 		return s.handleProjectGC(w, r)
 	}
 	return apiErrorNotFound("not found")
+}
+
+// handleProjectRunsFlat serves GET /api/projects/{p}/runs/flat.
+// It returns a flat list of all runs across all tasks for the project,
+// with task_id, parent_run_id, and previous_run_id for client-side tree building.
+func (s *Server) handleProjectRunsFlat(w http.ResponseWriter, r *http.Request) *apiError {
+	if r.Method != http.MethodGet {
+		return apiErrorMethodNotAllowed()
+	}
+	parts := splitPath(r.URL.Path, "/api/projects/")
+	if len(parts) < 3 {
+		return apiErrorNotFound("not found")
+	}
+	projectID := parts[0]
+
+	allRuns, err := s.allRunInfos()
+	if err != nil {
+		return apiErrorInternal("scan runs", err)
+	}
+
+	var items []flatRunItem
+	for _, run := range allRuns {
+		if run.ProjectID != projectID {
+			continue
+		}
+		item := flatRunItem{
+			ID:            run.RunID,
+			TaskID:        run.TaskID,
+			Agent:         run.AgentType,
+			Status:        run.Status,
+			ExitCode:      run.ExitCode,
+			StartTime:     run.StartTime,
+			ParentRunID:   run.ParentRunID,
+			PreviousRunID: run.PreviousRunID,
+		}
+		if !run.EndTime.IsZero() {
+			t := run.EndTime
+			item.EndTime = &t
+		}
+		items = append(items, item)
+	}
+
+	// Sort by start time, oldest first (stable order for tree building).
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].StartTime.Before(items[j].StartTime)
+	})
+
+	if items == nil {
+		items = []flatRunItem{}
+	}
+	return writeJSON(w, http.StatusOK, flatRunsResponse{Runs: items})
 }
 
 // handleProjectsList serves GET /api/projects
@@ -641,8 +721,9 @@ func (s *Server) serveRunFile(w http.ResponseWriter, r *http.Request, run *stora
 	case "prompt":
 		filePath = run.PromptPath
 	case "output.md":
-		// try output.md next to stdout
-		if run.StdoutPath != "" {
+		if run.OutputPath != "" {
+			filePath = run.OutputPath
+		} else if run.StdoutPath != "" {
 			filePath = filepath.Join(filepath.Dir(run.StdoutPath), "output.md")
 		}
 	default:
@@ -708,7 +789,9 @@ func (s *Server) serveRunFileStream(w http.ResponseWriter, r *http.Request, run 
 	case "prompt":
 		filePath = run.PromptPath
 	case "output.md":
-		if run.StdoutPath != "" {
+		if run.OutputPath != "" {
+			filePath = run.OutputPath
+		} else if run.StdoutPath != "" {
 			filePath = filepath.Join(filepath.Dir(run.StdoutPath), "output.md")
 		}
 	default:
@@ -717,15 +800,6 @@ func (s *Server) serveRunFileStream(w http.ResponseWriter, r *http.Request, run 
 
 	if filePath == "" {
 		return apiErrorNotFound("file path not set for " + name)
-	}
-
-	// Fallback: if output.md doesn't exist, stream agent-stdout.txt instead.
-	if name == "output.md" {
-		if _, err := os.Stat(filePath); os.IsNotExist(err) && run.StdoutPath != "" {
-			if _, err2 := os.Stat(run.StdoutPath); err2 == nil {
-				filePath = run.StdoutPath
-			}
-		}
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -949,6 +1023,32 @@ func filterTasksByStatus(tasks []projectTask, filter, rootDir, projectID string)
 	}
 }
 
+// buildRunFiles returns the list of files available for a run, checking existence on disk.
+func buildRunFiles(info *storage.RunInfo) []RunFile {
+	var files []RunFile
+	if info.OutputPath != "" {
+		if _, err := os.Stat(info.OutputPath); err == nil {
+			files = append(files, RunFile{Name: "output.md", Label: "output"})
+		}
+	}
+	if info.StdoutPath != "" {
+		if _, err := os.Stat(info.StdoutPath); err == nil {
+			files = append(files, RunFile{Name: "stdout", Label: "stdout"})
+		}
+	}
+	if info.StderrPath != "" {
+		if _, err := os.Stat(info.StderrPath); err == nil {
+			files = append(files, RunFile{Name: "stderr", Label: "stderr"})
+		}
+	}
+	if info.PromptPath != "" {
+		if _, err := os.Stat(info.PromptPath); err == nil {
+			files = append(files, RunFile{Name: "prompt", Label: "prompt"})
+		}
+	}
+	return files
+}
+
 func runInfoToProjectRun(info *storage.RunInfo) projectRun {
 	r := projectRun{
 		ID:            info.RunID,
@@ -960,6 +1060,7 @@ func runInfoToProjectRun(info *storage.RunInfo) projectRun {
 		ParentRunID:   info.ParentRunID,
 		PreviousRunID: info.PreviousRunID,
 		ErrorSummary:  info.ErrorSummary,
+		Files:         buildRunFiles(info),
 	}
 	if !info.EndTime.IsZero() {
 		t := info.EndTime
@@ -1404,4 +1505,50 @@ func splitPath(urlPath, prefix string) []string {
 		return nil
 	}
 	return strings.Split(trimmed, "/")
+}
+
+// homeDirsResponse is the JSON response for GET /api/projects/home-dirs.
+type homeDirsResponse struct {
+	Dirs []string `json:"dirs"`
+}
+
+// handleProjectHomeDirs serves GET /api/projects/home-dirs.
+// It returns a deduplicated list of recently used project home directories (CWD values)
+// collected from run-info.yaml files across all tasks.
+func (s *Server) handleProjectHomeDirs(w http.ResponseWriter, r *http.Request) *apiError {
+	if r.Method != http.MethodGet {
+		return apiErrorMethodNotAllowed()
+	}
+
+	runs, err := s.allRunInfos()
+	if err != nil {
+		return apiErrorInternal("scan runs", err)
+	}
+
+	seen := make(map[string]struct{})
+	var dirs []string
+	for _, run := range runs {
+		cwd := strings.TrimSpace(run.CWD)
+		if cwd == "" {
+			continue
+		}
+		// Exclude paths that are under the conductor rootDir (task/run folders).
+		if strings.HasPrefix(cwd, s.rootDir) {
+			continue
+		}
+		if _, dup := seen[cwd]; dup {
+			continue
+		}
+		seen[cwd] = struct{}{}
+		dirs = append(dirs, cwd)
+		if len(dirs) >= 20 {
+			break
+		}
+	}
+
+	sort.Strings(dirs)
+	if dirs == nil {
+		dirs = []string{}
+	}
+	return writeJSON(w, http.StatusOK, homeDirsResponse{Dirs: dirs})
 }

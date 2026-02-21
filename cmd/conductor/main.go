@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -46,13 +47,14 @@ func newRootCmd() *cobra.Command {
 			// so that config file values take precedence over flag defaults.
 			cliHost := ""
 			cliPort := 0
+			explicitPort := cmd.Flags().Changed("port")
 			if cmd.Flags().Changed("host") {
 				cliHost = host
 			}
-			if cmd.Flags().Changed("port") {
+			if explicitPort {
 				cliPort = port
 			}
-			return runServer(configPath, rootDir, disableTaskStart, cliHost, cliPort, apiKey)
+			return runServer(configPath, rootDir, disableTaskStart, cliHost, cliPort, explicitPort, apiKey)
 		},
 	}
 	cmd.SetVersionTemplate("{{.Version}}\n")
@@ -61,7 +63,7 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&rootDir, "root", "", "run-agent root directory")
 	cmd.Flags().BoolVar(&disableTaskStart, "disable-task-start", false, "disable task execution")
 	cmd.Flags().StringVar(&host, "host", "0.0.0.0", "HTTP listen host (overrides config)")
-	cmd.Flags().IntVar(&port, "port", 8080, "HTTP listen port (overrides config)")
+	cmd.Flags().IntVar(&port, "port", 14355, "HTTP listen port (overrides config)")
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key for authentication (enables auth when set)")
 
 	cmd.AddCommand(newStatusCmd())
@@ -75,7 +77,7 @@ func newRootCmd() *cobra.Command {
 }
 
 
-func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string, cliPort int, cliAPIKey string) error {
+func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string, cliPort int, explicitPort bool, cliAPIKey string) error {
 	logger := log.New(os.Stdout, "conductor ", log.LstdFlags)
 
 	configPath = strings.TrimSpace(configPath)
@@ -120,6 +122,21 @@ func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string
 
 	if rootDir == "" && cfg != nil {
 		rootDir = strings.TrimSpace(cfg.Storage.RunsDir)
+	}
+
+	// Env vars override config file but are overridden by explicit CLI flags.
+	if cliHost == "" {
+		if h := strings.TrimSpace(os.Getenv("CONDUCTOR_HOST")); h != "" {
+			cliHost = h
+		}
+	}
+	if cliPort == 0 {
+		if portStr := strings.TrimSpace(os.Getenv("CONDUCTOR_PORT")); portStr != "" {
+			if p, err := strconv.Atoi(portStr); err == nil {
+				cliPort = p
+				explicitPort = true
+			}
+		}
 	}
 
 	// CLI flags override config file values when explicitly provided.
@@ -167,7 +184,7 @@ func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- server.ListenAndServe()
+		errCh <- server.ListenAndServe(explicitPort)
 	}()
 
 	signalCh := make(chan os.Signal, 1)

@@ -42,7 +42,7 @@ func newProjectListCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 
 	return cmd
@@ -113,7 +113,7 @@ func newProjectStatsCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 	cobra.MarkFlagRequired(cmd.Flags(), "project") //nolint:errcheck
@@ -191,7 +191,7 @@ func newProjectGCCmd() *cobra.Command {
 			return projectGC(cmd.OutOrStdout(), server, project, olderThan, dryRun, keepFailed, jsonOutput)
 		},
 	}
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
 	cmd.Flags().StringVar(&olderThan, "older-than", "168h", "delete runs older than this duration (default: 7 days)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be deleted without deleting")
@@ -260,7 +260,7 @@ func newProjectDeleteCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().BoolVar(&force, "force", false, "stop running tasks and delete anyway")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 

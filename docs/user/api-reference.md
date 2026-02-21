@@ -20,11 +20,16 @@ There are two API surfaces:
    - `DELETE /api/projects/{projectId}/tasks/{taskId}/runs/{runId}` — delete a completed or failed run directory (204 No Content on success; 409 Conflict if still running)
    - `DELETE /api/projects/{projectId}/tasks/{taskId}` — delete an entire task directory and all its runs (204 No Content; 409 Conflict if any run is still running; 404 Not Found)
    - `GET /api/projects/{projectId}/stats` — project statistics: task count, run counts by status, and total message bus bytes
+   - `GET /api/projects/{projectId}/messages` — list project-level message bus messages; `POST` appends a new message
+   - `GET /api/projects/{projectId}/messages/stream` — SSE stream of project-level message bus
+   - `GET /api/projects/{projectId}/tasks/{taskId}/messages` — list task-level message bus messages; `POST` appends a new message
+   - `GET /api/projects/{projectId}/tasks/{taskId}/messages/stream` — SSE stream of task-level message bus
+   - `POST /api/projects/{projectId}/tasks/{taskId}/resume` — remove the task's `DONE` file so the Ralph Loop can restart it (200 OK on success; 404 if task not found; 400 if no DONE file)
 
 ## Base URL
 
 ```
-http://localhost:8080/api/v1
+http://localhost:14355/api/v1
 ```
 
 Change the host and port in your config.yaml:
@@ -32,7 +37,7 @@ Change the host and port in your config.yaml:
 ```yaml
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 14355
 ```
 
 ## Authentication
@@ -66,10 +71,10 @@ Include the key in one of these headers on every request:
 
 ```bash
 # Authorization: Bearer
-curl -H "Authorization: Bearer your-secret-key" http://localhost:8080/api/v1/tasks
+curl -H "Authorization: Bearer your-secret-key" http://localhost:14355/api/v1/tasks
 
 # X-API-Key
-curl -H "X-API-Key: your-secret-key" http://localhost:8080/api/v1/tasks
+curl -H "X-API-Key: your-secret-key" http://localhost:14355/api/v1/tasks
 ```
 
 ### Exempt paths
@@ -128,7 +133,7 @@ Suitable for scraping by Prometheus, Grafana, or any compatible monitoring tool.
 
 **Request:**
 ```bash
-curl http://localhost:8080/metrics
+curl http://localhost:14355/metrics
 ```
 
 **Response:** `200 OK` (`text/plain; version=0.0.4`)
@@ -184,7 +189,7 @@ Check if the server is running.
 
 **Request:**
 ```bash
-curl http://localhost:8080/api/v1/health
+curl http://localhost:14355/api/v1/health
 ```
 
 **Response:** `200 OK`
@@ -200,7 +205,7 @@ Get the server version.
 
 **Request:**
 ```bash
-curl http://localhost:8080/api/v1/version
+curl http://localhost:14355/api/v1/version
 ```
 
 **Response:** `200 OK`
@@ -248,7 +253,7 @@ Create a new task.
 
 **Request:**
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "my-project",
@@ -288,10 +293,10 @@ List all tasks.
 **Request:**
 ```bash
 # List all tasks
-curl http://localhost:8080/api/v1/tasks
+curl http://localhost:14355/api/v1/tasks
 
 # List tasks for a project
-curl http://localhost:8080/api/v1/tasks?project_id=my-project
+curl http://localhost:14355/api/v1/tasks?project_id=my-project
 ```
 
 **Response:** `200 OK`
@@ -329,7 +334,7 @@ Get task details.
 
 **Request:**
 ```bash
-curl "http://localhost:8080/api/v1/tasks/task-001?project_id=my-project"
+curl "http://localhost:14355/api/v1/tasks/task-001?project_id=my-project"
 ```
 
 **Response:** `200 OK`
@@ -370,7 +375,7 @@ Cancel a running task.
 
 **Request:**
 ```bash
-curl -X DELETE "http://localhost:8080/api/v1/tasks/task-001?project_id=my-project"
+curl -X DELETE "http://localhost:14355/api/v1/tasks/task-001?project_id=my-project"
 ```
 
 **Response:** `200 OK`
@@ -390,7 +395,7 @@ List all runs across all tasks.
 
 **Request:**
 ```bash
-curl http://localhost:8080/api/v1/runs
+curl http://localhost:14355/api/v1/runs
 ```
 
 **Response:** `200 OK`
@@ -433,7 +438,7 @@ Get run details (includes metadata and full logs).
 
 **Request:**
 ```bash
-curl http://localhost:8080/api/v1/runs/run_20260205_100001_abc123
+curl http://localhost:14355/api/v1/runs/run_20260205_100001_abc123
 ```
 
 **Response:** `200 OK`
@@ -478,7 +483,7 @@ Get run metadata (without full logs).
 
 **Request:**
 ```bash
-curl http://localhost:8080/api/v1/runs/run_20260205_100001_abc123/info
+curl http://localhost:14355/api/v1/runs/run_20260205_100001_abc123/info
 ```
 
 **Response:** `200 OK`
@@ -504,7 +509,7 @@ Stream run logs in real-time using Server-Sent Events (SSE).
 
 **Request:**
 ```bash
-curl -N http://localhost:8080/api/v1/runs/run_20260205_100001_abc123/stream
+curl -N http://localhost:14355/api/v1/runs/run_20260205_100001_abc123/stream
 ```
 
 **Response:** `200 OK` (text/event-stream)
@@ -535,7 +540,7 @@ data: {"type":"done"}
 **JavaScript Example:**
 ```javascript
 const eventSource = new EventSource(
-  'http://localhost:8080/api/v1/runs/run_20260205_100001_abc123/stream'
+  'http://localhost:14355/api/v1/runs/run_20260205_100001_abc123/stream'
 );
 
 eventSource.onmessage = (event) => {
@@ -563,7 +568,7 @@ Stop a running task.
 
 **Request:**
 ```bash
-curl -X POST http://localhost:8080/api/v1/runs/run_20260205_100001_abc123/stop
+curl -X POST http://localhost:14355/api/v1/runs/run_20260205_100001_abc123/stop
 ```
 
 **Response:** `200 OK`
@@ -596,7 +601,7 @@ Delete a completed or failed run directory from disk. This permanently removes a
 
 ```bash
 curl -X DELETE \
-  "http://localhost:8080/api/projects/my-project/tasks/task-20260220-140000-hello/runs/20260220-1400000000-abc12345"
+  "http://localhost:14355/api/projects/my-project/tasks/task-20260220-140000-hello/runs/20260220-1400000000-abc12345"
 ```
 
 **Response:** `204 No Content`
@@ -633,7 +638,7 @@ Delete an entire task directory and all its runs from disk. This permanently rem
 
 ```bash
 curl -X DELETE \
-  "http://localhost:8080/api/projects/my-project/tasks/task-20260220-140000-hello"
+  "http://localhost:14355/api/projects/my-project/tasks/task-20260220-140000-hello"
 ```
 
 **Response:** `204 No Content`
@@ -669,7 +674,7 @@ Return aggregate statistics for a project: task count, run counts by status, and
 **Request:**
 
 ```bash
-curl "http://localhost:8080/api/projects/my-project/stats"
+curl "http://localhost:14355/api/projects/my-project/stats"
 ```
 
 **Response:** `200 OK`
@@ -716,7 +721,7 @@ Stream all run updates in real-time (SSE).
 
 **Request:**
 ```bash
-curl -N http://localhost:8080/api/v1/runs/stream/all
+curl -N http://localhost:14355/api/v1/runs/stream/all
 ```
 
 **Response:** `200 OK` (text/event-stream)
@@ -749,13 +754,13 @@ Get messages from the message bus.
 **Request:**
 ```bash
 # Get all project messages
-curl "http://localhost:8080/api/v1/messages?project_id=my-project"
+curl "http://localhost:14355/api/v1/messages?project_id=my-project"
 
 # Get task-specific messages
-curl "http://localhost:8080/api/v1/messages?project_id=my-project&task_id=task-001"
+curl "http://localhost:14355/api/v1/messages?project_id=my-project&task_id=task-001"
 
 # Get messages after a specific message ID
-curl "http://localhost:8080/api/v1/messages?project_id=my-project&after=msg_123"
+curl "http://localhost:14355/api/v1/messages?project_id=my-project&after=msg_123"
 ```
 
 **Response:** `200 OK`
@@ -817,10 +822,10 @@ Stream message bus updates in real-time (SSE).
 **Request:**
 ```bash
 # Stream all project messages
-curl -N "http://localhost:8080/api/v1/messages/stream?project_id=my-project"
+curl -N "http://localhost:14355/api/v1/messages/stream?project_id=my-project"
 
 # Stream task-specific messages
-curl -N "http://localhost:8080/api/v1/messages/stream?project_id=my-project&task_id=task-001"
+curl -N "http://localhost:14355/api/v1/messages/stream?project_id=my-project&task_id=task-001"
 ```
 
 **Response:** `200 OK` (text/event-stream)
@@ -832,13 +837,120 @@ data: {"msg_id":"msg_002","timestamp":"2026-02-05T10:00:05Z","type":"progress","
 
 ---
 
+### POST /api/projects/{project_id}/messages
+
+Post a message to the project-level message bus.
+
+**Path Parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `project_id` | Project identifier |
+
+**Request Body:**
+```json
+{
+  "type": "USER",
+  "body": "Please prioritize the auth subsystem"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | No | Message type (default: `USER`). Typical values: `USER`, `FACT`, `PROGRESS`, `DECISION`, `ERROR`, `QUESTION` |
+| `body` | string | Yes | Message body text |
+
+**Request:**
+```bash
+curl -X POST \
+  "http://localhost:14355/api/projects/my-project/messages" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "USER", "body": "Focus on auth module"}'
+```
+
+**Response:** `201 Created`
+```json
+{
+  "msg_id": "2026-02-21T10:00:01.000000000Z-001",
+  "timestamp": "2026-02-21T10:00:01Z"
+}
+```
+
+---
+
+### POST /api/projects/{project_id}/tasks/{task_id}/messages
+
+Post a message to the task-level message bus.
+
+**Path Parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `project_id` | Project identifier |
+| `task_id` | Task identifier |
+
+**Request Body:** Same as `POST /api/projects/{project_id}/messages`
+
+**Request:**
+```bash
+curl -X POST \
+  "http://localhost:14355/api/projects/my-project/tasks/task-20260221-100000-my-task/messages" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "DECISION", "body": "Using approach B for the refactor"}'
+```
+
+**Response:** `201 Created`
+```json
+{
+  "msg_id": "2026-02-21T10:00:02.000000000Z-001",
+  "timestamp": "2026-02-21T10:00:02Z"
+}
+```
+
+---
+
+### POST /api/projects/{project_id}/tasks/{task_id}/resume
+
+Remove the task's `DONE` file so the Ralph Loop can restart the task.
+
+**Path Parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `project_id` | Project identifier |
+| `task_id` | Task identifier |
+
+**Request:**
+```bash
+curl -X POST \
+  "http://localhost:14355/api/projects/my-project/tasks/task-20260221-100000-my-task/resume"
+```
+
+**Response:** `200 OK`
+```json
+{
+  "project_id": "my-project",
+  "task_id": "task-20260221-100000-my-task",
+  "resumed": true
+}
+```
+
+**Errors:**
+
+| Status | Cause |
+|--------|-------|
+| 400 Bad Request | Task has no `DONE` file (nothing to resume) |
+| 404 Not Found | Task directory does not exist |
+
+---
+
 ## Common Patterns
 
 ### Create and Monitor a Task
 
 ```bash
 # 1. Create task
-RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/tasks \
+RESPONSE=$(curl -s -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "my-project",
@@ -848,11 +960,11 @@ RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/tasks \
   }')
 
 # 2. Get the latest run ID
-RUN_ID=$(curl -s "http://localhost:8080/api/v1/tasks/task-001?project_id=my-project" | \
+RUN_ID=$(curl -s "http://localhost:14355/api/v1/tasks/task-001?project_id=my-project" | \
   jq -r '.runs[0].run_id')
 
 # 3. Stream logs
-curl -N "http://localhost:8080/api/v1/runs/$RUN_ID/stream"
+curl -N "http://localhost:14355/api/v1/runs/$RUN_ID/stream"
 ```
 
 ### Poll for Task Completion
@@ -860,7 +972,7 @@ curl -N "http://localhost:8080/api/v1/runs/$RUN_ID/stream"
 ```bash
 # Poll every 5 seconds
 while true; do
-  STATUS=$(curl -s "http://localhost:8080/api/v1/runs/$RUN_ID/info" | \
+  STATUS=$(curl -s "http://localhost:14355/api/v1/runs/$RUN_ID/info" | \
     jq -r '.status')
 
   echo "Status: $STATUS"
@@ -877,7 +989,7 @@ done
 
 ```bash
 # Stream all run updates
-curl -N http://localhost:8080/api/v1/runs/stream/all | \
+curl -N http://localhost:14355/api/v1/runs/stream/all | \
   while IFS= read -r line; do
     if [[ "$line" == data:* ]]; then
       echo "${line#data: }" | jq .
@@ -889,12 +1001,12 @@ curl -N http://localhost:8080/api/v1/runs/stream/all | \
 
 ```bash
 # Get latest message ID
-LAST_MSG=$(curl -s "http://localhost:8080/api/v1/messages?project_id=my-project" | \
+LAST_MSG=$(curl -s "http://localhost:14355/api/v1/messages?project_id=my-project" | \
   jq -r '.messages[-1].msg_id')
 
 # Poll for new messages
 while true; do
-  curl -s "http://localhost:8080/api/v1/messages?project_id=my-project&after=$LAST_MSG" | \
+  curl -s "http://localhost:14355/api/v1/messages?project_id=my-project&after=$LAST_MSG" | \
     jq '.messages[]'
   sleep 5
 done
@@ -924,7 +1036,7 @@ done
 ### Example Error Handling (Bash)
 
 ```bash
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8080/api/v1/tasks \
+RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{"project_id":"test","task_id":"task-001","agent_type":"codex","prompt":"test"}')
 

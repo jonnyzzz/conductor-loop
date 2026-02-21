@@ -354,7 +354,7 @@ while true; do
     echo "[$(date)] Running health checks..."
 
     # API health
-    if ! curl -sf http://localhost:8080/api/v1/health > /dev/null; then
+    if ! curl -sf http://localhost:14355/api/v1/health > /dev/null; then
         echo "ALERT: API unhealthy"
         # Send alert
         # Attempt restart
@@ -437,7 +437,7 @@ for instance in "${INSTANCES[@]}"; do
 
     # Wait for health check
     for i in {1..30}; do
-        if curl -sf "http://$instance:8080/api/v1/health"; then
+        if curl -sf "http://$instance:14355/api/v1/health"; then
             echo "$instance healthy"
             break
         fi

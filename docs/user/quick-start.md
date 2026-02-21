@@ -30,7 +30,7 @@ defaults:
 
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 14355
   cors_origins:
     - http://localhost:3000
 
@@ -53,7 +53,7 @@ Start the Conductor server:
 
 # You should see:
 # conductor 2026/02/05 10:00:00 Starting Conductor Loop server
-# conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:8080
+# conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:14355
 # conductor 2026/02/05 10:00:00 Root directory: /Users/you/conductor-loop
 ```
 
@@ -65,13 +65,13 @@ Verify the server is running:
 
 ```bash
 # Check health
-curl http://localhost:8080/api/v1/health
+curl http://localhost:14355/api/v1/health
 
 # Response:
 # {"status":"ok","version":"dev"}
 
 # Check version
-curl http://localhost:8080/api/v1/version
+curl http://localhost:14355/api/v1/version
 
 # Response:
 # {"version":"dev"}
@@ -84,7 +84,7 @@ curl http://localhost:8080/api/v1/version
 Create a task that prints "Hello World":
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "my-project",
@@ -107,7 +107,7 @@ Use the `task_id` from the response to monitor the task.
 ### Check Task Status
 
 ```bash
-curl "http://localhost:8080/api/projects/my-project/tasks/task-20260205-100000-hello-world"
+curl "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world"
 
 # Response includes the list of runs with their statuses.
 ```
@@ -124,7 +124,7 @@ Status values:
 Stream the live logs for all runs of a task (SSE):
 
 ```bash
-curl -N "http://localhost:8080/api/projects/my-project/tasks/task-20260205-100000-hello-world/runs/stream"
+curl -N "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world/runs/stream"
 
 # Output (Server-Sent Events):
 # data: Starting task...
@@ -137,7 +137,7 @@ Or stream a specific run file:
 
 ```bash
 RUN_ID="20260205-1000000000-12345"
-curl -N "http://localhost:8080/api/projects/my-project/tasks/task-20260205-100000-hello-world/runs/$RUN_ID/stream?name=output.md"
+curl -N "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world/runs/$RUN_ID/stream?name=output.md"
 ```
 
 ## Step 5: List All Tasks
@@ -145,7 +145,7 @@ curl -N "http://localhost:8080/api/projects/my-project/tasks/task-20260205-10000
 See all tasks in a project:
 
 ```bash
-curl http://localhost:8080/api/projects/my-project/tasks
+curl http://localhost:14355/api/projects/my-project/tasks
 ```
 
 ## Step 6: Use the Web UI
@@ -154,12 +154,12 @@ Open the web UI in your browser:
 
 ```bash
 # Open in browser (macOS)
-open http://localhost:8080/ui/
+open http://localhost:14355/ui/
 
 # Linux
-xdg-open http://localhost:8080/ui/
+xdg-open http://localhost:14355/ui/
 
-# Or just navigate to: http://localhost:8080/ui/
+# Or just navigate to: http://localhost:14355/ui/
 ```
 
 The web UI provides:
@@ -196,7 +196,7 @@ chmod 600 ~/.conductor/tokens/claude.token
 Restart the server and run a task:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "my-project",
@@ -224,7 +224,7 @@ Conductor Loop supports hierarchical tasks where a parent task can spawn child t
 The agent can create child tasks by writing to the message bus:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "my-project",
@@ -274,13 +274,13 @@ The message bus enables cross-task communication:
 
 ```bash
 # View all messages for a project
-curl "http://localhost:8080/api/v1/messages?project_id=my-project"
+curl "http://localhost:14355/api/v1/messages?project_id=my-project"
 
 # Stream project messages in real-time (SSE)
-curl -N "http://localhost:8080/api/v1/messages/stream?project_id=my-project"
+curl -N "http://localhost:14355/api/v1/messages/stream?project_id=my-project"
 
 # Stream task-level messages
-curl -N "http://localhost:8080/api/projects/my-project/tasks/task-20260205-100000-hello-world/messages/stream"
+curl -N "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world/messages/stream"
 ```
 
 Tasks can write to the message bus for coordination:
@@ -289,12 +289,32 @@ Tasks can write to the message bus for coordination:
 - Sharing data between tasks
 - Signaling completion
 
+### Post a Message to the Bus
+
+You (or an agent) can post messages directly via the API:
+
+```bash
+# Post to the task-level message bus
+curl -X POST \
+  "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world/messages" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "USER", "body": "Please focus on the authentication module next"}'
+
+# Post to the project-level message bus
+curl -X POST \
+  "http://localhost:14355/api/projects/my-project/messages" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "DECISION", "body": "Switching to OAuth2 for all auth"}'
+```
+
+The web UI also has a compose form in the Messages tab for posting messages interactively.
+
 ## Common Use Cases
 
 ### Use Case 1: Code Generation
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "my-project",
@@ -308,7 +328,7 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 ### Use Case 2: Code Review
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "my-project",
@@ -322,7 +342,7 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 ### Use Case 3: Multi-Step Workflow
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "my-project",

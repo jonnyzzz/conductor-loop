@@ -29,7 +29,7 @@ func newTaskRunsCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	cmd.Flags().IntVar(&limit, "limit", 50, "maximum number of runs to show")

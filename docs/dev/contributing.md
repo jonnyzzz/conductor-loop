@@ -218,7 +218,7 @@ go build -ldflags="-s -w" -o bin/conductor ./cmd/conductor
 
    api:
      host: localhost
-     port: 8080
+     port: 14355
    EOF
    ```
 
@@ -230,7 +230,7 @@ go build -ldflags="-s -w" -o bin/conductor ./cmd/conductor
 
 3. **Access the Web UI**
 
-   Open http://localhost:8080 in your browser.
+   Open http://localhost:14355 in your browser.
 
 ## Running Tests
 

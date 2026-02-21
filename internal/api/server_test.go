@@ -18,7 +18,7 @@ import (
 
 func TestServerListenAndServeNil(t *testing.T) {
 	var server *Server
-	if err := server.ListenAndServe(); err == nil {
+	if err := server.ListenAndServe(true); err == nil {
 		t.Fatalf("expected error for nil server")
 	}
 }
@@ -40,7 +40,7 @@ func TestServerListenAndServeInvalidPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
-	if err := server.ListenAndServe(); err == nil {
+	if err := server.ListenAndServe(true); err == nil {
 		t.Fatalf("expected listen error for invalid port")
 	}
 }

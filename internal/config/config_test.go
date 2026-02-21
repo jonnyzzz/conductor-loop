@@ -58,7 +58,7 @@ func TestApplyAPIDefaults(t *testing.T) {
 	if cfg.API.Host != "0.0.0.0" {
 		t.Fatalf("expected default host, got %q", cfg.API.Host)
 	}
-	if cfg.API.Port != 8080 {
+	if cfg.API.Port != 14355 {
 		t.Fatalf("expected default port, got %d", cfg.API.Port)
 	}
 	if cfg.API.SSE.PollIntervalMs != 100 {

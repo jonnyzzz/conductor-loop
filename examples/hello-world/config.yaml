@@ -12,6 +12,6 @@ storage:
 
 api:
   host: localhost
-  port: 8080
+  port: 14355
   cors_origins:
     - http://localhost:3000

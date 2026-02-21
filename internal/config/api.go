@@ -43,7 +43,7 @@ func applyAPIDefaults(cfg *Config) {
 		cfg.API.Host = "0.0.0.0"
 	}
 	if cfg.API.Port == 0 {
-		cfg.API.Port = 8080
+		cfg.API.Port = 14355
 	}
 	if cfg.API.SSE.PollIntervalMs == 0 {
 		cfg.API.SSE.PollIntervalMs = 100

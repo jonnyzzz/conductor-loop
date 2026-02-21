@@ -28,7 +28,7 @@ func newServeCmd() *cobra.Command {
 		Use:   "serve",
 		Short: "Start the HTTP server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runServe(host, port, rootDir, configPath)
+			return runServe(host, port, cmd.Flags().Changed("port"), rootDir, configPath)
 		},
 	}
 
@@ -40,7 +40,7 @@ func newServeCmd() *cobra.Command {
 	return cmd
 }
 
-func runServe(host string, port int, rootDir, configPath string) error {
+func runServe(host string, port int, explicitPort bool, rootDir, configPath string) error {
 	logger := log.New(os.Stderr, "run-agent serve ", log.LstdFlags)
 
 	server, err := api.NewServer(api.Options{
@@ -58,11 +58,9 @@ func runServe(host string, port int, rootDir, configPath string) error {
 		return err
 	}
 
-	fmt.Fprintf(os.Stderr, "run-agent serve: listening on http://%s:%d\n", host, port)
-
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- server.ListenAndServe()
+		errCh <- server.ListenAndServe(explicitPort)
 	}()
 
 	signalCh := make(chan os.Signal, 1)
