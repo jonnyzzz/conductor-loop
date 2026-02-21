@@ -173,6 +173,32 @@ func TestRunInfoPathErrors(t *testing.T) {
 	}
 }
 
+// TestFileStorageRunIDsUnique verifies that two CreateRun calls with the same
+// timestamp and PID produce distinct run IDs, preventing the "ambiguous" error
+// in findRunInfoPath when runs from different tasks share an ID.
+func TestFileStorageRunIDsUnique(t *testing.T) {
+	root := t.TempDir()
+	st, err := NewStorage(root)
+	if err != nil {
+		t.Fatalf("NewStorage: %v", err)
+	}
+	// Pin time and PID so any uniqueness must come from the counter.
+	st.now = func() time.Time { return time.Date(2026, 2, 21, 3, 51, 27, 0, time.UTC) }
+	st.pid = func() int { return 99999 }
+
+	ids := make(map[string]bool)
+	for i := 0; i < 10; i++ {
+		info, err := st.CreateRun("project", "task", "codex")
+		if err != nil {
+			t.Fatalf("CreateRun[%d]: %v", i, err)
+		}
+		if ids[info.RunID] {
+			t.Fatalf("duplicate run ID at iteration %d: %s", i, info.RunID)
+		}
+		ids[info.RunID] = true
+	}
+}
+
 func TestFileStorageValidationErrors(t *testing.T) {
 	st, err := NewStorage(t.TempDir())
 	if err != nil {

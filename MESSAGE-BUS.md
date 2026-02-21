@@ -2935,3 +2935,21 @@ project_id: conductor-loop
 ## Commits This Session
 - 16d0e99: feat(cli): add conductor watch command and document Sessions #33-36 features
 
+
+---
+msg_id: MSG-20260221-SESSION38-START
+ts: 2026-02-21T04:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 04:00:00] SESSION: 2026-02-21 Session #38
+[2026-02-21 04:00:00] FACT: go build ./... passes; go test -race ALL 14 PACKAGES PASS (from session #37)
+[2026-02-21 04:00:30] ERROR: Scenario3_RalphLoopWait FAILED — api error: get run: ambiguous
+[2026-02-21 04:00:30] FACT: Root cause: FileStorage.newRunID() uses second-precision format with no collision guard
+[2026-02-21 04:00:30] FACT: Two CreateRun calls in same second (same PID) produce identical run IDs in different task dirs
+[2026-02-21 04:00:30] FACT: findRunInfoPath glob root/*/*/runs/ID/run-info.yaml finds both task dirs → ambiguous
+[2026-02-21 04:01:00] DECISION: Fix via atomic counter suffix — format changed from %s-%d to %s-%d-%d (stamp-PID-seq)
+[2026-02-21 04:01:00] FACT: Added storageRunCounter (sync/atomic uint64) + TestFileStorageRunIDsUnique (10 calls, frozen time+PID)
+[2026-02-21 04:02:00] FACT: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS (Scenario1-4)
+[2026-02-21 04:02:00] FACT: go test -race ./test/...: ALL 5 TEST PACKAGES PASS (acceptance, docker, integration, performance, unit)

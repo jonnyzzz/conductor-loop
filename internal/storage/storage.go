@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -183,10 +184,18 @@ func (s *FileStorage) lookupRun(runID string) (string, bool) {
 	return path, ok
 }
 
+// storageRunCounter ensures run IDs are globally unique within a process.
+// The time format has only second precision, so two CreateRun calls in the
+// same second from the same PID would produce identical IDs without this
+// counter.  We append the counter value directly so every call gets a
+// distinct ID even under rapid sequential creation.
+var storageRunCounter uint64
+
 func (s *FileStorage) newRunID() string {
 	now := s.now().UTC()
+	seq := atomic.AddUint64(&storageRunCounter, 1)
 	stamp := now.Format("20060102-1504050000")
-	return fmt.Sprintf("%s-%d", stamp, s.pid())
+	return fmt.Sprintf("%s-%d-%d", stamp, s.pid(), seq)
 }
 
 var _ Storage = (*FileStorage)(nil)
