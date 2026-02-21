@@ -1,5 +1,24 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('../src/hooks/useAPI', () => ({
+  useStartTask: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useProjectStats: () => ({ data: undefined, isLoading: false, isError: false }),
+}))
+
+vi.mock('@jetbrains/ring-ui-built/components/button/button', () => ({
+  default: ({ children, ...props }: any) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+}))
+
+vi.mock('@jetbrains/ring-ui-built/components/dialog/dialog', () => ({
+  default: ({ children, show }: any) => (show ? <div>{children}</div> : null),
+}))
+
 import { TaskList } from '../src/components/TaskList'
 import type { Project, TaskSummary } from '../src/types'
 

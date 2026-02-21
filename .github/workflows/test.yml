@@ -13,5 +13,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Build
+        run: go build ./...
       - name: Run tests
-        run: go test ./...
+        run: go test $(go list ./... | grep -v '/test/docker')
