@@ -835,6 +835,110 @@ run-agent bus read --bus ./task-bus.md --follow
 
 ---
 
+#### `run-agent watch`
+
+Watch one or more tasks until they all reach a terminal state (completed or failed).
+
+```bash
+run-agent watch --project <id> --task <id> [--task <id> ...] [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--project` | string | "" | Project ID (required) |
+| `--task` | stringArray | [] | Task ID to watch; repeatable for multiple tasks (at least one required) |
+| `--root` | string | "./runs" | Root runs directory (uses `RUNS_DIR` env var if not set) |
+| `--timeout` | duration | 30m | Maximum wait time; exits with code 1 if timeout is reached |
+| `--json` | bool | false | Output status as JSON lines |
+
+**Behavior:**
+- Polls run status every 2 seconds by reading `run-info.yaml` for each task's latest run
+- Exits immediately with code 0 when all watched tasks have reached a terminal status
+- Exits with code 1 (and an error message) if the timeout is reached before all tasks complete
+- Both `completed` and `failed` are considered terminal (done) states
+
+**Exit Codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | All tasks reached a terminal state (completed or failed) |
+| 1 | Timeout reached; not all tasks completed within the time limit |
+
+**Examples:**
+
+```bash
+# Watch a single task until it completes (or 30m timeout)
+run-agent watch --root ./runs --project my-project --task task-20260220-140000-hello
+
+# Watch multiple tasks simultaneously
+run-agent watch --root ./runs --project my-project \
+  --task task-20260220-140000-hello \
+  --task task-20260220-140001-world \
+  --task task-20260220-140002-review
+
+# Watch with a custom timeout
+run-agent watch --root ./runs --project my-project \
+  --task task-20260220-140000-hello \
+  --timeout 10m
+
+# Watch with JSON output (one JSON line per poll cycle)
+run-agent watch --root ./runs --project my-project \
+  --task task-20260220-140000-hello \
+  --json
+```
+
+**Text Output (default):**
+
+```
+Watching 2 task(s) for project "my-project":
+  task-20260220-140000-hello              [running   ] elapsed: 0m15s
+  task-20260220-140001-world              [completed ] duration: 1m10s
+Waiting for 1 running task(s)... (timeout in 29m44s)
+  task-20260220-140000-hello              [completed ] duration: 1m05s
+  task-20260220-140001-world              [completed ] duration: 1m10s
+All tasks complete.
+```
+
+**JSON Output (`--json`):**
+
+Each poll cycle emits one JSON line:
+
+```json
+{"tasks":[{"task_id":"task-20260220-140000-hello","status":"completed","elapsed":65.3,"done":true}],"all_done":true}
+```
+
+JSON fields per task:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `task_id` | string | Task ID |
+| `status` | string | Latest run status (`running`, `completed`, `failed`, `unknown`) |
+| `elapsed` | float64 | Elapsed seconds (from start to now, or start to end if terminal) |
+| `done` | bool | Whether the task has reached a terminal state |
+
+**Use `watch` in scripts:**
+
+```bash
+#!/bin/bash
+# Submit two tasks, then wait for both to finish
+
+run-agent job --project my-project --task task-20260220-140000-step1 \
+  --root ./runs --agent claude --prompt "Step 1"
+
+run-agent job --project my-project --task task-20260220-140001-step2 \
+  --root ./runs --agent claude --prompt "Step 2"
+
+# Wait up to 1 hour for both
+run-agent watch --root ./runs --project my-project \
+  --task task-20260220-140000-step1 \
+  --task task-20260220-140001-step2 \
+  --timeout 1h && echo "All done!" || echo "Timed out"
+```
+
+---
+
 #### `run-agent output`
 
 Print or tail output files from a completed or running job.

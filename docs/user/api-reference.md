@@ -17,6 +17,7 @@ There are two API surfaces:
    - `POST /api/projects/{projectId}/tasks/{taskId}/runs/{runId}/stop` — stop a running run (202=SIGTERM sent, 409=not running)
    - `GET /api/projects/{projectId}/tasks/{taskId}/file?name=TASK.md` — read TASK.md from task directory
    - `GET /api/projects/{projectId}/tasks/{taskId}/runs/stream` — SSE stream that fans in live output from all runs of a task (used by the React LogViewer)
+   - `DELETE /api/projects/{projectId}/tasks/{taskId}/runs/{runId}` — delete a completed or failed run directory (204 No Content on success; 409 Conflict if still running)
 
 ## Base URL
 
@@ -446,6 +447,46 @@ curl -X POST http://localhost:8080/api/v1/runs/run_20260205_100001_abc123/stop
 |--------|-------|-------|
 | 404 | Not Found | Run does not exist |
 | 500 | Internal Server Error | Failed to stop process |
+
+#### DELETE /api/projects/{project_id}/tasks/{task_id}/runs/{run_id}
+
+Delete a completed or failed run directory from disk. This permanently removes all files for the specified run (agent output, stdout, stderr, prompt, run-info.yaml).
+
+**Path Parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `project_id` | Project identifier |
+| `task_id` | Task identifier |
+| `run_id` | Run identifier |
+
+**Request:**
+
+```bash
+curl -X DELETE \
+  "http://localhost:8080/api/projects/my-project/tasks/task-20260220-140000-hello/runs/20260220-1400000000-abc12345"
+```
+
+**Response:** `204 No Content`
+
+No response body on success.
+
+**Errors:**
+
+| Status | Cause |
+|--------|-------|
+| 404 Not Found | Run or task directory does not exist |
+| 409 Conflict | Run is still in `running` status; stop it first |
+| 500 Internal Server Error | Filesystem error removing the run directory |
+
+**Notes:**
+
+- Only completed or failed runs can be deleted. Attempting to delete a running run returns `409 Conflict`.
+- Use `POST .../stop` first if you need to terminate a running run before deleting it.
+- Deleting a run is permanent and cannot be undone.
+- The web UI's "Delete run" button uses this endpoint.
+
+---
 
 #### GET /api/v1/runs/stream/all
 

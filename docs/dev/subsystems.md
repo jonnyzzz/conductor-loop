@@ -15,6 +15,9 @@ This document provides detailed information about each subsystem in the conducto
 9. [Webhook Notifications](#9-webhook-notifications)
 10. [CLI Commands: run-agent list](#10-cli-commands-run-agent-list)
 11. [CLI Commands: run-agent output](#11-cli-commands-run-agent-output)
+12. [CLI Commands: run-agent watch](#12-cli-commands-run-agent-watch)
+13. [API: DELETE Run Endpoint](#13-api-delete-run-endpoint)
+14. [UI: Task Search Bar](#14-ui-task-search-bar)
 
 ---
 
@@ -1756,6 +1759,122 @@ run-agent output [flags]
 - Follow exits on no-data timeout
 - Follow exits on SIGINT
 - Follow waits for file to appear
+
+---
+
+---
+
+## 12. CLI Commands: run-agent watch
+
+**File:** `cmd/run-agent/watch.go`
+
+### Purpose
+
+The `run-agent watch` command polls the filesystem until all specified tasks reach a terminal state (completed or failed). It is useful in automation scripts that submit multiple parallel tasks and need to block until they all finish.
+
+### Usage
+
+```
+run-agent watch --project <id> --task <id> [--task <id> ...] [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--project` | Project ID (required) |
+| `--task` | Task ID to watch; can be repeated for multiple tasks |
+| `--root` | Root directory (default: `./runs` or `$RUNS_DIR`) |
+| `--timeout` | Maximum wait time (default: 30m); exits with code 1 on timeout |
+| `--json` | Output as JSON lines (one line per poll cycle) |
+
+### Implementation Notes
+
+- Polls every `watchPollInterval` (2 seconds; package-level for testing).
+- For each task, reads the latest run directory's `run-info.yaml` to determine status.
+- Both `completed` and `failed` are considered "done" (terminal).
+- Text mode prints a table of tasks with elapsed time on each poll cycle.
+- JSON mode emits `{"tasks":[...],"all_done":bool}` per poll cycle.
+- Root directory falls back to `RUNS_DIR` environment variable, then `./runs`.
+
+### JSON Output Schema
+
+```json
+{
+  "tasks": [
+    {
+      "task_id": "task-20260220-140000-hello",
+      "status": "completed",
+      "elapsed": 65.3,
+      "done": true
+    }
+  ],
+  "all_done": true
+}
+```
+
+### Dependencies
+
+- `internal/storage` (ReadRunInfo, StatusCompleted, StatusFailed, StatusRunning)
+- Standard library: `encoding/json`, `os`, `path/filepath`, `sort`, `time`
+
+### Testing Strategy
+
+**Unit Tests:** `cmd/run-agent/watch_test.go` (6 tests)
+
+- Error when no `--task` flags given
+- Immediate exit when task already completed
+- Waits for running task to complete
+- Waits for multiple tasks, exits when all done
+- Timeout error when task never completes
+- JSON output format and schema
+
+---
+
+## 13. API: DELETE Run Endpoint
+
+**File:** `internal/api/handlers_projects.go` (`handleRunDelete`)
+
+### Purpose
+
+`DELETE /api/projects/{project_id}/tasks/{task_id}/runs/{run_id}` permanently removes a completed or failed run directory from disk. This allows users to reclaim disk space for individual runs without using `run-agent gc`.
+
+### Behavior
+
+1. Looks up the run using the shared path-resolution helpers (`findProjectTaskDir`).
+2. If the run's status is `running`, returns **409 Conflict** (stop the run first).
+3. Removes the run directory via `os.RemoveAll`.
+4. Returns **204 No Content** on success.
+
+### Response Codes
+
+| Code | Meaning |
+|------|---------|
+| 204 | Run directory deleted successfully |
+| 404 | Run or task directory not found |
+| 409 | Run is still running |
+| 500 | Filesystem error |
+
+### Web UI Integration
+
+The React frontend (`frontend/src/RunDetail.tsx`) shows a **Delete run** button for completed and failed runs. The button is hidden while a run is in `running` status to prevent accidental deletion of live runs.
+
+---
+
+## 14. UI: Task Search Bar
+
+**File:** `frontend/src/` (React frontend)
+
+### Purpose
+
+A search bar in the task list panel lets users filter tasks by ID substring without reloading data from the server. Filtering is purely client-side and case-insensitive.
+
+### Behavior
+
+- Input appears at the top of the task list.
+- On each keystroke, the task list is filtered to only show tasks whose ID contains the search string (case-insensitive substring match).
+- A **"Showing N of M tasks"** label is displayed below the search bar when a filter is active (N < M).
+- Clearing the input restores the full list.
 
 ---
 

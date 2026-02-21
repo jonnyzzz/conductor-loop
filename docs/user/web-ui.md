@@ -66,6 +66,10 @@ Tabs stream live via SSE while the run is active.
 
 Running tasks show a **■ Stop** button in the run detail panel header. Clicking it sends SIGTERM to the agent process via `POST /api/projects/{p}/tasks/{t}/runs/{r}/stop`.
 
+### Delete Run Button
+
+Completed and failed runs show a **🗑 Delete run** button in the run detail panel header. Clicking it permanently removes the run directory (output files, logs, metadata) via `DELETE /api/projects/{p}/tasks/{t}/runs/{r}`. The button is only visible when the run has reached a terminal status (completed or failed); it is hidden for running runs.
+
 ### Project Message Bus Panel
 
 When a project is selected, a compact live feed of `PROJECT-MESSAGE-BUS.md` appears in the left panel, showing recent project-level messages.
@@ -74,12 +78,17 @@ Screenshot: [The main interface shows a clean, modern design with a task list on
 
 ## Task List View
 
+### Task Search Bar
+
+A search bar at the top of the task list lets you filter tasks by ID substring (case-insensitive). As you type, the list narrows to only show matching tasks and a **"Showing N of M tasks"** count appears below the search bar. Clearing the search restores the full list.
+
 ### Features
 
 - **Real-time Updates**: Tasks update automatically as they progress
 - **Status Indicators**: Color-coded status badges
 - **Quick Navigation**: Click any task to view details
-- **Search/Filter**: Find tasks quickly
+- **Search Bar**: Filter tasks by ID substring (case-insensitive); shows match count
+- **Run Status Filters**: Filter buttons (All / Running / Completed / Failed) narrow the run list inside a task detail view
 - **Sort Options**: Sort by time, status, or project
 
 ### Status Colors
@@ -119,7 +128,7 @@ Screenshot: [The task list shows cards for each task with status badges, timesta
 
 - **Click Task**: Open run details
 - **Refresh Button**: Force reload task list
-- **Filter Input**: Type to filter tasks by name or project
+- **Search Bar**: Type to filter tasks by ID (case-insensitive); "Showing N of M tasks" count updates in real time
 
 ## Run Details View
 
