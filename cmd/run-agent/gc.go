@@ -14,13 +14,14 @@ import (
 
 func newGCCmd() *cobra.Command {
 	var (
-		root       string
-		olderThan  time.Duration
-		dryRun     bool
-		project    string
-		keepFailed bool
-		rotateBus  bool
-		busMaxSize string
+		root            string
+		olderThan       time.Duration
+		dryRun          bool
+		project         string
+		keepFailed      bool
+		rotateBus       bool
+		busMaxSize      string
+		deleteDoneTasks bool
 	)
 
 	cmd := &cobra.Command{
@@ -38,7 +39,7 @@ func newGCCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("invalid --bus-max-size %q: %w", busMaxSize, err)
 			}
-			return runGC(root, project, olderThan, dryRun, keepFailed, rotateBus, maxBytes)
+			return runGC(root, project, olderThan, dryRun, keepFailed, rotateBus, maxBytes, deleteDoneTasks)
 		},
 	}
 
@@ -49,11 +50,13 @@ func newGCCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&keepFailed, "keep-failed", false, "keep runs with non-zero exit codes")
 	cmd.Flags().BoolVar(&rotateBus, "rotate-bus", false, "rotate message bus files that exceed --bus-max-size")
 	cmd.Flags().StringVar(&busMaxSize, "bus-max-size", "10MB", "size threshold for bus file rotation (e.g. 10MB, 5MB, 100KB)")
+	cmd.Flags().BoolVar(&deleteDoneTasks, "delete-done-tasks", false,
+		"delete task directories that have DONE file, empty runs/, and are older than --older-than")
 
 	return cmd
 }
 
-func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed bool, rotateBus bool, busMaxBytes int64) error {
+func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed bool, rotateBus bool, busMaxBytes int64, deleteDoneTasks bool) error {
 	cutoff := time.Now().Add(-olderThan)
 
 	projects, err := listProjectDirs(root, project)
@@ -62,9 +65,10 @@ func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed boo
 	}
 
 	var (
-		deletedCount int
-		freedBytes   int64
-		rotatedCount int
+		deletedCount     int
+		freedBytes       int64
+		rotatedCount     int
+		deletedTaskCount int
 	)
 
 	for _, proj := range projects {
@@ -106,6 +110,14 @@ func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed boo
 			runEntries, err := os.ReadDir(runsDir)
 			if err != nil {
 				if errors.Is(err, os.ErrNotExist) {
+					if deleteDoneTasks {
+						deleted, err := gcTaskDir(taskDir, cutoff, dryRun)
+						if err != nil {
+							fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+						} else if deleted {
+							deletedTaskCount++
+						}
+					}
 					continue
 				}
 				return fmt.Errorf("read runs directory %s: %w", runsDir, err)
@@ -126,6 +138,15 @@ func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed boo
 					freedBytes += freed
 				}
 			}
+
+			if deleteDoneTasks {
+				deleted, err := gcTaskDir(taskDir, cutoff, dryRun)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+				} else if deleted {
+					deletedTaskCount++
+				}
+			}
 		}
 	}
 
@@ -134,6 +155,10 @@ func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed boo
 		action = "Would delete"
 	}
 	fmt.Printf("%s %d runs, freed %.1f MB\n", action, deletedCount, float64(freedBytes)/(1024*1024))
+
+	if deleteDoneTasks && deletedTaskCount > 0 {
+		fmt.Printf("%s %d task directories (DONE + empty runs)\n", action, deletedTaskCount)
+	}
 
 	if rotateBus && rotatedCount > 0 {
 		rotateAction := "Rotated"
@@ -144,6 +169,53 @@ func runGC(root, project string, olderThan time.Duration, dryRun, keepFailed boo
 	}
 
 	return nil
+}
+
+// gcTaskDir deletes a task directory if it has a DONE file, an empty runs/ subdir, and is older than cutoff.
+// Returns true if the task directory was deleted (or would be in dry-run mode).
+func gcTaskDir(taskDir string, cutoff time.Time, dryRun bool) (bool, error) {
+	// Check DONE file exists
+	doneFile := filepath.Join(taskDir, "DONE")
+	if _, err := os.Stat(doneFile); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("stat DONE file in %s: %w", taskDir, err)
+	}
+
+	// Check runs/ subdir is empty (or missing)
+	runsDir := filepath.Join(taskDir, "runs")
+	runEntries, err := os.ReadDir(runsDir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, fmt.Errorf("read runs dir in %s: %w", taskDir, err)
+	}
+	// Count subdirectories remaining in runs/
+	for _, e := range runEntries {
+		if e.IsDir() {
+			return false, nil // still has runs, skip
+		}
+	}
+
+	// Check task dir mtime older than cutoff
+	info, err := os.Stat(taskDir)
+	if err != nil {
+		return false, fmt.Errorf("stat task dir %s: %w", taskDir, err)
+	}
+	if !info.ModTime().Before(cutoff) {
+		return false, nil
+	}
+
+	taskName := filepath.Base(taskDir)
+	if dryRun {
+		fmt.Printf("[dry-run] would delete task dir %s (DONE + empty)\n", taskName)
+		return true, nil
+	}
+
+	fmt.Printf("deleting task dir %s (DONE + empty)\n", taskName)
+	if err := os.RemoveAll(taskDir); err != nil {
+		return false, fmt.Errorf("delete task dir %s: %w", taskDir, err)
+	}
+	return true, nil
 }
 
 // rotateBusFile renames busPath to busPath.<YYYYMMDD-HHMMSS>.archived if it exceeds maxBytes.

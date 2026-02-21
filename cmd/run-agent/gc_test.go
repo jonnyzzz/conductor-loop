@@ -112,7 +112,7 @@ func TestGCTableDriven(t *testing.T) {
 			root := t.TempDir()
 			runDir := makeRun(t, root, "proj", "task1", "run-test", tc.status, tc.startTime, tc.exitCode)
 
-			if err := runGC(root, "", tc.olderThan, false, tc.keepFailed, false, 0); err != nil {
+			if err := runGC(root, "", tc.olderThan, false, tc.keepFailed, false, 0, false); err != nil {
 				t.Fatalf("runGC: %v", err)
 			}
 
@@ -134,7 +134,7 @@ func TestGCDryRunDoesNotDelete(t *testing.T) {
 
 	var output string
 	output = captureStdout(t, func() {
-		if err := runGC(root, "", 24*time.Hour, true, false, false, 0); err != nil {
+		if err := runGC(root, "", 24*time.Hour, true, false, false, 0, false); err != nil {
 			t.Errorf("runGC dry-run: %v", err)
 		}
 	})
@@ -157,7 +157,7 @@ func TestGCProjectFilter(t *testing.T) {
 	proj1Dir := makeRun(t, root, "proj1", "task1", "run-old", storage.StatusCompleted, old, 0)
 	proj2Dir := makeRun(t, root, "proj2", "task1", "run-old", storage.StatusCompleted, old, 0)
 
-	if err := runGC(root, "proj1", 24*time.Hour, false, false, false, 0); err != nil {
+	if err := runGC(root, "proj1", 24*time.Hour, false, false, false, 0, false); err != nil {
 		t.Fatalf("runGC: %v", err)
 	}
 
@@ -177,7 +177,7 @@ func TestGCSkipsMissingRunInfo(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 
-	if err := runGC(root, "", 24*time.Hour, false, false, false, 0); err != nil {
+	if err := runGC(root, "", 24*time.Hour, false, false, false, 0, false); err != nil {
 		t.Fatalf("runGC: %v", err)
 	}
 
@@ -195,7 +195,7 @@ func TestGCSummaryOutput(t *testing.T) {
 
 	var output string
 	output = captureStdout(t, func() {
-		if err := runGC(root, "", 24*time.Hour, false, false, false, 0); err != nil {
+		if err := runGC(root, "", 24*time.Hour, false, false, false, 0, false); err != nil {
 			t.Errorf("runGC: %v", err)
 		}
 	})
@@ -212,7 +212,7 @@ func TestGCMultipleTasks(t *testing.T) {
 	dir1 := makeRun(t, root, "proj", "task1", "run-old", storage.StatusCompleted, old, 0)
 	dir2 := makeRun(t, root, "proj", "task2", "run-old", storage.StatusCompleted, old, 0)
 
-	if err := runGC(root, "", 24*time.Hour, false, false, false, 0); err != nil {
+	if err := runGC(root, "", 24*time.Hour, false, false, false, 0, false); err != nil {
 		t.Fatalf("runGC: %v", err)
 	}
 
@@ -261,7 +261,7 @@ func TestGCRotateBus_LargeFileGetsRotated(t *testing.T) {
 
 	var output string
 	output = captureStdout(t, func() {
-		if err := runGC(root, "", 168*time.Hour, false, false, true, 1*1024*1024); err != nil {
+		if err := runGC(root, "", 168*time.Hour, false, false, true, 1*1024*1024, false); err != nil {
 			t.Fatalf("runGC: %v", err)
 		}
 	})
@@ -298,7 +298,7 @@ func TestGCRotateBus_SmallFileNotRotated(t *testing.T) {
 	// 512KB file, threshold 1MB — should NOT be rotated
 	makeBusFile(t, taskBus, 512*1024)
 
-	if err := runGC(root, "", 168*time.Hour, false, false, true, 1*1024*1024); err != nil {
+	if err := runGC(root, "", 168*time.Hour, false, false, true, 1*1024*1024, false); err != nil {
 		t.Fatalf("runGC: %v", err)
 	}
 
@@ -316,7 +316,7 @@ func TestGCRotateBus_DryRunDoesNotRotate(t *testing.T) {
 
 	var output string
 	output = captureStdout(t, func() {
-		if err := runGC(root, "", 168*time.Hour, true, false, true, 1*1024*1024); err != nil {
+		if err := runGC(root, "", 168*time.Hour, true, false, true, 1*1024*1024, false); err != nil {
 			t.Fatalf("runGC: %v", err)
 		}
 	})
@@ -346,7 +346,7 @@ func TestGCRotateBus_ThresholdRespected(t *testing.T) {
 	bus2 := filepath.Join(root, "proj", "task2", "TASK-MESSAGE-BUS.md")
 	makeBusFile(t, bus2, 1*1024*1024)
 
-	if err := runGC(root, "", 168*time.Hour, false, false, true, 2*1024*1024); err != nil {
+	if err := runGC(root, "", 168*time.Hour, false, false, true, 2*1024*1024, false); err != nil {
 		t.Fatalf("runGC: %v", err)
 	}
 
@@ -367,7 +367,7 @@ func TestGCRotateBus_ProjectBusFileRotated(t *testing.T) {
 	// 2MB project bus file, threshold 1MB
 	makeBusFile(t, projBus, 2*1024*1024)
 
-	if err := runGC(root, "", 168*time.Hour, false, false, true, 1*1024*1024); err != nil {
+	if err := runGC(root, "", 168*time.Hour, false, false, true, 1*1024*1024, false); err != nil {
 		t.Fatalf("runGC: %v", err)
 	}
 
@@ -399,13 +399,148 @@ func TestGCRotateBus_NotRotatedWhenFlagAbsent(t *testing.T) {
 	// Large file but --rotate-bus not set
 	makeBusFile(t, taskBus, 20*1024*1024)
 
-	if err := runGC(root, "", 168*time.Hour, false, false, false, 10*1024*1024); err != nil {
+	if err := runGC(root, "", 168*time.Hour, false, false, false, 10*1024*1024, false); err != nil {
 		t.Fatalf("runGC: %v", err)
 	}
 
 	// File should still exist (rotation not requested)
 	if _, err := os.Stat(taskBus); err != nil {
 		t.Errorf("expected bus file to remain when --rotate-bus not set: %v", err)
+	}
+}
+
+// --- delete-done-tasks tests ---
+
+// makeTaskDir creates a task directory structure for testing.
+// If withDone is true, creates a DONE file. If withRuns is true, creates a runs/ subdir with one run dir.
+func makeTaskDir(t *testing.T, root, project, task string, withDone bool, withRuns bool) string {
+	t.Helper()
+	taskDir := filepath.Join(root, project, task)
+	runsDir := filepath.Join(taskDir, "runs")
+	if err := os.MkdirAll(runsDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", runsDir, err)
+	}
+	if withDone {
+		if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte("done"), 0o644); err != nil {
+			t.Fatalf("write DONE: %v", err)
+		}
+	}
+	if withRuns {
+		runDir := filepath.Join(runsDir, "run-001")
+		if err := os.MkdirAll(runDir, 0o755); err != nil {
+			t.Fatalf("mkdir run dir: %v", err)
+		}
+	}
+	return taskDir
+}
+
+func TestGCDeleteDoneTasksNoFlag(t *testing.T) {
+	root := t.TempDir()
+	// Task with DONE file and empty runs/ — but flag not set
+	taskDir := makeTaskDir(t, root, "proj", "task-old-done", true, false)
+	// Make task dir appear old
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(taskDir, old, old); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+
+	if err := runGC(root, "", 24*time.Hour, false, false, false, 0, false); err != nil {
+		t.Fatalf("runGC: %v", err)
+	}
+
+	// Task dir should still exist (flag not set)
+	if _, err := os.Stat(taskDir); err != nil {
+		t.Errorf("expected task dir to still exist when --delete-done-tasks not set: %v", err)
+	}
+}
+
+func TestGCDeleteDoneTasksWithDONE(t *testing.T) {
+	root := t.TempDir()
+	// Task with DONE file and empty runs/
+	taskDir := makeTaskDir(t, root, "proj", "task-old-done", true, false)
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(taskDir, old, old); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+
+	var output string
+	output = captureStdout(t, func() {
+		if err := runGC(root, "", 24*time.Hour, false, false, false, 0, true); err != nil {
+			t.Fatalf("runGC: %v", err)
+		}
+	})
+
+	// Task dir should be gone
+	if _, err := os.Stat(taskDir); !os.IsNotExist(err) {
+		t.Errorf("expected task dir to be deleted, but it still exists")
+	}
+	if !strings.Contains(output, "Deleted 1 task directories") {
+		t.Errorf("expected 'Deleted 1 task directories' in output, got: %q", output)
+	}
+}
+
+func TestGCDeleteDoneTasksNoDONE(t *testing.T) {
+	root := t.TempDir()
+	// Task WITHOUT DONE file
+	taskDir := makeTaskDir(t, root, "proj", "task-old-nodone", false, false)
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(taskDir, old, old); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+
+	if err := runGC(root, "", 24*time.Hour, false, false, false, 0, true); err != nil {
+		t.Fatalf("runGC: %v", err)
+	}
+
+	// Task dir should still exist (no DONE file)
+	if _, err := os.Stat(taskDir); err != nil {
+		t.Errorf("expected task dir without DONE to still exist: %v", err)
+	}
+}
+
+func TestGCDeleteDoneTasksDryRun(t *testing.T) {
+	root := t.TempDir()
+	taskDir := makeTaskDir(t, root, "proj", "task-old-done", true, false)
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(taskDir, old, old); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+
+	var output string
+	output = captureStdout(t, func() {
+		if err := runGC(root, "", 24*time.Hour, true, false, false, 0, true); err != nil {
+			t.Fatalf("runGC dry-run: %v", err)
+		}
+	})
+
+	// Task dir should NOT be deleted in dry-run mode
+	if _, err := os.Stat(taskDir); err != nil {
+		t.Errorf("expected task dir to still exist in dry-run: %v", err)
+	}
+	if !strings.Contains(output, "[dry-run]") {
+		t.Errorf("expected '[dry-run]' in output, got: %q", output)
+	}
+	if !strings.Contains(output, "would delete task dir") {
+		t.Errorf("expected 'would delete task dir' in output, got: %q", output)
+	}
+}
+
+func TestGCDeleteDoneTasksActiveRuns(t *testing.T) {
+	root := t.TempDir()
+	// Task with DONE file but non-empty runs/
+	taskDir := makeTaskDir(t, root, "proj", "task-old-active", true, true)
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(taskDir, old, old); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+
+	if err := runGC(root, "", 24*time.Hour, false, false, false, 0, true); err != nil {
+		t.Fatalf("runGC: %v", err)
+	}
+
+	// Task dir should still exist (non-empty runs/)
+	if _, err := os.Stat(taskDir); err != nil {
+		t.Errorf("expected task dir with active runs to still exist: %v", err)
 	}
 }
 
