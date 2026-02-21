@@ -81,6 +81,7 @@ func newJobSubmitCmd() *cobra.Command {
 		projectRoot string
 		attachMode  string
 		wait        bool
+		follow      bool
 		jsonOutput  bool
 	)
 
@@ -103,7 +104,7 @@ func newJobSubmitCmd() *cobra.Command {
 				ProjectRoot: projectRoot,
 				AttachMode:  attachMode,
 			}
-			return jobSubmit(server, req, wait, jsonOutput)
+			return jobSubmit(cmd.OutOrStdout(), server, req, wait, follow, jsonOutput)
 		},
 	}
 
@@ -116,6 +117,7 @@ func newJobSubmitCmd() *cobra.Command {
 	cmd.Flags().StringVar(&projectRoot, "project-root", "", "working directory for the task")
 	cmd.Flags().StringVar(&attachMode, "attach-mode", "create", "attach mode: create, attach, or resume")
 	cmd.Flags().BoolVar(&wait, "wait", false, "wait for task completion by polling run status")
+	cmd.Flags().BoolVar(&follow, "follow", false, "stream task output after submission (implies --wait)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 	_ = cmd.MarkFlagRequired("project")
 	_ = cmd.MarkFlagRequired("agent")
@@ -187,7 +189,7 @@ type jobTaskListResponse struct {
 	Tasks []jobTaskResponse `json:"tasks"`
 }
 
-func jobSubmit(server string, req jobCreateRequest, wait bool, jsonOutput bool) error {
+func jobSubmit(out io.Writer, server string, req jobCreateRequest, wait bool, follow bool, jsonOutput bool) error {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("encode request: %w", err)
@@ -214,14 +216,24 @@ func jobSubmit(server string, req jobCreateRequest, wait bool, jsonOutput bool) 
 	}
 
 	if jsonOutput {
-		fmt.Printf("%s\n", strings.TrimSpace(string(data)))
+		fmt.Fprintf(out, "%s\n", strings.TrimSpace(string(data)))
 		return nil
 	}
 
-	fmt.Printf("Task created: %s, run_id: %s\n", result.TaskID, result.RunID)
+	fmt.Fprintf(out, "Task created: %s, run_id: %s\n", result.TaskID, result.RunID)
+
+	if follow {
+		// Wait for a run to start (it may not exist yet immediately after submit),
+		// then stream its output with follow=true.
+		runID, err := waitForRunStart(server, result.ProjectID, result.TaskID, 30*time.Second)
+		if err != nil {
+			return err
+		}
+		return taskLogs(out, server, result.ProjectID, result.TaskID, runID, true, 0)
+	}
 
 	if wait {
-		return waitForRun(server, result.RunID)
+		return waitForRun(out, server, result.RunID)
 	}
 	return nil
 }
@@ -229,9 +241,31 @@ func jobSubmit(server string, req jobCreateRequest, wait bool, jsonOutput bool) 
 // pollInterval is used by waitForRun; overridable in tests.
 var pollInterval = 2 * time.Second
 
-func waitForRun(server, runID string) error {
+// followRetryInterval is used by waitForRunStart; overridable in tests.
+var followRetryInterval = time.Second
+
+// waitForRunStart polls the task until a run is available, then returns the run ID.
+// It retries every followRetryInterval for up to maxWait.
+func waitForRunStart(server, project, taskID string, maxWait time.Duration) (string, error) {
+	deadline := time.Now().Add(maxWait)
+	for {
+		runID, err := resolveLatestRunID(server, project, taskID)
+		if err == nil {
+			return runID, nil
+		}
+		if !strings.Contains(err.Error(), "no runs found") {
+			return "", err
+		}
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("timed out waiting for run to start for task %s", taskID)
+		}
+		time.Sleep(followRetryInterval)
+	}
+}
+
+func waitForRun(out io.Writer, server, runID string) error {
 	url := server + "/api/v1/runs/" + runID
-	fmt.Printf("Waiting for run %s to complete...\n", runID)
+	fmt.Fprintf(out, "Waiting for run %s to complete...\n", runID)
 	for {
 		resp, err := http.Get(url) //nolint:noctx
 		if err != nil {
@@ -250,7 +284,7 @@ func waitForRun(server, runID string) error {
 			return fmt.Errorf("decode run: %w", err)
 		}
 		if !run.EndTime.IsZero() {
-			fmt.Printf("Run %s completed: status=%s exit_code=%d\n", runID, run.Status, run.ExitCode)
+			fmt.Fprintf(out, "Run %s completed: status=%s exit_code=%d\n", runID, run.Status, run.ExitCode)
 			return nil
 		}
 		time.Sleep(pollInterval)

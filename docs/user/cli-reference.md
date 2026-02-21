@@ -388,11 +388,14 @@ conductor job submit --project PROJECT --agent AGENT (--prompt PROMPT | --prompt
 | `--project-root` | string | "" | Working directory for the task |
 | `--attach-mode` | string | "create" | Attach mode: create, attach, or resume |
 | `--wait` | bool | false | Wait for task completion by polling |
+| `--follow` | bool | false | Stream task output after submission (implies `--wait`); reconnects on connection drop |
 | `--json` | bool | false | Output raw JSON response |
 
 Exactly one of `--prompt` or `--prompt-file` must be provided. Errors are returned if both are set, neither is set, the file is not found, or the file is empty.
 
 When `--task` is omitted, a task ID is auto-generated in the format `task-YYYYMMDD-HHMMSS-xxxxxx` (6-char random hex suffix). The assigned task ID is printed to stdout on success.
+
+When `--follow` is set, after submitting the job the command streams the task's agent output to stdout via the conductor server's SSE endpoint, blocking until the task completes. If both `--follow` and `--wait` are set, `--follow` takes precedence (streaming output is strictly better than silent polling). The command waits up to 30 seconds for the first run to start.
 
 **Example:**
 ```bash
@@ -417,6 +420,13 @@ conductor job submit \
   --agent claude \
   --prompt-file /path/to/prompt.md \
   --wait
+
+# Stream output in real-time (no need to separately run conductor task logs)
+conductor job submit \
+  --project my-project \
+  --agent claude \
+  --prompt-file /path/to/prompt.md \
+  --follow
 ```
 
 ##### `conductor job list`

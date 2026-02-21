@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -279,7 +281,7 @@ func TestJobSubmitSuccess(t *testing.T) {
 		AgentType: "claude",
 		Prompt:    "Do the thing",
 	}
-	if err := jobSubmit(srv.URL, req, false, false); err != nil {
+	if err := jobSubmit(new(bytes.Buffer), srv.URL, req, false, false, false); err != nil {
 		t.Fatalf("jobSubmit: %v", err)
 	}
 }
@@ -299,7 +301,7 @@ func TestJobSubmitJSONOutput(t *testing.T) {
 	defer srv.Close()
 
 	req := jobCreateRequest{ProjectID: "proj", TaskID: "task-20260220-100000-x", AgentType: "claude", Prompt: "Hi"}
-	if err := jobSubmit(srv.URL, req, false, true); err != nil {
+	if err := jobSubmit(new(bytes.Buffer), srv.URL, req, false, false, true); err != nil {
 		t.Fatalf("jobSubmit json: %v", err)
 	}
 }
@@ -311,7 +313,7 @@ func TestJobSubmitServerError(t *testing.T) {
 	defer srv.Close()
 
 	req := jobCreateRequest{ProjectID: "p", TaskID: "t", AgentType: "a", Prompt: "x"}
-	if err := jobSubmit(srv.URL, req, false, false); err == nil {
+	if err := jobSubmit(new(bytes.Buffer), srv.URL, req, false, false, false); err == nil {
 		t.Fatal("expected error on 400 response")
 	}
 }
@@ -347,11 +349,69 @@ func TestJobSubmitWait(t *testing.T) {
 	defer func() { pollInterval = old }()
 
 	req := jobCreateRequest{ProjectID: "p", TaskID: "t", AgentType: "claude", Prompt: "x"}
-	if err := jobSubmit(srv.URL, req, true, false); err != nil {
+	if err := jobSubmit(new(bytes.Buffer), srv.URL, req, true, false, false); err != nil {
 		t.Fatalf("jobSubmit with wait: %v", err)
 	}
 	if pollCount < 2 {
 		t.Errorf("expected at least 2 poll calls, got %d", pollCount)
+	}
+}
+
+// TestJobSubmitFollow verifies that --follow streams task output after submission.
+func TestJobSubmitFollow(t *testing.T) {
+	taskID := "task-20260221-100000-follow"
+	runID := "20260221-1000000000-99999-1"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/tasks":
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(jobCreateResponse{
+				ProjectID: "p", TaskID: taskID, RunID: runID, Status: "started",
+			})
+		case "/api/projects/p/tasks/" + taskID:
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"id": taskID, "status": "running",
+				"runs": []map[string]string{{"run_id": runID, "status": "running"}},
+			})
+		case "/api/projects/p/tasks/" + taskID + "/runs/" + runID + "/stream":
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, "data: hello from follow\n\nevent: done\ndata: done\n\n")
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	// Override retry interval to avoid slow tests.
+	old := followRetryInterval
+	followRetryInterval = 0
+	defer func() { followRetryInterval = old }()
+
+	var buf bytes.Buffer
+	req := jobCreateRequest{ProjectID: "p", TaskID: taskID, AgentType: "claude", Prompt: "x"}
+	if err := jobSubmit(&buf, srv.URL, req, false, true, false); err != nil {
+		t.Fatalf("jobSubmit --follow: %v", err)
+	}
+	if !strings.Contains(buf.String(), "hello from follow") {
+		t.Errorf("expected 'hello from follow' in output, got:\n%s", buf.String())
+	}
+}
+
+// TestJobSubmitFollowFlagRegistered verifies --follow appears in job submit --help.
+func TestJobSubmitFollowFlagRegistered(t *testing.T) {
+	cmd := newRootCmd()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"job", "submit", "--help"})
+	_ = cmd.Execute()
+	if !strings.Contains(buf.String(), "follow") {
+		t.Errorf("expected 'follow' in job submit --help output, got:\n%s", buf.String())
 	}
 }
 
