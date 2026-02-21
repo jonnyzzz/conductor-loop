@@ -289,6 +289,42 @@ conductor task logs task-20260221-120000-my-task --project my-project \
   --run 20260221-1200000000-12345-1
 ```
 
+##### `conductor task runs <task-id>`
+
+List all runs for a specific task with status, exit code, duration, and agent version.
+
+```bash
+conductor task runs <task-id> --project PROJECT [--limit N] [--json] [--server URL]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--project` | string | "" | Project ID (required) |
+| `--limit` | int | 50 | Maximum number of runs to show |
+| `--json` | bool | false | Output as JSON |
+
+Shows all runs for the task, newest first. Useful for tracking Ralph loop restarts and debugging.
+
+**Example:**
+```bash
+# List all runs for a task
+conductor task runs task-20260221-120000-my-task --project my-project
+
+# List only last 10 runs
+conductor task runs task-20260221-120000-my-task --project my-project --limit 10
+
+# JSON output for scripting
+conductor task runs task-20260221-120000-my-task --project my-project --json
+```
+
+**Sample output:**
+```
+RUN ID                          AGENT    STATUS      EXIT  DURATION  STARTED               ERROR
+20260221-120100-12346           claude   completed      0  5m23s     2026-02-21 12:01:00
+20260221-115900-12345           claude   failed         1  0m12s     2026-02-21 11:59:00   exit code 1: general failure
+```
+
 ---
 
 #### `conductor job`
