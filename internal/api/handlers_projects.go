@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,36 @@ import (
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/pkg/errors"
 )
+
+// paginatedResponse is the JSON envelope for paginated list responses.
+type paginatedResponse struct {
+	Items   any  `json:"items"`
+	Total   int  `json:"total"`
+	Limit   int  `json:"limit"`
+	Offset  int  `json:"offset"`
+	HasMore bool `json:"has_more"`
+}
+
+// parsePagination parses `limit` and `offset` query parameters.
+// Default: limit=50, offset=0. Max limit: 500.
+func parsePagination(r *http.Request) (limit, offset int) {
+	limit = 50
+	offset = 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	return limit, offset
+}
 
 // projectRun is the run summary shape the project API returns.
 type projectRun struct {
@@ -192,8 +223,26 @@ func (s *Server) handleProjectTasks(w http.ResponseWriter, r *http.Request) *api
 	}
 
 	tasks := buildTasks(projectID, runs)
-	result := make([]map[string]interface{}, 0, len(tasks))
-	for _, t := range tasks {
+	// Sort by creation time, newest first.
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].CreatedAt.After(tasks[j].CreatedAt)
+	})
+
+	limit, offset := parsePagination(r)
+	total := len(tasks)
+
+	// Determine the page slice.
+	pageEnd := offset + limit
+	if pageEnd > total {
+		pageEnd = total
+	}
+	var pageTasks []projectTask
+	if offset < total {
+		pageTasks = tasks[offset:pageEnd]
+	}
+
+	result := make([]map[string]interface{}, 0, len(pageTasks))
+	for _, t := range pageTasks {
 		runCounts := make(map[string]int)
 		for _, r := range t.Runs {
 			runCounts[r.Status]++
@@ -207,12 +256,13 @@ func (s *Server) handleProjectTasks(w http.ResponseWriter, r *http.Request) *api
 			"run_counts":    runCounts,
 		})
 	}
-	sort.Slice(result, func(i, j int) bool {
-		ai, _ := result[i]["last_activity"].(time.Time)
-		aj, _ := result[j]["last_activity"].(time.Time)
-		return ai.After(aj)
+	return writeJSON(w, http.StatusOK, paginatedResponse{
+		Items:   result,
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
+		HasMore: pageEnd < total,
 	})
-	return writeJSON(w, http.StatusOK, map[string]interface{}{"tasks": result})
 }
 
 // handleProjectTask serves GET /api/projects/{projectId}/tasks/{taskId}
@@ -253,7 +303,15 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 		return apiErrorNotFound("not found")
 	}
 
-	if len(parts) >= 5 && parts[3] == "runs" {
+	if len(parts) >= 4 && parts[3] == "runs" {
+		// Paginated runs list: GET /api/projects/{p}/tasks/{t}/runs
+		if len(parts) == 4 {
+			if r.Method != http.MethodGet {
+				return apiErrorMethodNotAllowed()
+			}
+			return s.handleProjectTaskRunsList(w, r, projectID, taskID, runs)
+		}
+
 		// Task-level log stream: GET /api/projects/{p}/tasks/{t}/runs/stream
 		if len(parts) == 5 && parts[4] == "stream" {
 			if r.Method != http.MethodGet {
@@ -333,6 +391,42 @@ func (s *Server) handleStopRun(w http.ResponseWriter, run *storage.RunInfo) *api
 	return writeJSON(w, http.StatusAccepted, map[string]interface{}{
 		"run_id":  run.RunID,
 		"message": "SIGTERM sent",
+	})
+}
+
+// handleProjectTaskRunsList serves GET /api/projects/{p}/tasks/{t}/runs (paginated run list).
+func (s *Server) handleProjectTaskRunsList(w http.ResponseWriter, r *http.Request, projectID, taskID string, allRuns []*storage.RunInfo) *apiError {
+	var taskRuns []projectRun
+	for _, run := range allRuns {
+		if run.ProjectID == projectID && run.TaskID == taskID {
+			taskRuns = append(taskRuns, runInfoToProjectRun(run))
+		}
+	}
+	if len(taskRuns) == 0 {
+		return apiErrorNotFound("task not found")
+	}
+	// Sort by start time, newest first.
+	sort.Slice(taskRuns, func(i, j int) bool {
+		return taskRuns[i].StartTime.After(taskRuns[j].StartTime)
+	})
+
+	limit, offset := parsePagination(r)
+	total := len(taskRuns)
+
+	pageEnd := offset + limit
+	if pageEnd > total {
+		pageEnd = total
+	}
+	page := make([]projectRun, 0)
+	if offset < total {
+		page = taskRuns[offset:pageEnd]
+	}
+	return writeJSON(w, http.StatusOK, paginatedResponse{
+		Items:   page,
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
+		HasMore: pageEnd < total,
 	})
 }
 

@@ -6,6 +6,8 @@ import type {
   ProjectDetail,
   ProjectsResponse,
   RunInfo,
+  RunSummary,
+  RunsResponse,
   TaskDetail,
   TaskSummary,
   TasksResponse,
@@ -73,7 +75,7 @@ export class APIClient {
     const data = await this.request<TasksResponse>(
       `/api/projects/${encodeURIComponent(projectId)}/tasks`
     )
-    return data.tasks
+    return data.items
   }
 
   async getTask(projectId: string, taskId: string): Promise<TaskDetail> {
@@ -82,9 +84,11 @@ export class APIClient {
     )
   }
 
-  async getRuns(projectId: string, taskId: string): Promise<TaskDetail['runs']> {
-    const task = await this.getTask(projectId, taskId)
-    return task.runs
+  async getRuns(projectId: string, taskId: string): Promise<RunSummary[]> {
+    const data = await this.request<RunsResponse>(
+      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/runs`
+    )
+    return data.items
   }
 
   async getRunInfo(projectId: string, taskId: string, runId: string): Promise<RunInfo> {

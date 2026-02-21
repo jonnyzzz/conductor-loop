@@ -1055,3 +1055,295 @@ func TestFindProjectDir_NotFound(t *testing.T) {
 		t.Errorf("expected not found for non-existent project dir")
 	}
 }
+
+// makeProjectRunAt creates a run with a controlled start time for pagination ordering tests.
+func makeProjectRunAt(t *testing.T, root, projectID, taskID, runID, status string, startTime time.Time) *storage.RunInfo {
+	t.Helper()
+	runDir := filepath.Join(root, projectID, taskID, "runs", runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir run: %v", err)
+	}
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+	if err := os.WriteFile(stdoutPath, []byte("output"), 0o644); err != nil {
+		t.Fatalf("write stdout: %v", err)
+	}
+	info := &storage.RunInfo{
+		RunID:      runID,
+		ProjectID:  projectID,
+		TaskID:     taskID,
+		Status:     status,
+		StartTime:  startTime,
+		StdoutPath: stdoutPath,
+	}
+	if status != storage.StatusRunning {
+		info.EndTime = startTime.Add(time.Minute)
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+	return info
+}
+
+func TestProjectTasksPagination_Default(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj", "task-20260101-120000-aaa", "run-1", storage.StatusCompleted, base)
+	makeProjectRunAt(t, root, "proj", "task-20260101-130000-bbb", "run-1", storage.StatusCompleted, base.Add(time.Hour))
+	makeProjectRunAt(t, root, "proj", "task-20260101-140000-ccc", "run-1", storage.StatusCompleted, base.Add(2*time.Hour))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["total"] == nil {
+		t.Fatalf("expected 'total' field in paginated response")
+	}
+	if int(resp["total"].(float64)) != 3 {
+		t.Errorf("expected total=3, got %v", resp["total"])
+	}
+	if int(resp["limit"].(float64)) != 50 {
+		t.Errorf("expected limit=50, got %v", resp["limit"])
+	}
+	if int(resp["offset"].(float64)) != 0 {
+		t.Errorf("expected offset=0, got %v", resp["offset"])
+	}
+	if resp["has_more"].(bool) {
+		t.Errorf("expected has_more=false for 3 items with limit=50")
+	}
+	items, ok := resp["items"].([]interface{})
+	if !ok {
+		t.Fatalf("expected 'items' array, got %T", resp["items"])
+	}
+	if len(items) != 3 {
+		t.Errorf("expected 3 items, got %d", len(items))
+	}
+}
+
+func TestProjectTasksPagination_LimitOffset(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj", "task-20260101-120000-aaa", "run-1", storage.StatusCompleted, base)
+	makeProjectRunAt(t, root, "proj", "task-20260101-130000-bbb", "run-1", storage.StatusCompleted, base.Add(time.Hour))
+	makeProjectRunAt(t, root, "proj", "task-20260101-140000-ccc", "run-1", storage.StatusCompleted, base.Add(2*time.Hour))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks?limit=2&offset=0", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if int(resp["total"].(float64)) != 3 {
+		t.Errorf("expected total=3, got %v", resp["total"])
+	}
+	if int(resp["limit"].(float64)) != 2 {
+		t.Errorf("expected limit=2, got %v", resp["limit"])
+	}
+	if !resp["has_more"].(bool) {
+		t.Errorf("expected has_more=true")
+	}
+	items := resp["items"].([]interface{})
+	if len(items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(items))
+	}
+}
+
+func TestProjectTasksPagination_OffsetBeyondTotal(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj", "task-20260101-120000-aaa", "run-1", storage.StatusCompleted, base)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks?limit=50&offset=10", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if int(resp["total"].(float64)) != 1 {
+		t.Errorf("expected total=1, got %v", resp["total"])
+	}
+	if resp["has_more"].(bool) {
+		t.Errorf("expected has_more=false")
+	}
+	items := resp["items"].([]interface{})
+	if len(items) != 0 {
+		t.Errorf("expected 0 items for offset beyond total, got %d", len(items))
+	}
+}
+
+func TestProjectTasksPagination_LimitClamped(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj", "task-20260101-120000-aaa", "run-1", storage.StatusCompleted, base)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks?limit=9999", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if int(resp["limit"].(float64)) != 500 {
+		t.Errorf("expected limit clamped to 500, got %v", resp["limit"])
+	}
+}
+
+func TestProjectTaskRunsPagination_Default(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj", "task-a", "run-1", storage.StatusCompleted, base)
+	makeProjectRunAt(t, root, "proj", "task-a", "run-2", storage.StatusCompleted, base.Add(time.Hour))
+	makeProjectRunAt(t, root, "proj", "task-a", "run-3", storage.StatusRunning, base.Add(2*time.Hour))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks/task-a/runs", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if int(resp["total"].(float64)) != 3 {
+		t.Errorf("expected total=3, got %v", resp["total"])
+	}
+	if int(resp["limit"].(float64)) != 50 {
+		t.Errorf("expected limit=50, got %v", resp["limit"])
+	}
+	if resp["has_more"].(bool) {
+		t.Errorf("expected has_more=false")
+	}
+	items := resp["items"].([]interface{})
+	if len(items) != 3 {
+		t.Errorf("expected 3 items, got %d", len(items))
+	}
+}
+
+func TestProjectTaskRunsPagination_LimitOffset(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj", "task-b", "run-1", storage.StatusCompleted, base)
+	makeProjectRunAt(t, root, "proj", "task-b", "run-2", storage.StatusCompleted, base.Add(time.Hour))
+	makeProjectRunAt(t, root, "proj", "task-b", "run-3", storage.StatusCompleted, base.Add(2*time.Hour))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks/task-b/runs?limit=2&offset=1", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if int(resp["total"].(float64)) != 3 {
+		t.Errorf("expected total=3, got %v", resp["total"])
+	}
+	if int(resp["limit"].(float64)) != 2 {
+		t.Errorf("expected limit=2, got %v", resp["limit"])
+	}
+	if int(resp["offset"].(float64)) != 1 {
+		t.Errorf("expected offset=1, got %v", resp["offset"])
+	}
+	if resp["has_more"].(bool) {
+		t.Errorf("expected has_more=false for offset=1 limit=2 total=3")
+	}
+	items := resp["items"].([]interface{})
+	if len(items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(items))
+	}
+}
+
+func TestProjectTaskRunsPagination_NotFound(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks/task-nonexistent/runs", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for nonexistent task, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProjectTaskRunsPagination_SortNewestFirst(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	// Create runs in "wrong" order - oldest first
+	makeProjectRunAt(t, root, "proj", "task-c", "run-old", storage.StatusCompleted, base)
+	makeProjectRunAt(t, root, "proj", "task-c", "run-new", storage.StatusCompleted, base.Add(2*time.Hour))
+	makeProjectRunAt(t, root, "proj", "task-c", "run-mid", storage.StatusCompleted, base.Add(time.Hour))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks/task-c/runs", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	items := resp["items"].([]interface{})
+	if len(items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(items))
+	}
+	// First item should be newest (run-new)
+	first := items[0].(map[string]interface{})
+	if first["id"] != "run-new" {
+		t.Errorf("expected first item to be run-new (newest), got %v", first["id"])
+	}
+	// Last item should be oldest (run-old)
+	last := items[2].(map[string]interface{})
+	if last["id"] != "run-old" {
+		t.Errorf("expected last item to be run-old (oldest), got %v", last["id"])
+	}
+}
