@@ -2833,3 +2833,25 @@ project_id: conductor-loop
 [2026-02-21] FACT: Committed 9555b3a: feat(cli): add conductor task delete and project stats commands
 - 3 files changed, 325 insertions(+)
 
+## Session #36 Summary (2026-02-21)
+
+[2026-02-21] FACT: Session #36 started — go build PASS, all 14 test packages green, no races
+
+[2026-02-21] FACT: Implemented --prompt-file flag for conductor job submit
+- `conductor job submit --prompt-file <path>` (mutually exclusive with --prompt)
+- loadPrompt() helper validates mutual exclusivity and reads file content
+- Returns clear errors: both set, neither set, file not found, empty file
+- Mirrors existing run-agent job --prompt-file flag
+- 8 new tests in commands_test.go
+
+[2026-02-21] FACT: GC completed — deleted 7 runs from conductor-loop project, freed 2.8 MB
+
+[2026-02-21] FACT: Quality gate PASS
+- go build -o bin/conductor ./cmd/conductor: OK
+- go build -o bin/run-agent ./cmd/run-agent: OK
+- go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races
+- 8 new tests total (commands_test.go)
+
+[2026-02-21] FACT: Committed 67b9d60: feat(cli): add --prompt-file flag to conductor job submit
+- 2 files changed, 165 insertions(+), 3 deletions(-)
+
