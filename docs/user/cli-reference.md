@@ -189,28 +189,36 @@ RUN ID                          STATUS   START TIME             END TIME        
 
 ##### `conductor task list`
 
-List tasks in a project.
+List tasks in a project, optionally filtered by status.
 
 ```bash
-conductor task list --project <id> [--server URL] [--json]
+conductor task list --project <id> [--status <filter>] [--server URL] [--json]
 ```
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--server` | string | "http://localhost:8080" | Conductor server URL |
 | `--project` | string | "" | Project ID (required) |
+| `--status` | string | "" | Filter by status: `running`, `active`, `done`, `failed` |
 | `--json` | bool | false | Output raw JSON response |
+
+**Status filter values:**
+- `running` / `active` — tasks with at least one currently-running run
+- `done` — tasks where the `DONE` file exists (Ralph loop completed)
+- `failed` — tasks with no running runs, no DONE file, and at least one failed run
 
 **Example:**
 ```bash
 conductor task list --project my-project
+conductor task list --project my-project --status running
+conductor task list --project my-project --status done
 conductor task list --project my-project --json
 ```
 
 **Output:**
 ```
 TASK ID                           STATUS   RUNS  LAST ACTIVITY
-task-20260220-140000-hello        success  3     2026-02-20 14:01
+task-20260220-140000-hello        done     3     2026-02-20 14:01
 task-20260220-150000-analysis     running  1     2026-02-20 15:02
 ```
 
@@ -559,6 +567,48 @@ conductor project gc --project my-project --older-than 24h --keep-failed
 # JSON output
 conductor project gc --project my-project --dry-run --json
 ```
+
+---
+
+##### `conductor project delete`
+
+Delete an entire project — all tasks and all their runs — via the conductor server API.
+
+```bash
+conductor project delete <project-id> [--force] [--server URL] [--json]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--force` | bool | false | Stop running tasks and delete anyway |
+| `--json` | bool | false | Output raw JSON response |
+
+**Behavior:**
+- If any tasks have running runs, the command returns an error unless `--force` is specified.
+- With `--force`, running tasks are stopped (SIGTERM) before deletion.
+- Returns the number of tasks deleted and disk space freed.
+
+**Example:**
+```bash
+# Delete a project (fails if tasks are running)
+conductor project delete my-project
+
+# Force-delete even with running tasks
+conductor project delete my-project --force
+
+# JSON output
+conductor project delete my-project --json
+```
+
+**Output:**
+```
+Project my-project deleted (5 tasks, 42.00 MB freed).
+```
+
+**Error cases:**
+- `409 Conflict`: project has running tasks — stop them first or use `--force`
+- `404 Not Found`: project does not exist
 
 ---
 
