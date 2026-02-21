@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -100,6 +101,11 @@ func TestTaskResume_PrintsResumingMessage(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte(""), 0o644); err != nil {
 		t.Fatalf("write DONE: %v", err)
 	}
+
+	// Create a stub binary so agent CLI validation passes
+	binDir := t.TempDir()
+	createStubCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	var stderr bytes.Buffer
 	cmd := newRootCmd()
@@ -286,5 +292,21 @@ func TestResume_AppearsInHelp(t *testing.T) {
 	out := stdout.String()
 	if !strings.Contains(out, "resume") {
 		t.Errorf("expected 'resume' in root --help output, got:\n%s", out)
+	}
+}
+
+// createStubCLI writes a minimal executable stub at dir/name that exits 0.
+func createStubCLI(t *testing.T, dir, name string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		path := filepath.Join(dir, name+".bat")
+		if err := os.WriteFile(path, []byte("@echo off\r\nexit 0\r\n"), 0o644); err != nil {
+			t.Fatalf("write stub bat: %v", err)
+		}
+		return
+	}
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write stub script: %v", err)
 	}
 }
