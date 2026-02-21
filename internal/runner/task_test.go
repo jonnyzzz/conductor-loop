@@ -21,6 +21,10 @@ func TestRunTaskDone(t *testing.T) {
 		t.Fatalf("write DONE: %v", err)
 	}
 
+	binDir := t.TempDir()
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
 	if err := RunTask("project", "task", TaskOptions{RootDir: root, Agent: "codex"}); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
@@ -47,6 +51,10 @@ func TestRunTask_CreatesTaskMD(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte(""), 0o644); err != nil {
 		t.Fatalf("write DONE: %v", err)
 	}
+
+	binDir := t.TempDir()
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	prompt := "do the thing"
 	if err := RunTask("project", "task", TaskOptions{
@@ -76,6 +84,10 @@ func TestRunTask_WithPromptFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte(""), 0o644); err != nil {
 		t.Fatalf("write DONE: %v", err)
 	}
+
+	binDir := t.TempDir()
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	promptFile := filepath.Join(t.TempDir(), "prompt.md")
 	promptContent := "prompt from file"
@@ -112,6 +124,10 @@ func TestRunTask_UsesExistingTaskMD(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte(""), 0o644); err != nil {
 		t.Fatalf("write DONE: %v", err)
 	}
+
+	binDir := t.TempDir()
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	// No prompt provided — should use TASK.md content and succeed
 	if err := RunTask("project", "task", TaskOptions{
