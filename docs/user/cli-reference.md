@@ -251,6 +251,46 @@ Task task-20260220-140000-hello deleted.
 
 ---
 
+##### `conductor task logs <task-id>`
+
+Stream the output of a task's agent run via the conductor server.
+
+```bash
+conductor task logs <task-id> --project PROJECT [--run RUN] [--follow] [--tail N] [--server URL]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--project` | string | "" | Project ID (required) |
+| `--run` | string | "" | Specific run ID to stream (default: latest active or most recent) |
+| `--follow` | bool | false | Keep streaming; reconnect if connection drops |
+| `--tail` | int | 0 | Output only the last N lines (0 = all) |
+
+When `--run` is omitted, the command automatically selects the currently-running run, or the
+most recent run if the task is not running.
+
+When `--follow` is true, the command reconnects with exponential backoff (2s → 30s) if the
+connection drops, streaming until the run completes or you press Ctrl-C.
+
+**Example:**
+```bash
+# Stream all output for the most recent run of a task
+conductor task logs task-20260221-120000-my-task --project my-project
+
+# Follow a currently-running task (stay connected)
+conductor task logs task-20260221-120000-my-task --project my-project --follow
+
+# Show only the last 50 lines
+conductor task logs task-20260221-120000-my-task --project my-project --tail 50
+
+# Stream a specific run
+conductor task logs task-20260221-120000-my-task --project my-project \
+  --run 20260221-1200000000-12345-1
+```
+
+---
+
 #### `conductor job`
 
 Manage jobs via the conductor server API.
