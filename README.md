@@ -46,6 +46,9 @@ EOF
 
 # 4. Open the web UI
 open http://localhost:8080/ui/
+
+# 5. Watch a task until completion (waits for all sub-tasks to finish)
+./bin/conductor watch --project my-project --timeout 30m
 ```
 
 See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
@@ -130,6 +133,17 @@ Conductor Loop is designed for:
 - **Node.js**: 18+ (for frontend development)
 - **API Tokens**: For your chosen agents (Claude, Codex, etc.)
 
+### Agent CLI Tools (at least one required)
+| Agent | CLI Tool | Minimum Version | Install |
+|-------|----------|-----------------|---------|
+| Claude | `claude` | 1.0.0+ | [Claude CLI](https://claude.ai/code) |
+| Codex | `codex` | 0.1.0+ | [OpenAI Codex](https://github.com/openai/codex) |
+| Gemini | `gemini` | 0.1.0+ | [Gemini CLI](https://github.com/google-gemini/gemini-cli) |
+| Perplexity | — | REST API (no CLI) | API token required |
+| xAI | — | REST API (no CLI) | API token required |
+
+Run `./bin/run-agent validate` to check your installed agent versions.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
@@ -153,7 +167,7 @@ Features implemented:
 - ✅ Stage 3: Runner Orchestration (Ralph Loop)
 - ✅ Stage 4: API and Frontend
 - ✅ Stage 5: Testing Suite
-- 🚧 Stage 6: Documentation (in progress)
+- ✅ Stage 6: Documentation
 
 ---
 
