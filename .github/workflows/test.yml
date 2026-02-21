@@ -17,3 +17,12 @@ jobs:
         run: go build ./...
       - name: Run tests
         run: go test $(go list ./... | grep -v '/test/docker')
+      - name: Build release-like artifact for installer smoke test
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -trimpath -ldflags="-s -w" \
+            -o dist/run-agent-linux-amd64 ./cmd/run-agent
+      - name: Smoke test installer install/update/latest flows
+        run: |
+          bash scripts/smoke-install-release.sh --dist-dir dist --install-script install.sh

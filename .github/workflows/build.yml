@@ -72,6 +72,11 @@ jobs:
           test -f dist/run-agent-darwin-arm64
           test -f dist/run-agent-windows-amd64.exe
 
+      - name: Smoke test installer against release-like artifacts
+        run: |
+          set -euo pipefail
+          bash scripts/smoke-install-release.sh --dist-dir dist --install-script install.sh
+
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:

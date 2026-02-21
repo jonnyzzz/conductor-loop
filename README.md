@@ -112,6 +112,7 @@ See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
 - [Developer Guide](docs/dev/getting-started.md) - Contributing to Conductor Loop
 - [Architecture](docs/dev/architecture.md) - System design and components
 - [Testing Guide](docs/dev/testing.md) - Running tests
+- [Release Checklist](docs/dev/release-checklist.md) - Release validation steps
 
 ### Examples
 

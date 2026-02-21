@@ -48,6 +48,22 @@ RUN_AGENT_FALLBACK_DOWNLOAD_BASE="https://github.com/jonnyzzz/conductor-loop/rel
 curl -fsSL https://run-agent.jonnyzzz.com/install.sh | bash
 ```
 
+#### Maintainer Release Validation
+
+For release candidates, validate installer behavior against concrete artifacts before publishing:
+
+```bash
+bash scripts/smoke-install-release.sh --dist-dir dist --install-script install.sh
+```
+
+This smoke check verifies:
+- install from latest mirror URL
+- update when latest asset changes
+- fallback to secondary download base
+- URL normalization for `/releases`, `/releases/download`, and `/releases/latest/download`
+
+Current expectation: `install.sh` does not verify checksums yet; it relies on trusted HTTPS endpoints.
+
 ### Option 2: Build from Source
 
 #### 1. Clone the Repository
