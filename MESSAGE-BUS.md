@@ -3255,3 +3255,99 @@ project_id: conductor-loop
 ## Commits This Session
 - 95eb61c: docs(user): update CLI and API reference for session #40 features
 - 39c4dea: feat(api): add task resume endpoint and conductor task resume command
+[2026-02-21 05:06:29] FACT: Scenario 1 (single agent) passed
+[2026-02-21 05:06:29] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 05:06:29] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 05:06:29] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 05:06:29] FACT: All acceptance tests passed
+
+---
+msg_id: MSG-20260221-SESSION42-START
+ts: 2026-02-21T05:30:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 05:30:00] ==========================================
+[2026-02-21 05:30:00] SESSION: 2026-02-21 Session #42
+[2026-02-21 05:30:00] ==========================================
+[2026-02-21 05:30:00] FACT: go build ./... PASS (binaries: conductor, run-agent rebuilt)
+[2026-02-21 05:30:00] FACT: go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races (cached)
+[2026-02-21 05:30:00] FACT: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS (cached)
+[2026-02-21 05:30:00] FACT: go test ./test/integration/...: ALL PASS
+[2026-02-21 05:30:00] FACT: go test ./test/docker/...: ALL PASS
+[2026-02-21 05:30:00] FACT: Issues: 0 fully open, 3 partially resolved (Windows deferred, token expiration deferred)
+
+[2026-02-21 05:30:00] DECISION: Session #42 work:
+[2026-02-21 05:30:00]   (1) agent-timeout: Add --timeout flag for agent run duration limit (PID 45057)
+[2026-02-21 05:30:00]   (2) prometheus-metrics: Add Prometheus-compatible /metrics endpoint (PID 45108)
+
+[2026-02-21 05:30:00] PROGRESS: Dispatching 2 parallel dog-food sub-agents via ./bin/run-agent job
+[2026-02-21 05:19:19] FACT: Scenario 1 (single agent) passed
+[2026-02-21 05:19:19] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 05:19:19] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 05:19:19] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 05:19:19] FACT: All acceptance tests passed
+[2026-02-21 05:20:18] FACT: Scenario 1 (single agent) passed
+[2026-02-21 05:20:18] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 05:20:18] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 05:20:18] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 05:20:18] FACT: All acceptance tests passed
+
+[2026-02-21 05:20:00] FACT: task-20260221-041137-ggle2u (agent-timeout) - COMPLETED (exit_code=0, duration=~5m)
+[2026-02-21 05:20:00] FACT: task-20260221-041139-b9d6eu (prometheus-metrics) - COMPLETED (exit_code=0, duration=~4m)
+[2026-02-21 05:20:00] FACT: go build ./...: PASS (binaries rebuilt: conductor, run-agent)
+[2026-02-21 05:20:00] FACT: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (new: internal/metrics)
+[2026-02-21 05:20:00] FACT: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+[2026-02-21 05:20:00] FACT: /metrics endpoint functional: conductor_uptime_seconds, active/completed/failed runs, api_requests_total
+[2026-02-21 05:20:00] FACT: --timeout flag functional: run-agent job --timeout 30m kills agent after 30 minutes
+[2026-02-21 05:20:00] COMMIT: f09bbc6 feat(api): add Prometheus-compatible /metrics endpoint
+[2026-02-21 05:20:00] COMMIT: 783dde5 feat(runner): add --timeout flag for agent run duration limit
+
+[2026-02-21 05:20:30] ==========================================
+[2026-02-21 05:20:30] SESSION SUMMARY: 2026-02-21 Session #42
+[2026-02-21 05:20:30] ==========================================
+
+## Features Implemented This Session (via 2 parallel dog-food sub-agents)
+
+1. **feat(runner): add --timeout flag for agent run duration limit** (commit 783dde5)
+   - New `Timeout time.Duration` field in `JobOptions` and `TaskOptions`
+   - When set, creates `context.WithTimeout` and passes to `executeCLI`
+   - Killed agent posts WARN to message bus: "timed out after Xs"
+   - run-info.yaml error_summary records "timed out"
+   - CLI: `run-agent job --timeout 30m` and `run-agent task --timeout 2h`
+   - 2 new tests: timeout kills job within budget; Timeout=0 is no-op
+   - Docs updated in cli-reference.md
+
+2. **feat(api): add Prometheus-compatible /metrics endpoint** (commit f09bbc6)
+   - New `internal/metrics` package with atomic Registry (no new dependencies)
+   - Endpoint: GET /metrics (text/plain; version=0.0.4)
+   - Metrics: conductor_uptime_seconds, conductor_active_runs_total,
+     conductor_completed_runs_total, conductor_failed_runs_total,
+     conductor_messagebus_appends_total, conductor_api_requests_total{method,status}
+   - Middleware integration: RecordRequest() called on every API response
+   - 132-line unit tests + 4 HTTP handler tests
+   - Docs updated in api-reference.md
+
+## Dog-Food
+- 2 tasks dispatched via ./bin/run-agent job (parallel, root: runs/)
+- task-20260221-041137-ggle2u: agent-timeout — DONE (exit_code=0, duration=~5m)
+- task-20260221-041139-b9d6eu: prometheus-metrics — DONE (exit_code=0, duration=~4m)
+
+## Quality Gates
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS
+- go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (14→15 with new internal/metrics)
+- ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+- go test ./test/integration/...: ALL PASS
+- go test ./test/docker/...: ALL PASS
+
+## Current Issue Status (unchanged from session #41)
+- CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows), 5 resolved
+- HIGH: 0 open, 2 partially resolved (ISSUE-003, ISSUE-009), 6 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+
+## Commits This Session
+- f09bbc6: feat(api): add Prometheus-compatible /metrics endpoint
+- 783dde5: feat(runner): add --timeout flag for agent run duration limit
