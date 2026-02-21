@@ -334,9 +334,25 @@ curl http://localhost:8080/api/v1/runs/run_20260205_100001_abc123
   "start_time": "2026-02-05T10:00:01Z",
   "end_time": "2026-02-05T10:01:30Z",
   "exit_code": 0,
+  "agent_version": "2.1.50",
+  "error_summary": "",
   "output": "Starting agent...\nExecuting prompt...\nCompleted successfully.\n"
 }
 ```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `run_id` | string | Unique run identifier |
+| `project_id` | string | Project this run belongs to |
+| `task_id` | string | Task this run belongs to |
+| `status` | string | Run status (`created`, `running`, `success`, `failed`, `stopped`) |
+| `start_time` | string | ISO 8601 start timestamp |
+| `end_time` | string | ISO 8601 end timestamp (omitted if still running) |
+| `exit_code` | int | Process exit code (omitted if still running) |
+| `agent_version` | string | Version of the agent CLI that executed the run (e.g. `"2.1.50"`) |
+| `error_summary` | string | Human-readable description of the exit code (e.g. `"Process killed (OOM or external signal)"`) |
 
 **Errors:**
 
@@ -362,7 +378,9 @@ curl http://localhost:8080/api/v1/runs/run_20260205_100001_abc123/info
   "status": "success",
   "start_time": "2026-02-05T10:00:01Z",
   "end_time": "2026-02-05T10:01:30Z",
-  "exit_code": 0
+  "exit_code": 0,
+  "agent_version": "2.1.50",
+  "error_summary": ""
 }
 ```
 

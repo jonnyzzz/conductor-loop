@@ -655,6 +655,62 @@ run-agent task delete \
 
 ---
 
+#### `run-agent resume`
+
+Reset an exhausted task's restart counter and optionally retry it.
+
+```bash
+run-agent resume --project <id> --task <id> [flags]
+```
+
+**Required Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--project` | string | Project ID |
+| `--task` | string | Task ID |
+
+**Optional Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--root` | string | "./runs" | Root runs directory |
+| `--agent` | string | "" | Agent type; if set, launches a new run after reset |
+| `--prompt` | string | "" | Prompt text (used when `--agent` is set) |
+| `--prompt-file` | string | "" | Prompt file path (used when `--agent` is set) |
+| `--config` | string | "" | Config file path |
+
+**Examples:**
+
+```bash
+# Reset an exhausted task (remove DONE file so the loop can re-run it)
+run-agent resume \
+  --root ./runs \
+  --project my-project \
+  --task task-20260220-140000-hello
+
+# Reset and immediately launch a new run
+run-agent resume \
+  --root ./runs \
+  --project my-project \
+  --task task-20260220-140000-hello \
+  --agent claude \
+  --prompt-file /path/to/prompt.md
+```
+
+**Behavior:**
+- Removes the `DONE` file from the task directory, resetting the restart counter so the Ralph Loop can run again.
+- If `--agent` is provided, launches a new job run immediately after the reset using the supplied `--prompt` or `--prompt-file`.
+
+**`run-agent resume` vs `run-agent task resume`:**
+
+| Command | When to use |
+|---------|-------------|
+| `run-agent resume` | The task reached its `maxRestarts` limit and was marked DONE. Use this to clear the exhausted state and optionally kick off a fresh run. |
+| `run-agent task resume` | The task's Ralph Loop process stopped or failed before the task was marked DONE (e.g. host restart). Use this to re-enter the loop from the existing task directory. |
+
+---
+
 #### `run-agent job`
 
 Run a single agent job (no restart logic).
@@ -828,6 +884,9 @@ run-agent gc [flags]
 | `--dry-run` | bool | false | Print what would be deleted without deleting |
 | `--project` | string | "" | Limit gc to a specific project |
 | `--keep-failed` | bool | false | Preserve runs with non-zero exit codes |
+| `--delete-done-tasks` | bool | false | Delete task directories that have a DONE file, empty `runs/`, and are older than `--older-than` |
+| `--rotate-bus` | bool | false | Rotate message bus files that exceed `--bus-max-size` |
+| `--bus-max-size` | string | "10MB" | Size threshold for bus file rotation (e.g. `10MB`, `5MB`, `100KB`) |
 
 **Examples:**
 
@@ -843,12 +902,23 @@ run-agent gc --root ./runs --project my-project --keep-failed
 
 # Aggressive cleanup (1 day, including failed runs)
 run-agent gc --root ./runs --older-than 24h
+
+# Delete task directories for completed (DONE) tasks older than 1 hour
+run-agent gc --root ./runs --delete-done-tasks --older-than 1h
+
+# Rotate oversized message bus files (default threshold: 10MB)
+run-agent gc --root ./runs --rotate-bus
+
+# Rotate bus files larger than 5MB
+run-agent gc --root ./runs --rotate-bus --bus-max-size 5MB
 ```
 
 **Behavior:**
 - Skips runs that are currently `running`
 - Reports freed disk space in MB
 - Only deletes completed or failed runs older than the cutoff
+- `--delete-done-tasks`: removes the entire task directory (including all runs, TASK.md, and message bus) when a DONE file is present and the task has no active runs
+- `--rotate-bus`: archives the current bus file to a timestamped backup and starts a fresh bus file
 
 ---
 
