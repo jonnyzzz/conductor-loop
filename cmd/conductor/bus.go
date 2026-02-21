@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -35,7 +37,91 @@ func newBusCmd() *cobra.Command {
 		},
 	}
 	cmd.AddCommand(newBusReadCmd())
+	cmd.AddCommand(newBusPostCmd())
 	return cmd
+}
+
+type busPostRequest struct {
+	Type string `json:"type"`
+	Body string `json:"body"`
+}
+
+type busPostResponse struct {
+	MsgID string `json:"msg_id"`
+}
+
+func newBusPostCmd() *cobra.Command {
+	var (
+		server  string
+		project string
+		taskID  string
+		msgType string
+		body    string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "post",
+		Short: "Post a message to the project or task message bus",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if body == "" {
+				info, err := os.Stdin.Stat()
+				if err == nil && (info.Mode()&os.ModeCharDevice) == 0 {
+					data, err := io.ReadAll(os.Stdin)
+					if err != nil {
+						return fmt.Errorf("read stdin: %w", err)
+					}
+					body = string(data)
+				}
+			}
+			return conductorBusPost(cmd.OutOrStdout(), server, project, taskID, msgType, body)
+		},
+	}
+
+	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
+	cmd.Flags().StringVar(&taskID, "task", "", "task ID (optional; posts to task-level bus if set)")
+	cmd.Flags().StringVar(&msgType, "type", "INFO", "message type")
+	cmd.Flags().StringVar(&body, "body", "", "message body (reads from stdin if not provided and stdin is a pipe)")
+	cobra.MarkFlagRequired(cmd.Flags(), "project") //nolint:errcheck
+
+	return cmd
+}
+
+func conductorBusPost(out io.Writer, server, project, taskID, msgType, body string) error {
+	var url string
+	if taskID != "" {
+		url = server + "/api/projects/" + project + "/tasks/" + taskID + "/messages"
+	} else {
+		url = server + "/api/projects/" + project + "/messages"
+	}
+
+	reqBody, err := json.Marshal(busPostRequest{Type: msgType, Body: body})
+	if err != nil {
+		return fmt.Errorf("bus post: encode request: %w", err)
+	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewReader(reqBody)) //nolint:noctx
+	if err != nil {
+		return fmt.Errorf("bus post: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("bus post: read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bus post: server returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+
+	var result busPostResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return fmt.Errorf("bus post: decode response: %w", err)
+	}
+
+	fmt.Fprintf(out, "msg_id: %s\n", result.MsgID)
+	return nil
 }
 
 func newBusReadCmd() *cobra.Command {

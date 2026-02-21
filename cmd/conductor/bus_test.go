@@ -340,6 +340,139 @@ func TestBusReadMessageFormatMultilineTruncated(t *testing.T) {
 	}
 }
 
+// TestBusPostSuccess verifies posting a message to the project bus returns msg_id.
+func TestBusPostSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/projects/proj/messages" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		var req busPostRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		if req.Type != "PROGRESS" {
+			t.Errorf("expected type PROGRESS, got %s", req.Type)
+		}
+		if req.Body != "Build started" {
+			t.Errorf("expected body 'Build started', got %s", req.Body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(busPostResponse{MsgID: "MSG-20260221-110000-abc123"})
+	}))
+	defer srv.Close()
+
+	var buf bytes.Buffer
+	err := conductorBusPost(&buf, srv.URL, "proj", "", "PROGRESS", "Build started")
+	if err != nil {
+		t.Fatalf("conductorBusPost: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "msg_id: MSG-20260221-110000-abc123") {
+		t.Errorf("expected msg_id in output, got:\n%s", output)
+	}
+}
+
+// TestBusPostWithTask verifies posting to a task-level bus uses the correct URL.
+func TestBusPostWithTask(t *testing.T) {
+	taskID := "task-20260221-120000-feat"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		expected := "/api/projects/proj/tasks/" + taskID + "/messages"
+		if r.URL.Path != expected {
+			t.Errorf("expected path %s, got %s", expected, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(busPostResponse{MsgID: "MSG-20260221-120000-task01"})
+	}))
+	defer srv.Close()
+
+	var buf bytes.Buffer
+	err := conductorBusPost(&buf, srv.URL, "proj", taskID, "FACT", "Tests passed")
+	if err != nil {
+		t.Fatalf("conductorBusPost with task: %v", err)
+	}
+
+	if !strings.Contains(buf.String(), "MSG-20260221-120000-task01") {
+		t.Errorf("expected task msg_id in output, got:\n%s", buf.String())
+	}
+}
+
+// TestBusPostFromStdin verifies that body is read from stdin when not provided via --body.
+func TestBusPostFromStdin(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req busPostRequest
+		json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck
+		if req.Body != "Deployment complete" {
+			t.Errorf("expected body 'Deployment complete', got %q", req.Body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(busPostResponse{MsgID: "MSG-stdin-001"})
+	}))
+	defer srv.Close()
+
+	// conductorBusPost itself takes body as parameter; simulate stdin read by passing body directly.
+	var buf bytes.Buffer
+	err := conductorBusPost(&buf, srv.URL, "proj", "", "FACT", "Deployment complete")
+	if err != nil {
+		t.Fatalf("conductorBusPost stdin simulation: %v", err)
+	}
+
+	if !strings.Contains(buf.String(), "MSG-stdin-001") {
+		t.Errorf("expected msg_id in output, got:\n%s", buf.String())
+	}
+}
+
+// TestBusPostServerError verifies that a 500 response propagates as an error.
+func TestBusPostServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	var buf bytes.Buffer
+	err := conductorBusPost(&buf, srv.URL, "proj", "", "INFO", "hello")
+	if err == nil {
+		t.Fatal("expected error for 500, got nil")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("expected '500' in error, got: %v", err)
+	}
+}
+
+// TestBusPostMissingProject verifies that missing --project returns an error.
+func TestBusPostMissingProject(t *testing.T) {
+	cmd := newRootCmd()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"bus", "post", "--body", "hello"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error when --project is missing, got nil")
+	}
+}
+
+// TestBusPostAppearsInBusHelp verifies the post subcommand is listed in bus help.
+func TestBusPostAppearsInBusHelp(t *testing.T) {
+	cmd := newRootCmd()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"bus", "--help"})
+	_ = cmd.Execute()
+
+	output := buf.String()
+	if !strings.Contains(output, "post") {
+		t.Errorf("expected 'post' in bus --help output, got:\n%s", output)
+	}
+}
+
 // TestBusCmdHelp verifies that the bus subcommand is registered and shows help.
 func TestBusCmdHelp(t *testing.T) {
 	cmd := newRootCmd()

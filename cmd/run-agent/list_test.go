@@ -108,7 +108,7 @@ func TestListTasks(t *testing.T) {
 	makeRun(t, root, project, "task-20260101-000002-bb", "run-001", storage.StatusFailed, now.Add(-20*time.Minute), 1)
 
 	var buf bytes.Buffer
-	if err := listTasks(&buf, root, project, false); err != nil {
+	if err := listTasks(&buf, root, project, "", false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -135,7 +135,7 @@ func TestListTasksEmpty(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := listTasks(&buf, root, project, false); err != nil {
+	if err := listTasks(&buf, root, project, "", false); err != nil {
 		t.Fatalf("unexpected error for empty project: %v", err)
 	}
 
@@ -152,7 +152,7 @@ func TestListTasksEmpty(t *testing.T) {
 
 func TestListTasksMissingProject(t *testing.T) {
 	root := t.TempDir()
-	err := listTasks(&bytes.Buffer{}, root, "nonexistent-project", false)
+	err := listTasks(&bytes.Buffer{}, root, "nonexistent-project", "", false)
 	if err == nil {
 		t.Fatal("expected error for missing project directory, got nil")
 	}
@@ -168,7 +168,7 @@ func TestListTasksDoneDetection(t *testing.T) {
 
 	// Without DONE file — check the data row is NOT marked DONE
 	var buf bytes.Buffer
-	if err := listTasks(&buf, root, project, false); err != nil {
+	if err := listTasks(&buf, root, project, "", false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
@@ -185,7 +185,7 @@ func TestListTasksDoneDetection(t *testing.T) {
 		t.Fatal(err)
 	}
 	buf.Reset()
-	if err := listTasks(&buf, root, project, false); err != nil {
+	if err := listTasks(&buf, root, project, "", false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -212,7 +212,7 @@ func TestListTasksJSON(t *testing.T) {
 	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusCompleted, now.Add(-time.Minute), 0)
 
 	var buf bytes.Buffer
-	if err := listTasks(&buf, root, project, true); err != nil {
+	if err := listTasks(&buf, root, project, "", true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -323,7 +323,7 @@ func TestListTasks_EmptyRunsNoDONE(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := listTasks(&buf, root, project, false); err != nil {
+	if err := listTasks(&buf, root, project, "", false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -355,7 +355,7 @@ func TestListTasks_EmptyRunsWithDONE(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := listTasks(&buf, root, project, false); err != nil {
+	if err := listTasks(&buf, root, project, "", false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -379,7 +379,7 @@ func TestListTasks_LastActivityColumn(t *testing.T) {
 	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusCompleted, now.Add(-time.Minute), 0)
 
 	var buf bytes.Buffer
-	if err := listTasks(&buf, root, project, false); err != nil {
+	if err := listTasks(&buf, root, project, "", false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -397,7 +397,7 @@ func TestListTasksJSON_LastActivity(t *testing.T) {
 	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusCompleted, now.Add(-time.Minute), 0)
 
 	var buf bytes.Buffer
-	if err := listTasks(&buf, root, project, true); err != nil {
+	if err := listTasks(&buf, root, project, "", true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -419,11 +419,150 @@ func TestListTasksJSON_LastActivity(t *testing.T) {
 
 func TestListRequiresProjectForTask(t *testing.T) {
 	var buf bytes.Buffer
-	err := runList(&buf, "./runs", "", "some-task", false)
+	err := runList(&buf, "./runs", "", "some-task", "", false)
 	if err == nil {
 		t.Fatal("expected error when --task given without --project")
 	}
 	if !strings.Contains(err.Error(), "--task requires --project") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestListTasksStatusRunning(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	now := time.Now().UTC()
+
+	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusRunning, now.Add(-time.Minute), -1)
+	makeRun(t, root, project, "task-20260101-000002-bb", "run-001", storage.StatusCompleted, now.Add(-2*time.Minute), 0)
+	makeRun(t, root, project, "task-20260101-000003-cc", "run-001", storage.StatusFailed, now.Add(-3*time.Minute), 1)
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, "running", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "task-20260101-000001-aa") {
+		t.Error("running task should appear in output")
+	}
+	if strings.Contains(output, "task-20260101-000002-bb") {
+		t.Error("completed task should not appear with --status running")
+	}
+	if strings.Contains(output, "task-20260101-000003-cc") {
+		t.Error("failed task should not appear with --status running")
+	}
+}
+
+func TestListTasksStatusActive(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	now := time.Now().UTC()
+
+	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusRunning, now.Add(-time.Minute), -1)
+	makeRun(t, root, project, "task-20260101-000002-bb", "run-001", storage.StatusCompleted, now.Add(-2*time.Minute), 0)
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, "active", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "task-20260101-000001-aa") {
+		t.Error("running task should appear with --status active")
+	}
+	if strings.Contains(output, "task-20260101-000002-bb") {
+		t.Error("completed task should not appear with --status active")
+	}
+}
+
+func TestListTasksStatusDone(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	now := time.Now().UTC()
+
+	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusCompleted, now.Add(-time.Minute), 0)
+	if err := os.WriteFile(filepath.Join(root, project, "task-20260101-000001-aa", "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	makeRun(t, root, project, "task-20260101-000002-bb", "run-001", storage.StatusRunning, now.Add(-2*time.Minute), -1)
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, "done", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "task-20260101-000001-aa") {
+		t.Error("done task should appear with --status done")
+	}
+	if strings.Contains(output, "task-20260101-000002-bb") {
+		t.Error("running task should not appear with --status done")
+	}
+}
+
+func TestListTasksStatusFailed(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	now := time.Now().UTC()
+
+	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusFailed, now.Add(-time.Minute), 1)
+	makeRun(t, root, project, "task-20260101-000002-bb", "run-001", storage.StatusCompleted, now.Add(-2*time.Minute), 0)
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, "failed", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "task-20260101-000001-aa") {
+		t.Error("failed task should appear with --status failed")
+	}
+	if strings.Contains(output, "task-20260101-000002-bb") {
+		t.Error("completed task should not appear with --status failed")
+	}
+}
+
+func TestListTasksStatusEmpty(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	now := time.Now().UTC()
+
+	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusRunning, now.Add(-time.Minute), -1)
+	makeRun(t, root, project, "task-20260101-000002-bb", "run-001", storage.StatusFailed, now.Add(-2*time.Minute), 1)
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, "", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "task-20260101-000001-aa") {
+		t.Error("task-1 should appear with empty --status")
+	}
+	if !strings.Contains(output, "task-20260101-000002-bb") {
+		t.Error("task-2 should appear with empty --status")
+	}
+}
+
+func TestListTasksStatusInvalid(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	now := time.Now().UTC()
+
+	makeRun(t, root, project, "task-20260101-000001-aa", "run-001", storage.StatusRunning, now.Add(-time.Minute), -1)
+	makeRun(t, root, project, "task-20260101-000002-bb", "run-001", storage.StatusFailed, now.Add(-2*time.Minute), 1)
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, "bogus-status", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "task-20260101-000001-aa") {
+		t.Error("task-1 should appear with unknown --status (graceful degradation)")
+	}
+	if !strings.Contains(output, "task-20260101-000002-bb") {
+		t.Error("task-2 should appear with unknown --status (graceful degradation)")
 	}
 }

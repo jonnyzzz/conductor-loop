@@ -664,6 +664,45 @@ conductor bus read --project myproject --server http://conductor.example.com:808
 
 **Note:** This is the server-based equivalent of `run-agent bus read` (which requires local file access). Use `conductor bus read` when working with a remote conductor server.
 
+##### `conductor bus post`
+
+Post a message to the project or task message bus via the conductor server API.
+
+```bash
+conductor bus post --project PROJECT [--task TASK] [--type TYPE] [--body BODY] [--server URL]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--project` | string | "" | Project ID (required) |
+| `--task` | string | "" | Task ID (optional; posts to task-level bus if set) |
+| `--type` | string | "INFO" | Message type |
+| `--body` | string | "" | Message body (reads from stdin if not provided and stdin is a pipe) |
+| `--server` | string | `http://localhost:8080` | Conductor server URL |
+
+**Examples:**
+
+```bash
+# Post a message to the project bus
+conductor bus post --project my-project --type PROGRESS --body "Build started"
+
+# Post to a task bus
+conductor bus post --project my-project --task task-20260221-120000-feat --type FACT --body "Tests passed"
+
+# Post from stdin (useful in scripts)
+echo "Deployment complete" | conductor bus post --project my-project --type FACT
+
+# Use a remote server
+conductor bus post --project my-project --type INFO --body "Hello" --server http://conductor.example.com:8080
+```
+
+**Output:**
+```
+msg_id: MSG-20260221-110000-abc123
+```
+
+**Note:** This is the server-based equivalent of `run-agent bus post` (which requires local file access). Use `conductor bus post` when working with a remote conductor server.
+
 ---
 
 #### `conductor watch`
@@ -1075,6 +1114,7 @@ run-agent job --project <id> --task <id> [flags]
 | `--parent-run-id` | string | "" | Parent run ID |
 | `--previous-run-id` | string | "" | Previous run ID |
 | `--timeout` | duration | 0 | Maximum agent run duration (e.g. `30m`, `2h`); 0 means no limit |
+| `--follow`, `-f` | bool | false | Stream output to stdout while job runs (pre-allocates run dir, blocks until job completes) |
 
 **Examples:**
 
@@ -1273,6 +1313,7 @@ run-agent list [flags]
 | `--root` | string | "./runs" | Root runs directory (uses `RUNS_DIR` env var if not set) |
 | `--project` | string | "" | Project ID; lists tasks for this project if set |
 | `--task` | string | "" | Task ID (requires `--project`); lists runs for this task if set |
+| `--status` | string | "" | Filter tasks by status: `running`, `active`, `done`, `failed` (only applies when `--project` is set) |
 | `--json` | bool | false | Output as JSON |
 
 **Behavior:**
@@ -1280,6 +1321,7 @@ run-agent list [flags]
 - `--project`: shows a table of tasks with run count, latest status, and DONE marker
 - `--project --task`: shows a table of runs with status, exit code, start time, and duration
 - `--task` requires `--project`
+- `--status` filters tasks when `--project` is set; unknown values show all tasks with a warning
 
 **Examples:**
 
@@ -1289,6 +1331,12 @@ run-agent list --root ./runs
 
 # List tasks in a project
 run-agent list --root ./runs --project my-project
+
+# List only running tasks
+run-agent list --root ./runs --project my-project --status running
+
+# List only done tasks
+run-agent list --root ./runs --project my-project --status done
 
 # List runs for a specific task
 run-agent list --root ./runs --project my-project --task task-20260220-140000-hello
@@ -1460,9 +1508,10 @@ run-agent bus post [--bus PATH] [--type TYPE] [--body BODY] [flags]
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--bus` | string | "" | Path to message bus file (uses `$MESSAGE_BUS` env var if not set) |
+| `--root` | string | "" | Root directory for project/task bus resolution (default: `$RUNS_DIR`, then `./runs`) |
 | `--type` | string | "INFO" | Message type |
-| `--project` | string | "" | Project ID |
-| `--task` | string | "" | Task ID |
+| `--project` | string | "" | Project ID (used with `--root`/`--task` to resolve bus path; also sets message `project_id`) |
+| `--task` | string | "" | Task ID (used with `--project` to resolve task-level bus; also sets message `task_id`) |
 | `--run` | string | "" | Run ID |
 | `--body` | string | "" | Message body (reads stdin if not provided and stdin is a pipe) |
 
@@ -1487,6 +1536,9 @@ run-agent bus read [--bus PATH] [--tail N] [--follow]
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--bus` | string | "" | Path to message bus file (uses `$MESSAGE_BUS` env var if not set) |
+| `--root` | string | "" | Root directory for project/task bus resolution (default: `$RUNS_DIR`, then `./runs`) |
+| `--project` | string | "" | Project ID (with `--root` to resolve bus path; reads project-level bus without `--task`) |
+| `--task` | string | "" | Task ID (requires `--project`; resolves task-level bus) |
 | `--tail` | int | 20 | Print last N messages |
 | `--follow` | bool | false | Watch for new messages (Ctrl-C to exit) |
 
