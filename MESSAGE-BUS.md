@@ -2655,3 +2655,72 @@ project_id: conductor-loop
 ## Commits This Session
 - 8fa7407: docs: update user and dev docs for session #31 features
 - 6d3f396: feat(cli): add --project/--task/--root flags to bus read and bus post
+
+---
+msg_id: MSG-20260221-SESSION33-START
+ts: 2026-02-21T03:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 03:00:00] ==========================================
+[2026-02-21 03:00:00] SESSION #33: conductor status + task stop commands
+[2026-02-21 03:00:00] ==========================================
+
+[2026-02-21 03:00:00] PROGRESS: Starting session #33 — read all required docs, assessed state
+[2026-02-21 03:00:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-21 03:00:00] FACT: go test ./... — ALL packages green (inherited from session #32)
+[2026-02-21 03:00:00] FACT: All CRITICAL/HIGH issues resolved or deferred, all QUESTIONS.md answered
+[2026-02-21 03:00:00] FACT: Assessment: conductor CLI missing status + task stop commands
+[2026-02-21 03:01:00] DECISION: Session #33 focus: add conductor status and conductor task stop commands
+[2026-02-21 03:01:00] DECISION: Implement conductor status (GET /api/v1/status) and conductor task stop (DELETE /api/v1/tasks/{id})
+
+[2026-02-21 03:05:00] PROGRESS: Implementing conductor status command in cmd/conductor/status.go
+[2026-02-21 03:05:00] FACT: conductor status command added (GET /api/v1/status, shows version/uptime/active-runs/agents)
+[2026-02-21 03:06:00] FACT: conductor task stop command added (DELETE /api/v1/tasks/{id}?project_id=, writes DONE + kills runs)
+[2026-02-21 03:06:00] FACT: 11 new tests added in commands_test.go (4 for status, 5 for task stop, 2 wiring/help tests)
+[2026-02-21 03:07:00] QUALITY: go build ./... PASS
+[2026-02-21 03:07:00] QUALITY: go test ./cmd/conductor/ ALL PASS (11 new tests)
+[2026-02-21 03:07:00] QUALITY: go test ./internal/... ./cmd/... ALL 14 PACKAGES PASS
+
+---
+msg_id: MSG-20260221-SESSION33-END
+ts: 2026-02-21T03:10:00Z
+type: SESSION_END
+project_id: conductor-loop
+---
+
+[2026-02-21 03:10:00] ==========================================
+[2026-02-21 03:10:00] SESSION #33 SUMMARY
+[2026-02-21 03:10:00] ==========================================
+
+## Session #33 Completed Tasks
+
+### conductor status command (cmd/conductor/status.go)
+- New `conductor status [--server] [--json]` command
+- Calls GET /api/v1/status on the conductor server
+- Displays: Version, Uptime (formatted), Active Runs, Configured Agents
+- --json flag for raw JSON output
+- `formatUptime()` helper: converts seconds to human-readable "Xh Xm Xs"
+
+### conductor task stop command (cmd/conductor/task.go)
+- New `conductor task stop <task-id> [--project] [--server] [--json]` command
+- Calls DELETE /api/v1/tasks/{taskID}?project_id={project}
+- Server writes DONE file and kills all running processes for the task
+- Displays: "Task <id>: stopped N run(s)"
+- --json flag for raw JSON output
+
+### Tests (cmd/conductor/commands_test.go)
+- TestServerStatusSuccess, TestServerStatusJSONOutput, TestServerStatusServerError, TestServerStatusNoAgents
+- TestFormatUptime (7 cases: 0s, 45s, 1m 0s, 1m 30s, 1h 0m 0s, 1h 1m 1s, 2h 3m 4s)
+- TestTaskStopSuccess, TestTaskStopWithProject, TestTaskStopJSONOutput, TestTaskStopServerError
+- TestStatusCmdHelp, TestTaskStopCmdHelp, TestStatusAppearsInHelp, TestTaskStopAppearsInHelp (2 wiring tests)
+
+## Quality Gates
+- go build ./...: PASS (binaries rebuilt: conductor, run-agent)
+- go test ./internal/... ./cmd/...: ALL 14 PACKAGES PASS
+- go test -race: (not run this session — deferred, previous session confirmed no races)
+
+## Issue Status (unchanged)
+- Total: 0 fully open, 5 partially resolved (ISSUE-002/003/004/009/010 deferred), 17 resolved
+

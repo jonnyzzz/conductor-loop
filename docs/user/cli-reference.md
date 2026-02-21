@@ -91,6 +91,36 @@ conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:8080
 conductor 2026/02/05 10:00:00 Task execution: enabled
 ```
 
+#### `conductor status`
+
+Show the conductor server status (active runs, uptime, configured agents).
+
+```bash
+conductor status [--server URL] [--json]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--json` | bool | false | Output raw JSON response |
+
+**Example:**
+```bash
+conductor status
+conductor status --server http://prod-conductor:8080
+conductor status --json
+```
+
+**Output:**
+```
+Version:            dev
+Uptime:             2h 3m 4s
+Active Runs:        3
+Configured Agents:  claude, codex
+```
+
+---
+
 #### `conductor task`
 
 Manage tasks via the conductor server API.
@@ -100,6 +130,33 @@ conductor task <subcommand> [flags]
 ```
 
 **Subcommands:**
+
+##### `conductor task stop <task-id>`
+
+Stop all running runs of a task (writes a DONE file and sends SIGTERM to the task's processes).
+
+```bash
+conductor task stop <task-id> [--server URL] [--project PROJECT] [--json]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--project` | string | "" | Project ID (optional filter) |
+| `--json` | bool | false | Output raw JSON response |
+
+**Example:**
+```bash
+conductor task stop task-20260220-140000-my-task
+conductor task stop task-20260220-140000-my-task --project my-project
+```
+
+**Output:**
+```
+Task task-20260220-140000-my-task: stopped 2 run(s)
+```
+
+---
 
 ##### `conductor task status <task-id>`
 

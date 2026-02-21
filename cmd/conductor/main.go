@@ -62,6 +62,7 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&host, "host", "0.0.0.0", "HTTP listen host (overrides config)")
 	cmd.Flags().IntVar(&port, "port", 8080, "HTTP listen port (overrides config)")
 
+	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newTaskCmd())
 	cmd.AddCommand(newJobCmd())
 

@@ -469,6 +469,36 @@ All flags:
 --json            output response as JSON
 ```
 
+### conductor status — Show server status
+
+```bash
+./bin/conductor status
+./bin/conductor status --server http://conductor:8080
+./bin/conductor status --json
+```
+
+All flags:
+```
+--server string   conductor server URL (default "http://localhost:8080")
+--json            output response as JSON
+```
+
+### conductor task stop — Stop a task
+
+Stop all running runs of a task (writes DONE and sends SIGTERM to processes).
+
+```bash
+./bin/conductor task stop task-20260220-190000-my-task
+./bin/conductor task stop task-20260220-190000-my-task --project my-project
+```
+
+All flags:
+```
+--server string   conductor server URL (default "http://localhost:8080")
+--project string  project ID
+--json            output response as JSON
+```
+
 ### conductor task status — Get status of a task
 
 ```bash

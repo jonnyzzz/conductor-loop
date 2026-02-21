@@ -4,9 +4,210 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
+
+// --- serverStatus tests ---
+
+func TestServerStatusSuccess(t *testing.T) {
+	respBody := conductorStatusResponse{
+		ActiveRunsCount:  3,
+		UptimeSeconds:    125.5,
+		ConfiguredAgents: []string{"claude", "codex"},
+		Version:          "1.2.3",
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/v1/status" {
+			t.Errorf("expected /api/v1/status, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(respBody)
+	}))
+	defer srv.Close()
+
+	if err := serverStatus(srv.URL, false); err != nil {
+		t.Fatalf("serverStatus: %v", err)
+	}
+}
+
+func TestServerStatusJSONOutput(t *testing.T) {
+	respBody := conductorStatusResponse{
+		ActiveRunsCount:  1,
+		UptimeSeconds:    60,
+		ConfiguredAgents: []string{"claude"},
+		Version:          "dev",
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(respBody)
+	}))
+	defer srv.Close()
+
+	if err := serverStatus(srv.URL, true); err != nil {
+		t.Fatalf("serverStatus json: %v", err)
+	}
+}
+
+func TestServerStatusServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	if err := serverStatus(srv.URL, false); err == nil {
+		t.Fatal("expected error on 500 response")
+	}
+}
+
+func TestServerStatusNoAgents(t *testing.T) {
+	respBody := conductorStatusResponse{
+		ActiveRunsCount:  0,
+		UptimeSeconds:    0,
+		ConfiguredAgents: nil,
+		Version:          "dev",
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(respBody)
+	}))
+	defer srv.Close()
+
+	if err := serverStatus(srv.URL, false); err != nil {
+		t.Fatalf("serverStatus no agents: %v", err)
+	}
+}
+
+func TestFormatUptime(t *testing.T) {
+	cases := []struct {
+		seconds float64
+		want    string
+	}{
+		{0, "0s"},
+		{45, "45s"},
+		{60, "1m 0s"},
+		{90, "1m 30s"},
+		{3600, "1h 0m 0s"},
+		{3661, "1h 1m 1s"},
+		{7384, "2h 3m 4s"},
+	}
+	for _, tc := range cases {
+		got := formatUptime(tc.seconds)
+		if got != tc.want {
+			t.Errorf("formatUptime(%v) = %q, want %q", tc.seconds, got, tc.want)
+		}
+	}
+}
+
+// --- taskStop tests ---
+
+func TestTaskStopSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("expected DELETE, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/v1/tasks/task-20260220-100000-foo" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(taskStopResponse{StoppedRuns: 2})
+	}))
+	defer srv.Close()
+
+	if err := taskStop(srv.URL, "task-20260220-100000-foo", "", false); err != nil {
+		t.Fatalf("taskStop: %v", err)
+	}
+}
+
+func TestTaskStopWithProject(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("project_id") != "my-proj" {
+			t.Errorf("expected project_id=my-proj, got %q", r.URL.Query().Get("project_id"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(taskStopResponse{StoppedRuns: 1})
+	}))
+	defer srv.Close()
+
+	if err := taskStop(srv.URL, "task-20260220-100000-foo", "my-proj", false); err != nil {
+		t.Fatalf("taskStop with project: %v", err)
+	}
+}
+
+func TestTaskStopJSONOutput(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(taskStopResponse{StoppedRuns: 0})
+	}))
+	defer srv.Close()
+
+	if err := taskStop(srv.URL, "task-20260220-100000-bar", "", true); err != nil {
+		t.Fatalf("taskStop json: %v", err)
+	}
+}
+
+func TestTaskStopServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	if err := taskStop(srv.URL, "task-no-such", "", false); err == nil {
+		t.Fatal("expected error on 404 response")
+	}
+}
+
+// --- cobra command wiring tests for status and task stop ---
+
+func TestStatusCmdHelp(t *testing.T) {
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"status", "--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("status --help: %v", err)
+	}
+}
+
+func TestTaskStopCmdHelp(t *testing.T) {
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"task", "stop", "--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("task stop --help: %v", err)
+	}
+}
+
+func TestStatusAppearsInHelp(t *testing.T) {
+	var out strings.Builder
+	cmd := newRootCmd()
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"--help"})
+	_ = cmd.Execute()
+
+	if !strings.Contains(out.String(), "status") {
+		t.Errorf("expected 'status' in help output, got:\n%s", out.String())
+	}
+}
+
+func TestTaskStopAppearsInHelp(t *testing.T) {
+	var out strings.Builder
+	cmd := newRootCmd()
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"task", "--help"})
+	_ = cmd.Execute()
+
+	if !strings.Contains(out.String(), "stop") {
+		t.Errorf("expected 'stop' in task help output, got:\n%s", out.String())
+	}
+}
 
 // --- jobSubmit tests ---
 

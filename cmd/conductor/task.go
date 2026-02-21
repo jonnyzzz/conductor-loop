@@ -22,6 +22,7 @@ func newTaskCmd() *cobra.Command {
 		},
 	}
 	cmd.AddCommand(newTaskStatusCmd())
+	cmd.AddCommand(newTaskStopCmd())
 	return cmd
 }
 
@@ -64,6 +65,74 @@ type taskRunSummary struct {
 	StartTime time.Time `json:"start_time"`
 	EndTime   time.Time `json:"end_time"`
 	ExitCode  int       `json:"exit_code"`
+}
+
+func newTaskStopCmd() *cobra.Command {
+	var (
+		server     string
+		project    string
+		jsonOutput bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "stop <task-id>",
+		Short: "Stop all running runs of a task",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return taskStop(server, args[0], project, jsonOutput)
+		},
+	}
+
+	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&project, "project", "", "project ID")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
+
+	return cmd
+}
+
+// taskStopResponse is the JSON response from DELETE /api/v1/tasks/<task_id>.
+type taskStopResponse struct {
+	StoppedRuns int `json:"stopped_runs"`
+}
+
+func taskStop(server, taskID, project string, jsonOutput bool) error {
+	url := server + "/api/v1/tasks/" + taskID
+	if project != "" {
+		url += "?project_id=" + project
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("stop task: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("server returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+
+	if jsonOutput {
+		fmt.Printf("%s\n", strings.TrimSpace(string(data)))
+		return nil
+	}
+
+	var result taskStopResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+
+	fmt.Printf("Task %s: stopped %d run(s)\n", taskID, result.StoppedRuns)
+	return nil
 }
 
 func taskStatus(server, taskID, project string, jsonOutput bool) error {
