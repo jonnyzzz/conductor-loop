@@ -179,6 +179,7 @@ func newJobCmd() *cobra.Command {
 		projectID string
 		taskID    string
 		opts      runner.JobOptions
+		follow    bool
 	)
 
 	cmd := &cobra.Command{
@@ -205,7 +206,33 @@ func newJobCmd() *cobra.Command {
 				}
 				opts.ConfigPath = found
 			}
-			return runner.RunJob(projectID, taskID, opts)
+			if !follow {
+				return runner.RunJob(projectID, taskID, opts)
+			}
+			// Pre-allocate run directory so we can follow output immediately.
+			rootDir := opts.RootDir
+			if rootDir == "" {
+				if v := os.Getenv("RUNS_DIR"); v != "" {
+					rootDir = v
+				} else {
+					rootDir = "./runs"
+				}
+			}
+			runsDir := filepath.Join(rootDir, projectID, taskID, "runs")
+			if err := os.MkdirAll(runsDir, 0o755); err != nil {
+				return fmt.Errorf("create runs dir: %w", err)
+			}
+			_, runDir, err := runner.AllocateRunDir(runsDir)
+			if err != nil {
+				return fmt.Errorf("allocate run dir: %w", err)
+			}
+			opts.PreallocatedRunDir = runDir
+			jobDone := make(chan error, 1)
+			go func() {
+				jobDone <- runner.RunJob(projectID, taskID, opts)
+			}()
+			_ = followOutput(runDir, "")
+			return <-jobDone
 		},
 	}
 
@@ -221,6 +248,7 @@ func newJobCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.ParentRunID, "parent-run-id", "", "parent run id")
 	cmd.Flags().StringVar(&opts.PreviousRunID, "previous-run-id", "", "previous run id")
 	cmd.Flags().DurationVar(&opts.Timeout, "timeout", 0, "maximum agent run duration (e.g. 30m, 2h); 0 means no limit")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "stream output in real-time while job runs")
 
 	return cmd
 }
