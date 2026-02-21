@@ -3624,3 +3624,85 @@ file access). `conductor bus read` works via the server API (remote or local).
 - HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
 - MEDIUM: 0 open, 0 partially resolved, 6 resolved
 - LOW: 0 open, 0 partially resolved, 2 resolved
+
+---
+msg_id: MSG-20260221-SESSION46-START
+ts: 2026-02-21T08:30:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 08:30:00] ==========================================
+[2026-02-21 08:30:00] SESSION: 2026-02-21 Session #46
+[2026-02-21 08:30:00] ==========================================
+[2026-02-21 08:30:00] FACT: go build ./... PASS (conductor + run-agent binaries ready)
+[2026-02-21 08:30:00] FACT: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS
+[2026-02-21 08:30:00] FACT: Issues: 0 fully open, 3 partially resolved (Windows-only deferred items)
+
+[2026-02-21 08:30:00] DECISION: Session #46 work items:
+[2026-02-21 08:30:00]   (1) Docs: Add conductor watch + conductor task resume sections to cli-reference.md (both missing)
+[2026-02-21 08:30:00]   (2) Feature: Make --task optional in conductor job submit (auto-generate task ID)
+[2026-02-21 08:30:00]   Both items improve the dog-food workflow usability
+
+[2026-02-21 08:30:00] FACT: Docs done: conductor watch + conductor task resume added to cli-reference.md
+[2026-02-21 08:30:00] PROGRESS: Sub-agent dispatched for auto-task-ID feature (task-20260221-062024-mty73c, Claude)
+[2026-02-21 07:24:38] FACT: Scenario 1 (single agent) passed
+[2026-02-21 07:24:38] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 07:24:38] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 07:24:38] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 07:24:38] FACT: All acceptance tests passed
+
+[2026-02-21 08:45:00] FACT: Sub-agent task-20260221-062024-mty73c completed (exit_code: 0)
+[2026-02-21 08:45:00] FACT: Feature implemented: generateTaskID() uses crypto/rand for 6-char hex suffix
+[2026-02-21 08:45:00] FACT: --task flag is now optional in conductor job submit
+[2026-02-21 08:45:00] FACT: Commit: 6e6f246 feat(cli): make --task optional in conductor job submit (auto-generate task ID)
+[2026-02-21 08:45:00] FACT: 3 files changed: cmd/conductor/job.go, cmd/conductor/commands_test.go, docs/user/cli-reference.md
+[2026-02-21 08:45:00] FACT: Docs also updated in same commit: conductor watch + conductor task resume sections added
+
+[2026-02-21 08:45:00] QUALITY: go build ./...: PASS
+[2026-02-21 08:45:00] QUALITY: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS
+[2026-02-21 08:45:00] QUALITY: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+
+---
+msg_id: MSG-20260221-SESSION46-END
+ts: 2026-02-21T08:45:00Z
+type: SESSION_END
+project_id: conductor-loop
+---
+
+## Session #46 Summary (2026-02-21)
+
+### Features Implemented (via 1 dog-food sub-agent)
+
+**feat(cli): make --task optional in conductor job submit** (commit 6e6f246)
+
+Changes:
+- `cmd/conductor/job.go` — `generateTaskID()` function using crypto/rand; `--task` flag made optional
+- `cmd/conductor/commands_test.go` — tests for generateTaskID() format/uniqueness and auto-generation vs explicit ID
+- `docs/user/cli-reference.md` — updated flag table + added conductor watch + conductor task resume docs
+
+**Why**: Users dispatching one-off jobs no longer need to generate task IDs manually. The format is consistent with run-agent job auto-generation (`task-YYYYMMDD-HHMMSS-xxxxxx`).
+
+**Docs gap filled**: Two previously undocumented commands are now documented:
+- `conductor watch` — watches tasks until completion via server API
+- `conductor task resume` — removes DONE file to allow task to be re-queued
+
+### Dog-Food Success
+- Sub-agent dispatched via ./bin/run-agent job (task-20260221-062024-mty73c)
+- exit_code: 0, completed in ~2m30s
+- Sub-agent correctly identified the test patterns from existing commands and added comprehensive tests
+
+### Quality Gates
+- go build ./...: PASS
+- go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+- ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+- 99 lines added to commands_test.go (tests for new functionality)
+
+### Commits This Session
+- 6e6f246: feat(cli): make --task optional in conductor job submit (auto-generate task ID)
+
+### Issue Status (unchanged)
+- CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows file locking), 5 resolved
+- HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
