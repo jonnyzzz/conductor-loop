@@ -430,3 +430,104 @@ func TestLoadConfigErrors(t *testing.T) {
 		t.Fatalf("expected error for invalid yaml")
 	}
 }
+
+func TestFindDefaultConfig(t *testing.T) {
+	// FindDefaultConfig is a wrapper around os.Getwd + FindDefaultConfigIn.
+	// It should not error in a normal environment.
+	_, err := FindDefaultConfig()
+	if err != nil {
+		t.Fatalf("FindDefaultConfig: %v", err)
+	}
+}
+
+func TestValidateWebhookConfigValid(t *testing.T) {
+	wh := &WebhookConfig{
+		URL:     "https://example.com/webhook",
+		Timeout: "10s",
+	}
+	if err := validateWebhookConfig(wh); err != nil {
+		t.Fatalf("validateWebhookConfig: %v", err)
+	}
+}
+
+func TestValidateWebhookConfigInvalidURL(t *testing.T) {
+	wh := &WebhookConfig{
+		URL: "not-a-valid-url",
+	}
+	if err := validateWebhookConfig(wh); err == nil {
+		t.Fatalf("expected error for invalid URL")
+	}
+}
+
+func TestValidateWebhookConfigInvalidTimeout(t *testing.T) {
+	wh := &WebhookConfig{
+		URL:     "https://example.com/hook",
+		Timeout: "not-a-duration",
+	}
+	if err := validateWebhookConfig(wh); err == nil {
+		t.Fatalf("expected error for invalid timeout")
+	}
+}
+
+func TestValidateWebhookConfigEmptyURL(t *testing.T) {
+	// Empty URL is allowed — webhook config with no URL is valid.
+	wh := &WebhookConfig{
+		Timeout: "5s",
+	}
+	if err := validateWebhookConfig(wh); err != nil {
+		t.Fatalf("validateWebhookConfig with empty URL: %v", err)
+	}
+}
+
+func TestValidateConfigWithWebhook(t *testing.T) {
+	cfg := &Config{
+		Agents: map[string]AgentConfig{
+			"claude": {Type: "claude"},
+		},
+		Defaults: DefaultConfig{Timeout: 10},
+		Webhook:  &WebhookConfig{URL: "https://example.com/hook", Timeout: "5s"},
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatalf("ValidateConfig with valid webhook: %v", err)
+	}
+}
+
+func TestValidateConfigWithInvalidWebhook(t *testing.T) {
+	cfg := &Config{
+		Agents: map[string]AgentConfig{
+			"claude": {Type: "claude"},
+		},
+		Defaults: DefaultConfig{Timeout: 10},
+		Webhook:  &WebhookConfig{URL: "bad-url"},
+	}
+	if err := ValidateConfig(cfg); err == nil {
+		t.Fatalf("expected error for invalid webhook URL")
+	}
+}
+
+func TestResolveStoragePathsWithExtraRoots(t *testing.T) {
+	base := t.TempDir()
+	cfg := &Config{
+		Storage: StorageConfig{
+			RunsDir:    "runs",
+			ExtraRoots: []string{"extra1", "extra2"},
+		},
+	}
+	if err := resolveStoragePaths(cfg, base); err != nil {
+		t.Fatalf("resolveStoragePaths: %v", err)
+	}
+	if !filepath.IsAbs(cfg.Storage.RunsDir) {
+		t.Fatalf("runs_dir not absolute: %q", cfg.Storage.RunsDir)
+	}
+	for i, root := range cfg.Storage.ExtraRoots {
+		if !filepath.IsAbs(root) {
+			t.Fatalf("extra_root[%d] not absolute: %q", i, root)
+		}
+	}
+}
+
+func TestResolveStoragePathsNilConfig(t *testing.T) {
+	if err := resolveStoragePaths(nil, "/tmp"); err != nil {
+		t.Fatalf("resolveStoragePaths nil: %v", err)
+	}
+}
