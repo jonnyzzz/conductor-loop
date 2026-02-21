@@ -18,6 +18,8 @@ This document provides detailed information about each subsystem in the conducto
 12. [CLI Commands: run-agent watch](#12-cli-commands-run-agent-watch)
 13. [API: DELETE Run Endpoint](#13-api-delete-run-endpoint)
 14. [UI: Task Search Bar](#14-ui-task-search-bar)
+15. [API: Task Deletion Endpoint](#15-api-task-deletion-endpoint)
+16. [UI: Project Stats Dashboard](#16-ui-project-stats-dashboard)
 
 ---
 
@@ -1878,6 +1880,96 @@ A search bar in the task list panel lets users filter tasks by ID substring with
 
 ---
 
+## 15. API: Task Deletion Endpoint
+
+**File:** `internal/api/handlers_projects.go` (`handleTaskDelete`)
+
+### Purpose
+
+`DELETE /api/projects/{project_id}/tasks/{task_id}` permanently removes an entire task directory — including all run subdirectories, agent output, the task message bus (`TASK-MESSAGE-BUS.md`), and `TASK.md` — from disk. This is the API-level complement to `run-agent task delete`.
+
+### Behavior
+
+1. Scans the in-memory run list for any run whose `(projectID, taskID)` matches and whose status is `running`.
+2. If any running run is found, returns **409 Conflict** (stop all runs first or use the CLI's `--force` flag).
+3. Locates the task directory using `findProjectTaskDir(rootDir, projectID, taskID)`.
+4. If the task directory is not found, returns **404 Not Found**.
+5. Removes the task directory tree via `os.RemoveAll`.
+6. Returns **204 No Content** on success.
+
+### Response Codes
+
+| Code | Meaning |
+|------|---------|
+| 204 | Task directory deleted successfully |
+| 404 | Task directory not found |
+| 409 | At least one run is still in `running` status |
+| 500 | Filesystem error |
+
+### CLI Wrapper
+
+`cmd/run-agent/task_delete.go` implements `run-agent task delete`:
+- `--project`, `--task` (both required)
+- `--root` (default: `$RUNS_DIR` or `./runs`)
+- `--force` — skips the running-run check before deleting
+
+Without `--force`, the CLI scans `<taskDir>/runs/*/run-info.yaml` for `status: running` and exits with code 1 if any are found.
+
+### Tests
+
+Tests for `handleTaskDelete` are in `internal/api/handlers_projects_test.go`:
+- Delete existing task with no running runs → 204
+- Delete task with a running run (no force) → 409
+- Delete non-existent task → 404
+
+---
+
+## 16. UI: Project Stats Dashboard
+
+**File:** `frontend/src/components/ProjectStats.tsx`
+
+### Purpose
+
+A stats bar displayed at the top of the task list in the React UI. It gives an at-a-glance view of how many tasks and runs exist in a project and their statuses, without requiring the user to scroll through the task list.
+
+### Component
+
+`ProjectStats` is a pure display component:
+- Receives `projectId` as a prop.
+- Fetches data via the `useProjectStats(projectId)` React Query hook, which calls `GET /api/projects/{projectId}/stats`.
+- Renders a horizontal bar of labeled statistics.
+- Shows a loading placeholder while data is fetching; shows "Stats unavailable" on error.
+
+### Data Source
+
+`GET /api/projects/{project_id}/stats` (see [Section 7](#7-api-server) and [API Reference](../user/api-reference.md)).
+
+The response fields consumed by the component:
+
+| Field | Displayed As |
+|-------|-------------|
+| `total_tasks` | Tasks |
+| `total_runs` | Runs |
+| `running_runs` | Running (only shown when > 0) |
+| `completed_runs` | Done |
+| `failed_runs + crashed_runs` | Failed (only shown when > 0) |
+| `message_bus_total_bytes` | Bus (human-readable: B / KB / MB) |
+
+### Refresh
+
+Data is fetched by React Query with the project's default stale time (typically every 10 seconds on focus, or on explicit refetch triggered by the task list refresh cycle).
+
+### Styling
+
+CSS classes follow the `project-stats-*` namespace:
+- `project-stats-bar` — flex container for the entire bar
+- `project-stats-item` — label + value pair
+- `project-stats-running` — value colored for running state
+- `project-stats-completed` — value colored for completed state
+- `project-stats-failed` — value colored for failed state
+
+---
+
 ## Next Steps
 
 For more specialized documentation, see:
@@ -1890,5 +1982,5 @@ For more specialized documentation, see:
 
 ---
 
-**Last Updated:** 2026-02-21
+**Last Updated:** 2026-02-21 (Session #31)
 **Version:** 1.0.0

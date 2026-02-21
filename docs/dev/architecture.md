@@ -91,7 +91,7 @@ Conductor Loop is an AI agent orchestration system that manages multi-agent work
 
 ## Component Overview
 
-The system is organized into 9 major subsystems:
+The system is organized into 16 major subsystems (see [Subsystem Deep-Dives](subsystems.md) for the full list). The 9 core architectural subsystems are:
 
 ### 1. Storage Layer (`internal/storage/`)
 
@@ -300,6 +300,22 @@ cd frontend && npm install && npm run build
 - TypeScript type-safe API client
 
 **Priority:** When `frontend/dist/index.html` is present, the conductor server serves it instead of `web/src/`. Delete or move `frontend/dist/` to fall back to the simple UI.
+
+### 10–16. Extended Subsystems
+
+Additional subsystems built on top of the core 9:
+
+| # | Subsystem | Description |
+|---|-----------|-------------|
+| 10 | CLI: `run-agent list` | Filesystem-only listing of projects, tasks, and runs |
+| 11 | CLI: `run-agent output` | Print or live-tail agent output files |
+| 12 | CLI: `run-agent watch` | Poll until all specified tasks reach a terminal state |
+| 13 | API: DELETE Run Endpoint | `DELETE /api/projects/{p}/tasks/{t}/runs/{r}` — remove a single run directory |
+| 14 | UI: Task Search Bar | Client-side substring filtering of the task list |
+| 15 | API: Task Deletion Endpoint | `DELETE /api/projects/{p}/tasks/{t}` — remove an entire task directory; CLI: `run-agent task delete` |
+| 16 | UI: Project Stats Dashboard | `ProjectStats.tsx` — task/run count bar sourced from `GET /api/projects/{p}/stats` |
+
+See [Subsystem Deep-Dives](subsystems.md) for detailed documentation on each.
 
 ---
 

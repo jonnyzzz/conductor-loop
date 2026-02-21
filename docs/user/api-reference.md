@@ -18,6 +18,8 @@ There are two API surfaces:
    - `GET /api/projects/{projectId}/tasks/{taskId}/file?name=TASK.md` — read TASK.md from task directory
    - `GET /api/projects/{projectId}/tasks/{taskId}/runs/stream` — SSE stream that fans in live output from all runs of a task (used by the React LogViewer)
    - `DELETE /api/projects/{projectId}/tasks/{taskId}/runs/{runId}` — delete a completed or failed run directory (204 No Content on success; 409 Conflict if still running)
+   - `DELETE /api/projects/{projectId}/tasks/{taskId}` — delete an entire task directory and all its runs (204 No Content; 409 Conflict if any run is still running; 404 Not Found)
+   - `GET /api/projects/{projectId}/stats` — project statistics: task count, run counts by status, and total message bus bytes
 
 ## Base URL
 
@@ -485,6 +487,96 @@ No response body on success.
 - Use `POST .../stop` first if you need to terminate a running run before deleting it.
 - Deleting a run is permanent and cannot be undone.
 - The web UI's "Delete run" button uses this endpoint.
+
+#### DELETE /api/projects/{project_id}/tasks/{task_id}
+
+Delete an entire task directory and all its runs from disk. This permanently removes the task prompt, all run directories, output files, and the task-level message bus.
+
+**Path Parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `project_id` | Project identifier |
+| `task_id` | Task identifier |
+
+**Request:**
+
+```bash
+curl -X DELETE \
+  "http://localhost:8080/api/projects/my-project/tasks/task-20260220-140000-hello"
+```
+
+**Response:** `204 No Content`
+
+No response body on success.
+
+**Errors:**
+
+| Status | Cause |
+|--------|-------|
+| 404 Not Found | Task directory does not exist |
+| 409 Conflict | At least one run is still in `running` status; stop all runs first |
+| 500 Internal Server Error | Filesystem error removing the task directory |
+
+**Notes:**
+
+- Use `run-agent task delete` or `POST .../stop` on each running run before deleting.
+- Deleting a task is permanent and removes all associated runs, output files, and the task message bus.
+- The CLI counterpart is `run-agent task delete --project <p> --task <t>` (use `--force` to skip the running-run check).
+
+---
+
+#### GET /api/projects/{project_id}/stats
+
+Return aggregate statistics for a project: task count, run counts by status, and message bus totals. The web UI uses this endpoint to populate the stats bar at the top of the task list.
+
+**Path Parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `project_id` | Project identifier |
+
+**Request:**
+
+```bash
+curl "http://localhost:8080/api/projects/my-project/stats"
+```
+
+**Response:** `200 OK`
+```json
+{
+  "project_id": "my-project",
+  "total_tasks": 12,
+  "total_runs": 47,
+  "running_runs": 2,
+  "completed_runs": 41,
+  "failed_runs": 3,
+  "crashed_runs": 1,
+  "message_bus_files": 13,
+  "message_bus_total_bytes": 524288
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `project_id` | string | Project identifier |
+| `total_tasks` | int | Total number of task directories found |
+| `total_runs` | int | Total number of run directories across all tasks |
+| `running_runs` | int | Runs currently in `running` status |
+| `completed_runs` | int | Runs in `completed` status |
+| `failed_runs` | int | Runs in `failed` status |
+| `crashed_runs` | int | Runs in any other terminal status (e.g. `crashed`) |
+| `message_bus_files` | int | Number of message bus files (task + project level) |
+| `message_bus_total_bytes` | int64 | Total size in bytes of all message bus files |
+
+**Errors:**
+
+| Status | Cause |
+|--------|-------|
+| 404 Not Found | Project directory does not exist |
+| 500 Internal Server Error | Filesystem error reading the project directory |
 
 ---
 

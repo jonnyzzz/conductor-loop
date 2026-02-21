@@ -394,6 +394,62 @@ run-agent task resume \
 - Resumes Ralph Loop execution without re-creating the task directory
 - Useful for re-running a task that previously stopped or failed
 
+##### `run-agent task delete`
+
+Delete a task directory and all its runs from disk.
+
+```bash
+run-agent task delete --project <id> --task <id> [flags]
+```
+
+**Required Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--project` | string | Project ID |
+| `--task` | string | Task ID to delete |
+
+**Optional Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--root` | string | `$RUNS_DIR` or `./runs` | Root runs directory |
+| `--force` | bool | false | Delete even if the task has running runs |
+
+**Exit Codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Task directory deleted successfully |
+| 1 | Task not found, running runs present (without `--force`), or filesystem error |
+
+**Examples:**
+
+```bash
+# Delete a completed task
+run-agent task delete \
+  --root ./runs \
+  --project my-project \
+  --task task-20260220-140000-hello
+
+# Force-delete a task that has running runs
+run-agent task delete \
+  --root ./runs \
+  --project my-project \
+  --task task-20260220-150000-stuck \
+  --force
+```
+
+**Behavior:**
+- Validates that the task directory exists; exits with code 1 if not found.
+- Without `--force`: scans `<task>/runs/` for any run with `status: running`. If found, exits with code 1 and an error message naming the running run.
+- With `--force`: skips the running-run check and removes the directory unconditionally.
+- Deletes the entire task directory including all run subdirectories, agent output, the task message bus, and the TASK.md file.
+- Prints `Deleted task: <task-id>` on success.
+- The REST API counterpart is `DELETE /api/projects/{p}/tasks/{t}`.
+
+---
+
 #### `run-agent job`
 
 Run a single agent job (no restart logic).
