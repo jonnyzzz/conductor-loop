@@ -2323,3 +2323,81 @@ project_id: conductor-loop
 - f9d0fcb: fix(api): resolve task directory paths correctly across root structures
 - 2466c62: feat(cli): add --check-tokens flag to run-agent validate for token file verification
 - a2b0157: feat(ui): add run status filter and task status badges to web UI
+
+[2026-02-21 00:53:00] ==========================================
+[2026-02-21 00:53:00] SESSION: 2026-02-21 Session #29
+[2026-02-21 00:53:00] ==========================================
+[2026-02-21 00:53:00] PROGRESS: Starting session - read all required docs
+[2026-02-21 00:53:00] FACT: go build ./... passes, all 19 test packages green
+[2026-02-21 00:53:00] FACT: Binaries: conductor (14.2MB), run-agent (14.4MB)
+[2026-02-21 00:53:00] FACT: 0 fully open issues, 5 partially resolved (deferred items only)
+
+[2026-02-21 00:53:01] ASSESSMENT: Gaps identified for Session #29
+[2026-02-21 00:53:01] GAP-1: run-agent list, run-agent output, validate --check-tokens NOT documented in cli-reference.md
+[2026-02-21 00:53:01] GAP-2: Developer docs (docs/dev/) not updated for Sessions #26-28 features
+[2026-02-21 00:53:01] GAP-3: Task/run listing APIs have no pagination (returns all results)
+
+[2026-02-21 00:53:30] DOG-FOOD: Dispatching 3 parallel sub-agents via ./bin/run-agent job
+[2026-02-21 00:53:30] FACT: task-20260221-005316-rhf747 - docs-cli-update (update cli-reference.md)
+[2026-02-21 00:53:30] FACT: task-20260221-005317-s8xwqh - docs-dev-update (update docs/dev/ for sessions #26-28)
+[2026-02-21 00:53:30] FACT: task-20260221-005330-sr5q37 - feature-api-pagination (add limit/offset to task/run APIs)
+
+[2026-02-21 02:00:00] ==========================================
+[2026-02-21 02:00:00] RESULTS: Session #29 - All 3 sub-agents completed
+[2026-02-21 02:00:00] ==========================================
+[2026-02-21 02:00:00] FACT: task-20260221-005316-rhf747 (docs-cli-update) - COMPLETED in 1m57s (exit_code=0)
+[2026-02-21 02:00:00] FACT: task-20260221-005317-s8xwqh (docs-dev-update) - COMPLETED (exit_code=0)
+[2026-02-21 02:00:00] FACT: task-20260221-005330-sr5q37 (feature-api-pagination) - COMPLETED in 5m48s (exit_code=0)
+[2026-02-21 02:00:00] FACT: go build ./...: PASS
+[2026-02-21 02:00:00] FACT: go test ./internal/... ./cmd/...: ALL 14 PACKAGES PASS
+[2026-02-21 02:00:00] FACT: go test -race ./internal/... ./cmd/...: PASS (no races)
+
+[2026-02-21 02:00:01] COMMIT: dc6e320 docs(user): add run-agent list, output, validate --check-tokens to CLI reference
+[2026-02-21 02:00:01] COMMIT: 1158566 docs(dev): update developer docs for sessions #26-28 features
+[2026-02-21 02:00:01] COMMIT: 27ad5f2 feat(api,ui): add pagination to task and run listing endpoints
+
+[2026-02-21 02:00:30] ==========================================
+[2026-02-21 02:00:30] SESSION SUMMARY: 2026-02-21 Session #29
+[2026-02-21 02:00:30] ==========================================
+
+## Features Implemented This Session
+
+1. **docs(user): CLI reference updated** (commit dc6e320)
+   - `run-agent list`: documented with flags table, 4 examples (list projects, tasks, runs, JSON)
+   - `run-agent output`: documented with flags, --follow behavior, 5 examples
+   - `run-agent validate --check-tokens`: added to existing validate section, status table, exit code note
+
+2. **docs(dev): Developer docs updated** (commit 1158566)
+   - subsystems.md: added run-agent list, output --follow, findProjectDir/findProjectTaskDir
+   - storage-layout.md: added agent_version field, run_counts in task summaries
+   - testing.md: added list_test.go (13), output_follow_test.go (6), validate --check-tokens (5), path-resolution (8)
+   - agent-protocol.md: added Agent Version Detection section for detectAgentVersion()
+
+3. **feat(api,ui): Pagination** (commit 27ad5f2)
+   - GET /api/projects/{p}/tasks now returns paginated envelope (items/total/limit/offset/has_more)
+   - New endpoint: GET /api/projects/{p}/tasks/{t}/runs (paginated, newest-first)
+   - parsePagination() helper: default limit=50, max=500
+   - Frontend: PaginatedResponse<T> type, getTasks/getRuns use items field
+   - 8 new tests: all pagination edge cases covered
+
+## Dog-Food
+- All 3 tasks dispatched via ./bin/run-agent job (parallel, root: runs/)
+- All 3 DONE files created ✓
+- Sub-agent run times: 1m57s, ~2m, 5m48s
+
+## Quality Gates
+- go build ./...: PASS
+- go test ./internal/... ./cmd/...: ALL 14 PACKAGES PASS (no failures)
+- go test -race ./internal/... ./cmd/...: PASS (no data races)
+
+## Current Issue Status
+- CRITICAL: 0 open, 2 partially resolved (ISSUE-002 Windows, ISSUE-004 CLI versions), 4 resolved
+- HIGH: 0 open, 3 partially resolved (ISSUE-003, ISSUE-009, ISSUE-010), 5 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+- Total: 0 fully open, 5 partially resolved, 17 resolved
+
+## Commits This Session
+- dc6e320: docs(user): add run-agent list, output, validate --check-tokens to CLI reference
+- 1158566: docs(dev): update developer docs for sessions #26-28 features
+- 27ad5f2: feat(api,ui): add pagination to task and run listing endpoints
