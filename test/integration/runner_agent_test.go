@@ -159,7 +159,9 @@ func TestRalphLoopWaitForChildren(t *testing.T) {
 			WorkingDir:  taskDir,
 			ParentRunID: "root-run",
 			Environment: map[string]string{
-				envOrchStubSleepMs: "300",
+				// 600ms gives RunTask a comfortable 400ms margin after the 100ms pre-sleep.
+				// Previously 300ms left 0ms margin, causing intermittent flakiness.
+				envOrchStubSleepMs: "600",
 			},
 		})
 	}()
@@ -171,7 +173,7 @@ func TestRalphLoopWaitForChildren(t *testing.T) {
 		RootDir:      root,
 		Agent:        "codex",
 		WorkingDir:   taskDir,
-		WaitTimeout:  2 * time.Second,
+		WaitTimeout:  3 * time.Second,
 		PollInterval: 20 * time.Millisecond,
 	})
 	if err != nil {

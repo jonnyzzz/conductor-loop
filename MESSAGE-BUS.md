@@ -3351,3 +3351,89 @@ project_id: conductor-loop
 ## Commits This Session
 - f09bbc6: feat(api): add Prometheus-compatible /metrics endpoint
 - 783dde5: feat(runner): add --timeout flag for agent run duration limit
+
+---
+msg_id: MSG-20260221-SESSION43-START
+ts: 2026-02-21T06:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 06:00:00] ==========================================
+[2026-02-21 06:00:00] SESSION: 2026-02-21 Session #43
+[2026-02-21 06:00:00] ==========================================
+[2026-02-21 06:00:00] FACT: go build ./... PASS (binaries rebuilt: conductor, run-agent)
+[2026-02-21 06:00:00] FACT: go test ./internal/... ./cmd/...: ALL 15 PACKAGES PASS
+[2026-02-21 06:00:00] FACT: Issues: 0 fully open, 3 partially resolved (Windows, token expiration deferred)
+
+[2026-02-21 06:00:00] DECISION: Session #43 work:
+[2026-02-21 06:00:00]   (1) api-key-auth: Implement API key authentication (auth_enabled field existed, no implementation)
+[2026-02-21 06:00:00]   (2) max-concurrent-runs: Add max_concurrent_runs semaphore to runner (queue excess runs)
+
+[2026-02-21 06:00:00] PROGRESS: Dispatching 2 parallel dog-food sub-agents via ./bin/run-agent job
+[2026-02-21 05:50:41] FACT: Scenario 1 (single agent) passed
+[2026-02-21 05:50:41] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 05:50:41] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 05:50:41] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 05:50:41] FACT: All acceptance tests passed
+[2026-02-21 06:33:41] FACT: Scenario 1 (single agent) passed
+[2026-02-21 06:33:41] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 06:33:41] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 06:33:41] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 06:33:41] FACT: All acceptance tests passed
+
+---
+msg_id: MSG-20260221-SESSION43-END
+ts: 2026-02-21T06:35:00Z
+type: SESSION_END
+project_id: conductor-loop
+---
+
+## Session #43 Summary (2026-02-21)
+
+### Features Implemented (via dog-food sub-agents)
+
+**feat(api): add optional API key authentication** (commit bbd6761)
+- `internal/api/auth.go` — RequireAPIKey middleware
+- Exempt paths: /api/v1/health, /api/v1/version, /metrics, /ui/
+- Checks `Authorization: Bearer <key>` or `X-API-Key: <key>` header
+- CONDUCTOR_API_KEY env var support; --api-key CLI flag on conductor
+- auth_enabled + api_key config fields in internal/config/api.go
+- Full test coverage in auth_test.go (112 lines)
+
+**feat(runner): add max_concurrent_runs semaphore for run throttling** (commit 17a12ab)
+- `internal/runner/semaphore.go` — channel-based semaphore (98 lines)
+- `max_concurrent_runs` config field in defaults section; 0 = unlimited
+- `conductor_queued_runs_total` Prometheus gauge metric
+- Integrates with /api/v1/health via SetWaitingRunHook
+- 337-line test coverage in semaphore_test.go
+- Docs: docs/user/configuration.md updated with concurrency limiting section
+
+### Bug Fix (orchestrator-direct)
+
+**fix(runner): close race between detectAgentVersion and FindActiveChildren** (this session)
+- Root cause: the semaphore agent moved detectAgentVersion BEFORE createRunDir;
+  this created a ~100ms window where child run dirs didn't exist, so
+  FindActiveChildren returned empty and RunTask returned immediately (FAIL).
+- Fix: move createRunDir + sentinel run-info.yaml write to BEFORE detectAgentVersion.
+  The sentinel uses the current process PID/PGID (valid, process is alive).
+  executeCLI overwrites run-info.yaml with the real subprocess PGID after spawn.
+- Also increased stub sleep (300ms→600ms) and WaitTimeout (2s→3s) in two
+  integration tests for extra margin on loaded systems.
+- Verified: 20/20 consecutive runs of TestParentChildRuns + TestNestedRuns +
+  TestRalphLoopWaitForChildren pass.
+
+### Quality Gates
+- go build ./...: PASS
+- go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+- go test ./test/integration/...: ALL PASS (20/20 stress runs of timing-sensitive tests)
+- ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+
+### Commits This Session
+- bbd6761: feat(api): add optional API key authentication
+- 17a12ab: feat(runner): add max_concurrent_runs semaphore for run throttling
+- (pending): fix(runner): close race between detectAgentVersion and FindActiveChildren
+
+### Issue Status (unchanged)
+- CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows file locking), 5 resolved
+- HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved

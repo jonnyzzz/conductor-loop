@@ -83,9 +83,6 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		return nil, err
 	}
 
-	// Resolve the agent and detect its version before starting the timeout clock.
-	// detectAgentVersion spawns an external process, so it must not eat into the
-	// run timeout budget.
 	selection, err := selectAgent(cfg, opts.Agent)
 	if err != nil {
 		return nil, err
@@ -100,6 +97,56 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	if tokenErr := ValidateToken(agentType, selection.Config.Token); tokenErr != nil {
 		log.Printf("warning: %v", tokenErr)
 	}
+
+	parentRunID := strings.TrimSpace(opts.ParentRunID)
+
+	// Create the run directory and write a sentinel run-info.yaml BEFORE
+	// detectAgentVersion. detectAgentVersion spawns a subprocess that can take
+	// ~100ms; without the sentinel, FindActiveChildren would not see this child
+	// run during that window, causing the parent's RunTask to return early.
+	var runID, runDir string
+	if preallocated := strings.TrimSpace(opts.PreallocatedRunDir); preallocated != "" {
+		runDir = preallocated
+		runID = filepath.Base(runDir)
+	} else {
+		var allocErr error
+		runID, runDir, allocErr = createRunDir(runsDir)
+		if allocErr != nil {
+			return nil, allocErr
+		}
+	}
+	if parentRunID != "" {
+		selfPID := os.Getpid()
+		selfPGID, pgidErr := ProcessGroupID(selfPID)
+		if pgidErr != nil {
+			selfPGID = selfPID
+		}
+		runDirAbsEarly, _ := absPath(runDir)
+		sentinel := &storage.RunInfo{
+			Version:       1,
+			RunID:         runID,
+			ParentRunID:   parentRunID,
+			PreviousRunID: strings.TrimSpace(opts.PreviousRunID),
+			ProjectID:     projectID,
+			TaskID:        taskID,
+			AgentType:     agentType,
+			StartTime:     time.Now().UTC(),
+			ExitCode:      -1,
+			Status:        storage.StatusRunning,
+			CWD:           workingDir,
+			PID:           selfPID,
+			PGID:          selfPGID,
+			PromptPath:    filepath.Join(runDirAbsEarly, "prompt.md"),
+			OutputPath:    filepath.Join(runDirAbsEarly, "output.md"),
+			StdoutPath:    filepath.Join(runDirAbsEarly, "agent-stdout.txt"),
+			StderrPath:    filepath.Join(runDirAbsEarly, "agent-stderr.txt"),
+		}
+		_ = storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), sentinel)
+	}
+
+	// Detect agent version before starting the timeout clock.
+	// detectAgentVersion spawns an external process, so it must not eat into the
+	// run timeout budget.
 	agentVersion := detectAgentVersion(context.Background(), agentType)
 
 	// Start the timeout clock now. From this point on, time counts toward the
@@ -122,20 +169,6 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		return nil, fmt.Errorf("acquire run slot: %w", err)
 	}
 	defer releaseSem()
-
-	var runID, runDir string
-	if preallocated := strings.TrimSpace(opts.PreallocatedRunDir); preallocated != "" {
-		runDir = preallocated
-		runID = filepath.Base(runDir)
-	} else {
-		var allocErr error
-		runID, runDir, allocErr = createRunDir(runsDir)
-		if allocErr != nil {
-			return nil, allocErr
-		}
-	}
-
-	parentRunID := strings.TrimSpace(opts.ParentRunID)
 
 	promptPath := filepath.Join(runDir, "prompt.md")
 	promptContent := buildPrompt(PromptParams{

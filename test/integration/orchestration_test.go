@@ -152,7 +152,9 @@ func TestParentChildRuns(t *testing.T) {
 			WorkingDir:  taskDir,
 			ParentRunID: "root-run",
 			Environment: map[string]string{
-				envOrchStubSleepMs: "300",
+				// 600ms gives RunTask a comfortable ~400ms margin after the 120ms pre-sleep.
+				// Previously 300ms gave only ~60ms margin (too tight under load).
+				envOrchStubSleepMs: "600",
 				envOrchStubStdout:  "child",
 			},
 		})
@@ -165,7 +167,7 @@ func TestParentChildRuns(t *testing.T) {
 		RootDir:      root,
 		Agent:        "codex",
 		WorkingDir:   taskDir,
-		WaitTimeout:  2 * time.Second,
+		WaitTimeout:  3 * time.Second,
 		PollInterval: 10 * time.Millisecond,
 	})
 	if err != nil {
