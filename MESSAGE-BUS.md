@@ -2855,3 +2855,83 @@ project_id: conductor-loop
 [2026-02-21] FACT: Committed 67b9d60: feat(cli): add --prompt-file flag to conductor job submit
 - 2 files changed, 165 insertions(+), 3 deletions(-)
 
+
+---
+msg_id: MSG-20260221-SESSION37-START
+ts: 2026-02-21T03:30:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 03:30:00] ==========================================
+[2026-02-21 03:30:00] SESSION: 2026-02-21 Session #37
+[2026-02-21 03:30:00] ==========================================
+[2026-02-21 03:30:00] PROGRESS: Starting session #37 — read all required docs, assessed state
+[2026-02-21 03:30:00] FACT: go build ./... passes (binaries: conductor 14MB, run-agent 14MB)
+[2026-02-21 03:30:00] FACT: go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS (from session #36)
+[2026-02-21 03:30:00] FACT: 0 fully open issues, 5 partially resolved (deferred items only)
+[2026-02-21 03:30:00] FACT: GC deleted 2 runs, freed 1.2 MB
+
+[2026-02-21 03:30:01] ASSESSMENT: Gaps identified for Session #37
+[2026-02-21 03:30:01] GAP-1: cli-reference.md missing documentation for conductor task list, task delete, project list, project stats, job submit --prompt-file (Sessions #33-36)
+[2026-02-21 03:30:01] GAP-2: No conductor watch command (run-agent has watch; conductor client should too)
+
+[2026-02-21 03:30:30] DECISION: Session #37 focus:
+[2026-02-21 03:30:30]   (1) doc-conductor-commands: Update cli-reference.md for Sessions #33-36 conductor commands
+[2026-02-21 03:30:30]   (2) conductor-watch: Add conductor watch command (polls server API until tasks complete)
+[2026-02-21 03:30:30] DECISION: Dispatching 2 parallel sub-agents via ./bin/run-agent job
+
+
+[2026-02-21 03:44:00] FACT: task-20260221-023647-h8ecqd (doc-conductor-commands) - COMPLETED (exit_code=0)
+[2026-02-21 03:44:00] FACT: task-20260221-023649-01yu77 (conductor-watch) - COMPLETED (exit_code=0)
+[2026-02-21 03:44:00] FACT: go build ./...: PASS (binaries rebuilt: conductor, run-agent)
+[2026-02-21 03:44:00] FACT: go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races
+[2026-02-21 03:44:00] COMMIT: 16d0e99 feat(cli): add conductor watch command and document Sessions #33-36 features
+
+[2026-02-21 03:44:30] ==========================================
+[2026-02-21 03:44:30] SESSION SUMMARY: 2026-02-21 Session #37
+[2026-02-21 03:44:30] ==========================================
+
+## Features Implemented This Session
+
+1. **feat(cli): conductor watch command** (in commit 16d0e99)
+   - `conductor watch --project <p> [--task <t>] [--server URL] [--timeout 30m] [--interval 5s] [--json]`
+   - Polls GET /api/projects/{p}/tasks (all tasks) or GET /api/projects/{p}/tasks/{t} (specific)
+   - Exits 0 when all watched tasks reach terminal state (completed/failed/done/error)
+   - Exits 1 on timeout (default 30m)
+   - JSON output: {tasks:[{task_id,status,run_count,done}],all_done}
+   - 8 new tests in watch_test.go
+   - Registered in cmd/conductor/main.go
+
+2. **docs(user): cli-reference.md for Sessions #33-36** (in commit 16d0e99)
+   - Added `conductor task list` (flags: --project required, --server, --json)
+   - Added `conductor task delete <task-id>` (flags: --project required, --server, --json)
+   - Added `conductor project` section with:
+     - `conductor project list` (flags: --server, --json)
+     - `conductor project stats` (flags: --project required, --server, --json)
+   - Updated `conductor job submit` to show --prompt-file flag and mutual exclusivity note
+
+## Dog-Food
+- Both tasks dispatched via ./bin/run-agent job (parallel, root: runs/)
+- Both DONE files created ✓
+- Sub-agent completion times: ~2min (doc), ~7min (watch feature)
+- Monitored via ./bin/run-agent watch (using the watch command itself!)
+
+## Quality Gates
+- go build -o bin/conductor, go build -o bin/run-agent: PASS
+- go test ./cmd/conductor/: ALL 14 new tests PASS (watch: 8 new tests)
+- go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races
+
+## GC
+- Deleted 2 completed runs, freed 1.2 MB (before dispatching sub-agents)
+
+## Current Issue Status
+- CRITICAL: 0 open, 2 partially resolved (ISSUE-002 Windows, ISSUE-004 CLI versions), 4 resolved
+- HIGH: 0 open, 3 partially resolved (ISSUE-003, ISSUE-009, ISSUE-010), 5 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+- Total: 0 fully open, 5 partially resolved, 17 resolved
+
+## Commits This Session
+- 16d0e99: feat(cli): add conductor watch command and document Sessions #33-36 features
+
