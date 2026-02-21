@@ -19,12 +19,6 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -a -installsuffix cgo \
     -ldflags="-w -s" \
-    -o conductor \
-    ./cmd/conductor
-
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -a -installsuffix cgo \
-    -ldflags="-w -s" \
     -o run-agent \
     ./cmd/run-agent
 
@@ -48,8 +42,8 @@ RUN mkdir -p /data/runs /config /secrets && \
 
 WORKDIR /app
 
-# Copy binaries from builder
-COPY --from=builder --chown=conductor:conductor /app/conductor /app/run-agent ./
+# Copy binary from builder
+COPY --from=builder --chown=conductor:conductor /app/run-agent ./
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
@@ -61,5 +55,5 @@ USER conductor
 # Expose API port
 EXPOSE 14355
 
-# Run conductor
-CMD ["./conductor", "--config", "/config/config.yaml", "serve"]
+# Run the server
+CMD ["./run-agent", "serve", "--config", "/config/config.yaml"]

@@ -34,14 +34,14 @@ The simplest Conductor Loop example demonstrating basic task execution with a si
 ### Manual Execution
 
 ```bash
-# Start the conductor server (in background)
-conductor --config config.yaml serve &
+# Start the run-agent server (in background)
+run-agent serve --config config.yaml &
 
 # Wait for server to start
 sleep 2
 
 # Create and run the task
-conductor --config config.yaml task create \
+run-agent server job submit \
   --project-id hello-world \
   --task-id greeting \
   --agent codex \

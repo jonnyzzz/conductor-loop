@@ -13,7 +13,7 @@ if ! command -v conductor &> /dev/null; then
 fi
 
 echo "Starting Conductor server..."
-conductor --config config.yaml serve &
+run-agent serve --config config.yaml &
 SERVER_PID=$!
 sleep 3
 
@@ -24,7 +24,7 @@ echo ""
 
 # Create tasks for all three agents
 echo "[1/3] Starting Claude review..."
-conductor --config config.yaml task create \
+run-agent server job submit \
   --project-id multi-agent-demo \
   --task-id review-claude \
   --agent claude \
@@ -32,7 +32,7 @@ conductor --config config.yaml task create \
 CLAUDE_PID=$!
 
 echo "[2/3] Starting Codex review..."
-conductor --config config.yaml task create \
+run-agent server job submit \
   --project-id multi-agent-demo \
   --task-id review-codex \
   --agent codex \
@@ -40,7 +40,7 @@ conductor --config config.yaml task create \
 CODEX_PID=$!
 
 echo "[3/3] Starting Gemini review..."
-conductor --config config.yaml task create \
+run-agent server job submit \
   --project-id multi-agent-demo \
   --task-id review-gemini \
   --agent gemini \

@@ -24,7 +24,7 @@ Production-ready Docker deployment with Docker Compose, including frontend, reve
       │               │
 ┌─────▼──────┐ ┌─────▼──────┐
 │ conductor  │ │  frontend  │
-│   :8080    │ │   (static) │
+│   :14355    │ │   (static) │
 └─────┬──────┘ └────────────┘
       │
 ┌─────▼──────────────────────┐
@@ -103,7 +103,7 @@ docker-compose logs -f conductor
 ```bash
 # Conductor Configuration
 CONDUCTOR_VERSION=latest
-CONDUCTOR_API_PORT=8080
+CONDUCTOR_API_PORT=14355
 
 # Agent API Keys (use secrets manager in production)
 ANTHROPIC_API_KEY=sk-ant-...
@@ -138,7 +138,7 @@ DOMAIN=conductor.example.com
 
 **Image:** Built from Dockerfile
 **Purpose:** Main Conductor Loop API server
-**Ports:** 8080 (internal only)
+**Ports:** 14355 (internal only)
 **Volumes:**
 - conductor-runs:/data/runs
 - conductor-secrets:/secrets:ro
@@ -146,7 +146,7 @@ DOMAIN=conductor.example.com
 **Health Check:**
 ```yaml
 healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+  test: ["CMD", "curl", "-f", "http://localhost:14355/api/v1/health"]
   interval: 30s
   timeout: 10s
   retries: 3
@@ -196,11 +196,11 @@ WORKDIR /root/
 COPY --from=builder /app/conductor .
 
 # Expose API port
-EXPOSE 8080
+EXPOSE 14355
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:8080/api/v1/health || exit 1
+  CMD curl -f http://localhost:14355/api/v1/health || exit 1
 
 # Run as non-root user
 RUN adduser -D -u 1000 conductor
@@ -219,7 +219,7 @@ CMD ["./conductor", "--config", "/config/config.yaml", "serve"]
 
 ```nginx
 upstream conductor_api {
-    server conductor:8080;
+    server conductor:14355;
 }
 
 server {
@@ -547,7 +547,7 @@ docker volume inspect conductor-runs
 curl http://localhost/api/v1/health
 
 # Test from within container
-docker-compose exec conductor curl http://localhost:8080/api/v1/health
+docker-compose exec conductor curl http://localhost:14355/api/v1/health
 
 # Check conductor logs
 docker-compose logs conductor | grep ERROR

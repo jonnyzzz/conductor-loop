@@ -4000,3 +4000,99 @@ Changes:
 - MEDIUM: 0 open, 0 partially resolved, 6 resolved
 - LOW: 0 open, 0 partially resolved, 2 resolved
 
+
+---
+msg_id: MSG-20260221-SESSION50-START
+ts: 2026-02-21T11:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 11:00:00] ==========================================
+[2026-02-21 11:00:00] SESSION: 2026-02-21 Session #50
+[2026-02-21 11:00:00] ==========================================
+[2026-02-21 11:00:00] FACT: go build ./... PASS (conductor + run-agent binaries ready)
+[2026-02-21 11:00:00] FACT: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS
+[2026-02-21 11:00:00] FACT: Issues: 0 fully open, 3 partially resolved (Windows-only deferred items)
+[2026-02-21 11:00:00] DECISION: Session #50 work items:
+[2026-02-21 11:00:00]   (1) Feature: run-agent list --status filter (running/done/failed) — consistency with conductor task list --status
+[2026-02-21 11:00:00]   (2) Feature: conductor bus post command — post messages to project/task bus via conductor server API
+[2026-02-21 11:00:00]   Both improve CLI consistency and observability; API endpoint for (2) already exists
+[2026-02-21 11:00:00] PROGRESS: Writing prompt files and dispatching 2 parallel sub-agents
+[2026-02-21 11:03:00] FACT: Sub-agent A task ID: task-20260221-073023-m5xtcf (run-agent list --status filter + doc fixes)
+[2026-02-21 11:03:00] FACT: Sub-agent B task ID: task-20260221-073024-s5lkem (conductor bus post command)
+[2026-02-21 11:03:00] PROGRESS: Both sub-agents running in parallel via ./bin/run-agent job
+
+[2026-02-21 11:35:00] FACT: Sub-agent A (task-20260221-073340-80hqgp): run-agent list --status — DONE (exit_code=0, ~5m)
+[2026-02-21 11:35:00] FACT: Sub-agent B (task-20260221-073024-s5lkem): conductor bus post — DONE (exit_code=0, ~4m)
+[2026-02-21 11:35:00] FACT: Commits: 2966951 (conductor bus post), 127fbd3 (run-agent list --status)
+[2026-02-21 11:35:00] QUALITY: go build ./...: PASS
+[2026-02-21 11:35:00] QUALITY: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+
+---
+msg_id: MSG-20260221-SESSION50-END
+ts: 2026-02-21T11:35:00Z
+type: SESSION_END
+project_id: conductor-loop
+---
+
+## Session #50 Summary (2026-02-21)
+
+### Features Implemented (via 2 parallel dog-food sub-agents)
+
+**feat(cli): add --status filter to run-agent list command** (commit 127fbd3)
+
+Changes:
+- `cmd/run-agent/list.go` — `filterRowsByStatus()` applied after task list is built
+  - `running`/`active` → tasks with `LatestStatus == "running"`
+  - `done` → tasks where `Done == true` (DONE file exists)
+  - `failed` → tasks with `LatestStatus == "failed"`
+  - unknown → graceful degradation (warns to stderr, returns all tasks)
+  - `""` → no filter (current behavior preserved)
+- `cmd/run-agent/list_test.go` — 6 new tests: `TestListTasksStatusRunning`, `TestListTasksStatusActive`, `TestListTasksStatusDone`, `TestListTasksStatusFailed`, `TestListTasksStatusEmpty`, `TestListTasksStatusInvalid`
+
+**Why**: Consistent with `conductor task list --status` (session #49). When a project has many tasks, operators can quickly filter to see only running/done/failed tasks without manually scanning output.
+
+**feat(cli): add conductor bus post command** (commit 2966951)
+
+Changes:
+- `cmd/conductor/bus.go` — new `newBusPostCmd()` + `conductorBusPost()` function
+  - `--project` (required) + optional `--task`, `--type` (default "INFO"), `--body`, `--server`
+  - POST to `/api/projects/{p}/messages` or `/api/projects/{p}/tasks/{t}/messages`
+  - Reads body from stdin if `--body` not set and stdin is a pipe
+  - Prints `msg_id: <id>` on success
+- `cmd/conductor/bus_test.go` — 6 new tests: `TestBusPostSuccess`, `TestBusPostWithTask`, `TestBusPostFromStdin`, `TestBusPostServerError`, `TestBusPostMissingProject`, `TestBusPostAppearsInBusHelp`
+- `docs/user/cli-reference.md` — added `conductor bus post` section, updated `run-agent bus read/post` flag tables (added `--root`, `--project`, `--task` that were in code but missing from docs)
+
+**Also fixed (in same commit)**:
+- `run-agent job` docs: added missing `--follow`/`-f` flag to Optional Flags table
+- `run-agent bus read` docs: added `--root`, `--project`, `--task` flags to table
+- `run-agent bus post` docs: added `--root` flag to table (was missing despite being in code)
+
+**Why**: The server API already supported `POST /api/projects/{p}/messages` but there was no CLI command. `conductor bus post` enables CI/CD pipelines, scripts, and remote operators to post messages to the project/task bus via the conductor server without direct file access.
+
+### Dog-Food Success
+- Both tasks dispatched via `./bin/run-agent job` (parallel)
+- task-20260221-073340-80hqgp: run-agent list --status — DONE (exit_code=0)
+- task-20260221-073024-s5lkem: conductor bus post — DONE (exit_code=0)
+- Both sub-agents committed their own changes
+- Sub-agent B also fixed `list_test.go` (updating call signatures after sub-agent A added `statusFilter` parameter)
+
+### Quality Gates
+- go build ./...: PASS
+- go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+
+### Commits This Session
+- 2966951: feat(cli): add conductor bus post command for remote message posting; docs(cli): update run-agent bus read/post flags and add conductor bus post docs
+- 127fbd3: feat(cli): add --status filter to run-agent list command
+
+### Issue Status (unchanged)
+- CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows file locking), 5 resolved
+- HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+[2026-02-21 10:59:25] FACT: Scenario 1 (single agent) passed
+[2026-02-21 10:59:25] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 10:59:25] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 10:59:25] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 10:59:25] FACT: All acceptance tests passed

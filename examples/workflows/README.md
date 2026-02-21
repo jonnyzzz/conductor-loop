@@ -18,7 +18,7 @@ Reusable workflow templates for common use cases. Each template includes a promp
 Each workflow template can be used directly or customized for your needs:
 
 ```bash
-conductor task create \
+run-agent server job submit \
   --project-id my-project \
   --task-id code-review \
   --agent claude \

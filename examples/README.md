@@ -92,7 +92,7 @@ cd examples/hello-world
 ### Option 2: Manual execution
 ```bash
 cd examples/hello-world
-conductor --config config.yaml task create \
+run-agent server job submit \
   --project-id hello-world \
   --task-id greeting \
   --agent codex \

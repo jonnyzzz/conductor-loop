@@ -42,24 +42,24 @@ Demonstrates running the same task with multiple different agents and comparing 
 
 ```bash
 # Start server
-conductor --config config.yaml serve &
+run-agent serve --config config.yaml &
 
 # Run with Claude
-conductor --config config.yaml task create \
+run-agent server job submit \
   --project-id multi-agent-demo \
   --task-id review-claude \
   --agent claude \
   --prompt-file prompts/code-review.md
 
 # Run with Codex
-conductor --config config.yaml task create \
+run-agent server job submit \
   --project-id multi-agent-demo \
   --task-id review-codex \
   --agent codex \
   --prompt-file prompts/code-review.md
 
 # Run with Gemini
-conductor --config config.yaml task create \
+run-agent server job submit \
   --project-id multi-agent-demo \
   --task-id review-gemini \
   --agent gemini \

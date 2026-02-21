@@ -55,7 +55,7 @@ All scripts are in the `scripts/` directory:
 ### 1. Start the Server
 
 ```bash
-conductor --config ../hello-world/config.yaml serve
+run-agent serve --config ../hello-world/config.yaml
 ```
 
 ### 2. Run Health Check
@@ -106,7 +106,7 @@ This creates a task and returns:
 
 **Request:**
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "my-project",
@@ -135,7 +135,7 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 
 **Request:**
 ```bash
-curl http://localhost:8080/api/v1/runs/run_20260205-115154-12345
+curl http://localhost:14355/api/v1/runs/run_20260205-115154-12345
 ```
 
 **Response (running):**
@@ -171,7 +171,7 @@ curl http://localhost:8080/api/v1/runs/run_20260205-115154-12345
 
 **Request:**
 ```bash
-curl -N http://localhost:8080/api/v1/runs/run_20260205-115154-12345/stream
+curl -N http://localhost:14355/api/v1/runs/run_20260205-115154-12345/stream
 ```
 
 **Response (Server-Sent Events):**
@@ -193,7 +193,7 @@ data: {"status": "completed", "exit_code": 0, "timestamp": "2026-02-05T11:52:10Z
 
 **Request:**
 ```bash
-curl "http://localhost:8080/api/v1/runs?project_id=my-project&status=completed&limit=10"
+curl "http://localhost:14355/api/v1/runs?project_id=my-project&status=completed&limit=10"
 ```
 
 **Response:**
@@ -219,7 +219,7 @@ curl "http://localhost:8080/api/v1/runs?project_id=my-project&status=completed&l
 
 **Request:**
 ```bash
-curl "http://localhost:8080/api/v1/messages?project_id=my-project&type=FACT"
+curl "http://localhost:14355/api/v1/messages?project_id=my-project&type=FACT"
 ```
 
 **Response:**
@@ -245,7 +245,7 @@ curl "http://localhost:8080/api/v1/messages?project_id=my-project&type=FACT"
 
 **Request:**
 ```bash
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "test",
@@ -267,7 +267,7 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 
 **Request:**
 ```bash
-curl http://localhost:8080/api/v1/runs/nonexistent-run
+curl http://localhost:14355/api/v1/runs/nonexistent-run
 ```
 
 **Response (404 Not Found):**
@@ -285,7 +285,7 @@ curl http://localhost:8080/api/v1/runs/nonexistent-run
 Monitor all running tasks in real-time:
 
 ```bash
-curl -N http://localhost:8080/api/v1/runs/stream/all
+curl -N http://localhost:14355/api/v1/runs/stream/all
 ```
 
 Use case: Dashboard showing all active tasks
@@ -296,7 +296,7 @@ Get only errors from the last hour:
 
 ```bash
 SINCE=$(date -u -d '1 hour ago' +%Y%m%d%H%M%S)
-curl "http://localhost:8080/api/v1/messages?type=ERROR&since_id=${SINCE}"
+curl "http://localhost:14355/api/v1/messages?type=ERROR&since_id=${SINCE}"
 ```
 
 ### Creating Tasks Programmatically
@@ -307,7 +307,7 @@ import requests
 import time
 
 # Create task
-response = requests.post('http://localhost:8080/api/v1/tasks', json={
+response = requests.post('http://localhost:14355/api/v1/tasks', json={
     'project_id': 'automation',
     'task_id': f'task-{int(time.time())}',
     'agent_type': 'codex',
@@ -318,7 +318,7 @@ run_id = response.json()['run_id']
 
 # Poll for completion
 while True:
-    run = requests.get(f'http://localhost:8080/api/v1/runs/{run_id}').json()
+    run = requests.get(f'http://localhost:14355/api/v1/runs/{run_id}').json()
     if run['status'] in ['completed', 'failed']:
         break
     time.sleep(5)
@@ -333,7 +333,7 @@ Launch multiple tasks in parallel:
 
 ```bash
 for i in {1..10}; do
-    curl -X POST http://localhost:8080/api/v1/tasks \
+    curl -X POST http://localhost:14355/api/v1/tasks \
       -H "Content-Type: application/json" \
       -d "{
         \"project_id\": \"parallel-demo\",
@@ -380,7 +380,7 @@ Be mindful of:
 # .github/workflows/ci.sh
 
 # Create test task
-RESPONSE=$(curl -s -X POST http://conductor:8080/api/v1/tasks \
+RESPONSE=$(curl -s -X POST http://conductor:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "ci",
@@ -393,9 +393,9 @@ RUN_ID=$(echo $RESPONSE | jq -r '.run_id')
 
 # Wait for completion
 while true; do
-    STATUS=$(curl -s http://conductor:8080/api/v1/runs/$RUN_ID | jq -r '.status')
+    STATUS=$(curl -s http://conductor:14355/api/v1/runs/$RUN_ID | jq -r '.status')
     if [ "$STATUS" = "completed" ]; then
-        EXIT_CODE=$(curl -s http://conductor:8080/api/v1/runs/$RUN_ID | jq -r '.exit_code')
+        EXIT_CODE=$(curl -s http://conductor:14355/api/v1/runs/$RUN_ID | jq -r '.exit_code')
         exit $EXIT_CODE
     elif [ "$STATUS" = "failed" ]; then
         exit 1
@@ -414,7 +414,7 @@ done
 PROJECT_ID=$1
 TASK_TYPE=$2
 
-curl -X POST http://localhost:8080/api/v1/tasks \
+curl -X POST http://localhost:14355/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d "{
     \"project_id\": \"$PROJECT_ID\",
@@ -429,14 +429,14 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 ### Connection Refused
 ```bash
 # Check if server is running
-curl http://localhost:8080/api/v1/health
-# If fails, start server: conductor serve
+curl http://localhost:14355/api/v1/health
+# If fails, start server: run-agent serve
 ```
 
 ### Timeout Errors
 ```bash
 # Increase timeout
-curl --max-time 300 http://localhost:8080/api/v1/runs/$RUN_ID
+curl --max-time 300 http://localhost:14355/api/v1/runs/$RUN_ID
 ```
 
 ### JSON Parse Errors

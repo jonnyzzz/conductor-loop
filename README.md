@@ -26,7 +26,6 @@ Get started in 5 minutes:
 # 1. Clone and build
 git clone https://github.com/jonnyzzz/conductor-loop.git
 cd conductor-loop
-go build -o conductor ./cmd/conductor
 go build -o run-agent ./cmd/run-agent
 
 # 2. Configure (edit config.yaml)
@@ -45,13 +44,13 @@ storage:
 EOF
 
 # 3. Start the server
-./conductor --config config.yaml --root $(pwd)
+./run-agent serve --config config.yaml --root $(pwd)
 
 # 4. Open the web UI (default port: 14355)
 open http://localhost:14355/
 
 # 5. Watch a task until completion (waits for all sub-tasks to finish)
-./bin/conductor watch --project my-project --timeout 30m
+./run-agent server watch --project my-project --timeout 30m
 ```
 
 See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
@@ -65,7 +64,7 @@ See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
 └─────────────────────────┬───────────────────────────────────┘
                           │ REST API + SSE
 ┌─────────────────────────▼───────────────────────────────────┐
-│                    Conductor Server                          │
+│              run-agent serve (monitoring server)             │
 │  - REST API (POST /api/v1/tasks, GET /api/v1/runs, etc.)   │
 │  - SSE Streaming (GET /api/v1/runs/:id/stream)             │
 │  - Message Bus (GET /api/v1/messages)                       │

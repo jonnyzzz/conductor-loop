@@ -58,19 +58,19 @@ Run with 3 agents in parallel for different perspectives:
 
 ```bash
 # Phase 1: Run reviews in parallel
-conductor task create \
+run-agent server job submit \
   --project-id code-review \
   --task-id review-claude \
   --agent claude \
   --prompt "Review ${TARGET_FILE} for security and architecture. Focus on vulnerabilities, authentication, error handling, and design decisions." &
 
-conductor task create \
+run-agent server job submit \
   --project-id code-review \
   --task-id review-codex \
   --agent codex \
   --prompt "Review ${TARGET_FILE} for code quality. Find bugs, suggest improvements with code examples, and check test coverage." &
 
-conductor task create \
+run-agent server job submit \
   --project-id code-review \
   --task-id review-gemini \
   --agent gemini \
@@ -79,7 +79,7 @@ conductor task create \
 wait
 
 # Phase 2: Aggregate results
-conductor task create \
+run-agent server job submit \
   --project-id code-review \
   --task-id aggregate \
   --agent claude \
@@ -99,16 +99,16 @@ echo "Starting multi-agent code review for $TARGET_FILE"
 
 # Launch parallel reviews
 echo "Phase 1: Running parallel reviews..."
-conductor task create --project-id $PROJECT_ID --task-id claude --agent claude --prompt "Security & Architecture review of $TARGET_FILE" &
-conductor task create --project-id $PROJECT_ID --task-id codex --agent codex --prompt "Code quality review of $TARGET_FILE" &
-conductor task create --project-id $PROJECT_ID --task-id gemini --agent gemini --prompt "Patterns & best practices review of $TARGET_FILE" &
+run-agent server job submit --project-id $PROJECT_ID --task-id claude --agent claude --prompt "Security & Architecture review of $TARGET_FILE" &
+run-agent server job submit --project-id $PROJECT_ID --task-id codex --agent codex --prompt "Code quality review of $TARGET_FILE" &
+run-agent server job submit --project-id $PROJECT_ID --task-id gemini --agent gemini --prompt "Patterns & best practices review of $TARGET_FILE" &
 
 wait
 echo "Phase 1 complete"
 
 # Aggregate
 echo "Phase 2: Aggregating results..."
-conductor task create --project-id $PROJECT_ID --task-id final --agent claude --prompt "Aggregate reviews from runs/$PROJECT_ID/*/"
+run-agent server job submit --project-id $PROJECT_ID --task-id final --agent claude --prompt "Aggregate reviews from runs/$PROJECT_ID/*/"
 
 echo "Code review complete! Check runs/$PROJECT_ID/final/"
 ```

@@ -7,7 +7,6 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o /conductor ./cmd/conductor
 RUN go build -o /run-agent ./cmd/run-agent
 
 FROM alpine:latest
@@ -16,7 +15,6 @@ FROM alpine:latest
 RUN apk add --no-cache bash curl jq
 
 # Copy binaries
-COPY --from=builder /conductor /usr/local/bin/
 COPY --from=builder /run-agent /usr/local/bin/
 
 # Create directories
@@ -29,4 +27,4 @@ EXPOSE 14355
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:14355/api/v1/health || exit 1
 
-CMD ["conductor"]
+CMD ["run-agent", "serve"]

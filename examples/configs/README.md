@@ -202,7 +202,7 @@ export CONDUCTOR_API_PORT="9090"
 conductor --config config.yaml health
 
 # Test agent connectivity
-conductor --config config.yaml task create \
+run-agent server job submit \
   --project-id test \
   --task-id health-check \
   --agent codex \

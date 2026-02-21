@@ -51,10 +51,10 @@ Parent waits for all children, then aggregates results
 
 ```bash
 # Start server
-conductor --config config.yaml serve &
+run-agent serve --config config.yaml &
 
 # Create parent task
-conductor --config config.yaml task create \
+run-agent server job submit \
   --project-id hierarchy-demo \
   --task-id orchestrator \
   --agent codex \

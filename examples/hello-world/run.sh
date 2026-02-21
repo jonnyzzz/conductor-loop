@@ -14,14 +14,14 @@ if ! command -v conductor &> /dev/null; then
 fi
 
 echo "Step 1: Starting Conductor server..."
-conductor --config config.yaml serve &
+run-agent serve --config config.yaml &
 SERVER_PID=$!
 echo "Server started (PID: $SERVER_PID)"
 sleep 3
 
 echo ""
 echo "Step 2: Creating hello-world task..."
-conductor --config config.yaml task create \
+run-agent server job submit \
   --project-id hello-world \
   --task-id greeting \
   --agent codex \

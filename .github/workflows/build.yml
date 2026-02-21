@@ -37,9 +37,9 @@ jobs:
           if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
           CGO_ENABLED=0 \
             go build -trimpath -ldflags="-s -w" \
-            -o "dist/conductor-${GOOS}-${GOARCH}${EXT}" ./cmd/conductor
+            -o "dist/run-agent-${GOOS}-${GOARCH}${EXT}" ./cmd/run-agent
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: conductor-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/conductor-${{ matrix.goos }}-${{ matrix.goarch }}*
+          name: run-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/run-agent-${{ matrix.goos }}-${{ matrix.goarch }}*

@@ -739,12 +739,12 @@ fi
 **Test end-to-end:**
 ```bash
 # Start conductor
-conductor serve &
+run-agent serve &
 SERVER_PID=$!
 sleep 3
 
 # Create test task
-TASK_ID=$(conductor task create \
+TASK_ID=$(run-agent server job submit \
     --project-id test \
     --task-id integration-test \
     --agent codex \
@@ -771,15 +771,15 @@ fi
 **Verify failure handling:**
 ```bash
 # Test timeout
-conductor task create --agent codex --prompt "infinite loop"
+run-agent server job submit --agent codex --prompt "infinite loop"
 # Should timeout and fail gracefully
 
 # Test invalid input
-conductor task create --agent invalid-agent --prompt "test"
+run-agent server job submit --agent invalid-agent --prompt "test"
 # Should return error, not crash
 
 # Test missing file
-conductor task create --agent codex --prompt "process nonexistent.txt"
+run-agent server job submit --agent codex --prompt "process nonexistent.txt"
 # Should report error clearly
 ```
 
@@ -789,7 +789,7 @@ conductor task create --agent codex --prompt "process nonexistent.txt"
 ```bash
 # Spawn 50 concurrent tasks
 for i in {1..50}; do
-    conductor task create \
+    run-agent server job submit \
         --project-id load-test \
         --task-id task-$i \
         --agent codex \
