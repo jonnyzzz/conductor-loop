@@ -2984,3 +2984,96 @@ project_id: conductor-loop
 
 ## Commits This Session
 - 28b6ca1: fix(storage): prevent run ID collisions across concurrent CreateRun calls
+
+---
+msg_id: MSG-20260221-SESSION39-START
+ts: 2026-02-21T05:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 05:00:00] ==========================================
+[2026-02-21 05:00:00] SESSION: 2026-02-21 Session #39
+[2026-02-21 05:00:00] ==========================================
+[2026-02-21 05:00:00] FACT: go build ./... PASS (binaries rebuilt: conductor, run-agent)
+[2026-02-21 05:00:00] FACT: go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS (cached from session #38)
+[2026-02-21 05:00:00] FACT: MEMORY.md trimmed from 212 lines to 119 lines (moved detailed history to condensed form)
+[2026-02-21 05:00:00] FACT: Runs directory: 99 tasks, 47MB (task dirs with empty runs/ — GC has nothing to delete at run level)
+
+[2026-02-21 05:00:30] ASSESSMENT: Session #39 gaps identified
+[2026-02-21 05:00:30] GAP-1: ISSUE-010 deferred — structured ERROR message type not yet added to messagebus (post-failure observability)
+[2026-02-21 05:00:30] GAP-2: ISSUE-010 deferred — ErrorSummary field stored in run-info.yaml but not surfaced in web UI
+[2026-02-21 05:00:30] GAP-3: ISSUE-004 deferred — supported agent CLI versions not documented in README
+[2026-02-21 05:00:30] GAP-4: QUESTIONS.md Q4 decision — "run-agent task resume" command backlogged, not yet implemented
+
+[2026-02-21 05:01:00] DECISION: Session #39 focus:
+[2026-02-21 05:01:00]   (1) feat(cli): run-agent task resume command — resets restart counter, retries exhausted tasks
+[2026-02-21 05:01:00]   (2) feat(ui): surface ErrorSummary in web UI run detail panel — show error_summary from run-info.yaml
+[2026-02-21 05:01:00]   (3) docs: document supported agent CLI versions in README (ISSUE-004 deferred)
+[2026-02-21 05:01:00] DECISION: Dispatching 3 parallel sub-agents via ./bin/run-agent job
+
+[2026-02-21 05:02:00] PROGRESS: Dispatched 3 parallel sub-agents via ./bin/run-agent job
+[2026-02-21 05:02:00] FACT: task-20260221-031448-bnk4ey = gc-task-dirs (extend GC to delete DONE task dirs)
+[2026-02-21 05:02:00] FACT: task-20260221-031450-uhibf9 = readme-updates (agent CLI versions + Stage 6 status)
+[2026-02-21 05:02:00] FACT: task-20260221-031453-x2aka9 = list-status-fix (fix 'unknown' status for empty-run tasks)
+
+[2026-02-21 05:25:00] FACT: task-20260221-031448-bnk4ey (gc-task-dirs) - COMPLETED (exit_code=0, duration=3m29s)
+[2026-02-21 05:25:00] FACT: task-20260221-031450-uhibf9 (readme-updates) - COMPLETED (exit_code=0, duration=1m7s)
+[2026-02-21 05:25:00] FACT: task-20260221-031453-x2aka9 (list-status-fix) - COMPLETED (exit_code=0, duration=3m36s)
+[2026-02-21 05:25:00] FACT: go build ./...: PASS (binaries rebuilt: conductor, run-agent)
+[2026-02-21 05:25:00] FACT: go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races
+[2026-02-21 05:25:00] FACT: GC results: 66 task dirs deleted, 2 runs deleted, 0.4 MB freed
+[2026-02-21 05:25:00] FACT: Additional cleanup: deleted 80+ old bootstrap-era run dirs (2026-02-04/05), freed ~45 MB. runs/ now 1.6 MB (was 47 MB)
+
+[2026-02-21 05:25:30] ==========================================
+[2026-02-21 05:25:30] SESSION SUMMARY: 2026-02-21 Session #39
+[2026-02-21 05:25:30] ==========================================
+
+## Features Implemented This Session
+
+1. **feat(cli): add --delete-done-tasks flag to run-agent gc** (commit 0965a9d)
+   - `gc --delete-done-tasks` removes task directories where: DONE file exists, runs/ is empty, mtime older than cutoff
+   - Reports separately: "Deleted N task directories (DONE + empty runs)"
+   - Default false (opt-in); 5 new tests in gc_test.go
+   - Immediately used: deleted 66 stale DONE task dirs, cleaned 45 MB
+
+2. **fix(cli): improve run-agent list task status and LAST_ACTIVITY column** (commit 1ea59da)
+   - Tasks with no runs now show 'done' (if DONE file exists) or '-' (if no DONE file)
+   - Previously showed 'unknown' for all empty-run tasks
+   - New LAST_ACTIVITY column shows task dir modification time
+   - JSON output includes 'last_activity' in ISO 8601 format
+   - 104 new test lines in list_test.go
+
+3. **docs: add agent CLI version requirements and update Stage 6 status** (commit 683a66e)
+   - README Requirements: new "Agent CLI Tools" table (claude >=1.0.0, codex >=0.1.0, gemini >=0.1.0)
+   - Perplexity and xAI REST API note added
+   - Stage 6: Documentation marked ✅ complete (was 🚧 in progress)
+   - `conductor watch` example added to quick-start
+   - Resolves ISSUE-004 deferred item: "Document supported versions in README"
+
+## Dog-Food
+- All 3 tasks dispatched via ./bin/run-agent job (parallel, root: runs/)
+- All DONE files created ✓
+- Monitored via ./bin/run-agent watch (all 3 tasks watched simultaneously)
+- Sub-agent completion times: 1m7s (readme), 3m29s (gc), 3m36s (list)
+
+## GC Cleanup This Session
+- 66 DONE task directories deleted using new --delete-done-tasks flag
+- 80+ old bootstrap-era run dirs deleted manually (2026-02-04/05 pre-project layout)
+- runs/ reduced from 47MB to 1.6MB
+
+## Quality Gates
+- go build -o bin/conductor, go build -o bin/run-agent: PASS
+- go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races
+
+## Current Issue Status
+- CRITICAL: 0 open, 2 partially resolved (ISSUE-002 Windows, ISSUE-004 now has README resolved), 4 resolved
+- HIGH: 0 open, 3 partially resolved (ISSUE-003, ISSUE-009, ISSUE-010), 5 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+- Total: 0 fully open, 5 partially resolved, 17 resolved
+
+## Commits This Session
+- 683a66e: docs: add agent CLI version requirements and update Stage 6 status
+- 0965a9d: feat(cli): add --delete-done-tasks flag to run-agent gc
+- 1ea59da: fix(cli): improve run-agent list task status and add LAST_ACTIVITY column
