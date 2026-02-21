@@ -6,7 +6,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 )
@@ -65,9 +64,6 @@ func TestAllocateRunDirUniqueness(t *testing.T) {
 // TestKillProcessGroupInvalidPGID verifies that KillProcessGroup rejects
 // invalid process group IDs without a syscall.
 func TestKillProcessGroupInvalidPGID(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("KillProcessGroup not available on windows")
-	}
 	err := KillProcessGroup(0)
 	if err == nil {
 		t.Fatal("expected error for pgid=0")
@@ -81,9 +77,6 @@ func TestKillProcessGroupInvalidPGID(t *testing.T) {
 // TestKillProcessGroupNotFound verifies that killing a non-existent process
 // group returns the appropriate error.
 func TestKillProcessGroupNotFound(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("KillProcessGroup not available on windows")
-	}
 	// Use a very large PID that almost certainly doesn't exist.
 	err := KillProcessGroup(999999999)
 	if err == nil {
@@ -93,9 +86,6 @@ func TestKillProcessGroupNotFound(t *testing.T) {
 
 // TestIsProcessAliveCurrentPID verifies that the current process is alive.
 func TestIsProcessAliveCurrentPID(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("IsProcessAlive not available on windows")
-	}
 	pid := os.Getpid()
 	if !IsProcessAlive(pid) {
 		t.Fatalf("current process (pid=%d) should be alive", pid)
@@ -104,9 +94,6 @@ func TestIsProcessAliveCurrentPID(t *testing.T) {
 
 // TestIsProcessAliveInvalidPID verifies that invalid PIDs are not considered alive.
 func TestIsProcessAliveInvalidPID(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("IsProcessAlive not available on windows")
-	}
 	if IsProcessAlive(0) {
 		t.Fatal("pid=0 should not be alive")
 	}
