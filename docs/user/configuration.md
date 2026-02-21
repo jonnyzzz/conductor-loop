@@ -202,14 +202,30 @@ Default values applied when not specified in task creation.
 
 ```yaml
 defaults:
-  agent: codex          # Default agent
-  timeout: 300          # Default timeout (seconds)
+  agent: codex                # Default agent
+  timeout: 300                # Default timeout (seconds)
+  max_concurrent_runs: 4      # 0 = unlimited (default)
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `agent` | string | first agent | Default agent type |
 | `timeout` | int | 300 | Default task timeout in seconds |
+| `max_concurrent_runs` | int | 0 | Maximum simultaneous agent runs; 0 means unlimited |
+
+#### Concurrency Limiting
+
+When `max_concurrent_runs` is set to a positive integer, excess runs **wait** (queue) for a
+slot rather than being rejected. This prevents runaway resource consumption when many tasks
+are submitted simultaneously.
+
+```yaml
+defaults:
+  max_concurrent_runs: 4  # At most 4 agents run at once; others wait in queue
+```
+
+The current queue depth is visible in the Prometheus metrics endpoint as
+`conductor_queued_runs_total`. Set to `0` (the default) to disable the limit entirely.
 
 ### `api` - API Server Configuration
 

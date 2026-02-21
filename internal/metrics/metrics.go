@@ -16,9 +16,10 @@ type Registry struct {
 	completedRuns atomic.Int64
 	failedRuns    atomic.Int64
 	busAppends    atomic.Int64
+	queuedRuns    atomic.Int64
 
-	mu           sync.Mutex
-	apiRequests  map[string]*atomic.Int64 // key: "METHOD:status_code"
+	mu          sync.Mutex
+	apiRequests map[string]*atomic.Int64 // key: "METHOD:status_code"
 }
 
 // New creates a new Registry with the current time as the start time.
@@ -69,6 +70,15 @@ func (r *Registry) IncBusAppends() {
 	r.busAppends.Add(1)
 }
 
+// RecordWaitingRun adjusts the queued run gauge by delta (+1 when a run starts
+// waiting for a concurrency slot, -1 when it acquires or gives up).
+func (r *Registry) RecordWaitingRun(delta int64) {
+	if r == nil {
+		return
+	}
+	r.queuedRuns.Add(delta)
+}
+
 // RecordRequest records an API request by method and HTTP status code.
 func (r *Registry) RecordRequest(method string, statusCode int) {
 	if r == nil {
@@ -117,6 +127,11 @@ func (r *Registry) Render() string {
 	fmt.Fprintf(&sb, "# HELP conductor_messagebus_appends_total Total message bus append operations\n")
 	fmt.Fprintf(&sb, "# TYPE conductor_messagebus_appends_total counter\n")
 	fmt.Fprintf(&sb, "conductor_messagebus_appends_total %d\n", r.busAppends.Load())
+	fmt.Fprintf(&sb, "\n")
+
+	fmt.Fprintf(&sb, "# HELP conductor_queued_runs_total Runs currently waiting for a concurrency slot\n")
+	fmt.Fprintf(&sb, "# TYPE conductor_queued_runs_total gauge\n")
+	fmt.Fprintf(&sb, "conductor_queued_runs_total %d\n", r.queuedRuns.Load())
 	fmt.Fprintf(&sb, "\n")
 
 	fmt.Fprintf(&sb, "# HELP conductor_api_requests_total Total API requests by method and status\n")

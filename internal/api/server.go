@@ -15,6 +15,7 @@ import (
 
 	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/metrics"
+	"github.com/jonnyzzz/conductor-loop/internal/runner"
 	"github.com/pkg/errors"
 )
 
@@ -96,6 +97,11 @@ func NewServer(opts Options) (*Server, error) {
 	if m == nil {
 		m = metrics.New()
 	}
+
+	// Forward queued-run count changes from the runner semaphore to the metrics registry.
+	runner.SetWaitingRunHook(func(delta int64) {
+		m.RecordWaitingRun(delta)
+	})
 
 	s := &Server{
 		apiConfig:  cfg,

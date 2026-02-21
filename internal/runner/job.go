@@ -76,6 +76,53 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	if err := ensureDir(runsDir); err != nil {
 		return nil, errors.Wrap(err, "ensure runs dir")
 	}
+
+	// Load config to read defaults (MaxConcurrentRuns, agent, etc.).
+	cfg, err := loadConfig(opts.ConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Resolve the agent and detect its version before starting the timeout clock.
+	// detectAgentVersion spawns an external process, so it must not eat into the
+	// run timeout budget.
+	selection, err := selectAgent(cfg, opts.Agent)
+	if err != nil {
+		return nil, err
+	}
+	agentType := strings.ToLower(strings.TrimSpace(selection.Type))
+	if agentType == "" {
+		agentType = strings.ToLower(strings.TrimSpace(opts.Agent))
+	}
+	if agentType == "" {
+		return nil, errors.New("agent type is empty")
+	}
+	if tokenErr := ValidateToken(agentType, selection.Config.Token); tokenErr != nil {
+		log.Printf("warning: %v", tokenErr)
+	}
+	agentVersion := detectAgentVersion(context.Background(), agentType)
+
+	// Start the timeout clock now. From this point on, time counts toward the
+	// configured Timeout (including any time spent waiting for a semaphore slot).
+	ctx := context.Background()
+	if opts.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), opts.Timeout)
+		defer cancel()
+	}
+
+	// Initialize the concurrency semaphore from config (no-op after the first
+	// call) and acquire a slot. Blocks if the limit is reached.
+	maxConcurrent := 0
+	if cfg != nil {
+		maxConcurrent = cfg.Defaults.MaxConcurrentRuns
+	}
+	initSemaphore(maxConcurrent)
+	if err := acquireSem(ctx); err != nil {
+		return nil, fmt.Errorf("acquire run slot: %w", err)
+	}
+	defer releaseSem()
+
 	var runID, runDir string
 	if preallocated := strings.TrimSpace(opts.PreallocatedRunDir); preallocated != "" {
 		runDir = preallocated
@@ -103,29 +150,9 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		return nil, errors.Wrap(err, "write prompt")
 	}
 
-	cfg, err := loadConfig(opts.ConfigPath)
-	if err != nil {
-		return nil, err
-	}
 	var notifier *webhook.Notifier
 	if cfg != nil {
 		notifier = webhook.NewNotifier(cfg.Webhook)
-	}
-	selection, err := selectAgent(cfg, opts.Agent)
-	if err != nil {
-		return nil, err
-	}
-	agentType := strings.ToLower(strings.TrimSpace(selection.Type))
-	if agentType == "" {
-		agentType = strings.ToLower(strings.TrimSpace(opts.Agent))
-	}
-	if agentType == "" {
-		return nil, errors.New("agent type is empty")
-	}
-
-	// Warn-only token validation
-	if tokenErr := ValidateToken(agentType, selection.Config.Token); tokenErr != nil {
-		log.Printf("warning: %v", tokenErr)
 	}
 
 	warnJRunEnvMismatch(projectID, taskID, runID, parentRunID)
@@ -175,7 +202,7 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		ProjectID:     projectID,
 		TaskID:        taskID,
 		AgentType:     agentType,
-		AgentVersion:  detectAgentVersion(context.Background(), agentType),
+		AgentVersion:  agentVersion,
 		StartTime:     time.Now().UTC(),
 		ExitCode:      -1,
 		Status:        storage.StatusRunning,
@@ -184,13 +211,6 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		OutputPath:    outputPathAbs,
 		StdoutPath:    stdoutPathAbs,
 		StderrPath:    stderrPathAbs,
-	}
-
-	ctx := context.Background()
-	if opts.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.Background(), opts.Timeout)
-		defer cancel()
 	}
 
 	var execErr error

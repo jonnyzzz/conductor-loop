@@ -41,8 +41,9 @@ type AgentConfig struct {
 
 // DefaultConfig defines defaults used by the runner.
 type DefaultConfig struct {
-	Agent   string `yaml:"agent"`
-	Timeout int    `yaml:"timeout"`
+	Agent             string `yaml:"agent"`
+	Timeout           int    `yaml:"timeout"`
+	MaxConcurrentRuns int    `yaml:"max_concurrent_runs"`
 }
 
 // StorageConfig defines storage-related settings.
@@ -230,6 +231,9 @@ func parseHCLConfig(path string, data []byte) (*Config, error) {
 		}
 		if n, ok := m["timeout"].(int); ok {
 			cfg.Defaults.Timeout = n
+		}
+		if n, ok := m["max_concurrent_runs"].(int); ok {
+			cfg.Defaults.MaxConcurrentRuns = n
 		}
 	}
 
