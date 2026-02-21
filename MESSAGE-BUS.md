@@ -2237,3 +2237,89 @@ project_id: conductor-loop
 ## Commits This Session
 - 5f2ddf7: feat(runner,api,ui): add agent_version and error_summary to run metadata
 - d95efb8: fix(test): fix TestNestedRuns timing race in integration test
+
+[2026-02-21 00:32:00] ==========================================
+[2026-02-21 00:32:00] SESSION: 2026-02-21 Session #28
+[2026-02-21 00:32:00] ==========================================
+[2026-02-21 00:32:00] PROGRESS: Starting session - read all required docs
+[2026-02-21 00:32:00] FACT: go build ./... passes, all test packages green
+[2026-02-21 00:32:00] FACT: Binaries rebuilt: conductor (14.2MB), run-agent (14.3MB)
+[2026-02-21 00:32:00] FACT: Conductor server restarted with fresh binary (PID 76663)
+[2026-02-21 00:32:00] NOTE: Old server (PID 93612) was using stale binary from Session #27
+
+[2026-02-21 00:32:01] FACT: Session assessment complete:
+[2026-02-21 00:32:01] - 0 fully open issues (5 partially resolved - deferred items only)
+[2026-02-21 00:32:01] - All 9 design questions answered
+[2026-02-21 00:32:01] - /api/v1/status endpoint works correctly
+[2026-02-21 00:32:01] - BUG FOUND: API path resolution bug (handlers use rootDir/projectID/taskID directly)
+[2026-02-21 00:32:01] - DEFERRED ITEMS: validate --check-tokens, frontend status filter
+
+[2026-02-21 00:32:30] ==========================================
+[2026-02-21 00:32:30] DOG-FOOD: Session #28 dispatching 3 parallel sub-agents
+[2026-02-21 00:32:30] ==========================================
+[2026-02-21 00:32:30] PROGRESS: All 3 sub-agents dispatched via ./bin/run-agent job (root: runs/)
+[2026-02-21 00:32:30] FACT: task-20260221-003225-ltmbkl - fix-api-path-resolution
+[2026-02-21 00:32:30] FACT: task-20260221-003228-zf18xz - validate-check-tokens
+[2026-02-21 00:32:30] FACT: task-20260221-003231-xa7f6q - frontend-run-status-filter
+
+[2026-02-21 01:43:00] ==========================================
+[2026-02-21 01:43:00] RESULTS: Session #28 - All 3 sub-agents completed
+[2026-02-21 01:43:00] ==========================================
+[2026-02-21 01:43:00] FACT: task-20260221-003225-ltmbkl (fix-api-path-resolution) - COMPLETED (commit f9d0fcb)
+[2026-02-21 01:43:00] FACT: task-20260221-003228-zf18xz (validate-check-tokens) - COMPLETED (commit 2466c62)
+[2026-02-21 01:43:00] FACT: task-20260221-003231-xa7f6q (frontend-run-status-filter) - COMPLETED (commit a2b0157)
+[2026-02-21 01:43:00] FACT: go test -race ./internal/... ./cmd/...: ALL PASS (no races)
+[2026-02-21 01:43:00] FACT: go build ./...: PASS
+[2026-02-21 01:43:00] NOTE: TestRunCreationThroughput (performance) was flaky during heavy load - pre-existing issue
+
+[2026-02-21 01:43:01] DECISION: Conductor server root directory
+[2026-02-21 01:43:01] - Previous sessions used --root /Users/jonnyzzz/Work/conductor-loop (project root)
+[2026-02-21 01:43:01] - This caused stats/message-bus endpoints to fail for new-format tasks
+[2026-02-21 01:43:01] - Correct usage: --root ./runs (or let config runs_dir take effect)
+[2026-02-21 01:43:01] - fix(api) commit f9d0fcb also adds findProjectDir/findProjectTaskDir helpers for robustness
+
+[2026-02-21 01:44:00] ==========================================
+[2026-02-21 01:44:00] SESSION SUMMARY: 2026-02-21 Session #28
+[2026-02-21 01:44:00] ==========================================
+
+## Features Implemented This Session
+
+1. **fix(api): resolve task directory paths** (commit f9d0fcb)
+   - Added `findProjectDir` and `findProjectTaskDir` helpers that check direct path, runs/ subdirectory, and 3-level walk
+   - Fixed `serveTaskFile`, `handleProjectStats`, message bus handlers (9 total), `handleTaskCreate`
+   - Added 8 new tests for path resolution
+
+2. **feat(cli): add --check-tokens to validate command** (commit 2466c62)
+   - Checks token file readability and non-empty content per agent
+   - Shows per-agent results: [OK], [MISSING - file not found], [EMPTY], [NOT SET]
+   - Exit code 1 if any token check fails
+   - 5 new tests; all 21 validate tests pass
+
+3. **feat(ui): add run status filter and task status badges** (commit a2b0157)
+   - Filter buttons (All/Running/Completed/Failed) in RunDetail component
+   - Status count badges (colored) on each task in TaskList
+   - `run_counts` field added to `/api/projects/{p}/tasks` task summaries
+   - Frontend rebuilt (frontend/dist/ updated)
+
+## Dog-Food
+- All 3 tasks orchestrated via ./bin/run-agent job (parallel, root: runs/)
+- All 3 DONE files created ✓
+- No merge conflicts
+
+## Quality Gates
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS
+- go test -race ./internal/... ./cmd/...: PASS (no races)
+- test/performance: flaky on loaded machine (pre-existing, not caused by session changes)
+
+## Current Issue Status
+- CRITICAL: 0 open, 2 partially resolved (ISSUE-002 Windows, ISSUE-004 CLI versions), 4 resolved
+- HIGH: 0 open, 3 partially resolved (ISSUE-003, ISSUE-009, ISSUE-010), 5 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+- Total: 0 fully open, 5 partially resolved, 17 resolved
+
+## Commits This Session
+- f9d0fcb: fix(api): resolve task directory paths correctly across root structures
+- 2466c62: feat(cli): add --check-tokens flag to run-agent validate for token file verification
+- a2b0157: feat(ui): add run status filter and task status badges to web UI

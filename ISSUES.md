@@ -385,7 +385,7 @@ Tokens stored in config.hcl can expire (Anthropic, OpenAI tokens have TTL). No r
 - [x] 10 table-driven tests covering all agent types and token scenarios
 - [ ] Full token expiration detection via API call (deferred — requires network roundtrip)
 - [ ] Token refresh for OAuth-based providers (deferred)
-- [ ] `run-agent validate-config --check-tokens` command (deferred)
+- [x] `run-agent validate --check-tokens` command — IMPLEMENTED in Session #28 (cmd/run-agent/validate.go, commit 2466c62)
 
 **Resolution Note**: `ValidateToken()` warns on missing token at job start. Full expiration detection deferred.
 
