@@ -37,6 +37,10 @@
 - [x] Update `.md` docs for message bus usage with `run-agent`.
 - [ ] Create feature requests for remaining project-goal-related manual bash workflows and expose them as conductor/run-agent commands.
 - [x] Log external release/update simplification request for swarm run-agent backlog (`swarm/tasks/TASK-20260221-devrig-release-update-simplification.md`).
+- [ ] Message bus UX gap: make `run-agent bus` first-class for legacy repo-local `MESSAGE-BUS.md` files (no manual `--bus` path plumbing).
+- [ ] Message bus format gap: add migration/compat mode for mixed legacy markdown logs so `bus read --tail` returns predictable latest entries.
+- [ ] Message bus discoverability gap: add helper command to auto-detect nearest bus file (`MESSAGE-BUS.md`, `PROJECT-MESSAGE-BUS.md`, `TASK-MESSAGE-BUS.md`) from CWD.
+- [ ] Message bus workflow gap: add docs/examples for cross-repo usage (`conductor-loop` binary operating on `swarm` bus paths).
 
 ### Orchestration / Multi-Agent
 
