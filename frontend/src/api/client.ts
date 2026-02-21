@@ -23,6 +23,7 @@ export interface TaskStartRequest {
   prompt: string
   project_root: string
   attach_mode: 'create' | 'attach' | 'resume'
+  depends_on?: string[]
   project_id?: string  // injected by startTask
   agent_type?: string  // set to 'claude' as default
 }

@@ -1,4 +1,4 @@
-export type RunStatus = 'running' | 'completed' | 'failed' | 'stopped' | 'unknown'
+export type RunStatus = 'running' | 'completed' | 'failed' | 'blocked' | 'stopped' | 'unknown'
 
 export interface Project {
   id: string
@@ -23,6 +23,8 @@ export interface TaskSummary {
   last_activity: string
   run_count?: number
   run_counts?: Partial<Record<RunStatus, number>>
+  depends_on?: string[]
+  blocked_by?: string[]
 }
 
 export interface TaskDetail {
@@ -34,6 +36,8 @@ export interface TaskDetail {
   created_at: string
   done: boolean
   state: string
+  depends_on?: string[]
+  blocked_by?: string[]
   runs: RunSummary[]
 }
 

@@ -9,14 +9,20 @@ export interface TreeNode {
   taskId?: string
   projectId?: string
   startTime?: string
+  endTime?: string
   latestRunId?: string
   latestRunAgent?: string
   latestRunStatus?: string
   latestRunTime?: string
+  latestRunStartTime?: string
+  latestRunEndTime?: string
   children: TreeNode[]
   restartCount?: number
   parentRunId?: string
+  previousRunId?: string
   inlineLatestRun?: boolean
+  dependsOn?: string[]
+  blockedBy?: string[]
 }
 
 /**
@@ -57,11 +63,10 @@ export function buildTree(
     taskRunMap.set(run.task_id, arr)
   }
 
-  // For each task, compute the task status (running > failed > completed)
-  // using the task summary data if available, else derive from runs.
-  const taskStatusMap = new Map<string, string>()
+  // For each task, use summary metadata when available.
+  const taskSummaryMap = new Map<string, TaskSummary>()
   for (const task of tasks) {
-    taskStatusMap.set(task.id, task.status)
+    taskSummaryMap.set(task.id, task)
   }
 
   // Collect all task IDs (from both tasks list and runs).
@@ -96,15 +101,18 @@ export function buildTree(
       taskId: run.task_id,
       projectId,
       startTime: run.start_time,
+      endTime: run.end_time,
       children,
       parentRunId: run.parent_run_id,
+      previousRunId: run.previous_run_id,
     }
   }
 
   // Build task nodes.
   function buildTaskNode(taskId: string): TreeNode {
     const runs = taskRunMap.get(taskId) ?? []
-    const taskStatus = taskStatusMap.get(taskId) ?? deriveTaskStatus(runs)
+    const summary = taskSummaryMap.get(taskId)
+    const taskStatus = summary?.status ?? deriveTaskStatus(runs)
     const runIds = new Set(runs.map((run) => run.id))
 
     // Identify restart chains (previous_run_id links).
@@ -142,10 +150,12 @@ export function buildTree(
       return currentTime > accTime ? run : acc
     }, undefined)
     const shouldInlineLatestRun =
-      latestRun !== undefined &&
       children.length === 1 &&
-      children[0].id === latestRun.id &&
-      children[0].children.length === 0
+      children[0].children.length === 0 &&
+      (
+        runs.length === 1 ||
+        (latestRun !== undefined && children[0].id === latestRun.id)
+      )
     const visibleChildren = shouldInlineLatestRun ? [] : children
 
     const shortId = taskId.replace(/^task-\d{8}-\d{6}-/, '')
@@ -160,9 +170,13 @@ export function buildTree(
       latestRunAgent: latestRun?.agent,
       latestRunStatus: latestRun?.status,
       latestRunTime: latestRun?.start_time,
+      latestRunStartTime: latestRun?.start_time,
+      latestRunEndTime: latestRun?.end_time,
       children: visibleChildren,
       restartCount: restartCount > 0 ? restartCount : undefined,
       inlineLatestRun: shouldInlineLatestRun ? true : undefined,
+      dependsOn: summary?.depends_on,
+      blockedBy: summary?.blocked_by,
     }
   }
 

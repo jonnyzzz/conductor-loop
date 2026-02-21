@@ -52,6 +52,7 @@ const emptyForm = (taskId: string): TaskStartRequest => ({
 function statusDot(status: string): string {
   switch (status) {
     case 'running': return '●'
+    case 'blocked': return '⏸'
     case 'completed': return '✓'
     case 'failed': return '✗'
     default: return '○'
@@ -61,6 +62,7 @@ function statusDot(status: string): string {
 function statusClass(status: string): string {
   switch (status) {
     case 'running': return 'tree-status-running'
+    case 'blocked': return 'tree-status-blocked'
     case 'completed': return 'tree-status-completed'
     case 'failed': return 'tree-status-failed'
     default: return 'tree-status-unknown'
@@ -71,6 +73,29 @@ function formatTime(iso?: string): string {
   if (!iso) return ''
   const d = new Date(iso)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function formatDurationBadge(startIso?: string, endIso?: string): string | null {
+  if (!startIso) return null
+  const start = Date.parse(startIso)
+  if (Number.isNaN(start)) return null
+  const end = endIso ? Date.parse(endIso) : Date.now()
+  if (Number.isNaN(end) || end < start) return null
+
+  const totalSeconds = Math.floor((end - start) / 1000)
+  if (totalSeconds < 120) return `${totalSeconds}s`
+
+  const totalMinutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  if (totalMinutes < 60) return `${totalMinutes}m${String(seconds).padStart(2, '0')}s`
+
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours < 24) return `${hours}h${String(minutes).padStart(2, '0')}m`
+
+  const days = Math.floor(hours / 24)
+  const remHours = hours % 24
+  return `${days}d${String(remHours).padStart(2, '0')}h`
 }
 
 interface TreeNodeProps {
@@ -130,7 +155,15 @@ function TreeNodeRow({
   }
 
   const hasProjectAction = Boolean(node.type === 'project' && node.projectId && onCreateTask)
-  const runLabel = node.id.length > 18 ? `${node.id.slice(0, 18)}…` : node.id
+  const runLabel = node.id.length > 14 ? `${node.id.slice(0, 14)}…` : node.id
+  const latestDuration =
+    node.type === 'task'
+      ? formatDurationBadge(node.latestRunStartTime ?? node.latestRunTime, node.latestRunEndTime)
+      : null
+  const runDuration =
+    node.type === 'run'
+      ? formatDurationBadge(node.startTime, node.endTime)
+      : null
 
   return (
     <div className="tree-node">
@@ -138,7 +171,7 @@ function TreeNodeRow({
         <button
           type="button"
           className={clsx('tree-row', isSelected && 'tree-row-active', hasProjectAction && 'tree-row-with-action')}
-          style={{ paddingLeft: `${6 + depth * 12}px` }}
+          style={{ paddingLeft: `${4 + depth * 10}px` }}
           onClick={handleClick}
         >
           <span
@@ -173,7 +206,12 @@ function TreeNodeRow({
                     className="tree-badge tree-badge-restart"
                     title={`${node.restartCount} restart${node.restartCount === 1 ? '' : 's'} in chain`}
                   >
-                    ↻{node.restartCount}
+                    restart:{node.restartCount}
+                  </span>
+                )}
+                {latestDuration && (
+                  <span className="tree-badge tree-badge-duration" title="latest run duration">
+                    dur:{latestDuration}
                   </span>
                 )}
                 {node.latestRunAgent && (
@@ -183,6 +221,11 @@ function TreeNodeRow({
                 )}
                 {node.latestRunTime && (
                   <span className="tree-time">{formatTime(node.latestRunTime)}</span>
+                )}
+                {node.status === 'blocked' && node.blockedBy && node.blockedBy.length > 0 && (
+                  <span className="tree-badge tree-badge-blocked" title={`blocked by ${node.blockedBy.join(', ')}`}>
+                    blocked:{node.blockedBy.length}
+                  </span>
                 )}
               </span>
             </>
@@ -197,6 +240,16 @@ function TreeNodeRow({
                 {runLabel}
               </span>
               <span className="tree-row-right">
+                {runDuration && (
+                  <span className="tree-badge tree-badge-duration" title="run duration">
+                    dur:{runDuration}
+                  </span>
+                )}
+                {node.previousRunId && (
+                  <span className="tree-badge tree-badge-restart" title={`restart of ${node.previousRunId}`}>
+                    restart
+                  </span>
+                )}
                 <span className="tree-badge tree-badge-agent">[{node.agent ?? '?'}]</span>
                 <span className="tree-time">{formatTime(node.startTime)}</span>
               </span>
@@ -259,6 +312,7 @@ export function TreePanel({
   const [taskIdPrefix, setTaskIdPrefix] = useState(() => generateTaskIdPrefix())
   const [taskIdSuffix, setTaskIdSuffix] = useState(() => generateTaskSuffix())
   const [form, setForm] = useState<TaskStartRequest>(() => emptyForm(buildTaskId(taskIdPrefix, taskIdSuffix)))
+  const [dependsOnInput, setDependsOnInput] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const homeDirs = homeDirsQuery.data?.dirs ?? []
@@ -283,6 +337,7 @@ export function TreePanel({
     setTaskIdPrefix(nextPrefix)
     setTaskIdSuffix(nextSuffix)
     setForm(emptyForm(nextTaskId))
+    setDependsOnInput('')
     setSubmitError(null)
     setShowCreate(true)
   }
@@ -296,7 +351,15 @@ export function TreePanel({
     e.preventDefault()
     setSubmitError(null)
     try {
-      await startTaskMutation.mutateAsync({ ...form, task_id: derivedTaskId })
+      const dependsOn = dependsOnInput
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+      await startTaskMutation.mutateAsync({
+        ...form,
+        task_id: derivedTaskId,
+        depends_on: dependsOn.length > 0 ? dependsOn : undefined,
+      })
       closeDialog()
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Failed to create task')
@@ -473,9 +536,9 @@ export function TreePanel({
                 </span>
               </label>
 
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span className="form-label">Attach Mode</span>
-                <select
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span className="form-label">Attach Mode</span>
+              <select
                   className="input"
                   style={{ width: '100%' }}
                   value={form.attach_mode}
@@ -485,9 +548,21 @@ export function TreePanel({
                 >
                   <option value="create">create</option>
                   <option value="attach">attach</option>
-                  <option value="resume">resume</option>
-                </select>
-              </label>
+                <option value="resume">resume</option>
+              </select>
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span className="form-label">Depends on</span>
+              <input
+                className="input"
+                style={{ width: '100%' }}
+                value={dependsOnInput}
+                onChange={(event) => setDependsOnInput(event.target.value)}
+                placeholder="task-a, task-b"
+              />
+              <span className="form-hint">Comma-separated task IDs that must complete first.</span>
+            </label>
 
               {submitError && (
                 <div className="form-error">{submitError}</div>

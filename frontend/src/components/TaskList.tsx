@@ -9,7 +9,7 @@ import { ProjectStats } from './ProjectStats'
 
 const STATUS_BADGE_ORDER: RunStatus[] = ['running', 'failed', 'completed']
 
-const statusFilters = ['all', 'running', 'completed', 'failed'] as const
+const statusFilters = ['all', 'running', 'blocked', 'completed', 'failed'] as const
 export type StatusFilter = (typeof statusFilters)[number]
 
 function parseDate(value?: string) {
@@ -58,6 +58,7 @@ export function TaskList({
   const [searchText, setSearchText] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<TaskStartRequest>(emptyForm)
+  const [dependsOnInput, setDependsOnInput] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const startTaskMutation = useStartTask(selectedProjectId)
@@ -76,6 +77,7 @@ export function TaskList({
 
   const openDialog = () => {
     setForm({ ...emptyForm(), task_id: generateTaskId() })
+    setDependsOnInput('')
     setSubmitError(null)
     setShowCreate(true)
   }
@@ -89,7 +91,14 @@ export function TaskList({
     e.preventDefault()
     setSubmitError(null)
     try {
-      await startTaskMutation.mutateAsync(form)
+      const dependsOn = dependsOnInput
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+      await startTaskMutation.mutateAsync({
+        ...form,
+        depends_on: dependsOn.length > 0 ? dependsOn : undefined,
+      })
       closeDialog()
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Failed to create task')
@@ -196,7 +205,13 @@ export function TaskList({
               <div className="list-item-meta">
                 <span className={clsx('status-dot', `status-${task.status}`)} />
                 {task.status} · {new Date(task.last_activity).toLocaleString()}
+                {task.status === 'blocked' && task.blocked_by && task.blocked_by.length > 0
+                  ? ` · blocked by ${task.blocked_by.join(', ')}`
+                  : ''}
               </div>
+              {task.depends_on && task.depends_on.length > 0 && (
+                <div className="list-item-meta">depends on: {task.depends_on.join(', ')}</div>
+              )}
               {task.run_counts && (
                 <div className="run-count-badges">
                   {STATUS_BADGE_ORDER.filter((s) => (task.run_counts?.[s] ?? 0) > 0).map((s) => (
@@ -300,6 +315,18 @@ export function TaskList({
                   <option value="attach">attach</option>
                   <option value="resume">resume</option>
                 </select>
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span className="form-label">Depends on</span>
+                <input
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={dependsOnInput}
+                  onChange={(e) => setDependsOnInput(e.target.value)}
+                  placeholder="task-a, task-b"
+                />
+                <span className="form-hint">Comma-separated task IDs that must complete before this task can start.</span>
               </label>
 
               {submitError && (

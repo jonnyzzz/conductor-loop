@@ -11,7 +11,7 @@ import {
   useTaskMessages,
 } from '../hooks/useAPI'
 
-const MESSAGE_TYPES = ['USER', 'QUESTION', 'ANSWER', 'INFO', 'FACT', 'PROGRESS', 'DECISION', 'ERROR']
+const MESSAGE_TYPES = ['PROGRESS', 'FACT', 'DECISION', 'ERROR', 'QUESTION']
 
 function parseTimestamp(timestamp: string): number {
   const parsed = Date.parse(timestamp)
@@ -74,7 +74,7 @@ export function MessageBus({
   const [typeFilter, setTypeFilter] = useState('')
 
   // Compose form state
-  const [composeType, setComposeType] = useState('USER')
+  const [composeType, setComposeType] = useState(MESSAGE_TYPES[0])
   const [composeText, setComposeText] = useState('')
   const [postStatus, setPostStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [postError, setPostError] = useState('')

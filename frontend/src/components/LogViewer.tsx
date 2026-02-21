@@ -19,6 +19,8 @@ interface LogLine extends LogEvent {
   dedupeKey: string
 }
 
+const EMPTY_INITIAL_LINES: LogEvent[] = []
+
 function formatLine(line: LogLine) {
   const prefix = `[${line.run_id}:${line.stream}] `
   return ansi.toHtml(prefix + line.line)
@@ -64,7 +66,7 @@ function buildLogDedupeKey(line: LogEvent, cursorID?: string): string {
 
 export function LogViewer({
   streamUrl,
-  initialLines = [],
+  initialLines = EMPTY_INITIAL_LINES,
   maxLines = 5000,
 }: {
   streamUrl?: string

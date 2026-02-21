@@ -16,6 +16,7 @@
   --app-subtle: #93a4bc;
   --app-accent: #5ad1a7;
   --status-running: #f2c94c;
+  --status-blocked: #ffb454;
   --status-completed: #4fd38d;
   --status-failed: #f07b7b;
   --status-stopped: #9aa6b2;
@@ -381,6 +382,10 @@ body {
 
 .status-running {
   background: var(--status-running);
+}
+
+.status-blocked {
+  background: var(--status-blocked);
 }
 
 .status-completed,
@@ -1027,34 +1032,34 @@ body {
 .tree-row-shell {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .tree-row-shell-project {
-  padding-right: 6px;
+  padding-right: 4px;
 }
 
 .tree-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   width: 100%;
   background: none;
   border: 1px solid transparent;
   border-radius: 6px;
   color: inherit;
   cursor: pointer;
-  padding: 3px 8px;
+  padding: 2px 6px;
   text-align: left;
   transition: background 0.15s ease;
-  min-height: 24px;
+  min-height: 21px;
 }
 
 .tree-row-right {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -1074,8 +1079,8 @@ body {
 
 .tree-toggle {
   display: inline-block;
-  width: 12px;
-  font-size: 10px;
+  width: 10px;
+  font-size: 9px;
   color: var(--app-subtle);
   flex-shrink: 0;
 }
@@ -1096,7 +1101,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .tree-label-project {
@@ -1106,7 +1111,7 @@ body {
 
 .tree-label-run {
   color: var(--app-subtle);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .tree-label-active {
@@ -1114,14 +1119,18 @@ body {
 }
 
 .tree-status-dot {
-  font-size: 10px;
+  font-size: 9px;
   flex-shrink: 0;
-  width: 14px;
+  width: 12px;
   text-align: center;
 }
 
 .tree-status-running {
   color: var(--status-running);
+}
+
+.tree-status-blocked {
+  color: var(--status-blocked);
 }
 
 .tree-status-completed {
@@ -1137,10 +1146,11 @@ body {
 }
 
 .tree-badge {
-  font-size: 10px;
-  padding: 1px 5px;
+  font-size: 9px;
+  padding: 1px 4px;
   border-radius: 999px;
   flex-shrink: 0;
+  letter-spacing: 0.01em;
 }
 
 .tree-badge-count {
@@ -1155,6 +1165,12 @@ body {
   letter-spacing: 0.02em;
 }
 
+.tree-badge-blocked {
+  background: rgba(255, 180, 84, 0.14);
+  color: var(--status-blocked);
+  font-weight: 600;
+}
+
 .tree-badge-agent {
   background: rgba(108, 180, 255, 0.14);
   color: #90c8ff;
@@ -1165,14 +1181,19 @@ body {
   color: var(--status-running);
 }
 
+.tree-badge-duration {
+  background: rgba(79, 211, 141, 0.12);
+  color: var(--status-completed);
+}
+
 .tree-inline-action {
   border: 1px solid rgba(90, 210, 167, 0.35);
   border-radius: 999px;
   background: rgba(90, 210, 167, 0.12);
   color: var(--app-accent);
-  font-size: 10px;
+  font-size: 9px;
   font-family: inherit;
-  padding: 2px 8px;
+  padding: 1px 7px;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1197,7 +1218,7 @@ body {
 }
 
 .tree-time {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--app-subtle);
   flex-shrink: 0;
 }
@@ -1236,7 +1257,7 @@ body {
 
   .tree-inline-action {
     font-size: 9px;
-    padding: 2px 7px;
+    padding: 1px 6px;
   }
 
   .tree-project-picker-row {
