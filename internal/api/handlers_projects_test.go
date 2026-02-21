@@ -1347,3 +1347,65 @@ func TestProjectTaskRunsPagination_SortNewestFirst(t *testing.T) {
 		t.Errorf("expected last item to be run-old (oldest), got %v", last["id"])
 	}
 }
+
+func TestDeleteRun_Success(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "project", "task", "run-del-1", storage.StatusCompleted, "output\n")
+
+	runDir := filepath.Join(root, "project", "task", "runs", "run-del-1")
+	if _, statErr := os.Stat(runDir); os.IsNotExist(statErr) {
+		t.Fatalf("run directory should exist before delete")
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/project/tasks/task/runs/run-del-1", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204 No Content, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	if _, statErr := os.Stat(runDir); !os.IsNotExist(statErr) {
+		t.Errorf("expected run directory to be deleted, but it still exists at %s", runDir)
+	}
+}
+
+func TestDeleteRun_Running(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "project", "task", "run-del-2", storage.StatusRunning, "output\n")
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/project/tasks/task/runs/run-del-2", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409 Conflict for running run, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Run directory should still exist.
+	runDir := filepath.Join(root, "project", "task", "runs", "run-del-2")
+	if _, statErr := os.Stat(runDir); os.IsNotExist(statErr) {
+		t.Errorf("run directory should NOT be deleted for a running run")
+	}
+}
+
+func TestDeleteRun_NotFound(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/project/tasks/task/runs/run-nonexistent", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 Not Found for non-existent run, got %d: %s", rec.Code, rec.Body.String())
+	}
+}

@@ -4,7 +4,7 @@ import { TaskList } from './components/TaskList'
 import { RunDetail } from './components/RunDetail'
 import { LogViewer } from './components/LogViewer'
 import { MessageBus } from './components/MessageBus'
-import { useProjects, useRunFile, useRunInfo, useTask, useTaskFile, useTasks } from './hooks/useAPI'
+import { useDeleteRun, useProjects, useRunFile, useRunInfo, useTask, useTaskFile, useTasks } from './hooks/useAPI'
 
 const defaultRunFile = 'output.md'
 
@@ -27,6 +27,7 @@ export function App() {
   const runInfoQuery = useRunInfo(effectiveProjectId, effectiveTaskId, effectiveRunId)
   const taskStateQuery = useTaskFile(effectiveProjectId, effectiveTaskId, 'TASK.md')
   const runFileQuery = useRunFile(effectiveProjectId, effectiveTaskId, effectiveRunId, runFileName, 5000)
+  const deleteRunMutation = useDeleteRun(effectiveProjectId, effectiveTaskId)
 
   const logStreamUrl = effectiveProjectId && effectiveTaskId
     ? `/api/projects/${effectiveProjectId}/tasks/${effectiveTaskId}/runs/stream`
@@ -125,6 +126,14 @@ export function App() {
             onSelectFile={setRunFileName}
             fileContent={runFileQuery.data}
             taskState={taskStateQuery.data?.content}
+            onDeleteRun={(runId) => {
+              deleteRunMutation.mutate(runId, {
+                onSuccess: () => {
+                  setSelectedRunId(undefined)
+                  setRunFileName(defaultRunFile)
+                },
+              })
+            }}
           />
         </section>
 

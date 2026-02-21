@@ -23,6 +23,7 @@ export function RunDetail({
   onSelectFile,
   fileContent,
   taskState,
+  onDeleteRun,
 }: {
   task?: TaskDetail
   runInfo?: RunInfo
@@ -32,6 +33,7 @@ export function RunDetail({
   onSelectFile: (name: string) => void
   fileContent?: FileContent
   taskState?: string
+  onDeleteRun?: (runId: string) => void
 }) {
   const [runFilter, setRunFilter] = useState<RunStatusFilter>('all')
 
@@ -54,6 +56,21 @@ export function RunDetail({
         <div className="panel-column">
           <div className="section-title">Metadata</div>
           {taskState && <div className="task-state">{taskState}</div>}
+          {runInfo && task?.status !== 'running' && onDeleteRun && (
+            <div className="panel-actions" style={{ marginBottom: '8px' }}>
+              <Button
+                inline
+                danger
+                onClick={() => {
+                  if (window.confirm(`Delete run ${runInfo.run_id}? This cannot be undone.`)) {
+                    onDeleteRun(runInfo.run_id)
+                  }
+                }}
+              >
+                Delete run
+              </Button>
+            </div>
+          )}
           {runInfo ? (
             <div className="metadata-grid">
               <div>

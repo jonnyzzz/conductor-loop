@@ -339,6 +339,10 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 			}
 			return s.handleStopRun(w, found)
 		}
+		// delete endpoint (DELETE) - run itself, no sub-path
+		if len(parts) == 5 && r.Method == http.MethodDelete {
+			return s.handleRunDelete(w, projectID, taskID, found)
+		}
 		// remaining run endpoints are GET-only
 		if r.Method != http.MethodGet {
 			return apiErrorMethodNotAllowed()
@@ -392,6 +396,25 @@ func (s *Server) handleStopRun(w http.ResponseWriter, run *storage.RunInfo) *api
 		"run_id":  run.RunID,
 		"message": "SIGTERM sent",
 	})
+}
+
+// handleRunDelete handles DELETE /api/projects/{p}/tasks/{t}/runs/{r}.
+// It deletes a completed or failed run directory from disk.
+// Returns 409 if the run is still running, 404 if the run directory is not found.
+func (s *Server) handleRunDelete(w http.ResponseWriter, projectID, taskID string, run *storage.RunInfo) *apiError {
+	if run.Status == storage.StatusRunning {
+		return apiErrorConflict("run is still running", map[string]string{"status": run.Status})
+	}
+	taskDir, ok := findProjectTaskDir(s.rootDir, projectID, taskID)
+	if !ok {
+		return apiErrorNotFound("task directory not found")
+	}
+	runDir := filepath.Join(taskDir, "runs", run.RunID)
+	if err := os.RemoveAll(runDir); err != nil {
+		return apiErrorInternal("delete run directory", err)
+	}
+	w.WriteHeader(http.StatusNoContent)
+	return nil
 }
 
 // handleProjectTaskRunsList serves GET /api/projects/{p}/tasks/{t}/runs (paginated run list).
