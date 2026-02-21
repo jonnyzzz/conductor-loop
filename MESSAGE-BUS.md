@@ -2486,3 +2486,80 @@ project_id: conductor-loop
 ## Commits This Session
 - b26dea9: feat(ui): add task search bar and fix pagination limit
 - b2b05c5: feat(cli,api,ui): add run-agent watch, DELETE run endpoint, delete run UI button
+
+[2026-02-21 04:00:00] ==========================================
+[2026-02-21 04:00:00] SESSION: 2026-02-21 Session #31
+[2026-02-21 04:00:00] ==========================================
+[2026-02-21 04:00:00] PROGRESS: Starting session - binaries built, all 14 packages green
+[2026-02-21 04:00:00] FACT: go build ./... passes, server running (PID verified)
+[2026-02-21 04:00:00] FACT: 0 fully open issues, 5 partially resolved (deferred items only)
+[2026-02-21 04:00:00] ASSESSMENT: Session #30 features (watch, DELETE run, task search) not yet in docs
+[2026-02-21 04:00:00] ASSESSMENT: No task-level delete endpoint exists (only run-level delete)
+[2026-02-21 04:00:00] ASSESSMENT: Project stats API (/api/projects/{p}/stats) not surfaced in UI
+
+[2026-02-21 04:00:30] DOG-FOOD: Dispatching 3 parallel sub-agents via ./bin/run-agent job
+[2026-02-21 04:00:30] FACT: task-20260221-012529-m711tm - docs-session30-features
+[2026-02-21 04:00:30] FACT: task-20260221-012532-fm8c1w - task-delete-endpoint
+[2026-02-21 04:00:30] FACT: task-20260221-012534-cbdjw9 - ui-project-dashboard
+[2026-02-21 04:00:30] PROGRESS: All 3 sub-agents dispatched, monitoring for completion
+
+[2026-02-21 04:35:00] ==========================================
+[2026-02-21 04:35:00] RESULTS: Session #31 - All 3 sub-agents completed
+[2026-02-21 04:35:00] ==========================================
+[2026-02-21 04:35:00] FACT: task-20260221-012529-m711tm (docs-session30-features) - COMPLETED (commit d3797ef)
+[2026-02-21 04:35:00] FACT: task-20260221-012532-fm8c1w (task-delete-endpoint) - COMPLETED (commit d5bcd7e)
+[2026-02-21 04:35:00] FACT: task-20260221-012534-cbdjw9 (ui-project-dashboard) - COMPLETED (commit 0978e07)
+[2026-02-21 04:35:00] FACT: go build ./...: PASS
+[2026-02-21 04:35:00] FACT: go test ./internal/... ./cmd/...: ALL 14 PACKAGES PASS
+[2026-02-21 04:35:00] FACT: go test -race ./internal/... ./cmd/...: PASS (no data races)
+[2026-02-21 04:35:00] FACT: Server restarted with new binary (old PID 81674 → new process)
+[2026-02-21 04:35:00] FACT: DELETE /api/projects/{p}/tasks/{t} returns 204 on success (verified)
+[2026-02-21 04:35:00] FACT: run-agent task delete subcommand verified working
+
+[2026-02-21 04:36:00] ==========================================
+[2026-02-21 04:36:00] SESSION SUMMARY: 2026-02-21 Session #31
+[2026-02-21 04:36:00] ==========================================
+
+## Features Implemented This Session
+
+1. **docs(user): add watch command, DELETE run endpoint, and UI search to reference docs** (commit d3797ef)
+   - cli-reference.md: full `run-agent watch` section (flags, exit codes, text/JSON output, examples)
+   - api-reference.md: DELETE /api/projects/{p}/tasks/{t}/runs/{r} endpoint (204/409/404 behavior)
+   - web-ui.md: task search bar with match count; Delete run button for completed/failed runs
+   - docs/dev/subsystems.md: sections 12–14 covering watch CLI, delete API handler, UI search bar
+
+2. **feat(ui): add project stats dashboard panel** (commit 0978e07)
+   - ProjectStats.tsx: compact horizontal bar above task search showing tasks/runs stats
+   - Shows: total tasks, total runs, running (yellow), completed (green), failed (red), bus size
+   - Auto-refreshes every 10 seconds via useProjectStats hook
+   - Types: ProjectStats interface added to types/index.ts
+   - API: getProjectStats() added to api/client.ts
+   - CSS: .project-stats-bar and related styles added to index.css
+
+3. **feat(api,cli,ui): add task deletion endpoint and run-agent task delete command** (commit d5bcd7e)
+   - REST: DELETE /api/projects/{p}/tasks/{t} returns 409 if running runs exist, 404 not found, 204 success
+   - CLI: run-agent task delete --project --task [--root] [--force] scans for running runs
+   - Frontend: Delete task button in RunDetail panel (hidden while running)
+   - 3 API handler tests + 9 CLI tests
+
+## Dog-Food
+- All 3 tasks dispatched via ./bin/run-agent job (parallel, root: runs/)
+- All 3 DONE files created ✓
+- Sub-agents completed in ~2-3 minutes each
+
+## Quality Gates
+- go build ./...: PASS
+- go test ./internal/... ./cmd/...: ALL 14 PACKAGES PASS
+- go test -race ./internal/... ./cmd/...: PASS (no data races)
+
+## Current Issue Status
+- CRITICAL: 0 open, 2 partially resolved (ISSUE-002 Windows, ISSUE-004 CLI versions), 4 resolved
+- HIGH: 0 open, 3 partially resolved (ISSUE-003, ISSUE-009, ISSUE-010), 5 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+- Total: 0 fully open, 5 partially resolved, 17 resolved
+
+## Commits This Session
+- d3797ef: docs(user): add watch command, DELETE run endpoint, and UI search to reference docs
+- 0978e07: feat(ui): add project stats dashboard panel showing task and run counts
+- d5bcd7e: feat(api,cli,ui): add task deletion endpoint and run-agent task delete command
