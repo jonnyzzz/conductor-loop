@@ -591,6 +591,108 @@ run-agent gc --root ./runs --older-than 24h
 
 ---
 
+#### `run-agent list`
+
+List projects, tasks, or runs from the filesystem without a running server.
+
+```bash
+run-agent list [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--root` | string | "./runs" | Root runs directory (uses `RUNS_DIR` env var if not set) |
+| `--project` | string | "" | Project ID; lists tasks for this project if set |
+| `--task` | string | "" | Task ID (requires `--project`); lists runs for this task if set |
+| `--json` | bool | false | Output as JSON |
+
+**Behavior:**
+- No `--project`: lists all project names in the root directory, one per line
+- `--project`: shows a table of tasks with run count, latest status, and DONE marker
+- `--project --task`: shows a table of runs with status, exit code, start time, and duration
+- `--task` requires `--project`
+
+**Examples:**
+
+```bash
+# List all projects
+run-agent list --root ./runs
+
+# List tasks in a project
+run-agent list --root ./runs --project my-project
+
+# List runs for a specific task
+run-agent list --root ./runs --project my-project --task task-20260220-140000-hello
+
+# JSON output for tasks
+run-agent list --root ./runs --project my-project --json
+```
+
+**Output examples:**
+
+Listing projects (no `--project`):
+```
+my-project
+other-project
+```
+
+Listing tasks (`--project`):
+```
+TASK_ID                           RUNS  LATEST_STATUS  DONE
+task-20260220-140000-hello        3     success        DONE
+task-20260220-150000-analysis     1     running        -
+task-20260220-160000-failed-task  2     failed         -
+```
+
+Listing runs (`--project --task`):
+```
+RUN_ID                          STATUS   EXIT_CODE  STARTED              DURATION
+20260220-1400000000-abc12345    success  0          2026-02-20 14:00:00  1m30s
+20260220-1430000000-def67890    failed   1          2026-02-20 14:30:00  45s
+```
+
+**JSON output format:**
+
+Listing projects (`--json` only):
+```json
+{
+  "projects": ["my-project", "other-project"]
+}
+```
+
+Listing tasks (`--project --json`):
+```json
+{
+  "tasks": [
+    {
+      "task_id": "task-20260220-140000-hello",
+      "runs": 3,
+      "latest_status": "success",
+      "done": true
+    }
+  ]
+}
+```
+
+Listing runs (`--project --task --json`):
+```json
+{
+  "runs": [
+    {
+      "run_id": "20260220-1400000000-abc12345",
+      "status": "success",
+      "exit_code": 0,
+      "started": "2026-02-20 14:00:00",
+      "duration": "1m30s"
+    }
+  ]
+}
+```
+
+---
+
 #### `run-agent validate`
 
 Validate conductor configuration and agent CLI availability.
@@ -607,8 +709,9 @@ run-agent validate [flags]
 | `--root` | string | "" | Root directory to validate (checks writability) |
 | `--agent` | string | "" | Validate only this agent (default: all) |
 | `--check-network` | bool | false | Run network connectivity test for REST agents |
+| `--check-tokens` | bool | false | Verify token files are readable and non-empty |
 
-**Example:**
+**Examples:**
 
 ```bash
 # Validate config and all agents
@@ -619,6 +722,9 @@ run-agent validate --config config.yaml --agent claude
 
 # Validate config and root directory
 run-agent validate --config config.yaml --root ./runs
+
+# Verify token files are accessible and non-empty
+run-agent validate --config config.yaml --check-tokens
 ```
 
 **Output:**
@@ -634,6 +740,35 @@ Agents:
 
 Validation: 2 OK, 1 WARNING
 ```
+
+**`--check-tokens` output:**
+
+When `--check-tokens` is set, an additional "Token checks" section is printed after the agents table. Each agent is reported with one of these statuses:
+
+| Status | Meaning |
+|--------|---------|
+| `[OK]` | Token is set (inline token, token file readable, or env var present) |
+| `[MISSING - file not found]` | `token_file` path does not exist |
+| `[EMPTY]` | Token file exists but contains only whitespace |
+| `[NOT SET]` | No inline token, no token file, and the env var is unset |
+
+```
+Conductor Loop Configuration Validator
+
+Config: config.yaml
+
+Agents:
+  ✓ claude      2.1.49     (CLI found)
+  ✓ codex       0.104.0    (CLI found)
+
+Validation: 2 OK, 0 WARNING
+
+Token checks:
+  Agent claude:         token_file /run/secrets/anthropic-key [OK]
+  Agent codex:          env OPENAI_API_KEY [NOT SET]
+```
+
+Exit code is 1 if any token check fails.
 
 ---
 
@@ -696,6 +831,70 @@ run-agent bus read --bus ./task-bus.md
 
 # Follow new messages
 run-agent bus read --bus ./task-bus.md --follow
+```
+
+---
+
+#### `run-agent output`
+
+Print or tail output files from a completed or running job.
+
+```bash
+run-agent output [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--project` | string | "" | Project ID (required unless `--run-dir` is used) |
+| `--task` | string | "" | Task ID (required unless `--run-dir` is used) |
+| `--run` | string | "" | Run ID (uses most recent run if omitted) |
+| `--run-dir` | string | "" | Direct path to a run directory (overrides `--project/--task/--run`) |
+| `--root` | string | "./runs" | Root runs directory (uses `RUNS_DIR` env var if not set) |
+| `--file` | string | "output" | File to print: `output`, `stdout`, `stderr`, or `prompt` |
+| `--tail` | int | 0 | Print last N lines only (0 = all) |
+| `--follow`, `-f` | bool | false | Follow output as it is written (for running jobs) |
+
+**`--file` options:**
+
+| Value | File | Notes |
+|-------|------|-------|
+| `output` (default) | `output.md` | Falls back to `agent-stdout.txt` if `output.md` is absent |
+| `stdout` | `agent-stdout.txt` | Raw agent stdout |
+| `stderr` | `agent-stderr.txt` | Raw agent stderr |
+| `prompt` | `prompt.md` | The prompt that was sent to the agent |
+
+**`--follow` behavior:**
+- If the run is already complete, prints all content and exits immediately
+- For running jobs, polls every 500ms for new content written to `agent-stdout.txt`
+- Stops automatically when the run transitions to a terminal status
+- Also stops after 60 seconds with no new data
+- Handles `Ctrl+C` gracefully
+
+**Examples:**
+
+```bash
+# Print output of the most recent run
+run-agent output --root ./runs --project my-project --task task-20260220-140000-hello
+
+# Follow live output of a running job
+run-agent output --root ./runs --project my-project --task task-20260220-150000-analysis --follow
+
+# Print last 50 lines of raw stdout from a specific run
+run-agent output \
+  --root ./runs \
+  --project my-project \
+  --task task-20260220-140000-hello \
+  --run 20260220-1400000000-abc12345 \
+  --file stdout \
+  --tail 50
+
+# Print output using a direct run directory path
+run-agent output --run-dir ./runs/my-project/task-20260220-140000-hello/runs/20260220-1400000000-abc12345
+
+# Print the prompt that was sent to the agent
+run-agent output --root ./runs --project my-project --task task-20260220-140000-hello --file prompt
 ```
 
 ---
