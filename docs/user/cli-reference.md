@@ -1588,6 +1588,23 @@ run-agent bus read --project my-project --root ./runs --tail 50
 run-agent bus read --bus /tmp/custom-bus.md --tail 10
 ```
 
+**Read/Post/Follow workflow (recommended):**
+
+1. Read recent context with `run-agent bus read --tail <N>`.
+2. Follow live traffic in a second terminal with `run-agent bus read --follow`.
+3. Post step transitions and outcomes with `run-agent bus post`.
+
+```bash
+# Terminal A: follow live task traffic
+run-agent bus read --project my-project --task task-20260221-120000-feat --root ./runs --follow
+
+# Terminal B: post lifecycle updates
+run-agent bus post --project my-project --task task-20260221-120000-feat --root ./runs \
+  --type PROGRESS --body "starting dependency update"
+run-agent bus post --project my-project --task task-20260221-120000-feat --root ./runs \
+  --type FACT --body "dependency update complete"
+```
+
 **Path resolution rules:**
 
 - `run-agent bus post`: `--bus` -> `$MESSAGE_BUS` -> resolved from `--project`/`--task` (+ `--root`).

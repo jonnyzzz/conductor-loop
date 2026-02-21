@@ -119,6 +119,16 @@ Status values:
 - `failed`: Task failed
 - `restarted`: Task was restarted by Ralph Loop
 
+### Check Running Task Runs (Latest Per Task)
+
+Use the helper script to scan each task's latest run and show only active (`status: running`) runs:
+
+```bash
+./scripts/check-running-runs.sh /Users/you/run-agent my-project
+```
+
+The script always prints a table header and prints `No running task runs found` when no active runs are detected.
+
 ### View Task Logs
 
 Stream the live logs for all runs of a task (SSE):
@@ -301,6 +311,41 @@ For local runs, use `run-agent bus` (direct file access):
   --root ./runs \
   --type DECISION \
   --body "standardizing on OAuth2"
+```
+
+### Read/Post/Follow Patterns (`run-agent bus`)
+
+Use these three patterns in day-to-day task operations:
+
+```bash
+# 1) Read recent context before touching a task
+./bin/run-agent bus read \
+  --project my-project \
+  --task task-20260205-100000-hello-world \
+  --root ./runs \
+  --tail 30
+
+# 2) Follow live events while the task is executing
+./bin/run-agent bus read \
+  --project my-project \
+  --task task-20260205-100000-hello-world \
+  --root ./runs \
+  --follow
+
+# 3) Post explicit lifecycle updates
+./bin/run-agent bus post \
+  --project my-project \
+  --task task-20260205-100000-hello-world \
+  --root ./runs \
+  --type PROGRESS \
+  --body "starting integration test batch"
+
+./bin/run-agent bus post \
+  --project my-project \
+  --task task-20260205-100000-hello-world \
+  --root ./runs \
+  --type FACT \
+  --body "integration tests passed: 48/48"
 ```
 
 You can also read and post through the server API:
