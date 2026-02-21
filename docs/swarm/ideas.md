@@ -247,3 +247,12 @@ NEW: we need to introduce global location for facts. So there must be a process 
 
 
 NEW 2026-02-11: Make sure we are reporting progress output from each agent. That may require to play more with console options. We need to see the output to fine if an agent is alive or not. Review how ~/Work/mcp-steroid/test-helper does for Docker*Session classes.
+
+
+
+NEW 2026-02-21:
+one more root complex task -- review and update the architecture of the conductor-loop. Our main goal is to keep things sepaerated as much as
+possible. We allow as many run-agent (this is the oficial name of the binary!, fix that) processes as possible. Each process is independent and
+works fully with the disk as the main storage. The web ui process is only for monitoring, it should never be used for everything, and it's fully
+optional from the standpoint of the system. The monitoring process can start itself to react on the user actions and so on. Still, there should be
+no dependency on the monitoring process itself.
