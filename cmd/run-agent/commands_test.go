@@ -52,7 +52,7 @@ func TestServeCmd_StartsServer(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- runServe("127.0.0.1", port, true, root, "")
+		errCh <- runServe("", root, false, "127.0.0.1", port, true, "")
 	}()
 
 	addr := fmt.Sprintf("http://127.0.0.1:%d/api/v1/health", port)

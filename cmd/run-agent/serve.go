@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,41 +21,139 @@ import (
 
 func newServeCmd() *cobra.Command {
 	var (
-		host       string
-		port       int
-		rootDir    string
-		configPath string
+		host             string
+		port             int
+		rootDir          string
+		configPath       string
+		disableTaskStart bool
+		apiKey           string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Start the HTTP server",
+		Short: "Start the run-agent HTTP server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runServe(host, port, cmd.Flags().Changed("port"), rootDir, configPath)
+			cliHost := ""
+			cliPort := 0
+			explicitPort := cmd.Flags().Changed("port")
+			if cmd.Flags().Changed("host") {
+				cliHost = host
+			}
+			if explicitPort {
+				cliPort = port
+			}
+			return runServe(configPath, rootDir, disableTaskStart, cliHost, cliPort, explicitPort, apiKey)
 		},
 	}
 
-	cmd.Flags().StringVar(&host, "host", "127.0.0.1", "HTTP server host")
-	cmd.Flags().IntVar(&port, "port", 14355, "HTTP server port")
+	cmd.Flags().StringVar(&host, "host", "0.0.0.0", "HTTP server host (overrides config)")
+	cmd.Flags().IntVar(&port, "port", 14355, "HTTP server port (overrides config)")
 	cmd.Flags().StringVar(&rootDir, "root", "", "run-agent root directory")
 	cmd.Flags().StringVar(&configPath, "config", "", "config file path")
+	cmd.Flags().BoolVar(&disableTaskStart, "disable-task-start", false, "disable task execution (monitoring-only mode)")
+	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key for authentication (enables auth when set)")
 
 	return cmd
 }
 
-func runServe(host string, port int, explicitPort bool, rootDir, configPath string) error {
-	logger := log.New(os.Stderr, "run-agent serve ", log.LstdFlags)
+func runServe(configPath, rootDir string, disableTaskStart bool, cliHost string, cliPort int, explicitPort bool, cliAPIKey string) error {
+	logger := log.New(os.Stdout, "run-agent serve ", log.LstdFlags)
+
+	configPath = strings.TrimSpace(configPath)
+	if configPath == "" {
+		configPath = strings.TrimSpace(os.Getenv("CONDUCTOR_CONFIG"))
+	}
+	rootDir = strings.TrimSpace(rootDir)
+	if rootDir == "" {
+		rootDir = strings.TrimSpace(os.Getenv("CONDUCTOR_ROOT"))
+	}
+	if envDisable := strings.TrimSpace(os.Getenv("CONDUCTOR_DISABLE_TASK_START")); envDisable != "" {
+		disableTaskStart = parseBool(envDisable)
+	}
+
+	if configPath == "" {
+		found, err := config.FindDefaultConfig()
+		if err != nil {
+			return err
+		}
+		if found != "" {
+			logger.Printf("Using config: %s", found)
+			configPath = found
+		}
+	}
+
+	var (
+		apiCfg config.APIConfig
+		cfg    *config.Config
+	)
+
+	if configPath != "" {
+		loaded, err := config.LoadConfigForServer(configPath)
+		if err != nil {
+			logger.Printf("config load failed: %v (continuing with defaults)", err)
+		} else {
+			cfg = loaded
+			apiCfg = loaded.API
+		}
+	}
+
+	if rootDir == "" && cfg != nil {
+		rootDir = strings.TrimSpace(cfg.Storage.RunsDir)
+	}
+
+	// Env vars override config file but are overridden by explicit CLI flags.
+	if cliHost == "" {
+		if h := strings.TrimSpace(os.Getenv("CONDUCTOR_HOST")); h != "" {
+			cliHost = h
+		}
+	}
+	if cliPort == 0 {
+		if portStr := strings.TrimSpace(os.Getenv("CONDUCTOR_PORT")); portStr != "" {
+			if p, err := strconv.Atoi(portStr); err == nil {
+				cliPort = p
+				explicitPort = true
+			}
+		}
+	}
+
+	// CLI flags override config file values when explicitly provided.
+	if cliHost != "" {
+		apiCfg.Host = cliHost
+	}
+	if cliPort != 0 {
+		apiCfg.Port = cliPort
+	}
+	if cliAPIKey != "" {
+		apiCfg.AuthEnabled = true
+		apiCfg.APIKey = cliAPIKey
+	}
+	if apiCfg.AuthEnabled && apiCfg.APIKey == "" {
+		logger.Printf("WARNING: auth_enabled=true but no api_key set; authentication disabled")
+		apiCfg.AuthEnabled = false
+	}
+
+	var extraRoots []string
+	if cfg != nil {
+		extraRoots = cfg.Storage.ExtraRoots
+	}
+
+	var agentNames []string
+	if cfg != nil {
+		for name := range cfg.Agents {
+			agentNames = append(agentNames, name)
+		}
+		sort.Strings(agentNames)
+	}
 
 	server, err := api.NewServer(api.Options{
-		RootDir:    rootDir,
-		ConfigPath: configPath,
-		APIConfig: config.APIConfig{
-			Host: host,
-			Port: port,
-		},
+		RootDir:          rootDir,
+		ExtraRoots:       extraRoots,
+		ConfigPath:       configPath,
+		APIConfig:        apiCfg,
 		Version:          version,
+		AgentNames:       agentNames,
 		Logger:           logger,
-		DisableTaskStart: true,
+		DisableTaskStart: disableTaskStart,
 	})
 	if err != nil {
 		return err
@@ -79,5 +180,14 @@ func runServe(host string, port int, explicitPort bool, rootDir, configPath stri
 			return fmt.Errorf("shutdown server: %w", err)
 		}
 		return nil
+	}
+}
+
+func parseBool(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
 	}
 }
