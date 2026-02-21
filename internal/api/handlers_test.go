@@ -184,6 +184,18 @@ func TestHandleStatus(t *testing.T) {
 	if resp.Version != "v1.2.3" {
 		t.Fatalf("expected version v1.2.3, got %s", resp.Version)
 	}
+	if len(resp.RunningTasks) != 1 {
+		t.Fatalf("expected 1 running task, got %d", len(resp.RunningTasks))
+	}
+	if resp.RunningTasks[0].RunID != "run-1" {
+		t.Fatalf("expected running task run_id=run-1, got %s", resp.RunningTasks[0].RunID)
+	}
+	if resp.RunningTasks[0].ProjectID != "project" {
+		t.Fatalf("expected running task project_id=project, got %s", resp.RunningTasks[0].ProjectID)
+	}
+	if resp.RunningTasks[0].TaskID != "task" {
+		t.Fatalf("expected running task task_id=task, got %s", resp.RunningTasks[0].TaskID)
+	}
 }
 
 func TestHandleStatusMethodNotAllowed(t *testing.T) {
@@ -224,6 +236,12 @@ func TestHandleStatusNoAgents(t *testing.T) {
 	}
 	if len(resp.ConfiguredAgents) != 0 {
 		t.Fatalf("expected empty agents, got %v", resp.ConfiguredAgents)
+	}
+	if resp.RunningTasks == nil {
+		t.Fatalf("expected running_tasks to be non-nil empty slice, got nil")
+	}
+	if len(resp.RunningTasks) != 0 {
+		t.Fatalf("expected 0 running tasks, got %d", len(resp.RunningTasks))
 	}
 }
 

@@ -518,6 +518,40 @@ Message bus size:   4.50 KB
 
 ---
 
+##### `conductor project gc`
+
+Garbage collect old completed/failed runs for a project via the conductor server API.
+
+```
+conductor project gc --project PROJECT [--older-than DURATION] [--dry-run] [--keep-failed] [--server URL] [--json]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--project` | (required) | Project ID |
+| `--older-than` | `168h` | Delete runs older than this duration (e.g. `24h`, `168h` for 7 days) |
+| `--dry-run` | false | Show what would be deleted without actually deleting |
+| `--keep-failed` | false | Keep runs that exited with a non-zero exit code |
+| `--server` | `http://localhost:8080` | Conductor server URL |
+| `--json` | false | Output as JSON |
+
+**Examples:**
+```bash
+# Dry run - see what would be deleted
+conductor project gc --project my-project --dry-run
+
+# Delete runs older than 7 days
+conductor project gc --project my-project --older-than 168h
+
+# Delete runs older than 24h, keep failed runs
+conductor project gc --project my-project --older-than 24h --keep-failed
+
+# JSON output
+conductor project gc --project my-project --dry-run --json
+```
+
+---
+
 #### `conductor bus`
 
 Read messages from the project or task message bus via the conductor server API.

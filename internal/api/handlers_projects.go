@@ -111,6 +111,10 @@ func (s *Server) handleProjectsRouter(w http.ResponseWriter, r *http.Request) *a
 			return s.handleProjectMessagesStream(w, r)
 		}
 	}
+	// /api/projects/{id}/gc
+	if parts[1] == "gc" {
+		return s.handleProjectGC(w, r)
+	}
 	return apiErrorNotFound("not found")
 }
 
@@ -969,6 +973,134 @@ func (s *Server) streamTaskRuns(w http.ResponseWriter, r *http.Request, projectI
 			}
 		}
 	}
+}
+
+// gcResult is the JSON response for POST /api/projects/{id}/gc.
+type gcResult struct {
+	DeletedRuns int64 `json:"deleted_runs"`
+	FreedBytes  int64 `json:"freed_bytes"`
+	DryRun      bool  `json:"dry_run"`
+}
+
+// handleProjectGC handles POST /api/projects/{id}/gc.
+// It garbage-collects old completed/failed runs for a project.
+// Query params:
+//   - older_than: duration string (default "168h")
+//   - dry_run: "true"/"false" (default false)
+//   - keep_failed: "true"/"false" (default false)
+func (s *Server) handleProjectGC(w http.ResponseWriter, r *http.Request) *apiError {
+	if r.Method != http.MethodPost {
+		return apiErrorMethodNotAllowed()
+	}
+	parts := splitPath(r.URL.Path, "/api/projects/")
+	if len(parts) < 2 || parts[1] != "gc" {
+		return apiErrorNotFound("not found")
+	}
+	projectID := parts[0]
+
+	q := r.URL.Query()
+	olderThanStr := q.Get("older_than")
+	if olderThanStr == "" {
+		olderThanStr = "168h"
+	}
+	olderThan, err := time.ParseDuration(olderThanStr)
+	if err != nil {
+		return apiErrorBadRequest("invalid older_than: " + err.Error())
+	}
+	dryRun := q.Get("dry_run") == "true"
+	keepFailed := q.Get("keep_failed") == "true"
+
+	cutoff := time.Now().Add(-olderThan)
+
+	_, ok := findProjectDir(s.rootDir, projectID)
+	if !ok {
+		return apiErrorNotFound("project not found")
+	}
+
+	runs, err := s.allRunInfos()
+	if err != nil {
+		return apiErrorInternal("scan runs", err)
+	}
+
+	// Cache task directory lookups to avoid repeated walks.
+	taskDirCache := make(map[string]string)
+	getTaskDir := func(taskID string) (string, bool) {
+		key := projectID + "/" + taskID
+		if d, cached := taskDirCache[key]; cached {
+			return d, d != ""
+		}
+		d, found := findProjectTaskDir(s.rootDir, projectID, taskID)
+		if !found {
+			taskDirCache[key] = ""
+		} else {
+			taskDirCache[key] = d
+		}
+		return d, found
+	}
+
+	var deletedRuns int64
+	var freedBytes int64
+	for _, run := range runs {
+		if run.ProjectID != projectID {
+			continue
+		}
+		// Never delete running runs.
+		if run.Status == storage.StatusRunning {
+			continue
+		}
+		// Only delete completed or failed runs.
+		if run.Status != storage.StatusCompleted && run.Status != storage.StatusFailed {
+			continue
+		}
+		// Honour keep_failed.
+		if keepFailed && run.Status == storage.StatusFailed {
+			continue
+		}
+		// Check age.
+		runTime := run.StartTime
+		if runTime.IsZero() {
+			runTime = run.EndTime
+		}
+		if runTime.IsZero() || !runTime.Before(cutoff) {
+			continue
+		}
+		// Locate run directory.
+		taskDir, ok := getTaskDir(run.TaskID)
+		if !ok {
+			continue
+		}
+		runDir := filepath.Join(taskDir, "runs", run.RunID)
+		if _, statErr := os.Stat(runDir); os.IsNotExist(statErr) {
+			continue
+		}
+		size := gcDirSize(runDir)
+		if !dryRun {
+			if removeErr := os.RemoveAll(runDir); removeErr != nil {
+				continue // best effort
+			}
+		}
+		deletedRuns++
+		freedBytes += size
+	}
+
+	return writeJSON(w, http.StatusOK, gcResult{
+		DeletedRuns: deletedRuns,
+		FreedBytes:  freedBytes,
+		DryRun:      dryRun,
+	})
+}
+
+// gcDirSize returns the total size in bytes of all files under path.
+func gcDirSize(path string) int64 {
+	var size int64
+	_ = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		size += info.Size()
+		return nil
+	})
+	return size
 }
 
 // projectStats holds operational statistics for a project.

@@ -36,10 +36,19 @@ func newStatusCmd() *cobra.Command {
 
 // conductorStatusResponse is the JSON response from GET /api/v1/status.
 type conductorStatusResponse struct {
-	ActiveRunsCount  int      `json:"active_runs_count"`
-	UptimeSeconds    float64  `json:"uptime_seconds"`
-	ConfiguredAgents []string `json:"configured_agents"`
-	Version          string   `json:"version"`
+	ActiveRunsCount  int               `json:"active_runs_count"`
+	UptimeSeconds    float64           `json:"uptime_seconds"`
+	ConfiguredAgents []string          `json:"configured_agents"`
+	Version          string            `json:"version"`
+	RunningTasks     []runningTaskItem `json:"running_tasks,omitempty"`
+}
+
+type runningTaskItem struct {
+	ProjectID string    `json:"project_id"`
+	TaskID    string    `json:"task_id"`
+	RunID     string    `json:"run_id"`
+	Agent     string    `json:"agent"`
+	Started   time.Time `json:"started"`
 }
 
 func serverStatus(server string, jsonOutput bool) error {
@@ -77,7 +86,32 @@ func serverStatus(server string, jsonOutput bool) error {
 		agents = "(none)"
 	}
 	fmt.Fprintf(w, "Configured Agents:\t%s\n", agents)
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+
+	if len(result.RunningTasks) > 0 {
+		fmt.Println()
+		fmt.Println("Running tasks:")
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintf(tw, "  PROJECT\tTASK\tRUN\tAGENT\tSTARTED\n")
+		for _, task := range result.RunningTasks {
+			runID := task.RunID
+			if len(runID) > 20 {
+				runID = runID[:20] + "..."
+			}
+			started := "-"
+			if !task.Started.IsZero() {
+				started = task.Started.Local().Format("15:04:05")
+			}
+			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\n",
+				task.ProjectID, task.TaskID, runID, task.Agent, started)
+		}
+		if err := tw.Flush(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func formatUptime(seconds float64) string {

@@ -3706,3 +3706,30 @@ Changes:
 - HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
 - MEDIUM: 0 open, 0 partially resolved, 6 resolved
 - LOW: 0 open, 0 partially resolved, 2 resolved
+
+---
+msg_id: MSG-20260221-SESSION47-START
+ts: 2026-02-21T07:44:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 07:44:00] ==========================================
+[2026-02-21 07:44:00] SESSION: 2026-02-21 Session #47
+[2026-02-21 07:44:00] ==========================================
+[2026-02-21 07:44:00] FACT: go build ./... PASS (conductor + run-agent binaries ready)
+[2026-02-21 07:44:00] FACT: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS
+[2026-02-21 07:44:00] FACT: Issues: 0 fully open, 3 partially resolved (Windows-only deferred items)
+
+[2026-02-21 07:44:00] DECISION: Session #47 work items:
+[2026-02-21 07:44:00]   (1) Feature: conductor project gc - server-side GC command via API
+[2026-02-21 07:44:00]   (2) Feature: Enhanced conductor status - show running tasks by name (currently only count)
+[2026-02-21 07:44:00]   Both improve the dog-food operator experience for managing and monitoring sub-agents
+
+[2026-02-21 07:44:00] PROGRESS: Sub-agent A dispatched for conductor-project-gc (run-agent task b36a94f)
+[2026-02-21 07:44:00] PROGRESS: Sub-agent B dispatched for conductor-status-running-tasks (run-agent task bb5bfe6)
+[2026-02-21 07:47:46] FACT: Scenario 1 (single agent) passed
+[2026-02-21 07:47:46] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 07:47:46] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 07:47:46] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 07:47:46] FACT: All acceptance tests passed

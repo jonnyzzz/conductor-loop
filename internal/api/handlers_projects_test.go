@@ -1573,3 +1573,184 @@ func TestHandleTaskResume_WrongMethod(t *testing.T) {
 		t.Fatalf("expected 405, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestProjectGC_DryRun(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	past := time.Now().Add(-48 * time.Hour)
+	makeProjectRunAt(t, root, "proj-gc", "task-gc", "run-1", storage.StatusCompleted, past)
+	makeProjectRunAt(t, root, "proj-gc", "task-gc", "run-2", storage.StatusFailed, past)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/proj-gc/gc?older_than=1h&dry_run=true", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["dry_run"] != true {
+		t.Errorf("expected dry_run=true, got %v", resp["dry_run"])
+	}
+	if int(resp["deleted_runs"].(float64)) != 2 {
+		t.Errorf("expected deleted_runs=2, got %v", resp["deleted_runs"])
+	}
+	// Run directories should still exist (dry run).
+	for _, runID := range []string{"run-1", "run-2"} {
+		runDir := filepath.Join(root, "proj-gc", "task-gc", "runs", runID)
+		if _, statErr := os.Stat(runDir); os.IsNotExist(statErr) {
+			t.Errorf("run %s should not be deleted in dry-run mode", runID)
+		}
+	}
+}
+
+func TestProjectGC_DeletesOldRuns(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	past := time.Now().Add(-48 * time.Hour)
+	makeProjectRunAt(t, root, "proj-gc2", "task-gc2", "run-1", storage.StatusCompleted, past)
+	makeProjectRunAt(t, root, "proj-gc2", "task-gc2", "run-2", storage.StatusFailed, past)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/proj-gc2/gc?older_than=1h&dry_run=false", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["dry_run"] != false {
+		t.Errorf("expected dry_run=false, got %v", resp["dry_run"])
+	}
+	if int(resp["deleted_runs"].(float64)) != 2 {
+		t.Errorf("expected deleted_runs=2, got %v", resp["deleted_runs"])
+	}
+	// Run directories should be deleted.
+	for _, runID := range []string{"run-1", "run-2"} {
+		runDir := filepath.Join(root, "proj-gc2", "task-gc2", "runs", runID)
+		if _, statErr := os.Stat(runDir); !os.IsNotExist(statErr) {
+			t.Errorf("run %s should be deleted", runID)
+		}
+	}
+}
+
+func TestProjectGC_SkipsRunning(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	past := time.Now().Add(-48 * time.Hour)
+	makeProjectRunAt(t, root, "proj-gc3", "task-gc3", "run-running", storage.StatusRunning, past)
+	makeProjectRunAt(t, root, "proj-gc3", "task-gc3", "run-done", storage.StatusCompleted, past)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/proj-gc3/gc?older_than=1h", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if int(resp["deleted_runs"].(float64)) != 1 {
+		t.Errorf("expected deleted_runs=1 (only the completed run), got %v", resp["deleted_runs"])
+	}
+	// Running run should still exist.
+	runningDir := filepath.Join(root, "proj-gc3", "task-gc3", "runs", "run-running")
+	if _, statErr := os.Stat(runningDir); os.IsNotExist(statErr) {
+		t.Errorf("running run should not be deleted")
+	}
+}
+
+func TestProjectGC_KeepFailed(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	past := time.Now().Add(-48 * time.Hour)
+	makeProjectRunAt(t, root, "proj-gc4", "task-gc4", "run-completed", storage.StatusCompleted, past)
+	makeProjectRunAt(t, root, "proj-gc4", "task-gc4", "run-failed", storage.StatusFailed, past)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/proj-gc4/gc?older_than=1h&keep_failed=true", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if int(resp["deleted_runs"].(float64)) != 1 {
+		t.Errorf("expected deleted_runs=1 (only completed), got %v", resp["deleted_runs"])
+	}
+	// Failed run should still exist.
+	failedDir := filepath.Join(root, "proj-gc4", "task-gc4", "runs", "run-failed")
+	if _, statErr := os.Stat(failedDir); os.IsNotExist(statErr) {
+		t.Errorf("failed run should not be deleted when keep_failed=true")
+	}
+}
+
+func TestProjectGC_NotFound(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/nonexistent/gc?older_than=1h", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProjectGC_MethodNotAllowed(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "proj"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj/gc", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProjectGC_InvalidDuration(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "proj"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/proj/gc?older_than=notaduration", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}

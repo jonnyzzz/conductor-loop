@@ -23,6 +23,7 @@ func newProjectCmd() *cobra.Command {
 	}
 	cmd.AddCommand(newProjectListCmd())
 	cmd.AddCommand(newProjectStatsCmd())
+	cmd.AddCommand(newProjectGCCmd())
 	return cmd
 }
 
@@ -171,6 +172,75 @@ func projectStats(server, project string, jsonOutput bool) error {
 	fmt.Fprintf(w, "Message bus files:\t%d\n", result.MessageBusFiles)
 	fmt.Fprintf(w, "Message bus size:\t%s\n", formatBytes(result.MessageBusTotalBytes))
 	return w.Flush()
+}
+
+func newProjectGCCmd() *cobra.Command {
+	var (
+		server     string
+		project    string
+		olderThan  string
+		dryRun     bool
+		keepFailed bool
+		jsonOutput bool
+	)
+	cmd := &cobra.Command{
+		Use:   "gc",
+		Short: "Garbage collect old runs for a project",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return projectGC(cmd.OutOrStdout(), server, project, olderThan, dryRun, keepFailed, jsonOutput)
+		},
+	}
+	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
+	cmd.Flags().StringVar(&olderThan, "older-than", "168h", "delete runs older than this duration (default: 7 days)")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be deleted without deleting")
+	cmd.Flags().BoolVar(&keepFailed, "keep-failed", false, "keep failed runs (exit code != 0)")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+	cobra.MarkFlagRequired(cmd.Flags(), "project") //nolint:errcheck
+	return cmd
+}
+
+// projectGCResponse is the JSON response from POST /api/projects/{id}/gc.
+type projectGCResponse struct {
+	DeletedRuns int64 `json:"deleted_runs"`
+	FreedBytes  int64 `json:"freed_bytes"`
+	DryRun      bool  `json:"dry_run"`
+}
+
+func projectGC(out io.Writer, server, project, olderThan string, dryRun, keepFailed, jsonOutput bool) error {
+	url := fmt.Sprintf("%s/api/projects/%s/gc?older_than=%s&dry_run=%v&keep_failed=%v",
+		server, project, olderThan, dryRun, keepFailed)
+	resp, err := http.Post(url, "", nil) //nolint:noctx
+	if err != nil {
+		return fmt.Errorf("gc project: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+
+	if jsonOutput {
+		fmt.Fprintf(out, "%s\n", strings.TrimSpace(string(data)))
+		return nil
+	}
+
+	var result projectGCResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+
+	if result.DryRun {
+		fmt.Fprintf(out, "DRY RUN: would delete %d runs, free %s\n", result.DeletedRuns, formatBytes(result.FreedBytes))
+	} else {
+		fmt.Fprintf(out, "Deleted %d runs, freed %s\n", result.DeletedRuns, formatBytes(result.FreedBytes))
+	}
+	return nil
 }
 
 // formatBytes converts byte counts to a human-readable string.

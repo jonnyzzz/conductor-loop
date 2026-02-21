@@ -338,3 +338,123 @@ func TestFormatBytes(t *testing.T) {
 		}
 	}
 }
+
+// --- projectGC tests ---
+
+func TestProjectGCSuccess(t *testing.T) {
+	respBody := projectGCResponse{
+		DeletedRuns: 3,
+		FreedBytes:  5 * 1024 * 1024,
+		DryRun:      false,
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/projects/myproject/gc" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(respBody)
+	}))
+	defer srv.Close()
+
+	var out strings.Builder
+	if err := projectGC(&out, srv.URL, "myproject", "168h", false, false, false); err != nil {
+		t.Fatalf("projectGC: %v", err)
+	}
+	if !strings.Contains(out.String(), "Deleted 3 runs") {
+		t.Errorf("expected 'Deleted 3 runs' in output, got: %q", out.String())
+	}
+}
+
+func TestProjectGCDryRun(t *testing.T) {
+	respBody := projectGCResponse{
+		DeletedRuns: 5,
+		FreedBytes:  10 * 1024 * 1024,
+		DryRun:      true,
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("dry_run") != "true" {
+			t.Errorf("expected dry_run=true, got %q", r.URL.Query().Get("dry_run"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(respBody)
+	}))
+	defer srv.Close()
+
+	var out strings.Builder
+	if err := projectGC(&out, srv.URL, "myproject", "168h", true, false, false); err != nil {
+		t.Fatalf("projectGC dry run: %v", err)
+	}
+	if !strings.Contains(out.String(), "DRY RUN") {
+		t.Errorf("expected 'DRY RUN' in output, got: %q", out.String())
+	}
+	if !strings.Contains(out.String(), "would delete 5 runs") {
+		t.Errorf("expected 'would delete 5 runs' in output, got: %q", out.String())
+	}
+}
+
+func TestProjectGCJSONOutput(t *testing.T) {
+	respBody := projectGCResponse{
+		DeletedRuns: 2,
+		FreedBytes:  1024,
+		DryRun:      false,
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(respBody)
+	}))
+	defer srv.Close()
+
+	var out strings.Builder
+	if err := projectGC(&out, srv.URL, "myproject", "168h", false, false, true); err != nil {
+		t.Fatalf("projectGC json: %v", err)
+	}
+	if !strings.Contains(out.String(), "deleted_runs") {
+		t.Errorf("expected JSON with deleted_runs in output, got: %q", out.String())
+	}
+}
+
+func TestProjectGCServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	var out strings.Builder
+	if err := projectGC(&out, srv.URL, "myproject", "168h", false, false, false); err == nil {
+		t.Fatal("expected error on 500 response")
+	}
+}
+
+func TestProjectGCNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":"project not found"}`, http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	var out strings.Builder
+	err := projectGC(&out, srv.URL, "nonexistent", "168h", false, false, false)
+	if err == nil {
+		t.Fatal("expected error on 404 response")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected not-found error, got: %v", err)
+	}
+}
+
+func TestProjectGCAppearsInHelp(t *testing.T) {
+	var out strings.Builder
+	cmd := newRootCmd()
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"project", "--help"})
+	_ = cmd.Execute()
+
+	if !strings.Contains(out.String(), "gc") {
+		t.Errorf("expected 'gc' in project help output, got:\n%s", out.String())
+	}
+}

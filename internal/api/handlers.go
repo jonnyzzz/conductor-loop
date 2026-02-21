@@ -106,10 +106,20 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) *apiError
 
 // StatusResponse defines the payload for the /api/v1/status endpoint.
 type StatusResponse struct {
-	ActiveRunsCount  int      `json:"active_runs_count"`
-	UptimeSeconds    float64  `json:"uptime_seconds"`
-	ConfiguredAgents []string `json:"configured_agents"`
-	Version          string   `json:"version"`
+	ActiveRunsCount  int               `json:"active_runs_count"`
+	UptimeSeconds    float64           `json:"uptime_seconds"`
+	ConfiguredAgents []string          `json:"configured_agents"`
+	Version          string            `json:"version"`
+	RunningTasks     []runningTaskItem `json:"running_tasks"`
+}
+
+// runningTaskItem describes a single currently-running run in the status response.
+type runningTaskItem struct {
+	ProjectID string    `json:"project_id"`
+	TaskID    string    `json:"task_id"`
+	RunID     string    `json:"run_id"`
+	Agent     string    `json:"agent"`
+	Started   time.Time `json:"started"`
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) *apiError {
@@ -117,25 +127,42 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) *apiError 
 		return apiErrorMethodNotAllowed()
 	}
 
-	runs, err := listRunResponses(s.rootDir)
+	infos, err := allRunInfos(s.rootDir)
 	if err != nil {
 		return apiErrorInternal("list runs", err)
 	}
+
+	activeCount := 0
+	runningTasks := make([]runningTaskItem, 0)
+	for _, info := range infos {
+		if info.EndTime.IsZero() {
+			activeCount++
+			runningTasks = append(runningTasks, runningTaskItem{
+				ProjectID: info.ProjectID,
+				TaskID:    info.TaskID,
+				RunID:     info.RunID,
+				Agent:     info.AgentType,
+				Started:   info.StartTime,
+			})
+		}
+	}
+
 	for _, extra := range s.extraRoots {
 		extraRuns, err := listRunResponsesFlat(extra)
 		if err != nil {
 			s.logger.Printf("warn: scan extra root %s: %v", extra, err)
 			continue
 		}
-		runs = append(runs, extraRuns...)
-	}
-
-	activeCount := 0
-	for _, run := range runs {
-		if run.EndTime.IsZero() {
-			activeCount++
+		for _, run := range extraRuns {
+			if run.EndTime.IsZero() {
+				activeCount++
+			}
 		}
 	}
+
+	sort.Slice(runningTasks, func(i, j int) bool {
+		return runningTasks[i].Started.Before(runningTasks[j].Started)
+	})
 
 	agents := s.agentNames
 	if agents == nil {
@@ -149,6 +176,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) *apiError 
 		UptimeSeconds:    uptime,
 		ConfiguredAgents: agents,
 		Version:          s.version,
+		RunningTasks:     runningTasks,
 	}
 	return writeJSON(w, http.StatusOK, resp)
 }
@@ -897,6 +925,38 @@ func listTaskRuns(taskPath string) ([]RunResponse, error) {
 		return responses[i].RunID < responses[j].RunID
 	})
 	return responses, nil
+}
+
+func allRunInfos(root string) ([]*storage.RunInfo, error) {
+	root = filepath.Clean(strings.TrimSpace(root))
+	if root == "." || root == "" {
+		return nil, stderrors.New("root dir is empty")
+	}
+	var infos []*storage.RunInfo
+	walkErr := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if d.Name() != "run-info.yaml" {
+			return nil
+		}
+		info, err := storage.ReadRunInfo(path)
+		if err != nil {
+			return err
+		}
+		infos = append(infos, info)
+		return nil
+	})
+	if walkErr != nil {
+		if os.IsNotExist(walkErr) {
+			return []*storage.RunInfo{}, nil
+		}
+		return nil, errors.Wrap(walkErr, "walk run-info")
+	}
+	return infos, nil
 }
 
 func listRunResponses(root string) ([]RunResponse, error) {

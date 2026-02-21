@@ -39,6 +39,35 @@ func TestServerStatusSuccess(t *testing.T) {
 	}
 }
 
+func TestServerStatusWithRunningTasks(t *testing.T) {
+	started := time.Date(2026, 2, 21, 10, 30, 0, 0, time.UTC)
+	respBody := conductorStatusResponse{
+		ActiveRunsCount:  1,
+		UptimeSeconds:    60,
+		ConfiguredAgents: []string{"claude"},
+		Version:          "dev",
+		RunningTasks: []runningTaskItem{
+			{
+				ProjectID: "my-project",
+				TaskID:    "task-20260221-103000-abc",
+				RunID:     "20260221-1030000000-12345",
+				Agent:     "claude",
+				Started:   started,
+			},
+		},
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(respBody)
+	}))
+	defer srv.Close()
+
+	if err := serverStatus(srv.URL, false); err != nil {
+		t.Fatalf("serverStatus with running tasks: %v", err)
+	}
+}
+
 func TestServerStatusJSONOutput(t *testing.T) {
 	respBody := conductorStatusResponse{
 		ActiveRunsCount:  1,
