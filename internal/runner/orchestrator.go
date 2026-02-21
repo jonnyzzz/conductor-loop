@@ -279,7 +279,16 @@ func prependPath(env map[string]string) error {
 		env["PATH"] = execDir
 		return nil
 	}
-	env["PATH"] = execDir + string(os.PathListSeparator) + existing
+	// Check if execDir is already at the front of PATH to avoid duplicates.
+	sep := string(os.PathListSeparator)
+	for _, dir := range strings.Split(existing, sep) {
+		if dir == execDir {
+			// Already present; no-op to avoid duplicate entries.
+			env["PATH"] = existing
+			return nil
+		}
+	}
+	env["PATH"] = execDir + sep + existing
 	return nil
 }
 

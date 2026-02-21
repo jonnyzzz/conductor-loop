@@ -139,3 +139,31 @@ export function useDeleteTask(projectId?: string) {
     },
   })
 }
+
+export function useStopRun(projectId?: string, taskId?: string) {
+  const api = useAPIClient()
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (runId: string) => api.stopRun(projectId ?? '', taskId ?? '', runId),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['task', projectId, taskId] })
+      client.invalidateQueries({ queryKey: ['tasks', projectId] })
+    },
+  })
+}
+
+export function usePostTaskMessage(projectId?: string, taskId?: string) {
+  const api = useAPIClient()
+  return useMutation({
+    mutationFn: (payload: { type: string; message: string }) =>
+      api.postTaskMessage(projectId ?? '', taskId ?? '', { type: payload.type, message: payload.message }),
+  })
+}
+
+export function usePostProjectMessage(projectId?: string) {
+  const api = useAPIClient()
+  return useMutation({
+    mutationFn: (payload: { type: string; message: string }) =>
+      api.postProjectMessage(projectId ?? '', { type: payload.type, message: payload.message }),
+  })
+}

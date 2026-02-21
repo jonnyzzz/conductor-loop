@@ -3,18 +3,36 @@ import Button from '@jetbrains/ring-ui-built/components/button/button'
 import clsx from 'clsx'
 import type { BusMessage } from '../types'
 import { useSSE } from '../hooks/useSSE'
+import { usePostProjectMessage, usePostTaskMessage } from '../hooks/useAPI'
+
+const MESSAGE_TYPES = ['USER', 'QUESTION', 'ANSWER', 'INFO', 'FACT', 'PROGRESS', 'DECISION', 'ERROR']
 
 export function MessageBus({
   streamUrl,
   title = 'Message bus',
+  projectId,
+  taskId,
+  scope = 'task',
 }: {
   streamUrl?: string
   title?: string
+  projectId?: string
+  taskId?: string
+  scope?: 'project' | 'task'
 }) {
   const [messages, setMessages] = useState<BusMessage[]>([])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+
+  // Compose form state
+  const [composeType, setComposeType] = useState('USER')
+  const [composeText, setComposeText] = useState('')
+  const [postStatus, setPostStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [postError, setPostError] = useState('')
+
+  const postTaskMessage = usePostTaskMessage(projectId, taskId)
+  const postProjectMessage = usePostProjectMessage(projectId)
 
   const sseHandlers = useMemo(
     () => ({
@@ -64,6 +82,28 @@ export function MessageBus({
       return next
     })
   }
+
+  const handlePost = async () => {
+    const text = composeText.trim()
+    if (!text || !projectId) return
+    setPostStatus('idle')
+    setPostError('')
+    try {
+      if (scope === 'task' && taskId) {
+        await postTaskMessage.mutateAsync({ type: composeType, message: text })
+      } else {
+        await postProjectMessage.mutateAsync({ type: composeType, message: text })
+      }
+      setComposeText('')
+      setPostStatus('success')
+      setTimeout(() => setPostStatus('idle'), 2000)
+    } catch (err) {
+      setPostStatus('error')
+      setPostError(err instanceof Error ? err.message : 'Failed to post message')
+    }
+  }
+
+  const canPost = Boolean(projectId && composeText.trim() && (scope === 'project' || taskId))
 
   return (
     <div className="panel panel-scroll">
@@ -116,6 +156,45 @@ export function MessageBus({
             </div>
           )
         })}
+      </div>
+      <div className="panel-divider" />
+      <div className="panel-section bus-compose">
+        <div className="bus-compose-header">Post message</div>
+        <div className="bus-compose-row">
+          <select
+            className="input bus-compose-type"
+            value={composeType}
+            onChange={(e) => setComposeType(e.target.value)}
+            aria-label="Message type"
+          >
+            {MESSAGE_TYPES.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <Button
+            inline
+            onClick={handlePost}
+            disabled={!canPost || postTaskMessage.isPending || postProjectMessage.isPending}
+            aria-label="Post message"
+          >
+            {postTaskMessage.isPending || postProjectMessage.isPending ? 'Posting…' : 'Post'}
+          </Button>
+        </div>
+        <textarea
+          className="input bus-compose-textarea"
+          placeholder={canPost ? 'Message body…' : 'Select a project and task to post'}
+          value={composeText}
+          onChange={(e) => setComposeText(e.target.value)}
+          rows={3}
+          disabled={!canPost}
+          aria-label="Message body"
+        />
+        {postStatus === 'success' && (
+          <div className="bus-compose-feedback bus-compose-success">Posted successfully</div>
+        )}
+        {postStatus === 'error' && (
+          <div className="bus-compose-feedback bus-compose-error">{postError}</div>
+        )}
       </div>
     </div>
   )

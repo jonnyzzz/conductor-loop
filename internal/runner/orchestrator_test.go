@@ -309,6 +309,33 @@ func TestPrependPathNilEnv(t *testing.T) {
 	}
 }
 
+func TestPrependPathNoDuplicates(t *testing.T) {
+	// Get the actual executable dir so we can pre-populate PATH with it.
+	execPath, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable: %v", err)
+	}
+	execDir := filepath.Dir(execPath)
+
+	// If execDir is already in PATH, prependPath must not duplicate it.
+	env := map[string]string{
+		"PATH": execDir + string(os.PathListSeparator) + "/usr/local/bin",
+	}
+	if err := prependPath(env); err != nil {
+		t.Fatalf("prependPath: %v", err)
+	}
+	parts := strings.Split(env["PATH"], string(os.PathListSeparator))
+	count := 0
+	for _, p := range parts {
+		if p == execDir {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected execDir to appear exactly once in PATH, got %d: %s", count, env["PATH"])
+	}
+}
+
 func TestAbsPathValidation(t *testing.T) {
 	if _, err := absPath(""); err == nil {
 		t.Fatalf("expected error for empty path")

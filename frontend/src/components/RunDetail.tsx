@@ -25,6 +25,7 @@ export function RunDetail({
   taskState,
   onDeleteRun,
   onDeleteTask,
+  onStopRun,
 }: {
   task?: TaskDetail
   runInfo?: RunInfo
@@ -36,6 +37,7 @@ export function RunDetail({
   taskState?: string
   onDeleteRun?: (runId: string) => void
   onDeleteTask?: (taskId: string) => void
+  onStopRun?: (runId: string) => void
 }) {
   const [runFilter, setRunFilter] = useState<RunStatusFilter>('all')
 
@@ -73,6 +75,21 @@ export function RunDetail({
         <div className="panel-column">
           <div className="section-title">Metadata</div>
           {taskState && <div className="task-state">{taskState}</div>}
+          {runInfo && task?.status === 'running' && onStopRun && (
+            <div className="panel-actions" style={{ marginBottom: '8px' }}>
+              <Button
+                inline
+                danger
+                onClick={() => {
+                  if (window.confirm(`Stop run ${runInfo.run_id}?`)) {
+                    onStopRun(runInfo.run_id)
+                  }
+                }}
+              >
+                Stop run
+              </Button>
+            </div>
+          )}
           {runInfo && task?.status !== 'running' && onDeleteRun && (
             <div className="panel-actions" style={{ marginBottom: '8px' }}>
               <Button

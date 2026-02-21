@@ -4,7 +4,7 @@ import { TaskList } from './components/TaskList'
 import { RunDetail } from './components/RunDetail'
 import { LogViewer } from './components/LogViewer'
 import { MessageBus } from './components/MessageBus'
-import { useDeleteRun, useDeleteTask, useProjects, useRunFile, useRunInfo, useTask, useTaskFile, useTasks } from './hooks/useAPI'
+import { useDeleteRun, useDeleteTask, useProjects, useRunFile, useRunInfo, useStopRun, useTask, useTaskFile, useTasks } from './hooks/useAPI'
 
 const defaultRunFile = 'output.md'
 
@@ -29,6 +29,7 @@ export function App() {
   const runFileQuery = useRunFile(effectiveProjectId, effectiveTaskId, effectiveRunId, runFileName, 5000)
   const deleteRunMutation = useDeleteRun(effectiveProjectId, effectiveTaskId)
   const deleteTaskMutation = useDeleteTask(effectiveProjectId)
+  const stopRunMutation = useStopRun(effectiveProjectId, effectiveTaskId)
 
   const logStreamUrl = effectiveProjectId && effectiveTaskId
     ? `/api/projects/${effectiveProjectId}/tasks/${effectiveTaskId}/runs/stream`
@@ -111,7 +112,13 @@ export function App() {
               </div>
             </div>
           </div>
-          <MessageBus streamUrl={busStreamUrl} title={`${busScope} bus`} />
+          <MessageBus
+            streamUrl={busStreamUrl}
+            title={`${busScope} bus`}
+            projectId={effectiveProjectId}
+            taskId={effectiveTaskId}
+            scope={busScope}
+          />
         </section>
 
         <section className="app-panel app-panel-wide">
@@ -143,6 +150,9 @@ export function App() {
                   setRunFileName(defaultRunFile)
                 },
               })
+            }}
+            onStopRun={(runId) => {
+              stopRunMutation.mutate(runId)
             }}
           />
         </section>
