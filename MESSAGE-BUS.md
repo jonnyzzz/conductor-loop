@@ -3733,3 +3733,67 @@ project_id: conductor-loop
 [2026-02-21 07:47:46] FACT: Scenario 3 (Ralph wait) passed
 [2026-02-21 07:47:46] FACT: Scenario 4 (message bus race) passed
 [2026-02-21 07:47:46] FACT: All acceptance tests passed
+
+[2026-02-21 07:56:00] FACT: Sub-agent A (task-20260221-064442-ewz3jt, conductor-project-gc): exit_code=0, completed at 07:46
+[2026-02-21 07:56:00] FACT: Sub-agent B (task-20260221-064444-78mbw0, conductor-status-running-tasks): exit_code=0, completed at 07:45
+
+[2026-02-21 07:56:00] QUALITY: go build ./...: PASS
+[2026-02-21 07:56:00] QUALITY: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS
+[2026-02-21 07:56:00] QUALITY: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+
+[2026-02-21 07:56:00] FACT: Commit: 695ae77 feat(cli): add conductor project gc + enhance conductor status with running tasks
+
+---
+msg_id: MSG-20260221-SESSION47-END
+ts: 2026-02-21T07:56:00Z
+type: SESSION_END
+project_id: conductor-loop
+---
+
+## Session #47 Summary (2026-02-21)
+
+### Features Implemented (via 2 parallel dog-food sub-agents)
+
+**feat(api+cli): conductor project gc** (commit 695ae77)
+
+New server-side GC command:
+- `POST /api/projects/{id}/gc?older_than=168h&dry_run=false&keep_failed=false`
+- `conductor project gc --project P [--older-than 168h] [--dry-run] [--keep-failed] [--server URL] [--json]`
+- Deletes completed/failed runs older than cutoff; never touches running runs
+- Reports `deleted_runs` count and `freed_bytes`
+- Files: `internal/api/handlers_projects.go` (new `handleProjectGC`), `cmd/conductor/project.go` (new `newProjectGCCmd`)
+
+**Why**: Previously only `run-agent gc` existed (requires local file access). `conductor project gc` works via the server API for remote/production deployments.
+
+**feat(api+cli): conductor status running_tasks** (commit 695ae77)
+
+Enhanced `conductor status`:
+- `/api/v1/status` now includes `running_tasks: [{project_id, task_id, run_id, agent, started}]`
+- `conductor status` shows a "Running tasks:" table when `active_runs > 0`
+- Sorted by start time (oldest first); run IDs truncated to 20 chars for readability
+- Files: `internal/api/handlers.go` (new `runningTaskItem`, enhanced response), `cmd/conductor/status.go` (table output)
+
+**Why**: Previously `conductor status` only showed `active_runs: N` without identifying WHICH tasks were running. The operator now sees the exact tasks and agents at a glance.
+
+**docs**: `conductor project gc` documented in `docs/user/cli-reference.md` (34 lines)
+
+### Dog-Food Success
+- Both tasks dispatched via ./bin/run-agent job (parallel)
+- task-20260221-064442-ewz3jt: conductor-project-gc — DONE (exit_code=0, ~90 seconds)
+- task-20260221-064444-78mbw0: conductor-status-running-tasks — DONE (exit_code=0, ~42 seconds)
+- Note: Previous dispatch failed due to | head -5 causing SIGPIPE; fixed by removing the pipe
+
+### Quality Gates
+- go build ./...: PASS
+- go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+- ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+- 722 lines added across 9 files + tests
+
+### Commits This Session
+- 695ae77: feat(cli): add conductor project gc + enhance conductor status with running tasks
+
+### Issue Status (unchanged)
+- CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows file locking), 5 resolved
+- HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
