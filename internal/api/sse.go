@@ -295,7 +295,7 @@ func (s *Server) streamMessageBusPath(w http.ResponseWriter, r *http.Request, bu
 					IssueID:   msg.IssueID,
 					Parents:   parentIDs,
 					Meta:      msg.Meta,
-					Content:   msg.Body,
+					Body:      msg.Body,
 				}
 				data, err := json.Marshal(payload)
 				if err != nil {
@@ -395,7 +395,7 @@ type messagePayload struct {
 	IssueID   string            `json:"issue_id,omitempty"`
 	Parents   []string          `json:"parents,omitempty"` // msg_id strings for JSON simplicity
 	Meta      map[string]string `json:"meta,omitempty"`
-	Content   string            `json:"content"` // Body text
+	Body      string            `json:"body"` // Body text
 }
 
 // Cursor tracks last-seen stdout/stderr line counts.

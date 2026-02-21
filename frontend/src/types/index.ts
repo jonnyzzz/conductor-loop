@@ -80,9 +80,9 @@ export interface FileContent {
 
 export interface BusMessage {
   msg_id: string
-  ts: string
+  timestamp: string
   type: string
-  message: string
+  body: string
   parents?: Array<string | { msg_id: string; kind?: string; meta?: Record<string, unknown> }>
   run_id?: string
   attachment_path?: string
@@ -143,4 +143,20 @@ export interface ProjectStats {
   crashed_runs: number
   message_bus_files: number
   message_bus_total_bytes: number
+}
+
+export interface FlatRunItem {
+  id: string
+  task_id: string
+  agent: string
+  status: RunStatus
+  exit_code: number
+  start_time: string
+  end_time?: string
+  parent_run_id?: string
+  previous_run_id?: string
+}
+
+export interface FlatRunsResponse {
+  runs: FlatRunItem[]
 }

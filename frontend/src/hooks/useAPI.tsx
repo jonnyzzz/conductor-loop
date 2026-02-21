@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { FileContent, Project, ProjectDetail, ProjectStats, RunInfo, TaskDetail, TaskSummary } from '../types'
+import type { FileContent, FlatRunItem, Project, ProjectDetail, ProjectStats, RunInfo, TaskDetail, TaskSummary } from '../types'
 import { APIClient, createClient } from '../api/client'
 import type { TaskStartRequest } from '../api/client'
 
@@ -155,16 +155,16 @@ export function useStopRun(projectId?: string, taskId?: string) {
 export function usePostTaskMessage(projectId?: string, taskId?: string) {
   const api = useAPIClient()
   return useMutation({
-    mutationFn: (payload: { type: string; message: string }) =>
-      api.postTaskMessage(projectId ?? '', taskId ?? '', { type: payload.type, message: payload.message }),
+    mutationFn: (payload: { type: string; body: string }) =>
+      api.postTaskMessage(projectId ?? '', taskId ?? '', { type: payload.type, body: payload.body }),
   })
 }
 
 export function usePostProjectMessage(projectId?: string) {
   const api = useAPIClient()
   return useMutation({
-    mutationFn: (payload: { type: string; message: string }) =>
-      api.postProjectMessage(projectId ?? '', { type: payload.type, message: payload.message }),
+    mutationFn: (payload: { type: string; body: string }) =>
+      api.postProjectMessage(projectId ?? '', { type: payload.type, body: payload.body }),
   })
 }
 
@@ -176,5 +176,15 @@ export function useResumeTask(projectId?: string) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['tasks', projectId] })
     },
+  })
+}
+
+export function useProjectRunsFlat(projectId: string | undefined) {
+  const api = useAPIClient()
+  return useQuery<FlatRunItem[]>({
+    queryKey: ['runs-flat', projectId],
+    queryFn: () => api.getProjectRunsFlat(projectId!),
+    enabled: Boolean(projectId),
+    refetchInterval: 5000,
   })
 }

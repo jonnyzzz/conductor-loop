@@ -1,6 +1,8 @@
 import type {
   BusMessage,
   FileContent,
+  FlatRunItem,
+  FlatRunsResponse,
   MessageResponse,
   Project,
   ProjectDetail,
@@ -129,7 +131,7 @@ export class APIClient {
     return data.messages
   }
 
-  async postProjectMessage(projectId: string, body: Omit<BusMessage, 'msg_id' | 'ts'>): Promise<MessageResponse> {
+  async postProjectMessage(projectId: string, body: Omit<BusMessage, 'msg_id' | 'timestamp'>): Promise<MessageResponse> {
     return this.request<MessageResponse>(`/api/projects/${encodeURIComponent(projectId)}/messages`, {
       method: 'POST',
       body,
@@ -139,7 +141,7 @@ export class APIClient {
   async postTaskMessage(
     projectId: string,
     taskId: string,
-    body: Omit<BusMessage, 'msg_id' | 'ts'>
+    body: Omit<BusMessage, 'msg_id' | 'timestamp'>
   ): Promise<MessageResponse> {
     return this.request<MessageResponse>(
       `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/messages`,
@@ -185,6 +187,13 @@ export class APIClient {
       `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/resume`,
       { method: 'POST' }
     )
+  }
+
+  async getProjectRunsFlat(projectId: string): Promise<FlatRunItem[]> {
+    const data = await this.request<FlatRunsResponse>(
+      `/api/projects/${encodeURIComponent(projectId)}/runs/flat`
+    )
+    return data.runs
   }
 }
 
