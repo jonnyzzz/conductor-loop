@@ -5,15 +5,16 @@ This document provides a comprehensive overview of the conductor-loop system arc
 ## Table of Contents
 
 1. [System Overview](#system-overview)
-2. [Architecture Diagram](#architecture-diagram)
-3. [Component Overview](#component-overview)
-4. [Data Flow](#data-flow)
-5. [Storage Layout](#storage-layout)
-6. [Message Bus Architecture](#message-bus-architecture)
-7. [Process Lifecycle](#process-lifecycle)
-8. [Key Design Decisions](#key-design-decisions)
-9. [Performance Considerations](#performance-considerations)
-10. [Platform Support](#platform-support)
+2. [Offline-First Design Principles](#offline-first-design-principles)
+3. [Architecture Diagram](#architecture-diagram)
+4. [Component Overview](#component-overview)
+5. [Data Flow](#data-flow)
+6. [Storage Layout](#storage-layout)
+7. [Message Bus Architecture](#message-bus-architecture)
+8. [Process Lifecycle](#process-lifecycle)
+9. [Key Design Decisions](#key-design-decisions)
+10. [Performance Considerations](#performance-considerations)
+11. [Platform Support](#platform-support)
 
 ---
 
@@ -24,15 +25,91 @@ Conductor Loop is an AI agent orchestration system that manages multi-agent work
 - **Multi-Agent Support**: Claude, Codex (OpenAI), Gemini, Perplexity, and xAI (Grok)
 - **Process Orchestration**: Automated restart loops for resilient task execution
 - **Message Bus**: Append-only event log for task coordination
-- **REST API + SSE**: Real-time task monitoring and control
+- **REST API + SSE**: Real-time task monitoring and control (optional)
 - **Web UI**: React 18 + TypeScript dashboard (primary); plain HTML/CSS/JS fallback
 
+**Single Binary:** `run-agent` is the official entry point for everything — task execution,
+job submission, local filesystem queries, and (optionally) the monitoring web server.
+The `conductor` binary is a deprecated alias that translates invocations to `run-agent`.
+
 **Key Statistics:**
-- Backend: 11,276 lines of Go code
-- 64 test files
+- Backend: ~12,000 lines of Go code
+- 64+ test files
 - Frontend (primary): React 18 + TypeScript (`frontend/`, requires `npm run build`)
 - Frontend (fallback): Vanilla JavaScript, no build step (`web/src/`)
 - Minimal dependencies (Cobra, YAML v3, pkg/errors)
+
+---
+
+## Offline-First Design Principles
+
+These are the non-negotiable architectural invariants of conductor-loop:
+
+### 1. `run-agent` Is the Official Binary
+
+Every capability is accessible through `run-agent`. There is no need to install or run
+any other binary. The deprecated `conductor` binary is a pass-through wrapper.
+
+```bash
+run-agent serve               # start optional monitoring server
+run-agent job ...             # submit a job directly (filesystem-only)
+run-agent server job submit   # submit a job via running server API
+run-agent list                # list tasks (filesystem-only, no server)
+run-agent server status       # query a running server
+```
+
+### 2. Each `run-agent` Process Is Fully Independent
+
+Task execution requires **only the filesystem**. There is no database, no coordinator
+process, no shared memory segment.
+
+```
+run-agent task A   ──┐
+run-agent task B   ──┼──► /data/runs/  (all state on disk)
+run-agent task C   ──┘
+```
+
+All three processes can run concurrently with zero coordination between them. File locking
+(`flock`) prevents corruption when writing to shared files (run-info.yaml, message bus).
+
+### 3. `run-agent serve` Is Optional — Monitoring Only
+
+`run-agent serve` starts a web server that *reads* the filesystem and *exposes* it over
+HTTP/SSE. It does not need to be running for agents to execute tasks.
+
+**If `run-agent serve` is killed:**
+- All running agent processes continue unaffected
+- The message bus continues to grow normally
+- The `DONE` file mechanism continues to work
+- Runs complete and write their results normally
+
+`run-agent serve` can be started at any time to inspect past or in-progress runs.
+
+### 4. `CONDUCTOR_URL` Is Informational
+
+The environment variable `CONDUCTOR_URL` is injected into spawned agent processes as a
+*convenience* so the agent's own code can construct API URLs for posting messages or
+querying status. The runner itself **never calls back to the server**.
+
+```
+Runner → (spawn) → Agent process
+                   env: CONDUCTOR_URL=http://localhost:14355
+                        (agent MAY use this for bus/post; runner does NOT)
+```
+
+### 5. The Filesystem Is the Single Source of Truth
+
+| What | Where |
+|------|-------|
+| Run metadata | `<root>/<project>/<task>/runs/<run_id>/run-info.yaml` |
+| Agent output | `<root>/<project>/<task>/runs/<run_id>/agent-stdout.txt` |
+| Final output | `<root>/<project>/<task>/runs/<run_id>/output.md` |
+| Message bus | `<root>/<project>/<task>/TASK-MESSAGE-BUS.md` |
+| Completion signal | `<root>/<project>/<task>/DONE` |
+| Task prompt | `<root>/<project>/<task>/TASK.md` |
+
+No in-process state is authoritative. The API server re-reads from disk on every request.
+Prometheus counters (in-memory) are the only state that is purely transient.
 
 ---
 
@@ -886,5 +963,5 @@ For more detailed information, see:
 
 ---
 
-**Last Updated:** 2026-02-05
-**Version:** 1.0.0
+**Last Updated:** 2026-02-21
+**Version:** 2.0.0 (run-agent unification)
