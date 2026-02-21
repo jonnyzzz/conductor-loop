@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -20,6 +21,7 @@ func newListCmd() *cobra.Command {
 		root      string
 		projectID string
 		taskID    string
+		statusFilter string
 		jsonOut   bool
 	)
 
@@ -34,19 +36,20 @@ func newListCmd() *cobra.Command {
 					root = "./runs"
 				}
 			}
-			return runList(cmd.OutOrStdout(), root, projectID, taskID, jsonOut)
+			return runList(cmd.OutOrStdout(), root, projectID, taskID, statusFilter, jsonOut)
 		},
 	}
 
 	cmd.Flags().StringVar(&root, "root", "", "root directory (default: ./runs or RUNS_DIR env)")
 	cmd.Flags().StringVar(&projectID, "project", "", "project id (optional; lists tasks if set)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id (requires --project; lists runs if set)")
+	cmd.Flags().StringVar(&statusFilter, "status", "", "filter tasks by status: running, active, done, failed (only applies when --project is set)")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON")
 
 	return cmd
 }
 
-func runList(out io.Writer, root, projectID, taskID string, jsonOut bool) error {
+func runList(out io.Writer, root, projectID, taskID, statusFilter string, jsonOut bool) error {
 	if projectID == "" && taskID != "" {
 		return fmt.Errorf("--task requires --project")
 	}
@@ -55,7 +58,7 @@ func runList(out io.Writer, root, projectID, taskID string, jsonOut bool) error 
 	case projectID == "":
 		return listProjects(out, root, jsonOut)
 	case taskID == "":
-		return listTasks(out, root, projectID, jsonOut)
+		return listTasks(out, root, projectID, statusFilter, jsonOut)
 	default:
 		return listRuns(out, root, projectID, taskID, jsonOut)
 	}
@@ -99,7 +102,7 @@ type taskRow struct {
 }
 
 // listTasks lists all tasks for a project as a table.
-func listTasks(out io.Writer, root, projectID string, jsonOut bool) error {
+func listTasks(out io.Writer, root, projectID, statusFilter string, jsonOut bool) error {
 	projDir := filepath.Join(root, projectID)
 	entries, err := os.ReadDir(projDir)
 	if err != nil {
@@ -161,6 +164,8 @@ func listTasks(out io.Writer, root, projectID string, jsonOut bool) error {
 	sort.Slice(rows, func(i, j int) bool {
 		return rows[i].TaskID < rows[j].TaskID
 	})
+
+	rows = filterRowsByStatus(rows, statusFilter)
 
 	if jsonOut {
 		return encodeJSON(out, map[string]interface{}{"tasks": rows})
@@ -247,6 +252,42 @@ func listRuns(out io.Writer, root, projectID, taskID string, jsonOut bool) error
 		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\n", row.RunID, row.Status, row.ExitCode, row.Started, row.Duration)
 	}
 	return w.Flush()
+}
+
+// filterRowsByStatus filters task rows by status. Supported values: "running"/"active", "done", "failed".
+// Unknown values log a warning and return all rows unchanged.
+func filterRowsByStatus(rows []taskRow, filter string) []taskRow {
+	switch strings.ToLower(filter) {
+	case "":
+		return rows
+	case "running", "active":
+		var out []taskRow
+		for _, r := range rows {
+			if r.LatestStatus == "running" {
+				out = append(out, r)
+			}
+		}
+		return out
+	case "done":
+		var out []taskRow
+		for _, r := range rows {
+			if r.Done {
+				out = append(out, r)
+			}
+		}
+		return out
+	case "failed":
+		var out []taskRow
+		for _, r := range rows {
+			if r.LatestStatus == "failed" {
+				out = append(out, r)
+			}
+		}
+		return out
+	default:
+		fmt.Fprintf(os.Stderr, "warning: unknown --status filter %q; showing all tasks\n", filter)
+		return rows
+	}
 }
 
 func encodeJSON(out io.Writer, v interface{}) error {
