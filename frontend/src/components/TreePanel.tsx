@@ -16,16 +16,33 @@ interface TreePanelProps {
   onSelectRun: (projectId: string, taskId: string, runId: string) => void
 }
 
-function generateTaskId(): string {
+function generateTaskIdPrefix(): string {
   const now = new Date()
   const date = now.toISOString().slice(0, 10).replace(/-/g, '')
   const time = now.toTimeString().slice(0, 8).replace(/:/g, '')
-  const rand = Math.random().toString(36).slice(2, 8)
-  return `task-${date}-${time}-${rand}`
+  return `task-${date}-${time}`
 }
 
-const emptyForm = (): TaskStartRequest => ({
-  task_id: generateTaskId(),
+function generateTaskSuffix(): string {
+  return Math.random().toString(36).slice(2, 7)
+}
+
+function sanitizeTaskSuffix(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 48)
+}
+
+function buildTaskId(prefix: string, suffix: string): string {
+  const normalized = sanitizeTaskSuffix(suffix)
+  return normalized ? `${prefix}-${normalized}` : prefix
+}
+
+const emptyForm = (taskId: string): TaskStartRequest => ({
+  task_id: taskId,
   prompt: '',
   project_root: '',
   attach_mode: 'create',
@@ -65,6 +82,7 @@ interface TreeNodeProps {
   onSelectProject: (id: string) => void
   onSelectTask: (projectId: string, taskId: string) => void
   onSelectRun: (projectId: string, taskId: string, runId: string) => void
+  onCreateTask?: (projectId: string) => void
   defaultExpanded?: boolean
 }
 
@@ -77,6 +95,7 @@ function TreeNodeRow({
   onSelectProject,
   onSelectTask,
   onSelectRun,
+  onCreateTask,
   defaultExpanded = true,
 }: TreeNodeProps) {
   const [expanded, setExpanded] = useState(
@@ -105,56 +124,82 @@ function TreeNodeRow({
     setExpanded((v) => !v)
   }
 
+  const hasProjectAction = Boolean(node.type === 'project' && node.projectId && onCreateTask)
+  const runLabel = node.id.length > 18 ? `${node.id.slice(0, 18)}…` : node.id
+
   return (
     <div className="tree-node">
-      <button
-        type="button"
-        className={clsx('tree-row', isSelected && 'tree-row-active')}
-        style={{ paddingLeft: `${8 + depth * 16}px` }}
-        onClick={handleClick}
-      >
-        <span
-          className={clsx('tree-toggle', !hasChildren && 'tree-toggle-empty')}
-          onClick={hasChildren ? handleToggle : undefined}
-          aria-label={expanded ? 'Collapse' : 'Expand'}
+      <div className={clsx('tree-row-shell', hasProjectAction && 'tree-row-shell-project')}>
+        <button
+          type="button"
+          className={clsx('tree-row', isSelected && 'tree-row-active', hasProjectAction && 'tree-row-with-action')}
+          style={{ paddingLeft: `${8 + depth * 16}px` }}
+          onClick={handleClick}
         >
-          {hasChildren ? (expanded ? '▾' : '▸') : ' '}
-        </span>
+          <span
+            className={clsx('tree-toggle', !hasChildren && 'tree-toggle-empty')}
+            onClick={hasChildren ? handleToggle : undefined}
+            aria-label={expanded ? 'Collapse' : 'Expand'}
+          >
+            {hasChildren ? (expanded ? '▾' : '▸') : ' '}
+          </span>
 
-        {node.type === 'project' && (
-          <>
-            <span className="tree-icon">⬡</span>
-            <span className="tree-label tree-label-project">{node.label}</span>
-            <span className="tree-badge tree-badge-count">{node.children.length}</span>
-          </>
-        )}
+          {node.type === 'project' && (
+            <>
+              <span className="tree-icon">⬡</span>
+              <span className="tree-label tree-label-project">{node.label}</span>
+              <span className="tree-badge tree-badge-count">{node.children.length}</span>
+            </>
+          )}
 
-        {node.type === 'task' && (
-          <>
-            <span className={clsx('tree-status-dot', statusClass(node.status))}>
-              {statusDot(node.status)}
-            </span>
-            <span className={clsx('tree-label', node.status === 'running' && 'tree-label-active')}>
-              {node.label}
-            </span>
-            {node.restartCount != null && node.restartCount > 0 && (
-              <span className="tree-badge tree-badge-restart">×{node.restartCount + 1}</span>
-            )}
-          </>
-        )}
+          {node.type === 'task' && (
+            <>
+              <span className={clsx('tree-status-dot', statusClass(node.status))}>
+                {statusDot(node.status)}
+              </span>
+              <span className={clsx('tree-label', node.status === 'running' && 'tree-label-active')}>
+                {node.label}
+              </span>
+              {node.latestRunAgent && (
+                <span className={clsx('tree-badge tree-badge-agent', node.latestRunStatus === 'running' && 'tree-badge-agent-running')}>
+                  [{node.latestRunAgent}]
+                </span>
+              )}
+              {node.latestRunTime && (
+                <span className="tree-time">{formatTime(node.latestRunTime)}</span>
+              )}
+              {node.restartCount != null && node.restartCount > 0 && (
+                <span className="tree-badge tree-badge-restart">×{node.restartCount + 1}</span>
+              )}
+            </>
+          )}
 
-        {node.type === 'run' && (
-          <>
-            <span className={clsx('tree-status-dot', statusClass(node.status))}>
-              {statusDot(node.status)}
-            </span>
-            <span className={clsx('tree-label tree-label-run', node.status === 'running' && 'tree-label-active')}>
-              [{node.agent ?? '?'}]
-            </span>
-            <span className="tree-time">{formatTime(node.startTime)}</span>
-          </>
+          {node.type === 'run' && (
+            <>
+              <span className={clsx('tree-status-dot', statusClass(node.status))}>
+                {statusDot(node.status)}
+              </span>
+              <span className={clsx('tree-label tree-label-run', node.status === 'running' && 'tree-label-active')}>
+                {runLabel}
+              </span>
+              <span className="tree-badge tree-badge-agent">[{node.agent ?? '?'}]</span>
+              <span className="tree-time">{formatTime(node.startTime)}</span>
+            </>
+          )}
+        </button>
+        {hasProjectAction && (
+          <button
+            type="button"
+            className="tree-inline-action"
+            onClick={(event) => {
+              event.stopPropagation()
+              onCreateTask?.(node.projectId!)
+            }}
+          >
+            + New Task
+          </button>
         )}
-      </button>
+      </div>
 
       {expanded && hasChildren && (
         <div className="tree-children">
@@ -169,7 +214,8 @@ function TreeNodeRow({
               onSelectProject={onSelectProject}
               onSelectTask={onSelectTask}
               onSelectRun={onSelectRun}
-              defaultExpanded={child.status === 'running' || depth < 1}
+              onCreateTask={onCreateTask}
+              defaultExpanded={child.type === 'project' || child.status === 'running'}
             />
           ))}
         </div>
@@ -194,7 +240,9 @@ export function TreePanel({
   const startTaskMutation = useStartTask(projectId)
 
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState<TaskStartRequest>(emptyForm)
+  const [taskIdPrefix, setTaskIdPrefix] = useState(() => generateTaskIdPrefix())
+  const [taskIdSuffix, setTaskIdSuffix] = useState(() => generateTaskSuffix())
+  const [form, setForm] = useState<TaskStartRequest>(() => emptyForm(buildTaskId(taskIdPrefix, taskIdSuffix)))
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const homeDirs = homeDirsQuery.data?.dirs ?? []
@@ -207,9 +255,18 @@ export function TreePanel({
   }, [projectId, tasksQuery.data, flatRunsQuery.data])
 
   const projects = projectsQuery.data ?? []
+  const derivedTaskId = useMemo(() => buildTaskId(taskIdPrefix, taskIdSuffix), [taskIdPrefix, taskIdSuffix])
 
-  const openDialog = () => {
-    setForm({ ...emptyForm(), task_id: generateTaskId() })
+  const openDialog = (targetProjectId?: string) => {
+    if (targetProjectId && targetProjectId !== projectId) {
+      onSelectProject(targetProjectId)
+    }
+    const nextPrefix = generateTaskIdPrefix()
+    const nextSuffix = generateTaskSuffix()
+    const nextTaskId = buildTaskId(nextPrefix, nextSuffix)
+    setTaskIdPrefix(nextPrefix)
+    setTaskIdSuffix(nextSuffix)
+    setForm(emptyForm(nextTaskId))
     setSubmitError(null)
     setShowCreate(true)
   }
@@ -223,7 +280,7 @@ export function TreePanel({
     e.preventDefault()
     setSubmitError(null)
     try {
-      await startTaskMutation.mutateAsync(form)
+      await startTaskMutation.mutateAsync({ ...form, task_id: derivedTaskId })
       closeDialog()
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Failed to create task')
@@ -239,7 +296,7 @@ export function TreePanel({
         </div>
         <Button
           inline
-          onClick={openDialog}
+          onClick={() => openDialog()}
           disabled={!projectId}
           aria-label="Create new task"
           title={projectId ? 'Create new task' : 'Select a project first'}
@@ -284,6 +341,7 @@ export function TreePanel({
             onSelectProject={onSelectProject}
             onSelectTask={onSelectTask}
             onSelectRun={onSelectRun}
+            onCreateTask={openDialog}
             defaultExpanded={true}
           />
         )}
@@ -302,14 +360,37 @@ export function TreePanel({
           <form onSubmit={handleSubmit}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span className="form-label">Task ID</span>
+                <span className="form-label">Task ID Prefix</span>
                 <input
                   className="input"
                   style={{ width: '100%' }}
-                  value={form.task_id}
-                  onChange={(e) => setForm((f) => ({ ...f, task_id: e.target.value }))}
+                  value={taskIdPrefix}
+                  readOnly
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span className="form-label">Task Modifier</span>
+                <input
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={taskIdSuffix}
+                  onChange={(e) => setTaskIdSuffix(sanitizeTaskSuffix(e.target.value))}
+                  placeholder="ux-batch"
+                />
+                <span className="form-hint">
+                  Full task id is derived as <code>{taskIdPrefix}-modifier</code>. Leave empty to use prefix only.
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span className="form-label">Full Task ID</span>
+                <input
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={derivedTaskId}
+                  readOnly
                   required
-                  placeholder="task-20260220-120000-my-task"
                 />
               </label>
 

@@ -65,7 +65,7 @@ export function App() {
       </header>
 
       <main className="app-grid">
-        <section className="app-panel">
+        <section className="app-panel app-panel-tree">
           <TreePanel
             projectId={effectiveProjectId}
             selectedProjectId={effectiveProjectId}
@@ -92,12 +92,12 @@ export function App() {
           />
         </section>
 
-        <section className="app-panel">
+        <section className="app-panel app-panel-bus">
           <div className="panel">
             <div className="panel-header">
               <div>
                 <div className="panel-title">Message bus</div>
-                <div className="panel-subtitle">Project + task feeds</div>
+                <div className="panel-subtitle">Project and task feeds</div>
               </div>
               <div className="panel-actions">
                 <Button
@@ -118,6 +118,7 @@ export function App() {
             </div>
           </div>
           <MessageBus
+            key={busStreamUrl ?? `bus-${busScope}-none`}
             streamUrl={busStreamUrl}
             title={`${busScope} bus`}
             projectId={effectiveProjectId}
@@ -126,7 +127,7 @@ export function App() {
           />
         </section>
 
-        <section className="app-panel app-panel-wide">
+        <section className="app-panel app-panel-run">
           <RunDetail
             task={taskQuery.data}
             runInfo={runInfoQuery.data}
@@ -167,8 +168,8 @@ export function App() {
           />
         </section>
 
-        <section className="app-panel app-panel-full">
-          <LogViewer streamUrl={logStreamUrl} />
+        <section className="app-panel app-panel-logs">
+          <LogViewer key={logStreamUrl ?? 'logs-none'} streamUrl={logStreamUrl} />
         </section>
       </main>
     </div>

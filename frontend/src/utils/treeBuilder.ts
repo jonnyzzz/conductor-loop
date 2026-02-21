@@ -9,6 +9,10 @@ export interface TreeNode {
   taskId?: string
   projectId?: string
   startTime?: string
+  latestRunId?: string
+  latestRunAgent?: string
+  latestRunStatus?: string
+  latestRunTime?: string
   children: TreeNode[]
   restartCount?: number
   parentRunId?: string
@@ -129,6 +133,12 @@ export function buildTree(
     ).length
 
     const children: TreeNode[] = rootRuns.map(buildRunNode)
+    const latestRun = runs.reduce<FlatRunItem | undefined>((acc, run) => {
+      if (!acc) return run
+      const currentTime = run.end_time ?? run.start_time
+      const accTime = acc.end_time ?? acc.start_time
+      return currentTime > accTime ? run : acc
+    }, undefined)
 
     const shortId = taskId.replace(/^task-\d{8}-\d{6}-/, '')
     return {
@@ -138,6 +148,10 @@ export function buildTree(
       status: taskStatus,
       taskId,
       projectId,
+      latestRunId: latestRun?.id,
+      latestRunAgent: latestRun?.agent,
+      latestRunStatus: latestRun?.status,
+      latestRunTime: latestRun?.start_time,
       children,
       restartCount: restartCount > 0 ? restartCount : undefined,
     }

@@ -50,6 +50,15 @@ export function LogViewer({
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
+    setLines(initialLines)
+    setLastLogTime(null)
+    setSearch('')
+    setRunFilter('')
+    setStreamFilter('all')
+    setAutoScroll(true)
+  }, [streamUrl])
+
+  useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 5000)
     return () => clearInterval(timer)
   }, [])

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Button from '@jetbrains/ring-ui-built/components/button/button'
 import clsx from 'clsx'
 import type { BusMessage } from '../types'
@@ -46,6 +46,16 @@ export function MessageBus({
 
   const postTaskMessage = usePostTaskMessage(projectId, taskId)
   const postProjectMessage = usePostProjectMessage(projectId)
+
+  useEffect(() => {
+    setMessages([])
+    setExpanded(new Set())
+    setFilter('')
+    setTypeFilter('')
+    setComposeText('')
+    setPostStatus('idle')
+    setPostError('')
+  }, [streamUrl, scope, projectId, taskId])
 
   const sseHandlers = useMemo(
     () => ({
@@ -98,7 +108,8 @@ export function MessageBus({
 
   const handlePost = async () => {
     const text = composeText.trim()
-    if (!text || !projectId) return
+    const hasContext = Boolean(projectId && (scope === 'project' || taskId))
+    if (!text || !hasContext || !projectId) return
     setPostStatus('idle')
     setPostError('')
     try {
@@ -116,7 +127,13 @@ export function MessageBus({
     }
   }
 
-  const canPost = Boolean(projectId && composeText.trim() && (scope === 'project' || taskId))
+  const canCompose = Boolean(projectId && (scope === 'project' || taskId))
+  const canSubmit = Boolean(canCompose && composeText.trim())
+  const composePlaceholder = !projectId
+    ? 'Select a project to post'
+    : (scope === 'task' && !taskId)
+      ? 'Select a task to post'
+      : 'Message body…'
 
   return (
     <div className="panel panel-scroll">
@@ -141,7 +158,7 @@ export function MessageBus({
           onChange={(event) => setTypeFilter(event.target.value)}
         />
       </div>
-      <div className="panel-section panel-section-tight">
+      <div className="panel-section panel-section-tight bus-list">
         {filteredMessages.length === 0 && <div className="empty-state">No messages yet.</div>}
         {filteredMessages.map((msg) => {
           const isOpen = expanded.has(msg.msg_id)
@@ -187,7 +204,7 @@ export function MessageBus({
           <Button
             inline
             onClick={handlePost}
-            disabled={!canPost || postTaskMessage.isPending || postProjectMessage.isPending}
+            disabled={!canSubmit || postTaskMessage.isPending || postProjectMessage.isPending}
             aria-label="Post message"
           >
             {postTaskMessage.isPending || postProjectMessage.isPending ? 'Posting…' : 'Post'}
@@ -195,11 +212,11 @@ export function MessageBus({
         </div>
         <textarea
           className="input bus-compose-textarea"
-          placeholder={canPost ? 'Message body…' : 'Select a project and task to post'}
+          placeholder={composePlaceholder}
           value={composeText}
           onChange={(e) => setComposeText(e.target.value)}
           rows={3}
-          disabled={!canPost}
+          disabled={!canCompose}
           aria-label="Message body"
         />
         {postStatus === 'success' && (

@@ -1,12 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Button from '@jetbrains/ring-ui-built/components/button/button'
 import clsx from 'clsx'
-import type { FileContent, RunInfo, RunStatus, TaskDetail } from '../types'
+import type { FileContent, RunInfo, TaskDetail } from '../types'
 import { FileViewer } from './FileViewer'
 import { RunTree } from './RunTree'
-
-const runStatusFilters = ['all', 'running', 'completed', 'failed'] as const
-type RunStatusFilter = (typeof runStatusFilters)[number]
 
 export function RunDetail({
   task,
@@ -35,14 +32,70 @@ export function RunDetail({
   onStopRun?: (runId: string) => void
   onResumeTask?: (taskId: string) => void
 }) {
-  const [runFilter, setRunFilter] = useState<RunStatusFilter>('all')
+  const [showCompletedRuns, setShowCompletedRuns] = useState(false)
 
-  const filteredRuns = useMemo(() => {
+  const completedRuns = useMemo(() => {
     if (!task?.runs) return []
-    if (runFilter === 'all') return task.runs
-    if (runFilter === 'failed') return task.runs.filter((r) => r.status === 'failed' || (r.status as RunStatus) === 'stopped')
-    return task.runs.filter((r) => r.status === runFilter)
-  }, [task?.runs, runFilter])
+    return task.runs.filter((r) => r.status === 'completed')
+  }, [task?.runs])
+
+  const visibleRuns = useMemo(() => {
+    if (!task?.runs) return []
+    if (showCompletedRuns) return task.runs
+    return task.runs.filter((r) => r.status !== 'completed')
+  }, [task?.runs, showCompletedRuns])
+
+  useEffect(() => {
+    setShowCompletedRuns(false)
+  }, [task?.id])
+
+  useEffect(() => {
+    if (!task?.runs || !selectedRunId) {
+      return
+    }
+    const selectedRun = task.runs.find((run) => run.id === selectedRunId)
+    if (selectedRun?.status === 'completed') {
+      setShowCompletedRuns(true)
+    }
+  }, [task?.runs, selectedRunId])
+
+  const restartHint = useMemo(() => {
+    if (!task) {
+      return null
+    }
+    if (task.done) {
+      return {
+        state: 'task-restart-hint-done',
+        title: 'Restart disabled',
+        detail: 'DONE marker is present. This task will not restart until you click Resume task.',
+      }
+    }
+    if (task.status === 'running') {
+      return {
+        state: 'task-restart-hint-running',
+        title: 'Auto-restart active',
+        detail: 'Ralph loop can keep restarting runs until a DONE marker is created.',
+      }
+    }
+    return {
+      state: 'task-restart-hint-open',
+      title: 'Restart possible',
+      detail: 'DONE marker is missing. This task can be resumed and run again.',
+    }
+  }, [task])
+
+  const runStatus = useMemo(() => {
+    if (!runInfo) {
+      return task?.status ?? 'unknown'
+    }
+    if (runInfo.exit_code === 0) {
+      return 'completed'
+    }
+    if (runInfo.exit_code > 0) {
+      return 'failed'
+    }
+    return task?.status ?? 'unknown'
+  }, [runInfo, task?.status])
 
   return (
     <div className="panel">
@@ -81,6 +134,44 @@ export function RunDetail({
           </div>
         )}
       </div>
+      {task && (
+        <div className="panel-section panel-section-tight task-overview">
+          <div className="task-overview-grid">
+            <div className="task-overview-item">
+              <div className="metadata-label">Task status</div>
+              <div className="metadata-value">
+                <span className={clsx('status-pill', `status-${task.status}`)}>{task.status}</span>
+              </div>
+            </div>
+            <div className="task-overview-item">
+              <div className="metadata-label">Last activity</div>
+              <div className="metadata-value">{new Date(task.last_activity).toLocaleString()}</div>
+            </div>
+            {runInfo && (
+              <>
+                <div className="task-overview-item">
+                  <div className="metadata-label">Selected run</div>
+                  <div className="metadata-value">{runInfo.run_id}</div>
+                </div>
+                <div className="task-overview-item">
+                  <div className="metadata-label">Agent</div>
+                  <div className="metadata-value">{runInfo.agent}</div>
+                </div>
+                <div className="task-overview-item">
+                  <div className="metadata-label">Run start</div>
+                  <div className="metadata-value">{new Date(runInfo.start_time).toLocaleString()}</div>
+                </div>
+              </>
+            )}
+          </div>
+          {restartHint && (
+            <div className={clsx('task-restart-hint', restartHint.state)}>
+              <span className="task-restart-title">{restartHint.title}</span>
+              <span>{restartHint.detail}</span>
+            </div>
+          )}
+        </div>
+      )}
       <div className="panel-section panel-split">
         <div className="panel-column">
           <div className="section-title">Metadata</div>
@@ -134,8 +225,8 @@ export function RunDetail({
               <div>
                 <div className="metadata-label">Status</div>
                 <div className="metadata-value">
-                  <span className={clsx('status-pill', `status-${task?.status ?? 'unknown'}`)}>
-                    {task?.status ?? 'unknown'}
+                  <span className={clsx('status-pill', `status-${runStatus}`)}>
+                    {runStatus}
                   </span>
                 </div>
               </div>
@@ -176,20 +267,21 @@ export function RunDetail({
         </div>
         <div className="panel-column">
           <div className="section-title">Run tree</div>
-          <div className="filters">
-            {runStatusFilters.map((f) => (
-              <Button
-                key={f}
-                inline
-                className={clsx('filter-button', runFilter === f && 'filter-button-active')}
-                onClick={() => setRunFilter(f)}
-              >
-                {f}
-              </Button>
-            ))}
-          </div>
+          {completedRuns.length > 0 && (
+            <button
+              type="button"
+              className="runs-completed-toggle"
+              onClick={() => setShowCompletedRuns((value) => !value)}
+            >
+              {showCompletedRuns ? `Hide ${completedRuns.length} completed` : `... ${completedRuns.length} completed`}
+            </button>
+          )}
           {task ? (
-            <RunTree runs={filteredRuns} selectedRunId={selectedRunId} onSelect={onSelectRun} />
+            visibleRuns.length > 0 ? (
+              <RunTree runs={visibleRuns} selectedRunId={selectedRunId} onSelect={onSelectRun} />
+            ) : (
+              <div className="empty-state">No running or failed runs. Expand completed runs to inspect history.</div>
+            )
           ) : (
             <div className="empty-state">No task loaded.</div>
           )}
