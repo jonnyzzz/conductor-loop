@@ -3184,3 +3184,74 @@ project_id: conductor-loop
 - 06316c5: fix(runner): prevent run ID collisions across concurrent CreateRun calls
 - ad9f688: feat(api): expose agent_version and error_summary in run responses
 - 35ac45b: feat(cli): add run-agent resume command to reset exhausted task
+[2026-02-21 04:55:52] FACT: Scenario 1 (single agent) passed
+[2026-02-21 04:55:52] FACT: Scenario 2 (parent-child) passed
+[2026-02-21 04:55:52] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-21 04:55:52] FACT: Scenario 4 (message bus race) passed
+[2026-02-21 04:55:52] FACT: All acceptance tests passed
+
+[2026-02-21 05:00:00] ==========================================
+[2026-02-21 05:00:00] SESSION: 2026-02-21 Session #41
+[2026-02-21 05:00:00] ==========================================
+
+[2026-02-21 05:00:00] PROGRESS: Starting session #41 - assessing current state
+[2026-02-21 05:00:00] FACT: go build ./... passes (binaries: conductor 14.3MB, run-agent 14.4MB)
+[2026-02-21 05:00:00] FACT: go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races
+[2026-02-21 05:00:00] FACT: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+[2026-02-21 05:00:00] FACT: go test ./test/integration/...: ALL PASS (29s)
+[2026-02-21 05:00:00] FACT: Issues: 0 fully open, 3 partially resolved (Windows + token expiration deferred)
+[2026-02-21 05:00:00] FACT: All QUESTIONS.md decisions implemented
+
+[2026-02-21 05:00:00] PROGRESS: Documentation gaps identified:
+[2026-02-21 05:00:00]   - CLI reference missing: run-agent resume (top-level cmd, added in session #40)
+[2026-02-21 05:00:00]   - CLI reference missing: run-agent gc --delete-done-tasks, --rotate-bus, --bus-max-size
+[2026-02-21 05:00:00]   - API reference missing: agent_version, error_summary fields in run response
+
+[2026-02-21 05:00:00] DECISION: Session #41 work:
+[2026-02-21 05:00:00]   (1) docs-update: Update CLI reference + API reference for session #39/#40 features
+[2026-02-21 05:00:00]   (2) conductor-task-resume: Add conductor task resume command + API endpoint
+
+[2026-02-21 05:00:30] PROGRESS: Dispatching 2 parallel sub-agents via ./bin/run-agent job (dog-food)
+[2026-02-21 05:00:30] FACT: task docs-update started (prompt: prompts/session-41/docs-update.md)
+[2026-02-21 05:00:30] FACT: task conductor-task-resume started (prompt: prompts/session-41/conductor-task-resume.md)
+
+[2026-02-21 05:20:00] ==========================================
+[2026-02-21 05:20:00] SESSION SUMMARY: 2026-02-21 Session #41
+[2026-02-21 05:20:00] ==========================================
+
+## Features Implemented This Session (via 2 parallel dog-food sub-agents)
+
+1. **docs(user): update CLI and API reference for session #40 features** (commit 95eb61c)
+   - CLI reference: Added `run-agent resume` top-level command section (was missing)
+   - CLI reference: Updated `run-agent gc` with missing flags: --delete-done-tasks, --rotate-bus, --bus-max-size
+   - CLI reference: Added examples for new gc flags
+   - API reference: Added agent_version and error_summary fields to run response schema
+
+2. **feat(api): add task resume endpoint and conductor task resume command** (commit 39c4dea)
+   - New API: POST /api/projects/{projectId}/tasks/{taskId}/resume
+   - Returns 200 (DONE file removed), 400 (no DONE file), 404 (task not found), 405 (wrong method)
+   - New CLI: `conductor task resume <task-id> --project <p> [--server URL] [--json]`
+   - 4 new API tests in handlers_projects_test.go
+   - Full symmetry: run-agent resume (local) + conductor task resume (via server)
+
+## Dog-Food
+- 2 tasks dispatched via ./bin/run-agent job (parallel, root: runs/)
+- task-20260221-035845-t2lrjn: docs-update — DONE (exit_code=0, duration=~4m)
+- task-20260221-035848-exet4f: conductor-task-resume — DONE (exit_code=0, duration=4m15s)
+
+## Quality Gates
+- go build ./...: PASS
+- go build -o bin/conductor, go build -o bin/run-agent: PASS
+- go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races
+- ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS (verified at session start)
+- go test ./test/integration/...: ALL PASS (verified at session start)
+
+## Current Issue Status (unchanged from session #40)
+- CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows), 5 resolved
+- HIGH: 0 open, 2 partially resolved (ISSUE-003, ISSUE-009), 6 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+
+## Commits This Session
+- 95eb61c: docs(user): update CLI and API reference for session #40 features
+- 39c4dea: feat(api): add task resume endpoint and conductor task resume command
