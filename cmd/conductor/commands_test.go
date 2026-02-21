@@ -32,7 +32,7 @@ func TestServerStatusSuccess(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -61,7 +61,7 @@ func TestServerStatusWithRunningTasks(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -80,7 +80,7 @@ func TestServerStatusJSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -110,7 +110,7 @@ func TestServerStatusNoAgents(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -152,7 +152,7 @@ func TestTaskStopSuccess(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(taskStopResponse{StoppedRuns: 2})
+		_ = json.NewEncoder(w).Encode(taskStopResponse{StoppedRuns: 2})
 	}))
 	defer srv.Close()
 
@@ -168,7 +168,7 @@ func TestTaskStopWithProject(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(taskStopResponse{StoppedRuns: 1})
+		_ = json.NewEncoder(w).Encode(taskStopResponse{StoppedRuns: 1})
 	}))
 	defer srv.Close()
 
@@ -181,7 +181,7 @@ func TestTaskStopJSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(taskStopResponse{StoppedRuns: 0})
+		_ = json.NewEncoder(w).Encode(taskStopResponse{StoppedRuns: 0})
 	}))
 	defer srv.Close()
 
@@ -271,7 +271,7 @@ func TestJobSubmitSuccess(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -296,7 +296,7 @@ func TestJobSubmitJSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -325,7 +325,7 @@ func TestJobSubmitWait(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/tasks":
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(jobCreateResponse{
+			_ = json.NewEncoder(w).Encode(jobCreateResponse{
 				ProjectID: "p", TaskID: "t", RunID: "run-999", Status: "started",
 			})
 		case "/api/v1/runs/run-999":
@@ -336,7 +336,7 @@ func TestJobSubmitWait(t *testing.T) {
 				run.EndTime = time.Now()
 			}
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(run)
+			_ = json.NewEncoder(w).Encode(run)
 		default:
 			http.NotFound(w, r)
 		}
@@ -367,12 +367,12 @@ func TestJobSubmitFollow(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/tasks":
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(jobCreateResponse{
+			_ = json.NewEncoder(w).Encode(jobCreateResponse{
 				ProjectID: "p", TaskID: taskID, RunID: runID, Status: "started",
 			})
 		case "/api/projects/p/tasks/" + taskID:
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"id": taskID, "status": "running",
 				"runs": []map[string]string{{"run_id": runID, "status": "running"}},
 			})
@@ -434,7 +434,7 @@ func TestJobListSuccess(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -450,7 +450,7 @@ func TestJobListWithProjectFilter(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(jobTaskListResponse{Tasks: []jobTaskResponse{}})
+		_ = json.NewEncoder(w).Encode(jobTaskListResponse{Tasks: []jobTaskResponse{}})
 	}))
 	defer srv.Close()
 
@@ -463,7 +463,7 @@ func TestJobListEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(jobTaskListResponse{Tasks: nil})
+		_ = json.NewEncoder(w).Encode(jobTaskListResponse{Tasks: nil})
 	}))
 	defer srv.Close()
 
@@ -476,7 +476,7 @@ func TestJobListJSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(jobTaskListResponse{Tasks: []jobTaskResponse{}})
+		_ = json.NewEncoder(w).Encode(jobTaskListResponse{Tasks: []jobTaskResponse{}})
 	}))
 	defer srv.Close()
 
@@ -518,7 +518,7 @@ func TestTaskStatusSuccess(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -534,7 +534,7 @@ func TestTaskStatusWithProject(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(taskDetailResponse{
+		_ = json.NewEncoder(w).Encode(taskDetailResponse{
 			ProjectID: "my-proj",
 			TaskID:    "task-20260220-100000-bar",
 			Status:    "idle",
@@ -551,7 +551,7 @@ func TestTaskStatusJSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(taskDetailResponse{ProjectID: "p", TaskID: "t", Status: "idle"})
+		_ = json.NewEncoder(w).Encode(taskDetailResponse{ProjectID: "p", TaskID: "t", Status: "idle"})
 	}))
 	defer srv.Close()
 
@@ -586,7 +586,7 @@ func TestTaskStatusWithCompletedRuns(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -734,7 +734,7 @@ func TestJobSubmitPromptFile(t *testing.T) {
 		receivedPrompt = req.Prompt
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(jobCreateResponse{
+		_ = json.NewEncoder(w).Encode(jobCreateResponse{
 			ProjectID: "p", TaskID: "t", RunID: "r", Status: "started",
 		})
 	}))
@@ -808,7 +808,7 @@ func TestJobSubmitAutoGeneratesTaskID(t *testing.T) {
 		receivedTaskID = req.TaskID
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(jobCreateResponse{
+		_ = json.NewEncoder(w).Encode(jobCreateResponse{
 			ProjectID: "my-project",
 			TaskID:    req.TaskID,
 			RunID:     "run-auto",
@@ -845,7 +845,7 @@ func TestJobSubmitExplicitTaskIDPreserved(t *testing.T) {
 		receivedTaskID = req.TaskID
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(jobCreateResponse{
+		_ = json.NewEncoder(w).Encode(jobCreateResponse{
 			ProjectID: "p", TaskID: req.TaskID, RunID: "r", Status: "started",
 		})
 	}))
@@ -886,7 +886,7 @@ func TestTaskListStatusRunning(t *testing.T) {
 		receivedQuery = r.URL.RawQuery
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(makeTaskListResp())
+		_ = json.NewEncoder(w).Encode(makeTaskListResp())
 	}))
 	defer srv.Close()
 
@@ -904,7 +904,7 @@ func TestTaskListStatusDone(t *testing.T) {
 		receivedQuery = r.URL.RawQuery
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(taskListAPIResponse{Items: []taskListItem{}, Total: 0, HasMore: false})
+		_ = json.NewEncoder(w).Encode(taskListAPIResponse{Items: []taskListItem{}, Total: 0, HasMore: false})
 	}))
 	defer srv.Close()
 
@@ -922,7 +922,7 @@ func TestTaskListNoStatus(t *testing.T) {
 		receivedQuery = r.URL.RawQuery
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(makeTaskListResp())
+		_ = json.NewEncoder(w).Encode(makeTaskListResp())
 	}))
 	defer srv.Close()
 

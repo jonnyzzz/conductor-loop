@@ -27,7 +27,7 @@ func TestWatchAllTasksComplete(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(tasks)
+		_ = json.NewEncoder(w).Encode(tasks)
 	}))
 	defer srv.Close()
 
@@ -59,7 +59,7 @@ func TestWatchTimeout(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(tasks)
+		_ = json.NewEncoder(w).Encode(tasks)
 	}))
 	defer srv.Close()
 
@@ -93,7 +93,7 @@ func TestWatchSpecificTask(t *testing.T) {
 			status = "completed"
 			done = true
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":     taskID,
 			"status": status,
 			"done":   done,
@@ -131,7 +131,7 @@ func TestWatchJSONOutput(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":     taskID,
 			"status": "completed",
 			"done":   true,
@@ -185,7 +185,7 @@ func TestWatchEmptyProject(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(taskListAPIResponse{
+		_ = json.NewEncoder(w).Encode(taskListAPIResponse{
 			Items:   []taskListItem{},
 			Total:   0,
 			HasMore: false,

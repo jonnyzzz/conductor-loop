@@ -33,7 +33,7 @@ func TestTaskLogsNormalStreaming(t *testing.T) {
 		case "/api/projects/proj/tasks/" + taskID:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"id":     taskID,
 				"status": "completed",
 				"runs": []map[string]string{
@@ -75,7 +75,7 @@ func TestTaskLogsEmptyOutput(t *testing.T) {
 		case "/api/projects/proj/tasks/" + taskID:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"id":     taskID,
 				"status": "completed",
 				"runs": []map[string]string{
@@ -117,7 +117,7 @@ func TestTaskLogsAutoDetectLatestRun(t *testing.T) {
 			// Return task with two runs; second one is running (should be selected).
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"id":     taskID,
 				"status": "running",
 				"runs": []map[string]string{
@@ -244,7 +244,7 @@ func TestTaskLogsTail(t *testing.T) {
 		case "/api/projects/proj/tasks/" + taskID:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"id":     taskID,
 				"status": "completed",
 				"runs":   []map[string]string{{"run_id": runID, "status": "completed"}},
@@ -285,7 +285,7 @@ func TestTaskLogsNoRuns(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":     taskID,
 			"status": "idle",
 			"runs":   []map[string]string{},

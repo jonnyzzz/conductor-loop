@@ -50,7 +50,7 @@ func TestTaskRunsSuccess(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -88,7 +88,7 @@ func TestTaskRunsEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -117,7 +117,7 @@ func TestTaskRunsJSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -195,7 +195,7 @@ func TestTaskRunsRunningDuration(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -287,7 +287,7 @@ func TestTaskRunsErrorSummaryTruncation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -320,7 +320,7 @@ func TestTaskRunsHasMore(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 

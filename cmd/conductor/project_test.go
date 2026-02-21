@@ -28,7 +28,7 @@ func TestProjectListSuccess(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -46,7 +46,7 @@ func TestProjectListJSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -88,7 +88,7 @@ func TestTaskListSuccess(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -106,7 +106,7 @@ func TestTaskListJSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -137,7 +137,7 @@ func TestTaskListHasMore(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -267,7 +267,7 @@ func TestProjectStatsSuccess(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -284,7 +284,7 @@ func TestProjectStatsJSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -356,7 +356,7 @@ func TestProjectGCSuccess(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -381,7 +381,7 @@ func TestProjectGCDryRun(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
@@ -406,7 +406,7 @@ func TestProjectGCJSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(respBody)
+		_ = json.NewEncoder(w).Encode(respBody)
 	}))
 	defer srv.Close()
 
