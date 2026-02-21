@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import Button from '@jetbrains/ring-ui-built/components/button/button'
 import clsx from 'clsx'
 import type { FileContent, RunInfo, RunStatus, TaskDetail } from '../types'
+import { FileViewer } from './FileViewer'
 import { RunTree } from './RunTree'
 
 const runStatusFilters = ['all', 'running', 'completed', 'failed'] as const
@@ -221,7 +222,7 @@ export function RunDetail({
         </div>
       </div>
       <div className="panel-section panel-section-tight">
-        <pre className="file-viewer">{fileContent?.content ?? 'No file loaded yet.'}</pre>
+        <FileViewer fileName={fileName} content={fileContent?.content ?? ''} />
       </div>
     </div>
   )

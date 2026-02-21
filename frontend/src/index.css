@@ -674,3 +674,115 @@ body {
   color: #ff8c42;
   background: rgba(255, 140, 66, 0.12);
 }
+
+/* Agent output renderer */
+.agent-output {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: rgba(4, 8, 12, 0.6);
+  border-radius: 12px;
+  padding: 12px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ao-plain {
+  display: block;
+  color: var(--app-text);
+  white-space: pre-wrap;
+}
+
+.ao-init {
+  display: block;
+  color: var(--app-subtle);
+  font-size: 11px;
+}
+
+.ao-text {
+  display: block;
+  margin: 4px 0;
+  white-space: pre-wrap;
+}
+
+.ao-thinking {
+  margin: 2px 0;
+}
+
+.ao-thinking summary {
+  cursor: pointer;
+  color: var(--app-subtle);
+  font-style: italic;
+  font-size: 11px;
+}
+
+.ao-thinking pre {
+  font-size: 11px;
+  color: var(--app-subtle);
+  margin: 4px 0 4px 16px;
+  white-space: pre-wrap;
+}
+
+.ao-tool {
+  display: block;
+  color: #6cb4ff;
+  margin: 2px 0;
+}
+
+.ao-tool-result {
+  display: block;
+  color: var(--app-subtle);
+  font-size: 11px;
+  margin: 1px 0 1px 16px;
+  white-space: pre-wrap;
+}
+
+.ao-result {
+  display: block;
+  font-weight: bold;
+  margin: 4px 0;
+  white-space: pre-wrap;
+}
+
+.ao-result-success {
+  color: var(--status-completed);
+}
+
+.ao-result-error {
+  color: var(--status-failed);
+}
+
+.ao-subtask {
+  display: block;
+  color: var(--status-completed);
+  margin: 2px 0;
+}
+
+.ao-unknown {
+  margin: 2px 0;
+}
+
+.ao-unknown-summary {
+  cursor: pointer;
+  color: var(--app-subtle);
+  font-size: 11px;
+}
+
+.ao-unknown pre {
+  font-size: 11px;
+  color: var(--app-subtle);
+  margin: 4px 0 4px 16px;
+  white-space: pre-wrap;
+}
+
+/* Message bus JSON body */
+.bus-message-json {
+  font-size: 11px;
+  background: rgba(6, 10, 15, 0.55);
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  color: var(--app-subtle);
+}

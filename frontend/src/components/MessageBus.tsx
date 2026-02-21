@@ -7,6 +7,19 @@ import { usePostProjectMessage, usePostTaskMessage } from '../hooks/useAPI'
 
 const MESSAGE_TYPES = ['USER', 'QUESTION', 'ANSWER', 'INFO', 'FACT', 'PROGRESS', 'DECISION', 'ERROR']
 
+function renderMessageBody(text: string) {
+  const trimmed = text.trim()
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed)
+      return <pre className="bus-message-json">{JSON.stringify(parsed, null, 2)}</pre>
+    } catch {
+      // not valid JSON, fall through
+    }
+  }
+  return <span>{text}</span>
+}
+
 export function MessageBus({
   streamUrl,
   title = 'Message bus',
@@ -64,7 +77,7 @@ export function MessageBus({
       if (typeQuery && msg.type.toLowerCase() !== typeQuery) {
         return false
       }
-      if (query && !msg.message.toLowerCase().includes(query) && !msg.msg_id.toLowerCase().includes(query)) {
+      if (query && !msg.body.toLowerCase().includes(query) && !msg.msg_id.toLowerCase().includes(query)) {
         return false
       }
       return true
@@ -90,9 +103,9 @@ export function MessageBus({
     setPostError('')
     try {
       if (scope === 'task' && taskId) {
-        await postTaskMessage.mutateAsync({ type: composeType, message: text })
+        await postTaskMessage.mutateAsync({ type: composeType, body: text })
       } else {
-        await postProjectMessage.mutateAsync({ type: composeType, message: text })
+        await postProjectMessage.mutateAsync({ type: composeType, body: text })
       }
       setComposeText('')
       setPostStatus('success')
@@ -137,12 +150,12 @@ export function MessageBus({
               <button type="button" className="bus-message-header" onClick={() => toggleExpanded(msg.msg_id)}>
                 <span className={clsx('status-dot', `status-${msg.type.toLowerCase()}`)} />
                 <span className="bus-message-title">{msg.type}</span>
-                <span className="bus-message-meta">{new Date(msg.ts).toLocaleTimeString()}</span>
+                <span className="bus-message-meta">{new Date(msg.timestamp).toLocaleTimeString()}</span>
                 <span className="bus-message-id">{msg.msg_id}</span>
               </button>
               {isOpen && (
                 <div className="bus-message-body">
-                  <div className="bus-message-text">{msg.message}</div>
+                  <div className="bus-message-text">{renderMessageBody(msg.body)}</div>
                   {msg.parents && msg.parents.length > 0 && (
                     <div className="bus-message-parents">
                       Parents: {msg.parents.map((parent) => (typeof parent === 'string' ? parent : parent.msg_id)).join(', ')}
