@@ -882,3 +882,176 @@ func TestProjectRunAPI_AgentVersionAndErrorSummary(t *testing.T) {
 		t.Errorf("expected error_summary=%q, got %v", "agent reported failure", resp["error_summary"])
 	}
 }
+
+// makeRunsSubdirRun creates a run at <root>/runs/<projectID>/<taskID>/runs/<runID>/
+// to simulate the common layout when the server is started with the project's parent as root.
+func makeRunsSubdirRun(t *testing.T, root, projectID, taskID, runID, status string) *storage.RunInfo {
+	t.Helper()
+	runDir := filepath.Join(root, "runs", projectID, taskID, "runs", runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir run: %v", err)
+	}
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+	if err := os.WriteFile(stdoutPath, []byte("output"), 0o644); err != nil {
+		t.Fatalf("write stdout: %v", err)
+	}
+	info := &storage.RunInfo{
+		RunID:      runID,
+		ProjectID:  projectID,
+		TaskID:     taskID,
+		Status:     status,
+		StartTime:  time.Now().UTC(),
+		StdoutPath: stdoutPath,
+	}
+	if status != storage.StatusRunning {
+		info.EndTime = time.Now().UTC()
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+	return info
+}
+
+func TestServeTaskFile_RunsSubdir(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	// Create task directory under runs/ subdirectory
+	taskDir := filepath.Join(root, "runs", "project", "task-run-sub")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task dir: %v", err)
+	}
+	taskContent := "# Sub-dir Task\n\nDo the work.\n"
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte(taskContent), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+
+	url := "/api/projects/project/tasks/task-run-sub/file?name=TASK.md"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for task in runs/ subdir, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !strings.Contains(resp["content"].(string), "Do the work") {
+		t.Errorf("expected task content in response, got: %v", resp["content"])
+	}
+}
+
+func TestProjectStats_RunsSubdir(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	projectID := "runs-sub-project"
+
+	// Create runs under <root>/runs/<projectID>/<taskID>/runs/<runID>/
+	makeRunsSubdirRun(t, root, projectID, "task-20260101-120000-aaa", "run-1", storage.StatusCompleted)
+	makeRunsSubdirRun(t, root, projectID, "task-20260101-130000-bbb", "run-1", storage.StatusRunning)
+
+	url := "/api/projects/" + projectID + "/stats"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for project in runs/ subdir, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["project_id"] != projectID {
+		t.Errorf("expected project_id=%q, got %v", projectID, resp["project_id"])
+	}
+	if got := int(resp["total_tasks"].(float64)); got != 2 {
+		t.Errorf("expected total_tasks=2, got %d", got)
+	}
+	if got := int(resp["total_runs"].(float64)); got != 2 {
+		t.Errorf("expected total_runs=2, got %d", got)
+	}
+}
+
+func TestFindProjectTaskDir_DirectPath(t *testing.T) {
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "myproject", "task-20260101-120000-abc")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	found, ok := findProjectTaskDir(root, "myproject", "task-20260101-120000-abc")
+	if !ok {
+		t.Fatalf("expected to find task dir, not found")
+	}
+	if found != taskDir {
+		t.Errorf("expected %q, got %q", taskDir, found)
+	}
+}
+
+func TestFindProjectTaskDir_RunsSubdir(t *testing.T) {
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "runs", "myproject", "task-20260101-120000-abc")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	found, ok := findProjectTaskDir(root, "myproject", "task-20260101-120000-abc")
+	if !ok {
+		t.Fatalf("expected to find task dir under runs/, not found")
+	}
+	if found != taskDir {
+		t.Errorf("expected %q, got %q", taskDir, found)
+	}
+}
+
+func TestFindProjectTaskDir_NotFound(t *testing.T) {
+	root := t.TempDir()
+	_, ok := findProjectTaskDir(root, "noproject", "task-20260101-120000-abc")
+	if ok {
+		t.Errorf("expected not found for non-existent task dir")
+	}
+}
+
+func TestFindProjectDir_DirectPath(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "myproject")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	found, ok := findProjectDir(root, "myproject")
+	if !ok {
+		t.Fatalf("expected to find project dir, not found")
+	}
+	if found != projectDir {
+		t.Errorf("expected %q, got %q", projectDir, found)
+	}
+}
+
+func TestFindProjectDir_RunsSubdir(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "runs", "myproject")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	found, ok := findProjectDir(root, "myproject")
+	if !ok {
+		t.Fatalf("expected to find project dir under runs/, not found")
+	}
+	if found != projectDir {
+		t.Errorf("expected %q, got %q", projectDir, found)
+	}
+}
+
+func TestFindProjectDir_NotFound(t *testing.T) {
+	root := t.TempDir()
+	_, ok := findProjectDir(root, "noproject")
+	if ok {
+		t.Errorf("expected not found for non-existent project dir")
+	}
+}

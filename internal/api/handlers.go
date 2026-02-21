@@ -249,9 +249,19 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) *apiErro
 	after := strings.TrimSpace(r.URL.Query().Get("after"))
 	taskID := strings.TrimSpace(r.URL.Query().Get("task_id"))
 
-	busPath := filepath.Join(s.rootDir, projectID, "PROJECT-MESSAGE-BUS.md")
+	var busPath string
 	if taskID != "" {
-		busPath = filepath.Join(s.rootDir, projectID, taskID, "TASK-MESSAGE-BUS.md")
+		taskDir, ok := findProjectTaskDir(s.rootDir, projectID, taskID)
+		if !ok {
+			taskDir = filepath.Join(s.rootDir, projectID, taskID)
+		}
+		busPath = filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
+	} else {
+		projectDir, ok := findProjectDir(s.rootDir, projectID)
+		if !ok {
+			projectDir = filepath.Join(s.rootDir, projectID)
+		}
+		busPath = filepath.Join(projectDir, "PROJECT-MESSAGE-BUS.md")
 	}
 	bus, err := messagebus.NewMessageBus(busPath)
 	if err != nil {
@@ -319,9 +329,19 @@ func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) *apiE
 		}
 	}
 
-	busPath := filepath.Join(s.rootDir, req.ProjectID, "PROJECT-MESSAGE-BUS.md")
+	var busPath string
 	if taskID != "" {
-		busPath = filepath.Join(s.rootDir, req.ProjectID, taskID, "TASK-MESSAGE-BUS.md")
+		taskDir, ok := findProjectTaskDir(s.rootDir, req.ProjectID, taskID)
+		if !ok {
+			taskDir = filepath.Join(s.rootDir, req.ProjectID, taskID)
+		}
+		busPath = filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
+	} else {
+		projectDir, ok := findProjectDir(s.rootDir, req.ProjectID)
+		if !ok {
+			projectDir = filepath.Join(s.rootDir, req.ProjectID)
+		}
+		busPath = filepath.Join(projectDir, "PROJECT-MESSAGE-BUS.md")
 	}
 	if err := os.MkdirAll(filepath.Dir(busPath), 0o755); err != nil {
 		return apiErrorInternal("create message bus directory", err)
@@ -395,7 +415,11 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 		return apiErrorBadRequest(fmt.Sprintf("invalid attach_mode %q: must be create, attach, or resume", attachMode))
 	}
 
-	taskDir := filepath.Join(s.rootDir, req.ProjectID, req.TaskID)
+	// Use the existing task directory if found, otherwise create at the default location.
+	taskDir, ok := findProjectTaskDir(s.rootDir, req.ProjectID, req.TaskID)
+	if !ok {
+		taskDir = filepath.Join(s.rootDir, req.ProjectID, req.TaskID)
+	}
 	if err := os.MkdirAll(taskDir, 0o755); err != nil {
 		return apiErrorInternal("create task directory", err)
 	}

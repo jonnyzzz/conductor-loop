@@ -343,7 +343,11 @@ func (s *Server) serveTaskFile(w http.ResponseWriter, r *http.Request, projectID
 	if name != "TASK.md" {
 		return apiErrorNotFound("unknown task file: " + name)
 	}
-	filePath := filepath.Join(s.rootDir, projectID, taskID, "TASK.md")
+	taskDir, ok := findProjectTaskDir(s.rootDir, projectID, taskID)
+	if !ok {
+		return apiErrorNotFound("TASK.md not found")
+	}
+	filePath := filepath.Join(taskDir, "TASK.md")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -815,12 +819,12 @@ func (s *Server) handleProjectStats(w http.ResponseWriter, r *http.Request) *api
 	}
 	projectID := parts[0]
 
-	projectDir := filepath.Join(s.rootDir, projectID)
+	projectDir, ok := findProjectDir(s.rootDir, projectID)
+	if !ok {
+		return apiErrorNotFound("project not found")
+	}
 	entries, err := os.ReadDir(projectDir)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return apiErrorNotFound("project not found")
-		}
 		return apiErrorInternal("read project dir", err)
 	}
 
@@ -888,6 +892,60 @@ func (s *Server) handleProjectStats(w http.ResponseWriter, r *http.Request) *api
 	}
 
 	return writeJSON(w, http.StatusOK, stats)
+}
+
+// dirExists reports whether path exists and is a directory.
+func dirExists(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && fi.IsDir()
+}
+
+// findProjectDir locates the project directory for projectID under rootDir.
+// It checks the most common layouts in order:
+//  1. Direct: <rootDir>/<projectID>
+//  2. Runs subdirectory: <rootDir>/runs/<projectID>
+func findProjectDir(rootDir, projectID string) (string, bool) {
+	if dir := filepath.Join(rootDir, projectID); dirExists(dir) {
+		return dir, true
+	}
+	if dir := filepath.Join(rootDir, "runs", projectID); dirExists(dir) {
+		return dir, true
+	}
+	return "", false
+}
+
+// findProjectTaskDir locates the task directory for (projectID, taskID) under rootDir.
+// It checks the most common layouts in order:
+//  1. Direct: <rootDir>/<projectID>/<taskID>
+//  2. Runs subdirectory: <rootDir>/runs/<projectID>/<taskID>
+//  3. Walk: any directory matching <anything>/<projectID>/<taskID>, up to 3 levels deep
+func findProjectTaskDir(rootDir, projectID, taskID string) (string, bool) {
+	if dir := filepath.Join(rootDir, projectID, taskID); dirExists(dir) {
+		return dir, true
+	}
+	if dir := filepath.Join(rootDir, "runs", projectID, taskID); dirExists(dir) {
+		return dir, true
+	}
+	// Walk rootDir looking for <anything>/<projectID>/<taskID>, pruning at depth >= 3.
+	var found string
+	_ = filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || !d.IsDir() {
+			return nil
+		}
+		if filepath.Base(path) == taskID && filepath.Base(filepath.Dir(path)) == projectID {
+			found = path
+			return filepath.SkipAll
+		}
+		rel, relErr := filepath.Rel(rootDir, path)
+		if relErr == nil && rel != "." {
+			depth := strings.Count(filepath.ToSlash(rel), "/") + 1
+			if depth >= 3 {
+				return filepath.SkipDir
+			}
+		}
+		return nil
+	})
+	return found, found != ""
 }
 
 // isTaskID reports whether name matches the task ID format: task-YYYYMMDD-HHMMSS-slug.

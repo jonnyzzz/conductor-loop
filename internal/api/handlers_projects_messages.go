@@ -26,7 +26,11 @@ func (s *Server) handleProjectMessages(w http.ResponseWriter, r *http.Request) *
 	if err := validateIdentifier(projectID, "project_id"); err != nil {
 		return err
 	}
-	busPath := filepath.Join(s.rootDir, projectID, "PROJECT-MESSAGE-BUS.md")
+	projectDir, ok := findProjectDir(s.rootDir, projectID)
+	if !ok {
+		projectDir = filepath.Join(s.rootDir, projectID)
+	}
+	busPath := filepath.Join(projectDir, "PROJECT-MESSAGE-BUS.md")
 	switch r.Method {
 	case http.MethodGet:
 		return s.listBusMessages(w, r, busPath)
@@ -50,13 +54,21 @@ func (s *Server) handleProjectMessagesStream(w http.ResponseWriter, r *http.Requ
 	if err := validateIdentifier(projectID, "project_id"); err != nil {
 		return err
 	}
-	busPath := filepath.Join(s.rootDir, projectID, "PROJECT-MESSAGE-BUS.md")
+	projectDir, ok := findProjectDir(s.rootDir, projectID)
+	if !ok {
+		projectDir = filepath.Join(s.rootDir, projectID)
+	}
+	busPath := filepath.Join(projectDir, "PROJECT-MESSAGE-BUS.md")
 	return s.streamMessageBusPath(w, r, busPath)
 }
 
 // handleTaskMessages handles GET and POST for /api/projects/{p}/tasks/{t}/messages.
 func (s *Server) handleTaskMessages(w http.ResponseWriter, r *http.Request, projectID, taskID string) *apiError {
-	busPath := filepath.Join(s.rootDir, projectID, taskID, "TASK-MESSAGE-BUS.md")
+	taskDir, ok := findProjectTaskDir(s.rootDir, projectID, taskID)
+	if !ok {
+		taskDir = filepath.Join(s.rootDir, projectID, taskID)
+	}
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
 	switch r.Method {
 	case http.MethodGet:
 		return s.listBusMessages(w, r, busPath)
@@ -72,7 +84,11 @@ func (s *Server) handleTaskMessagesStream(w http.ResponseWriter, r *http.Request
 	if r.Method != http.MethodGet {
 		return apiErrorMethodNotAllowed()
 	}
-	busPath := filepath.Join(s.rootDir, projectID, taskID, "TASK-MESSAGE-BUS.md")
+	taskDir, ok := findProjectTaskDir(s.rootDir, projectID, taskID)
+	if !ok {
+		taskDir = filepath.Join(s.rootDir, projectID, taskID)
+	}
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
 	return s.streamMessageBusPath(w, r, busPath)
 }
 
