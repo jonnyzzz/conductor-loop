@@ -1600,5 +1600,5 @@ The message bus provides a **simple, durable, and debuggable** append-only log f
 
 ---
 
-**Last Updated:** 2026-02-05
+**Last Updated:** 2026-02-21
 **Version:** 1.0.0
