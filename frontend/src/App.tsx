@@ -107,74 +107,73 @@ export function App() {
           />
         </section>
 
-        <section className="app-panel app-panel-bus">
-          <MessageBus
-            key={busStreamUrl ?? `bus-${busScope}-none`}
-            streamUrl={busStreamUrl}
-            title="Message bus"
-            projectId={effectiveProjectId}
-            taskId={explicitTaskId}
-            scope={busScope}
-            headerActions={(
-              <>
-                <Button
-                  inline
-                  className={busScope === 'task' ? 'filter-button-active' : undefined}
-                  onClick={() => setBusScope('task')}
-                >
-                  Task
-                </Button>
-                <Button
-                  inline
-                  className={busScope === 'project' ? 'filter-button-active' : undefined}
-                  onClick={() => setBusScope('project')}
-                >
-                  Project
-                </Button>
-              </>
-            )}
-          />
-        </section>
-
         <section className="app-panel app-panel-run">
-          <RunDetail
-            task={taskQuery.data}
-            runInfo={runInfoQuery.data}
-            selectedRunId={effectiveRunId}
-            onSelectRun={(runId) => {
-              const run = taskQuery.data?.runs?.find((r) => r.id === runId)
-              const firstFile = run?.files?.[0]?.name ?? defaultRunFile
-              setSelectedRunId(runId)
-              setRunFileName(firstFile)
-            }}
-            fileName={runFileName}
-            onSelectFile={setRunFileName}
-            fileContent={runFileQuery.data}
-            taskState={taskStateQuery.data?.content}
-            onDeleteRun={(runId) => {
-              deleteRunMutation.mutate(runId, {
-                onSuccess: () => {
-                  setSelectedRunId(undefined)
-                  setRunFileName(defaultRunFile)
-                },
-              })
-            }}
-            onDeleteTask={(taskId) => {
-              deleteTaskMutation.mutate(taskId, {
-                onSuccess: () => {
-                  setSelectedTaskId(undefined)
-                  setSelectedRunId(undefined)
-                  setRunFileName(defaultRunFile)
-                },
-              })
-            }}
-            onStopRun={(runId) => {
-              stopRunMutation.mutate(runId)
-            }}
-            onResumeTask={(taskId) => {
-              resumeTaskMutation.mutate(taskId)
-            }}
-          />
+          <div className="app-main-stack">
+            <RunDetail
+              task={taskQuery.data}
+              runInfo={runInfoQuery.data}
+              selectedRunId={effectiveRunId}
+              onSelectRun={(runId) => {
+                const run = taskQuery.data?.runs?.find((r) => r.id === runId)
+                const firstFile = run?.files?.[0]?.name ?? defaultRunFile
+                setSelectedRunId(runId)
+                setRunFileName(firstFile)
+              }}
+              fileName={runFileName}
+              onSelectFile={setRunFileName}
+              fileContent={runFileQuery.data}
+              taskState={taskStateQuery.data?.content}
+              onDeleteRun={(runId) => {
+                deleteRunMutation.mutate(runId, {
+                  onSuccess: () => {
+                    setSelectedRunId(undefined)
+                    setRunFileName(defaultRunFile)
+                  },
+                })
+              }}
+              onDeleteTask={(taskId) => {
+                deleteTaskMutation.mutate(taskId, {
+                  onSuccess: () => {
+                    setSelectedTaskId(undefined)
+                    setSelectedRunId(undefined)
+                    setRunFileName(defaultRunFile)
+                  },
+                })
+              }}
+              onStopRun={(runId) => {
+                stopRunMutation.mutate(runId)
+              }}
+              onResumeTask={(taskId) => {
+                resumeTaskMutation.mutate(taskId)
+              }}
+            />
+            <MessageBus
+              key={busStreamUrl ?? `bus-${busScope}-none`}
+              streamUrl={busStreamUrl}
+              title="Message bus"
+              projectId={effectiveProjectId}
+              taskId={explicitTaskId}
+              scope={busScope}
+              headerActions={(
+                <>
+                  <Button
+                    inline
+                    className={busScope === 'task' ? 'filter-button-active' : undefined}
+                    onClick={() => setBusScope('task')}
+                  >
+                    Task
+                  </Button>
+                  <Button
+                    inline
+                    className={busScope === 'project' ? 'filter-button-active' : undefined}
+                    onClick={() => setBusScope('project')}
+                  >
+                    Project
+                  </Button>
+                </>
+              )}
+            />
+          </div>
         </section>
 
         <section className="app-panel app-panel-logs">

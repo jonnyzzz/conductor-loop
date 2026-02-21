@@ -138,7 +138,7 @@ function TreeNodeRow({
         <button
           type="button"
           className={clsx('tree-row', isSelected && 'tree-row-active', hasProjectAction && 'tree-row-with-action')}
-          style={{ paddingLeft: `${8 + depth * 16}px` }}
+          style={{ paddingLeft: `${6 + depth * 12}px` }}
           onClick={handleClick}
         >
           <span
@@ -153,7 +153,9 @@ function TreeNodeRow({
             <>
               <span className="tree-icon">⬡</span>
               <span className="tree-label tree-label-project">{node.label}</span>
-              <span className="tree-badge tree-badge-count">{node.children.length}</span>
+              <span className="tree-row-right">
+                <span className="tree-badge tree-badge-count">{node.children.length}</span>
+              </span>
             </>
           )}
 
@@ -165,22 +167,24 @@ function TreeNodeRow({
               <span className={clsx('tree-label', node.status === 'running' && 'tree-label-active')}>
                 {node.label}
               </span>
-              {node.latestRunAgent && (
-                <span className={clsx('tree-badge tree-badge-agent', node.latestRunStatus === 'running' && 'tree-badge-agent-running')}>
-                  [{node.latestRunAgent}]
-                </span>
-              )}
-              {node.latestRunTime && (
-                <span className="tree-time">{formatTime(node.latestRunTime)}</span>
-              )}
-              {node.restartCount != null && node.restartCount > 0 && (
-                <span
-                  className="tree-badge tree-badge-restart"
-                  title={`${node.restartCount} restart${node.restartCount === 1 ? '' : 's'} in chain`}
-                >
-                  ↻{node.restartCount}
-                </span>
-              )}
+              <span className="tree-row-right">
+                {node.restartCount != null && node.restartCount > 0 && (
+                  <span
+                    className="tree-badge tree-badge-restart"
+                    title={`${node.restartCount} restart${node.restartCount === 1 ? '' : 's'} in chain`}
+                  >
+                    ↻{node.restartCount}
+                  </span>
+                )}
+                {node.latestRunAgent && (
+                  <span className={clsx('tree-badge tree-badge-agent', node.latestRunStatus === 'running' && 'tree-badge-agent-running')}>
+                    [{node.latestRunAgent}]
+                  </span>
+                )}
+                {node.latestRunTime && (
+                  <span className="tree-time">{formatTime(node.latestRunTime)}</span>
+                )}
+              </span>
             </>
           )}
 
@@ -192,8 +196,10 @@ function TreeNodeRow({
               <span className={clsx('tree-label tree-label-run', node.status === 'running' && 'tree-label-active')}>
                 {runLabel}
               </span>
-              <span className="tree-badge tree-badge-agent">[{node.agent ?? '?'}]</span>
-              <span className="tree-time">{formatTime(node.startTime)}</span>
+              <span className="tree-row-right">
+                <span className="tree-badge tree-badge-agent">[{node.agent ?? '?'}]</span>
+                <span className="tree-time">{formatTime(node.startTime)}</span>
+              </span>
             </>
           )}
         </button>
@@ -377,7 +383,7 @@ export function TreePanel({
         showCloseButton
         onCloseAttempt={closeDialog}
       >
-        <div className="dialog-content">
+        <div className="dialog-content dialog-content-wide">
           <div className="dialog-title">
             New Task — {projectId}
           </div>
@@ -435,8 +441,7 @@ export function TreePanel({
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <span className="form-label">Prompt *</span>
                 <textarea
-                  className="input"
-                  style={{ width: '100%', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit' }}
+                  className="input new-task-prompt"
                   value={form.prompt}
                   onChange={(e) => setForm((f) => ({ ...f, prompt: e.target.value }))}
                   required

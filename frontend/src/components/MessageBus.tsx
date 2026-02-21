@@ -184,7 +184,7 @@ export function MessageBus({
       : 'Message body…'
 
   return (
-    <div className="panel panel-scroll">
+    <div className="panel bus-panel">
       <div className="panel-header">
         <div>
           <div className="panel-title">{title}</div>
