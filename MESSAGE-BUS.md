@@ -3524,3 +3524,103 @@ but requires direct file access. `conductor task logs` works via the server API.
 ### Issue Status (unchanged)
 - CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows file locking), 5 resolved
 - HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
+
+---
+msg_id: MSG-20260221-SESSION45-START
+ts: 2026-02-21T08:00:00Z
+type: SESSION_START
+project_id: conductor-loop
+---
+
+[2026-02-21 08:00:00] ==========================================
+[2026-02-21 08:00:00] SESSION: 2026-02-21 Session #45
+[2026-02-21 08:00:00] ==========================================
+[2026-02-21 08:00:00] FACT: go build ./... PASS (conductor + run-agent binaries ready)
+[2026-02-21 08:00:00] FACT: go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS
+[2026-02-21 08:00:00] FACT: ACCEPTANCE=1 go test ./test/acceptance/...: ALL 4 SCENARIOS PASS
+[2026-02-21 08:00:00] FACT: Issues: 0 fully open, 3 partially resolved (Windows-only deferred items)
+
+[2026-02-21 08:00:00] DECISION: Session #45 work — two new conductor CLI commands:
+[2026-02-21 08:00:00]   (1) conductor task runs <task-id>: List all runs for a task with status/duration/exit-code
+[2026-02-21 08:00:00]   (2) conductor bus read: Read project/task message bus via conductor server API
+[2026-02-21 08:00:00]   Both fill real gaps in the server-based workflow (complement run-agent local commands)
+[2026-02-21 08:00:00]   API endpoints for both already exist; this is pure CLI implementation work
+
+[2026-02-21 08:00:00] PROGRESS: Dispatching 2 parallel dog-food sub-agents via ./bin/run-agent job
+
+[2026-02-21 08:07:00] FACT: Sub-agent 1 (conductor task runs): task-20260221-060749-r9d7m1 (Claude, PID ~69015)
+[2026-02-21 08:07:00] FACT: Sub-agent 2 (conductor bus read): task-20260221-060753-yuq46n (Claude, PID ~69074)
+
+---
+msg_id: MSG-20260221-SESSION45-END
+ts: 2026-02-21T08:15:00Z
+type: SESSION_END
+project_id: conductor-loop
+---
+
+## Session #45 Summary (2026-02-21)
+
+### Features Implemented (via 2 parallel dog-food sub-agents)
+
+**feat(cli): add conductor task runs command to list all runs for a task** (commit 3f21521)
+
+New `conductor task runs <task-id>` subcommand:
+- `cmd/conductor/task_runs.go` — implementation (134 lines)
+- `cmd/conductor/task_runs_test.go` — 12 tests (392 lines)
+- `cmd/conductor/task.go` — registered newTaskRunsCmd()
+
+**Features**:
+- Calls GET /api/projects/{p}/tasks/{t}/runs (paginated, newest first)
+- Tabular output: RUN ID, AGENT, STATUS, EXIT, DURATION, STARTED, ERROR
+- `--limit` flag (default: 50) for showing last N runs
+- `--json` flag for scripting
+- Duration formatted: "running" (no end time) or "Xm Ys" / "Xs"
+- ErrorSummary truncated to 40 chars
+- "has_more" notice when results are paginated
+
+**Why**: Ralph loop restarts create multiple runs per task. `conductor task runs` shows
+the full restart history — essential for debugging when a task fails and retries.
+
+**feat(cli): add conductor bus read command for viewing message bus via server** (commit 50c0585)
+
+New `conductor bus read` subcommand:
+- `cmd/conductor/bus.go` — implementation (246 lines)
+- `cmd/conductor/bus_test.go` — 13 tests (373 lines)
+- `cmd/conductor/main.go` — registered newBusCmd()
+
+**Features**:
+- `--project` (required): project-level bus (PROJECT-MESSAGE-BUS.md)
+- `--task`: task-level bus (TASK-MESSAGE-BUS.md) if specified
+- `--tail N`: show only last N messages (client-side filtering)
+- `--follow`: SSE streaming with exponential backoff reconnect
+- `--json`: raw JSON output
+- Formatted text output: `[timestamp] TYPE          first line of body...`
+- Properly handles SSE events: heartbeat (skip), done (stop), message (print)
+
+**Why**: Gap in server-based workflow — there was no way to read the message bus
+via the conductor CLI. Previously required `run-agent bus read --root runs` (local
+file access). `conductor bus read` works via the server API (remote or local).
+
+**docs**: Added conductor task runs docs to cli-reference.md (commit 7486047)
+
+### Dog-Food Success
+- Both tasks dispatched via ./bin/run-agent job (parallel)
+- task-20260221-060749-r9d7m1: conductor-task-runs — DONE (exit_code=0)
+- task-20260221-060753-yuq46n: conductor-bus — DONE (exit_code=0)
+- Initial dispatch failed (| head -3 caused SIGPIPE); fixed by running without pipe
+
+### Quality Gates
+- go build ./...: PASS
+- go test -race ./internal/... ./cmd/...: ALL 15 PACKAGES PASS (no races)
+- 25 new tests across 2 new files
+
+### Commits This Session
+- 3f21521: feat(cli): add conductor task runs command to list all runs for a task
+- 50c0585: feat(cli): add conductor bus read command for viewing message bus via server
+- 7486047: docs(cli): add conductor task runs documentation to cli-reference
+
+### Issue Status (unchanged)
+- CRITICAL: 0 open, 1 partially resolved (ISSUE-002 Windows file locking), 5 resolved
+- HIGH: 0 open, 2 partially resolved (ISSUE-003 Windows PG, ISSUE-009 tokens), 6 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
