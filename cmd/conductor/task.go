@@ -23,6 +23,7 @@ func newTaskCmd() *cobra.Command {
 	}
 	cmd.AddCommand(newTaskStatusCmd())
 	cmd.AddCommand(newTaskStopCmd())
+	cmd.AddCommand(newTaskListCmd())
 	return cmd
 }
 
@@ -132,6 +133,92 @@ func taskStop(server, taskID, project string, jsonOutput bool) error {
 	}
 
 	fmt.Printf("Task %s: stopped %d run(s)\n", taskID, result.StoppedRuns)
+	return nil
+}
+
+func newTaskListCmd() *cobra.Command {
+	var (
+		server     string
+		project    string
+		jsonOutput bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List tasks in a project",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return taskList(server, project, jsonOutput)
+		},
+	}
+
+	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&project, "project", "", "project ID")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
+	cobra.MarkFlagRequired(cmd.Flags(), "project") //nolint:errcheck
+
+	return cmd
+}
+
+// taskListItem is a task entry in the project tasks list response.
+type taskListItem struct {
+	ID           string    `json:"id"`
+	ProjectID    string    `json:"project_id"`
+	Status       string    `json:"status"`
+	LastActivity time.Time `json:"last_activity"`
+	RunCount     int       `json:"run_count"`
+}
+
+// taskListAPIResponse is the paginated JSON response from GET /api/projects/{id}/tasks.
+type taskListAPIResponse struct {
+	Items   []taskListItem `json:"items"`
+	Total   int            `json:"total"`
+	HasMore bool           `json:"has_more"`
+}
+
+func taskList(server, project string, jsonOutput bool) error {
+	url := server + "/api/projects/" + project + "/tasks"
+
+	resp, err := http.Get(url) //nolint:noctx
+	if err != nil {
+		return fmt.Errorf("get tasks: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+
+	if jsonOutput {
+		fmt.Printf("%s\n", strings.TrimSpace(string(data)))
+		return nil
+	}
+
+	var result taskListAPIResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "TASK ID\tSTATUS\tRUNS\tLAST ACTIVITY")
+	for _, t := range result.Items {
+		lastActivity := "-"
+		if !t.LastActivity.IsZero() {
+			lastActivity = t.LastActivity.Format("2006-01-02 15:04")
+		}
+		fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", t.ID, t.Status, t.RunCount, lastActivity)
+	}
+	if err := w.Flush(); err != nil {
+		return err
+	}
+
+	if result.HasMore {
+		fmt.Printf("(showing %d of %d tasks; use --limit to see more)\n", len(result.Items), result.Total)
+	}
 	return nil
 }
 
