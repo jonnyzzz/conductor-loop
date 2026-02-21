@@ -69,6 +69,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newJobCmd())
 	cmd.AddCommand(newProjectCmd())
 	cmd.AddCommand(newWatchCmd())
+	cmd.AddCommand(newBusCmd())
 
 	return cmd
 }

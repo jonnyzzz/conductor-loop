@@ -441,6 +441,60 @@ Message bus size:   4.50 KB
 
 ---
 
+#### `conductor bus`
+
+Read messages from the project or task message bus via the conductor server API.
+
+##### `conductor bus read`
+
+Read messages from the message bus (project-level or task-level).
+
+```bash
+conductor bus read --project <project> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--project` | string | "" | Project ID (required) |
+| `--task` | string | "" | Task ID (optional; reads task-level bus if set, project-level otherwise) |
+| `--server` | string | `http://localhost:8080` | Conductor server URL |
+| `--tail` | int | 0 | Show last N messages (0 = all) |
+| `--follow` | bool | false | Stream new messages via SSE (keep watching) |
+| `--json` | bool | false | Output as raw JSON array |
+
+**Examples:**
+
+```bash
+# Read all messages from a project bus
+conductor bus read --project myproject
+
+# Read the last 10 messages from a task bus
+conductor bus read --project myproject --task task-20260221-070000-myfeature --tail 10
+
+# Stream new messages as they arrive
+conductor bus read --project myproject --task task-20260221-070000-myfeature --follow
+
+# Output as JSON for scripting
+conductor bus read --project myproject --json
+
+# Use a different server
+conductor bus read --project myproject --server http://conductor.example.com:8080
+```
+
+**Output (formatted text):**
+```
+[2026-02-21 07:00:00] RUN_START     run started
+[2026-02-21 07:01:00] PROGRESS      Starting sub-agent for task X
+[2026-02-21 07:02:00] FACT          Build passed
+[2026-02-21 07:03:00] RUN_STOP      run completed
+```
+
+**Note:** This is the server-based equivalent of `run-agent bus read` (which requires local file access). Use `conductor bus read` when working with a remote conductor server.
+
+---
+
 #### `conductor version`
 
 Print version information.
