@@ -23,6 +23,14 @@
 Get started in 5 minutes:
 
 ```bash
+curl -fsSL https://run-agent.jonnyzzz.com/install.sh | bash
+```
+
+The installer always fetches the latest release asset via `run-agent.jonnyzzz.com` and falls back to GitHub if needed.
+
+Then continue with source checkout/configuration if you want to run `serve` locally:
+
+```bash
 # 1. Clone and build
 git clone https://github.com/jonnyzzz/conductor-loop.git
 cd conductor-loop

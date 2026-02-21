@@ -6,7 +6,7 @@ This guide covers installing Conductor Loop on macOS, Linux, and Windows.
 
 Before installing Conductor Loop, ensure you have:
 
-- **Go 1.21+**: [Download Go](https://go.dev/dl/)
+- **Go 1.21+**: [Download Go](https://go.dev/dl/) (required for source builds)
 - **Git**: Any recent version
 - **Docker** (optional): For containerized deployment
 - **API Tokens**: For your chosen AI agents (Claude, Codex, Gemini, etc.)
@@ -27,7 +27,28 @@ docker-compose --version
 
 ## Installation Methods
 
-### Option 1: Build from Source (Recommended)
+### Option 1: Install/Update `run-agent` from Latest Release
+
+```bash
+curl -fsSL https://run-agent.jonnyzzz.com/install.sh | bash
+```
+
+The installer:
+- Detects your OS/arch (Linux/macOS)
+- Downloads from `https://run-agent.jonnyzzz.com/releases/latest/download` first
+- Falls back to GitHub release assets if mirror download fails
+- Installs to `/usr/local/bin/run-agent` by default
+
+Optional overrides:
+
+```bash
+RUN_AGENT_INSTALL_DIR="$HOME/.local/bin" \
+RUN_AGENT_DOWNLOAD_BASE="https://run-agent.jonnyzzz.com/releases/latest/download" \
+RUN_AGENT_FALLBACK_DOWNLOAD_BASE="https://github.com/jonnyzzz/conductor-loop/releases/latest/download" \
+curl -fsSL https://run-agent.jonnyzzz.com/install.sh | bash
+```
+
+### Option 2: Build from Source
 
 #### 1. Clone the Repository
 
@@ -102,7 +123,7 @@ echo "your-claude-token-here" > ~/.conductor/tokens/claude.token
 chmod 600 ~/.conductor/tokens/*.token
 ```
 
-### Option 2: Docker Deployment
+### Option 3: Docker Deployment
 
 #### Using Docker Compose
 
@@ -148,9 +169,11 @@ docker run -d \
   conductor-loop:latest
 ```
 
-### Option 3: Pre-built Binaries (Coming Soon)
+### Option 4: Download Pre-built Binaries Manually
 
-Pre-built binaries will be available in future releases from the GitHub releases page.
+Release binaries are available on the GitHub releases page:
+
+- https://github.com/jonnyzzz/conductor-loop/releases
 
 ## Platform-Specific Notes
 
