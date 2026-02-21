@@ -867,3 +867,156 @@ func TestJobSubmitExplicitTaskIDPreserved(t *testing.T) {
 		t.Errorf("expected task ID %q, got %q", wantTaskID, receivedTaskID)
 	}
 }
+
+// --- conductor task list --status tests ---
+
+func makeTaskListResp() taskListAPIResponse {
+	return taskListAPIResponse{
+		Items: []taskListItem{
+			{ID: "task-20260101-120000-aaa", ProjectID: "proj", Status: "running", RunCount: 1},
+		},
+		Total:   1,
+		HasMore: false,
+	}
+}
+
+func TestTaskListStatusRunning(t *testing.T) {
+	var receivedQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(makeTaskListResp())
+	}))
+	defer srv.Close()
+
+	if err := taskList(srv.URL, "proj", "running", false); err != nil {
+		t.Fatalf("taskList --status running: %v", err)
+	}
+	if receivedQuery != "status=running" {
+		t.Errorf("expected query 'status=running', got %q", receivedQuery)
+	}
+}
+
+func TestTaskListStatusDone(t *testing.T) {
+	var receivedQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(taskListAPIResponse{Items: []taskListItem{}, Total: 0, HasMore: false})
+	}))
+	defer srv.Close()
+
+	if err := taskList(srv.URL, "proj", "done", false); err != nil {
+		t.Fatalf("taskList --status done: %v", err)
+	}
+	if receivedQuery != "status=done" {
+		t.Errorf("expected query 'status=done', got %q", receivedQuery)
+	}
+}
+
+func TestTaskListNoStatus(t *testing.T) {
+	var receivedQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(makeTaskListResp())
+	}))
+	defer srv.Close()
+
+	if err := taskList(srv.URL, "proj", "", false); err != nil {
+		t.Fatalf("taskList no status: %v", err)
+	}
+	if receivedQuery != "" {
+		t.Errorf("expected empty query without --status, got %q", receivedQuery)
+	}
+}
+
+func TestTaskListStatusFlagRegistered(t *testing.T) {
+	cmd := newRootCmd()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"task", "list", "--help"})
+	_ = cmd.Execute()
+	if !strings.Contains(buf.String(), "status") {
+		t.Errorf("expected '--status' in task list --help output, got:\n%s", buf.String())
+	}
+}
+
+// --- projectDelete tests ---
+
+func TestProjectDeleteSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("expected DELETE, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/projects/my-proj" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"project_id":"my-proj","deleted_tasks":3,"freed_bytes":1048576}`)
+	}))
+	defer srv.Close()
+
+	var buf bytes.Buffer
+	if err := projectDelete(&buf, srv.URL, "my-proj", false, false); err != nil {
+		t.Fatalf("projectDelete: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "my-proj") {
+		t.Errorf("expected project ID in output, got: %q", out)
+	}
+	if !strings.Contains(out, "3 tasks") {
+		t.Errorf("expected '3 tasks' in output, got: %q", out)
+	}
+}
+
+func TestProjectDeleteConflict(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		fmt.Fprint(w, `{"error":{"code":"CONFLICT","message":"project has running tasks; stop them first or use --force"}}`)
+	}))
+	defer srv.Close()
+
+	err := projectDelete(os.Stdout, srv.URL, "my-proj", false, false)
+	if err == nil {
+		t.Fatal("expected error on 409 response")
+	}
+	if !strings.Contains(err.Error(), "running") {
+		t.Errorf("expected running tasks message in error, got: %v", err)
+	}
+}
+
+func TestProjectDeleteJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"project_id":"my-proj","deleted_tasks":2,"freed_bytes":512}`)
+	}))
+	defer srv.Close()
+
+	var buf bytes.Buffer
+	if err := projectDelete(&buf, srv.URL, "my-proj", false, true); err != nil {
+		t.Fatalf("projectDelete json: %v", err)
+	}
+	if !strings.Contains(buf.String(), "deleted_tasks") {
+		t.Errorf("expected JSON output with deleted_tasks, got: %q", buf.String())
+	}
+}
+
+func TestProjectDeleteAppearsInHelp(t *testing.T) {
+	var out strings.Builder
+	cmd := newRootCmd()
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"project", "--help"})
+	_ = cmd.Execute()
+
+	if !strings.Contains(out.String(), "delete") {
+		t.Errorf("expected 'delete' in project help output, got:\n%s", out.String())
+	}
+}

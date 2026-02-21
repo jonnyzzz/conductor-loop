@@ -144,6 +144,7 @@ func newTaskListCmd() *cobra.Command {
 	var (
 		server     string
 		project    string
+		status     string
 		jsonOutput bool
 	)
 
@@ -151,12 +152,13 @@ func newTaskListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List tasks in a project",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return taskList(server, project, jsonOutput)
+			return taskList(server, project, status, jsonOutput)
 		},
 	}
 
 	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID")
+	cmd.Flags().StringVar(&status, "status", "", "filter by status: running, active, done, failed")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 	cobra.MarkFlagRequired(cmd.Flags(), "project") //nolint:errcheck
 
@@ -179,8 +181,11 @@ type taskListAPIResponse struct {
 	HasMore bool           `json:"has_more"`
 }
 
-func taskList(server, project string, jsonOutput bool) error {
+func taskList(server, project, status string, jsonOutput bool) error {
 	url := server + "/api/projects/" + project + "/tasks"
+	if status != "" {
+		url += "?status=" + status
+	}
 
 	resp, err := http.Get(url) //nolint:noctx
 	if err != nil {

@@ -1754,3 +1754,279 @@ func TestProjectGC_InvalidDuration(t *testing.T) {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+// --- handleProjectTasks status filter tests ---
+
+func getTaskItems(t *testing.T, root, projectID, statusFilter string) []map[string]interface{} {
+	t.Helper()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	url := "/api/projects/" + projectID + "/tasks"
+	if statusFilter != "" {
+		url += "?status=" + statusFilter
+	}
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	raw, ok := resp["items"].([]interface{})
+	if !ok {
+		t.Fatalf("expected 'items' array, got %T", resp["items"])
+	}
+	items := make([]map[string]interface{}, 0, len(raw))
+	for _, r := range raw {
+		items = append(items, r.(map[string]interface{}))
+	}
+	return items
+}
+
+func TestHandleProjectTasksStatusFilter_Running(t *testing.T) {
+	root := t.TempDir()
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj", "task-20260101-120000-run", "run-1", storage.StatusRunning, base)
+	makeProjectRunAt(t, root, "proj", "task-20260101-130000-done", "run-1", storage.StatusCompleted, base.Add(time.Hour))
+	makeProjectRunAt(t, root, "proj", "task-20260101-140000-fail", "run-1", storage.StatusFailed, base.Add(2*time.Hour))
+
+	items := getTaskItems(t, root, "proj", "running")
+	if len(items) != 1 {
+		t.Fatalf("expected 1 running task, got %d", len(items))
+	}
+	if items[0]["id"] != "task-20260101-120000-run" {
+		t.Errorf("expected running task, got %v", items[0]["id"])
+	}
+}
+
+func TestHandleProjectTasksStatusFilter_Active(t *testing.T) {
+	root := t.TempDir()
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj-active", "task-20260101-120000-run", "run-1", storage.StatusRunning, base)
+	makeProjectRunAt(t, root, "proj-active", "task-20260101-130000-done", "run-1", storage.StatusCompleted, base.Add(time.Hour))
+
+	// "active" should behave the same as "running"
+	items := getTaskItems(t, root, "proj-active", "active")
+	if len(items) != 1 {
+		t.Fatalf("expected 1 active task, got %d", len(items))
+	}
+	if items[0]["status"] != "running" {
+		t.Errorf("expected status=running, got %v", items[0]["status"])
+	}
+}
+
+func TestHandleProjectTasksStatusFilter_Done(t *testing.T) {
+	root := t.TempDir()
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj-done", "task-20260101-120000-aaa", "run-1", storage.StatusCompleted, base)
+	makeProjectRunAt(t, root, "proj-done", "task-20260101-130000-bbb", "run-1", storage.StatusRunning, base.Add(time.Hour))
+
+	// Write DONE file only for the first task
+	doneTask := "task-20260101-120000-aaa"
+	doneFile := filepath.Join(root, "proj-done", doneTask, "DONE")
+	if err := os.WriteFile(doneFile, []byte(""), 0o644); err != nil {
+		t.Fatalf("write DONE: %v", err)
+	}
+
+	items := getTaskItems(t, root, "proj-done", "done")
+	if len(items) != 1 {
+		t.Fatalf("expected 1 done task, got %d", len(items))
+	}
+	if items[0]["id"] != doneTask {
+		t.Errorf("expected done task, got %v", items[0]["id"])
+	}
+}
+
+func TestHandleProjectTasksStatusFilter_Failed(t *testing.T) {
+	root := t.TempDir()
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj-fail", "task-20260101-120000-run", "run-1", storage.StatusRunning, base)
+	makeProjectRunAt(t, root, "proj-fail", "task-20260101-130000-ok", "run-1", storage.StatusCompleted, base.Add(time.Hour))
+	makeProjectRunAt(t, root, "proj-fail", "task-20260101-140000-bad", "run-1", storage.StatusFailed, base.Add(2*time.Hour))
+
+	items := getTaskItems(t, root, "proj-fail", "failed")
+	if len(items) != 1 {
+		t.Fatalf("expected 1 failed task, got %d", len(items))
+	}
+	if items[0]["id"] != "task-20260101-140000-bad" {
+		t.Errorf("expected failed task, got %v", items[0]["id"])
+	}
+}
+
+func TestHandleProjectTasksStatusFilter_Empty(t *testing.T) {
+	root := t.TempDir()
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj-nofilter", "task-20260101-120000-aaa", "run-1", storage.StatusRunning, base)
+	makeProjectRunAt(t, root, "proj-nofilter", "task-20260101-130000-bbb", "run-1", storage.StatusCompleted, base.Add(time.Hour))
+	makeProjectRunAt(t, root, "proj-nofilter", "task-20260101-140000-ccc", "run-1", storage.StatusFailed, base.Add(2*time.Hour))
+
+	// No filter — all tasks returned
+	items := getTaskItems(t, root, "proj-nofilter", "")
+	if len(items) != 3 {
+		t.Errorf("expected 3 tasks with no filter, got %d", len(items))
+	}
+}
+
+func TestHandleProjectTasksStatusFilter_Unknown(t *testing.T) {
+	root := t.TempDir()
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	makeProjectRunAt(t, root, "proj-unk", "task-20260101-120000-aaa", "run-1", storage.StatusRunning, base)
+	makeProjectRunAt(t, root, "proj-unk", "task-20260101-130000-bbb", "run-1", storage.StatusCompleted, base.Add(time.Hour))
+
+	// Unknown status value — graceful degradation, return all tasks
+	items := getTaskItems(t, root, "proj-unk", "pending")
+	if len(items) != 2 {
+		t.Errorf("expected 2 tasks for unknown status filter, got %d", len(items))
+	}
+}
+
+// --- handleProjectDelete tests ---
+
+func TestDeleteProject_Empty(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	projectDir := filepath.Join(root, "empty-proj")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/empty-proj", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["project_id"] != "empty-proj" {
+		t.Errorf("expected project_id=empty-proj, got %v", resp["project_id"])
+	}
+	if int(resp["deleted_tasks"].(float64)) != 0 {
+		t.Errorf("expected deleted_tasks=0, got %v", resp["deleted_tasks"])
+	}
+	if _, err := os.Stat(projectDir); !os.IsNotExist(err) {
+		t.Errorf("expected project dir to be deleted")
+	}
+}
+
+func TestDeleteProject_WithTasks(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "proj-del", "task-20260101-120000-aaa", "run-1", storage.StatusCompleted, "output")
+	makeProjectRun(t, root, "proj-del", "task-20260101-130000-bbb", "run-1", storage.StatusCompleted, "output")
+
+	projectDir := filepath.Join(root, "proj-del")
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/proj-del", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if int(resp["deleted_tasks"].(float64)) != 2 {
+		t.Errorf("expected deleted_tasks=2, got %v", resp["deleted_tasks"])
+	}
+	if resp["freed_bytes"].(float64) <= 0 {
+		t.Errorf("expected freed_bytes > 0, got %v", resp["freed_bytes"])
+	}
+	if _, err := os.Stat(projectDir); !os.IsNotExist(err) {
+		t.Errorf("expected project dir to be deleted")
+	}
+}
+
+func TestDeleteProject_NotFound(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/nonexistent", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDeleteProject_RunningConflict(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "proj-running", "task-20260101-120000-aaa", "run-1", storage.StatusCompleted, "output")
+	makeProjectRun(t, root, "proj-running", "task-20260101-130000-bbb", "run-1", storage.StatusRunning, "go")
+
+	projectDir := filepath.Join(root, "proj-running")
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/proj-running", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(projectDir); os.IsNotExist(err) {
+		t.Errorf("expected project dir to still exist after conflict")
+	}
+}
+
+func TestDeleteProject_ForceDeletesWithRunning(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	// Running run with non-existent PID (SIGTERM will fail gracefully).
+	runDir := filepath.Join(root, "proj-force", "task-20260101-120000-aaa", "runs", "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+	_ = os.WriteFile(stdoutPath, []byte("go"), 0o644)
+	info := &storage.RunInfo{
+		RunID:      "run-1",
+		ProjectID:  "proj-force",
+		TaskID:     "task-20260101-120000-aaa",
+		Status:     storage.StatusRunning,
+		StartTime:  time.Now().UTC(),
+		StdoutPath: stdoutPath,
+		PID:        99999999,
+		PGID:       99999999,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	projectDir := filepath.Join(root, "proj-force")
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/proj-force?force=true", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(projectDir); !os.IsNotExist(err) {
+		t.Errorf("expected project dir to be deleted with force=true")
+	}
+}

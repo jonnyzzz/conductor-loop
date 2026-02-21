@@ -89,6 +89,9 @@ func (s *Server) handleProjectsRouter(w http.ResponseWriter, r *http.Request) *a
 	}
 	// /api/projects/{id}
 	if len(parts) == 1 {
+		if r.Method == http.MethodDelete {
+			return s.handleProjectDelete(w, r, parts[0])
+		}
 		return s.handleProjectDetail(w, r)
 	}
 	// /api/projects/{id}/stats
@@ -231,6 +234,11 @@ func (s *Server) handleProjectTasks(w http.ResponseWriter, r *http.Request) *api
 	sort.Slice(tasks, func(i, j int) bool {
 		return tasks[i].CreatedAt.After(tasks[j].CreatedAt)
 	})
+
+	// Apply optional status filter.
+	if statusFilter := strings.ToLower(r.URL.Query().Get("status")); statusFilter != "" {
+		tasks = filterTasksByStatus(tasks, statusFilter, s.rootDir, projectID)
+	}
 
 	limit, offset := parsePagination(r)
 	total := len(tasks)
@@ -479,6 +487,74 @@ func (s *Server) handleTaskDelete(w http.ResponseWriter, projectID, taskID strin
 
 	w.WriteHeader(http.StatusNoContent)
 	return nil
+}
+
+// handleProjectDelete handles DELETE /api/projects/{id}.
+// With ?force=true it stops all running tasks first, then deletes the project.
+// Without force, returns 409 if any task has running runs.
+func (s *Server) handleProjectDelete(w http.ResponseWriter, r *http.Request, projectID string) *apiError {
+	force := r.URL.Query().Get("force") == "true"
+
+	projectDir, ok := findProjectDir(s.rootDir, projectID)
+	if !ok {
+		return apiErrorNotFound("project not found")
+	}
+
+	runs, err := s.allRunInfos()
+	if err != nil {
+		return apiErrorInternal("scan runs", err)
+	}
+
+	// Collect running runs for this project.
+	var runningRuns []*storage.RunInfo
+	for _, run := range runs {
+		if run.ProjectID == projectID && run.Status == storage.StatusRunning {
+			runningRuns = append(runningRuns, run)
+		}
+	}
+
+	if len(runningRuns) > 0 && !force {
+		return apiErrorConflict("project has running tasks; stop them first or use --force", nil)
+	}
+
+	// If force=true, send SIGTERM to all running runs (best-effort).
+	if force {
+		for _, run := range runningRuns {
+			pgid := run.PGID
+			if pgid <= 0 {
+				pgid = run.PID
+			}
+			if pgid > 0 {
+				if err := runner.TerminateProcessGroup(pgid); err != nil && s.logger != nil {
+					s.logger.Printf("force-stop run %s: terminate pgid %d: %v", run.RunID, pgid, err)
+				}
+			}
+		}
+	}
+
+	// Count task directories and compute freed bytes before deletion.
+	entries, err := os.ReadDir(projectDir)
+	if err != nil {
+		return apiErrorInternal("read project dir", err)
+	}
+	var deletedTasks int
+	for _, entry := range entries {
+		if entry.IsDir() && isTaskID(entry.Name()) {
+			deletedTasks++
+		}
+	}
+
+	freedBytes := gcDirSize(projectDir)
+
+	if err := os.RemoveAll(projectDir); err != nil {
+		return apiErrorInternal("delete project directory", err)
+	}
+
+	return writeJSON(w, http.StatusOK, map[string]interface{}{
+		"project_id":    projectID,
+		"deleted_tasks": deletedTasks,
+		"freed_bytes":   freedBytes,
+	})
 }
 
 // handleProjectTaskRunsList serves GET /api/projects/{p}/tasks/{t}/runs (paginated run list).
@@ -833,6 +909,44 @@ func buildTasks(projectID string, runs []*storage.RunInfo) []projectTask {
 		})
 	}
 	return tasks
+}
+
+// filterTasksByStatus filters tasks by the given status string (case-insensitive).
+// Supported values: "running"/"active", "done", "failed".
+// Unknown values return all tasks unchanged (graceful degradation).
+func filterTasksByStatus(tasks []projectTask, filter, rootDir, projectID string) []projectTask {
+	switch filter {
+	case "running", "active":
+		var out []projectTask
+		for _, t := range tasks {
+			if t.Status == "running" {
+				out = append(out, t)
+			}
+		}
+		return out
+	case "done":
+		var out []projectTask
+		for _, t := range tasks {
+			taskDir, ok := findProjectTaskDir(rootDir, projectID, t.ID)
+			if ok {
+				if _, err := os.Stat(filepath.Join(taskDir, "DONE")); err == nil {
+					out = append(out, t)
+				}
+			}
+		}
+		return out
+	case "failed":
+		var out []projectTask
+		for _, t := range tasks {
+			if t.Status == "failed" {
+				out = append(out, t)
+			}
+		}
+		return out
+	default:
+		// Unknown status: graceful degradation — return all tasks.
+		return tasks
+	}
 }
 
 func runInfoToProjectRun(info *storage.RunInfo) projectRun {

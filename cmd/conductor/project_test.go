@@ -92,7 +92,7 @@ func TestTaskListSuccess(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if err := taskList(srv.URL, "proj", false); err != nil {
+	if err := taskList(srv.URL, "proj", "", false); err != nil {
 		t.Fatalf("taskList: %v", err)
 	}
 }
@@ -110,7 +110,7 @@ func TestTaskListJSONOutput(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if err := taskList(srv.URL, "proj", true); err != nil {
+	if err := taskList(srv.URL, "proj", "", true); err != nil {
 		t.Fatalf("taskList json: %v", err)
 	}
 }
@@ -121,7 +121,7 @@ func TestTaskListServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if err := taskList(srv.URL, "proj", false); err == nil {
+	if err := taskList(srv.URL, "proj", "", false); err == nil {
 		t.Fatal("expected error on 500 response")
 	}
 }
@@ -141,7 +141,7 @@ func TestTaskListHasMore(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if err := taskList(srv.URL, "proj", false); err != nil {
+	if err := taskList(srv.URL, "proj", "", false); err != nil {
 		t.Fatalf("taskList has_more: %v", err)
 	}
 }
