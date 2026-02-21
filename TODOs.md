@@ -86,13 +86,13 @@
 - [x] `task-20260222-100000-ci-fix`: fix GitHub workflows so `go test ./...`, `go build ./...`, and frontend build pass on PR/main.
 - [x] `task-20260222-100100-shell-wrap`: implement `run-agent wrap --agent ... -- <args>` to register and run console prompts as tracked tasks.
 - [x] `task-20260222-100200-shell-setup`: add `run-agent shell-setup` to install/remove shell aliases for `claude`/`codex`/`gemini` -> `run-agent wrap`.
-- [ ] `task-20260222-100300-native-watch`: implement first-class `run-agent watch` replacement for ad-hoc shell monitoring loops.
-- [ ] `task-20260222-100400-native-status`: implement first-class `run-agent status` output (`status`, `exit_code`, `latest_run`, `done`, `pid_alive`).
+- [x] `task-20260222-100300-native-watch`: implement first-class `run-agent watch` replacement for ad-hoc shell monitoring loops.
+- [x] `task-20260222-100400-native-status`: implement first-class `run-agent status` output (`status`, `exit_code`, `latest_run`, `done`, `pid_alive`).
 - [x] `task-20260222-100450-status-liveness-reconcile`: reconcile stale run-info state when PID is dead (report `failed/stopped` instead of `running`).
 - [x] `task-20260222-100500-task-deps`: add `depends_on` schema + runner dependency gating + CLI flag + UI dependency rendering.
 - [x] `task-20260222-100600-task-md-gen`: auto-generate `TASK.md` from prompt on task creation without overwriting existing files.
-- [ ] `task-20260222-100700-process-import`: add API/runner flow to adopt external running processes into tracked runs.
-- [ ] `task-20260222-100800-ui-tree-density`: further compact tree spacing; merge single-run rows; show duration/restart badges clearly.
+- [x] `task-20260222-100700-process-import`: add API/runner flow to adopt external running processes into tracked runs.
+- [x] `task-20260222-100800-ui-tree-density`: further compact tree spacing; merge single-run rows; show duration/restart badges clearly.
 - [x] `task-20260222-100900-ui-messagebus-type`: add message-type selector (PROGRESS/FACT/DECISION/ERROR/QUESTION) in compose UI.
 - [x] `task-20260222-101000-ui-project-bus`: expose project-level message bus view by default when no task is selected.
 - [x] `task-20260222-101100-docs-rlm-flow`: document RLM + `THE_PROMPT_v5` recursive orchestration using `run-agent job` + bus posting.
