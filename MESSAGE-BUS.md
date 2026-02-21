@@ -2401,3 +2401,88 @@ project_id: conductor-loop
 - dc6e320: docs(user): add run-agent list, output, validate --check-tokens to CLI reference
 - 1158566: docs(dev): update developer docs for sessions #26-28 features
 - 27ad5f2: feat(api,ui): add pagination to task and run listing endpoints
+
+[2026-02-21 03:00:00] ==========================================
+[2026-02-21 03:00:00] SESSION: 2026-02-21 Session #30
+[2026-02-21 03:00:00] ==========================================
+[2026-02-21 03:00:00] PROGRESS: Starting session - read all required docs
+[2026-02-21 03:00:00] FACT: go build ./... passes, all 19 test packages green
+[2026-02-21 03:00:00] FACT: Binaries: conductor (14.2MB), run-agent (14.4MB) - using existing
+[2026-02-21 03:00:00] FACT: 0 fully open issues, 5 partially resolved (deferred items only)
+[2026-02-21 03:00:00] FACT: Conductor server running (PID 81674)
+
+[2026-02-21 03:00:01] ASSESSMENT: Gaps identified for Session #30
+[2026-02-21 03:00:01] GAP-1: Frontend only shows 50 tasks (API default limit) but we have 71 tasks - 21 are HIDDEN
+[2026-02-21 03:00:01] GAP-2: No text search in task list (only status filter exists) - hard to find specific tasks
+[2026-02-21 03:00:01] GAP-3: No REST API DELETE endpoint for runs (only CLI gc command)
+[2026-02-21 03:00:01] GAP-4: No run-agent watch command to monitor multiple tasks until completion
+
+[2026-02-21 03:00:30] DOG-FOOD: Dispatching 3 parallel sub-agents via ./bin/run-agent job
+[2026-02-21 03:01:00] FACT: task-20260221-010950-fstq7k - frontend-task-search (PID 89667)
+[2026-02-21 03:01:00] FACT: task-20260221-010951-re9w72 - run-agent-watch (PID 89691)
+[2026-02-21 03:01:00] FACT: task-20260221-010954-4fu8bt - api-run-delete (PID 89767)
+[2026-02-21 03:01:00] PROGRESS: All 3 sub-agents dispatched, monitoring for completion
+
+[2026-02-21 03:15:00] ==========================================
+[2026-02-21 03:15:00] RESULTS: Session #30 - All 3 sub-agents completed
+[2026-02-21 03:15:00] ==========================================
+[2026-02-21 03:15:00] FACT: task-20260221-010950-fstq7k (frontend-task-search) - COMPLETED (commit b26dea9)
+[2026-02-21 03:15:00] FACT: task-20260221-010954-4fu8bt (api-run-delete) - COMPLETED (in commit b2b05c5)
+[2026-02-21 03:15:00] FACT: task-20260221-010951-re9w72 (run-agent-watch) - COMPLETED (commit b2b05c5)
+[2026-02-21 03:15:00] FACT: go build ./...: PASS
+[2026-02-21 03:15:00] FACT: go test ./...: ALL 19 PACKAGES PASS
+[2026-02-21 03:15:00] FACT: go test -race ./internal/... ./cmd/...: PASS (no races)
+
+[2026-02-21 03:16:00] ==========================================
+[2026-02-21 03:16:00] SESSION SUMMARY: 2026-02-21 Session #30
+[2026-02-21 03:16:00] ==========================================
+
+## Features Implemented This Session
+
+1. **feat(ui): add task search bar and fix pagination limit** (commit b26dea9)
+   - getTasks() now requests ?limit=500 to show ALL tasks (was 50, hiding 21 tasks)
+   - Added full-width text search bar above status filter in TaskList
+   - Filter by task ID substring match (case-insensitive)
+   - Clear (×) button on search input
+   - "Showing N of M tasks" count display when filtering is active
+   - Fixed bug: task.task_id → task.id (correct field name per TaskSummary type)
+   - CSS added: .task-search-row, .task-search-input, .task-search-clear, .task-count-row
+   - Frontend rebuilt (frontend/dist/ updated)
+
+2. **feat(api): DELETE /api/projects/{p}/tasks/{t}/runs/{r}** (in commit b2b05c5)
+   - DELETE endpoint removes run directory for completed/failed runs
+   - Returns 409 Conflict if run is still running
+   - Returns 404 if task or run not found
+   - Returns 204 No Content on success
+   - Frontend: "Delete run" button in RunDetail for non-running runs
+   - Frontend: useDeleteRun hook with cache invalidation
+   - 3 new API tests: success, running conflict, not found
+
+3. **feat(cli): run-agent watch command** (commit b2b05c5)
+   - watch --project <p> --task <t> polls task status every 2s until completion
+   - Supports multiple tasks (--task repeatable), --timeout (default 30m), --json
+   - Exits 0 when all tasks complete, 1 on timeout
+   - Prints status table per poll cycle
+   - 7 new tests: empty list, single completed/running, multi-task, timeout, JSON, help text
+   - Added to run-agent binary: ./bin/run-agent watch --help
+
+## Dog-Food
+- All 3 tasks dispatched via ./bin/run-agent job (parallel, root: runs/)
+- All 3 DONE files created ✓
+- Agents ran in parallel, completing between 2-5 minutes
+
+## Quality Gates
+- go build ./...: PASS
+- go test ./...: ALL 19 PACKAGES PASS
+- go test -race ./internal/... ./cmd/...: PASS (no data races)
+
+## Current Issue Status
+- CRITICAL: 0 open, 2 partially resolved (ISSUE-002 Windows, ISSUE-004 CLI versions), 4 resolved
+- HIGH: 0 open, 3 partially resolved (ISSUE-003, ISSUE-009, ISSUE-010), 5 resolved
+- MEDIUM: 0 open, 0 partially resolved, 6 resolved
+- LOW: 0 open, 0 partially resolved, 2 resolved
+- Total: 0 fully open, 5 partially resolved, 17 resolved
+
+## Commits This Session
+- b26dea9: feat(ui): add task search bar and fix pagination limit
+- b2b05c5: feat(cli,api,ui): add run-agent watch, DELETE run endpoint, delete run UI button
