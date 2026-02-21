@@ -2804,3 +2804,32 @@ project_id: conductor-loop
 - df71e66: chore: session #33 housekeeping - verify race-free and update docs
 - 055a860: feat(cli): add conductor project list and task list commands
 
+
+---
+
+## Session #35 Summary (2026-02-21)
+
+[2026-02-21] FACT: Session #35 started — go build PASS, all 14 test packages green, no races
+
+[2026-02-21] FACT: Implemented conductor task delete command
+- `conductor task delete <task-id> --project <p>`
+- Calls DELETE /api/projects/{p}/tasks/{t}
+- Handles 204 (deleted), 409 (running), 404 (not found)
+- 5 new tests
+
+[2026-02-21] FACT: Implemented conductor project stats command
+- `conductor project stats --project <p>`
+- Calls GET /api/projects/{p}/stats
+- Displays tasks, run breakdown, message bus size (human-readable: B/KB/MB/GB)
+- formatBytes helper with 8 table-driven tests
+- 4 new tests for stats command
+
+[2026-02-21] FACT: Quality gate PASS
+- go build -o bin/conductor ./cmd/conductor: OK
+- go build -o bin/run-agent ./cmd/run-agent: OK
+- go test -race ./internal/... ./cmd/...: ALL 14 PACKAGES PASS, no races
+- 13 new tests total (project_test.go)
+
+[2026-02-21] FACT: Committed 9555b3a: feat(cli): add conductor task delete and project stats commands
+- 3 files changed, 325 insertions(+)
+
