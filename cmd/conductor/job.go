@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +15,25 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+// generateTaskID returns a task ID in the format task-YYYYMMDD-HHMMSS-xxxxxx
+// where xxxxxx is a 6-character random hex string.
+func generateTaskID() string {
+	now := time.Now().UTC()
+	var b [3]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// Fallback: use time-based bytes (nanosecond lower bits)
+		ns := now.UnixNano()
+		b[0] = byte(ns)
+		b[1] = byte(ns >> 8)
+		b[2] = byte(ns >> 16)
+	}
+	return fmt.Sprintf("task-%s-%s-%s",
+		now.Format("20060102"),
+		now.Format("150405"),
+		hex.EncodeToString(b[:]),
+	)
+}
 
 // loadPrompt returns the prompt text from inline --prompt or --prompt-file.
 // Exactly one of promptText or promptFile must be non-empty; returns an error otherwise.
@@ -67,6 +88,9 @@ func newJobSubmitCmd() *cobra.Command {
 		Use:   "submit",
 		Short: "Submit a job to the conductor server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if taskID == "" {
+				taskID = generateTaskID()
+			}
 			promptText, err := loadPrompt(prompt, promptFile)
 			if err != nil {
 				return err
@@ -85,7 +109,7 @@ func newJobSubmitCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
 	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
-	cmd.Flags().StringVar(&taskID, "task", "", "task ID (required)")
+	cmd.Flags().StringVar(&taskID, "task", "", "task ID (optional; auto-generated if omitted)")
 	cmd.Flags().StringVar(&agent, "agent", "", "agent type, e.g. claude (required)")
 	cmd.Flags().StringVar(&prompt, "prompt", "", "task prompt (mutually exclusive with --prompt-file)")
 	cmd.Flags().StringVar(&promptFile, "prompt-file", "", "path to file containing task prompt (mutually exclusive with --prompt)")
@@ -94,7 +118,6 @@ func newJobSubmitCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&wait, "wait", false, "wait for task completion by polling run status")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
 	_ = cmd.MarkFlagRequired("project")
-	_ = cmd.MarkFlagRequired("task")
 	_ = cmd.MarkFlagRequired("agent")
 
 	return cmd

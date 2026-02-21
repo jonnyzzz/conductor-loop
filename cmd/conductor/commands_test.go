@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -677,5 +678,103 @@ func TestJobSubmitHelpShowsPromptFile(t *testing.T) {
 	_ = cmd.Execute()
 	if !strings.Contains(buf.String(), "prompt-file") {
 		t.Errorf("expected 'prompt-file' in job submit help, got:\n%s", buf.String())
+	}
+}
+
+// --- generateTaskID tests ---
+
+var taskIDRegexp = regexp.MustCompile(`^task-\d{8}-\d{6}-[0-9a-f]{6}$`)
+
+func TestGenerateTaskIDFormat(t *testing.T) {
+	id := generateTaskID()
+	if !taskIDRegexp.MatchString(id) {
+		t.Errorf("generateTaskID() = %q, does not match expected format task-YYYYMMDD-HHMMSS-xxxxxx", id)
+	}
+}
+
+func TestGenerateTaskIDUnique(t *testing.T) {
+	seen := make(map[string]bool)
+	for i := 0; i < 20; i++ {
+		id := generateTaskID()
+		if !taskIDRegexp.MatchString(id) {
+			t.Errorf("generateTaskID() = %q, does not match expected format", id)
+		}
+		seen[id] = true
+	}
+	// All 20 should be unique (random hex suffix makes collisions astronomically unlikely)
+	if len(seen) < 5 {
+		t.Errorf("expected unique IDs, but only got %d distinct values in 20 calls", len(seen))
+	}
+}
+
+// TestJobSubmitAutoGeneratesTaskID verifies that omitting --task causes a valid task ID to be
+// auto-generated and sent to the server.
+func TestJobSubmitAutoGeneratesTaskID(t *testing.T) {
+	var receivedTaskID string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req jobCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		receivedTaskID = req.TaskID
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(jobCreateResponse{
+			ProjectID: "my-project",
+			TaskID:    req.TaskID,
+			RunID:     "run-auto",
+			Status:    "started",
+		})
+	}))
+	defer srv.Close()
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"job", "submit",
+		"--server", srv.URL,
+		"--project", "my-project",
+		"--agent", "claude",
+		"--prompt", "Do the thing",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("job submit without --task: %v", err)
+	}
+	if !taskIDRegexp.MatchString(receivedTaskID) {
+		t.Errorf("auto-generated task ID %q does not match expected format", receivedTaskID)
+	}
+}
+
+// TestJobSubmitExplicitTaskIDPreserved verifies that an explicitly provided --task is sent as-is.
+func TestJobSubmitExplicitTaskIDPreserved(t *testing.T) {
+	const wantTaskID = "task-20260221-120000-abc123"
+	var receivedTaskID string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req jobCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		receivedTaskID = req.TaskID
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(jobCreateResponse{
+			ProjectID: "p", TaskID: req.TaskID, RunID: "r", Status: "started",
+		})
+	}))
+	defer srv.Close()
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"job", "submit",
+		"--server", srv.URL,
+		"--project", "p",
+		"--task", wantTaskID,
+		"--agent", "claude",
+		"--prompt", "Hello",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("job submit with explicit --task: %v", err)
+	}
+	if receivedTaskID != wantTaskID {
+		t.Errorf("expected task ID %q, got %q", wantTaskID, receivedTaskID)
 	}
 }

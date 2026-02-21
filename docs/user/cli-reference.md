@@ -325,6 +325,38 @@ RUN ID                          AGENT    STATUS      EXIT  DURATION  STARTED    
 20260221-115900-12345           claude   failed         1  0m12s     2026-02-21 11:59:00   exit code 1: general failure
 ```
 
+##### `conductor task resume <task-id>`
+
+Resume an exhausted task by removing its DONE file (allowing it to be re-queued).
+
+```bash
+conductor task resume <task-id> --project PROJECT [--server URL] [--json]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--project` | string | "" | Project ID (required) |
+| `--json` | bool | false | Output raw JSON response |
+
+**When to use**: After a task has exhausted its restart limit (the `DONE` file was written with an error state), use `conductor task resume` to clear the done marker so the task can be submitted again. The task directory and all its run history are preserved.
+
+**Example:**
+```bash
+# Resume a task that failed after max restarts
+conductor task resume task-20260221-120000-my-task --project my-project
+
+# Resume and verify with JSON output
+conductor task resume task-20260221-120000-my-task --project my-project --json
+```
+
+**Output:**
+```
+Task my-project/task-20260221-120000-my-task resumed (DONE file removed)
+```
+
+**Note:** This is the server-based equivalent of `run-agent resume`. After resuming, submit a new job to the task to restart execution.
+
 ---
 
 #### `conductor job`
@@ -342,14 +374,14 @@ conductor job <subcommand> [flags]
 Submit a new job to the conductor server.
 
 ```bash
-conductor job submit --project PROJECT --task TASK --agent AGENT (--prompt PROMPT | --prompt-file PATH) [flags]
+conductor job submit --project PROJECT --agent AGENT (--prompt PROMPT | --prompt-file PATH) [--task TASK] [flags]
 ```
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--server` | string | "http://localhost:8080" | Conductor server URL |
 | `--project` | string | "" | Project ID (required) |
-| `--task` | string | "" | Task ID (required) |
+| `--task` | string | "" | Task ID (optional; auto-generated as `task-YYYYMMDD-HHMMSS-xxxxxx` if omitted) |
 | `--agent` | string | "" | Agent type, e.g. claude (required) |
 | `--prompt` | string | "" | Task prompt (mutually exclusive with `--prompt-file`) |
 | `--prompt-file` | string | "" | Path to file containing task prompt (mutually exclusive with `--prompt`) |
@@ -360,8 +392,18 @@ conductor job submit --project PROJECT --task TASK --agent AGENT (--prompt PROMP
 
 Exactly one of `--prompt` or `--prompt-file` must be provided. Errors are returned if both are set, neither is set, the file is not found, or the file is empty.
 
+When `--task` is omitted, a task ID is auto-generated in the format `task-YYYYMMDD-HHMMSS-xxxxxx` (6-char random hex suffix). The assigned task ID is printed to stdout on success.
+
 **Example:**
 ```bash
+# Auto-generate task ID (recommended for one-off jobs)
+conductor job submit \
+  --project my-project \
+  --agent claude \
+  --prompt "Write hello world" \
+  --wait
+
+# Explicit task ID (useful when you need a predictable, reusable task)
 conductor job submit \
   --project my-project \
   --task task-20260220-140000-hello \
@@ -372,7 +414,6 @@ conductor job submit \
 # Submit with prompt from file (useful for long or multi-line prompts)
 conductor job submit \
   --project my-project \
-  --task task-20260220-140001-analysis \
   --agent claude \
   --prompt-file /path/to/prompt.md \
   --wait
@@ -528,6 +569,75 @@ conductor bus read --project myproject --server http://conductor.example.com:808
 ```
 
 **Note:** This is the server-based equivalent of `run-agent bus read` (which requires local file access). Use `conductor bus read` when working with a remote conductor server.
+
+---
+
+#### `conductor watch`
+
+Watch tasks in a project until they reach a terminal state (completed, failed, done, error).
+
+```bash
+conductor watch --project PROJECT [--task TASK-ID ...] [--timeout DURATION] [--interval DURATION] [--server URL] [--json]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--project` | string | "" | Project ID (required) |
+| `--task` | stringArray | [] | Task ID(s) to watch (repeatable; default: watch all tasks in project) |
+| `--timeout` | duration | 30m | Max wait time; exits with code 1 if timeout is reached |
+| `--interval` | duration | 5s | Poll interval between status checks |
+| `--json` | bool | false | Output final status as JSON when all tasks are done |
+
+**Behavior:**
+- Polls the conductor server at the specified interval
+- Prints a status table on each poll showing task ID, status, and run count
+- Exits with code 0 when **all** watched tasks reach a terminal state
+- Exits with code 1 if the timeout is reached before all tasks complete
+- If no `--task` flags are specified, watches **all tasks** in the project
+
+**Examples:**
+```bash
+# Watch all tasks in a project (waits up to 30 minutes)
+conductor watch --project my-project
+
+# Watch specific tasks
+conductor watch --project my-project \
+  --task task-20260221-120000-feature-a \
+  --task task-20260221-120001-feature-b
+
+# Watch with a longer timeout and faster poll interval
+conductor watch --project my-project --timeout 2h --interval 10s
+
+# Wait for completion and output JSON summary
+conductor watch --project my-project --json
+
+# Use in CI scripts (exit code 1 if tasks don't complete in time)
+conductor watch --project my-project --timeout 1h && echo "All done!" || echo "Timed out"
+```
+
+**Sample output:**
+```
+Watching all tasks in project "my-project"...
+[2026-02-21 12:00:00] Poll #1
+TASK ID                              STATUS    RUNS
+task-20260221-120000-feature-a       running   2
+task-20260221-120001-feature-b       running   1
+
+[2026-02-21 12:00:05] Poll #2
+TASK ID                              STATUS      RUNS
+task-20260221-120000-feature-a       completed   3
+task-20260221-120001-feature-b       running     2
+
+[2026-02-21 12:00:10] Poll #3
+TASK ID                              STATUS      RUNS
+task-20260221-120000-feature-a       completed   3
+task-20260221-120001-feature-b       completed   2
+
+All tasks completed.
+```
+
+**Note:** This is the server-based equivalent of `run-agent watch`. Use it when working with a remote conductor server or when you need to wait for multiple tasks across a project.
 
 ---
 
