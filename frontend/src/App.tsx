@@ -52,9 +52,12 @@ export function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div>
-          <div className="app-title">Conductor Loop Monitor</div>
-          <div className="app-subtitle">Multi-agent orchestration dashboard</div>
+        <div className="app-brand">
+          <img src="/logo.svg" className="app-logo" alt="Conductor Loop Logo" />
+          <div>
+            <div className="app-title">Conductor Loop Monitor</div>
+            <div className="app-subtitle">Multi-agent orchestration dashboard</div>
+          </div>
         </div>
         <div className="app-header-actions">
           <Button inline onClick={() => projectsQuery.refetch()}>Refresh all</Button>

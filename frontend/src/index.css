@@ -55,10 +55,27 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
+  padding: 16px 24px;
   border-bottom: 1px solid var(--app-border);
   background: rgba(8, 12, 18, 0.92);
   backdrop-filter: blur(12px);
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-logo {
+  width: 42px;
+  height: 42px;
+  filter: drop-shadow(0 0 10px rgba(90, 210, 167, 0.2));
+  transition: filter 0.3s ease;
+}
+
+.app-logo:hover {
+  filter: drop-shadow(0 0 14px rgba(90, 210, 167, 0.5));
 }
 
 .app-title {
