@@ -38,12 +38,14 @@ export interface TaskDetail {
 export interface RunSummary {
   id: string
   agent: string
+  agent_version?: string
   status: RunStatus
   exit_code: number
   start_time: string
   end_time?: string
   parent_run_id?: string
   previous_run_id?: string
+  error_summary?: string
 }
 
 export interface RunInfo {
@@ -54,6 +56,7 @@ export interface RunInfo {
   parent_run_id: string
   previous_run_id: string
   agent: string
+  agent_version?: string
   pid: number
   pgid: number
   start_time: string
@@ -64,6 +67,7 @@ export interface RunInfo {
   backend_model?: string
   backend_endpoint?: string
   commandline?: string
+  error_summary?: string
 }
 
 export interface FileContent {

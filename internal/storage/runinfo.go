@@ -34,4 +34,5 @@ type RunInfo struct {
 	StderrPath    string    `yaml:"stderr_path,omitempty"`
 	CommandLine  string `yaml:"commandline,omitempty"`
 	ErrorSummary string `yaml:"error_summary,omitempty"`
+	AgentVersion string `yaml:"agent_version,omitempty"`
 }

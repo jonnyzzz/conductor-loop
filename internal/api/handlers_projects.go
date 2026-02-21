@@ -21,12 +21,14 @@ import (
 type projectRun struct {
 	ID            string     `json:"id"`
 	Agent         string     `json:"agent"`
+	AgentVersion  string     `json:"agent_version,omitempty"`
 	Status        string     `json:"status"`
 	ExitCode      int        `json:"exit_code"`
 	StartTime     time.Time  `json:"start_time"`
 	EndTime       *time.Time `json:"end_time,omitempty"`
 	ParentRunID   string     `json:"parent_run_id,omitempty"`
 	PreviousRunID string     `json:"previous_run_id,omitempty"`
+	ErrorSummary  string     `json:"error_summary,omitempty"`
 }
 
 // projectTask is the task shape the project API returns.
@@ -647,11 +649,13 @@ func runInfoToProjectRun(info *storage.RunInfo) projectRun {
 	r := projectRun{
 		ID:            info.RunID,
 		Agent:         info.AgentType,
+		AgentVersion:  info.AgentVersion,
 		Status:        info.Status,
 		ExitCode:      info.ExitCode,
 		StartTime:     info.StartTime,
 		ParentRunID:   info.ParentRunID,
 		PreviousRunID: info.PreviousRunID,
+		ErrorSummary:  info.ErrorSummary,
 	}
 	if !info.EndTime.IsZero() {
 		t := info.EndTime

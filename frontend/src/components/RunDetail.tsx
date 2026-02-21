@@ -51,6 +51,12 @@ export function RunDetail({
                 <div className="metadata-label">Agent</div>
                 <div className="metadata-value">{runInfo.agent}</div>
               </div>
+              {runInfo.agent_version && (
+                <div>
+                  <div className="metadata-label">Agent version</div>
+                  <div className="metadata-value">{runInfo.agent_version}</div>
+                </div>
+              )}
               <div>
                 <div className="metadata-label">Status</div>
                 <div className="metadata-value">
@@ -83,6 +89,12 @@ export function RunDetail({
                 <div className="metadata-label">Working dir</div>
                 <div className="metadata-value">{runInfo.cwd}</div>
               </div>
+              {runInfo.error_summary && (
+                <div className="metadata-span">
+                  <div className="metadata-label">Error summary</div>
+                  <div className="metadata-value metadata-error">{runInfo.error_summary}</div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="empty-state">Select a run to see details.</div>

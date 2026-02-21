@@ -174,6 +174,7 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		ProjectID:     projectID,
 		TaskID:        taskID,
 		AgentType:     agentType,
+		AgentVersion:  detectAgentVersion(context.Background(), agentType),
 		StartTime:     time.Now().UTC(),
 		ExitCode:      -1,
 		Status:        storage.StatusRunning,
@@ -585,4 +586,21 @@ func classifyExitCode(exitCode int) string {
 
 func ctxOrBackground() context.Context {
 	return context.Background()
+}
+
+// detectAgentVersion returns the CLI version string for CLI agents (best-effort).
+// Returns empty string for REST agents or if detection fails.
+func detectAgentVersion(ctx context.Context, agentType string) string {
+	if isRestAgent(agentType) {
+		return ""
+	}
+	command := cliCommand(agentType)
+	if command == "" {
+		return ""
+	}
+	version, err := agent.DetectCLIVersion(ctx, command)
+	if err != nil {
+		return ""
+	}
+	return version
 }

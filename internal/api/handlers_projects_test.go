@@ -786,3 +786,99 @@ func TestTaskMessages_StreamMethodNotAllowed(t *testing.T) {
 		t.Fatalf("expected 405, got %d", rec.Code)
 	}
 }
+
+func TestRunInfoToProjectRun_AgentVersionAndErrorSummary(t *testing.T) {
+	now := time.Now().UTC()
+	info := &storage.RunInfo{
+		RunID:        "run-1",
+		ProjectID:    "project",
+		TaskID:       "task",
+		AgentType:    "claude",
+		AgentVersion: "2.1.49 (Claude Code)",
+		Status:       storage.StatusFailed,
+		ExitCode:     1,
+		StartTime:    now,
+		EndTime:      now.Add(time.Minute),
+		ErrorSummary: "agent reported failure",
+	}
+	r := runInfoToProjectRun(info)
+	if r.AgentVersion != "2.1.49 (Claude Code)" {
+		t.Errorf("expected AgentVersion=%q, got %q", "2.1.49 (Claude Code)", r.AgentVersion)
+	}
+	if r.ErrorSummary != "agent reported failure" {
+		t.Errorf("expected ErrorSummary=%q, got %q", "agent reported failure", r.ErrorSummary)
+	}
+}
+
+func TestRunInfoToProjectRun_EmptyOptionalFields(t *testing.T) {
+	now := time.Now().UTC()
+	info := &storage.RunInfo{
+		RunID:     "run-2",
+		ProjectID: "project",
+		TaskID:    "task",
+		AgentType: "codex",
+		Status:    storage.StatusCompleted,
+		ExitCode:  0,
+		StartTime: now,
+		EndTime:   now.Add(time.Minute),
+	}
+	r := runInfoToProjectRun(info)
+	if r.AgentVersion != "" {
+		t.Errorf("expected empty AgentVersion, got %q", r.AgentVersion)
+	}
+	if r.ErrorSummary != "" {
+		t.Errorf("expected empty ErrorSummary, got %q", r.ErrorSummary)
+	}
+}
+
+func TestProjectRunAPI_AgentVersionAndErrorSummary(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	runDir := filepath.Join(root, "project", "task", "runs", "run-versioned")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	now := time.Now().UTC()
+	info := &storage.RunInfo{
+		RunID:        "run-versioned",
+		ProjectID:    "project",
+		TaskID:       "task",
+		AgentType:    "claude",
+		AgentVersion: "3.0.0 (Claude Code)",
+		Status:       storage.StatusFailed,
+		ExitCode:     1,
+		StartTime:    now,
+		EndTime:      now.Add(time.Minute),
+		ErrorSummary: "agent reported failure",
+		StdoutPath:   filepath.Join(runDir, "agent-stdout.txt"),
+	}
+	if err := os.WriteFile(info.StdoutPath, []byte(""), 0o644); err != nil {
+		t.Fatalf("write stdout: %v", err)
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	url := "/api/projects/project/tasks/task/runs/run-versioned"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["agent_version"] != "3.0.0 (Claude Code)" {
+		t.Errorf("expected agent_version=%q, got %v", "3.0.0 (Claude Code)", resp["agent_version"])
+	}
+	if resp["error_summary"] != "agent reported failure" {
+		t.Errorf("expected error_summary=%q, got %v", "agent reported failure", resp["error_summary"])
+	}
+}

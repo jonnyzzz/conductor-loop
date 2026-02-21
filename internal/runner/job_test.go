@@ -605,6 +605,102 @@ func TestRunJobCLIEmitsRunCrash(t *testing.T) {
 	assertBusEvent(t, msgs, messagebus.EventTypeRunStop, false)
 }
 
+func TestDetectAgentVersion_RestAgents(t *testing.T) {
+	for _, agentType := range []string{"perplexity", "xai"} {
+		t.Run(agentType, func(t *testing.T) {
+			version := detectAgentVersion(context.Background(), agentType)
+			if version != "" {
+				t.Fatalf("expected empty version for REST agent %q, got %q", agentType, version)
+			}
+		})
+	}
+}
+
+func TestDetectAgentVersion_CLIAgent(t *testing.T) {
+	binDir := t.TempDir()
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	version := detectAgentVersion(context.Background(), "codex")
+	if version == "" {
+		t.Fatalf("expected non-empty version for CLI agent codex")
+	}
+}
+
+func TestDetectAgentVersion_UnknownAgent(t *testing.T) {
+	version := detectAgentVersion(context.Background(), "nosuchagent")
+	if version != "" {
+		t.Fatalf("expected empty version for unknown agent, got %q", version)
+	}
+}
+
+func TestDetectAgentVersion_CLINotInPath(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	version := detectAgentVersion(context.Background(), "codex")
+	if version != "" {
+		t.Fatalf("expected empty version when CLI not in PATH, got %q", version)
+	}
+}
+
+func TestRunJobCLIPopulatesAgentVersion(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	createFakeCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	info, err := runJob("project", "task", JobOptions{
+		RootDir: root,
+		Agent:   "codex",
+		Prompt:  "hello",
+	})
+	if err != nil {
+		t.Fatalf("runJob: %v", err)
+	}
+	if info.AgentVersion == "" {
+		t.Fatalf("expected AgentVersion to be populated, got empty string")
+	}
+}
+
+func TestRunJobRESTAgentEmptyVersion(t *testing.T) {
+	root := t.TempDir()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}]}`))
+	}))
+	defer srv.Close()
+
+	configPath := filepath.Join(root, "config.yaml")
+	configContent := fmt.Sprintf(`agents:
+  xai:
+    type: xai
+    token: token
+    base_url: %s
+
+defaults:
+  agent: xai
+  timeout: 10
+`, srv.URL)
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	info, err := runJob("project", "task", JobOptions{
+		RootDir:    root,
+		ConfigPath: configPath,
+		Agent:      "xai",
+		Prompt:     "hello",
+	})
+	if err != nil {
+		t.Fatalf("runJob: %v", err)
+	}
+	if info.AgentVersion != "" {
+		t.Fatalf("expected empty AgentVersion for REST agent, got %q", info.AgentVersion)
+	}
+}
+
 // readBusMessages reads all messages from a message bus file for testing.
 func readBusMessages(t *testing.T, busPath string) []*messagebus.Message {
 	t.Helper()
