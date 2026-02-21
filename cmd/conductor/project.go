@@ -22,6 +22,7 @@ func newProjectCmd() *cobra.Command {
 		},
 	}
 	cmd.AddCommand(newProjectListCmd())
+	cmd.AddCommand(newProjectStatsCmd())
 	return cmd
 }
 
@@ -93,4 +94,100 @@ func projectList(server string, jsonOutput bool) error {
 		fmt.Fprintf(w, "%s\t%d\t%s\n", p.ID, p.TaskCount, lastActivity)
 	}
 	return w.Flush()
+}
+
+func newProjectStatsCmd() *cobra.Command {
+	var (
+		server     string
+		project    string
+		jsonOutput bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "stats",
+		Short: "Show statistics for a project",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return projectStats(server, project, jsonOutput)
+		},
+	}
+
+	cmd.Flags().StringVar(&server, "server", "http://localhost:8080", "conductor server URL")
+	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
+	cobra.MarkFlagRequired(cmd.Flags(), "project") //nolint:errcheck
+
+	return cmd
+}
+
+// projectStatsResponse is the JSON response from GET /api/projects/{id}/stats.
+type projectStatsResponse struct {
+	ProjectID            string `json:"project_id"`
+	TotalTasks           int    `json:"total_tasks"`
+	TotalRuns            int    `json:"total_runs"`
+	RunningRuns          int    `json:"running_runs"`
+	CompletedRuns        int    `json:"completed_runs"`
+	FailedRuns           int    `json:"failed_runs"`
+	CrashedRuns          int    `json:"crashed_runs"`
+	MessageBusFiles      int    `json:"message_bus_files"`
+	MessageBusTotalBytes int64  `json:"message_bus_total_bytes"`
+}
+
+func projectStats(server, project string, jsonOutput bool) error {
+	url := server + "/api/projects/" + project + "/stats"
+
+	resp, err := http.Get(url) //nolint:noctx
+	if err != nil {
+		return fmt.Errorf("get project stats: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+
+	if jsonOutput {
+		fmt.Printf("%s\n", strings.TrimSpace(string(data)))
+		return nil
+	}
+
+	var result projectStatsResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(w, "Project:\t%s\n", result.ProjectID)
+	fmt.Fprintf(w, "Tasks:\t%d\n", result.TotalTasks)
+	fmt.Fprintf(w, "Runs (total):\t%d\n", result.TotalRuns)
+	fmt.Fprintf(w, "  Running:\t%d\n", result.RunningRuns)
+	fmt.Fprintf(w, "  Completed:\t%d\n", result.CompletedRuns)
+	fmt.Fprintf(w, "  Failed:\t%d\n", result.FailedRuns)
+	fmt.Fprintf(w, "  Crashed:\t%d\n", result.CrashedRuns)
+	fmt.Fprintf(w, "Message bus files:\t%d\n", result.MessageBusFiles)
+	fmt.Fprintf(w, "Message bus size:\t%s\n", formatBytes(result.MessageBusTotalBytes))
+	return w.Flush()
+}
+
+// formatBytes converts byte counts to a human-readable string.
+func formatBytes(n int64) string {
+	const (
+		KB = 1024
+		MB = 1024 * KB
+		GB = 1024 * MB
+	)
+	switch {
+	case n >= GB:
+		return fmt.Sprintf("%.2f GB", float64(n)/GB)
+	case n >= MB:
+		return fmt.Sprintf("%.2f MB", float64(n)/MB)
+	case n >= KB:
+		return fmt.Sprintf("%.2f KB", float64(n)/KB)
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
 }
