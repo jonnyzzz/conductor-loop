@@ -187,6 +187,70 @@ RUN ID                          STATUS   START TIME             END TIME        
 20260220-1400000000-abc12345    success  2026-02-20T14:00:00Z   2026-02-20T14:01:30Z   0
 ```
 
+##### `conductor task list`
+
+List tasks in a project.
+
+```bash
+conductor task list --project <id> [--server URL] [--json]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--project` | string | "" | Project ID (required) |
+| `--json` | bool | false | Output raw JSON response |
+
+**Example:**
+```bash
+conductor task list --project my-project
+conductor task list --project my-project --json
+```
+
+**Output:**
+```
+TASK ID                           STATUS   RUNS  LAST ACTIVITY
+task-20260220-140000-hello        success  3     2026-02-20 14:01
+task-20260220-150000-analysis     running  1     2026-02-20 15:02
+```
+
+When the result is paginated, a footer line is shown:
+```
+(showing 20 of 42 tasks; use --limit to see more)
+```
+
+---
+
+##### `conductor task delete <task-id>`
+
+Delete a task and all its runs via the conductor server API.
+
+```bash
+conductor task delete <task-id> --project <id> [--server URL] [--json]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--project` | string | "" | Project ID (required) |
+| `--json` | bool | false | Output raw JSON response |
+
+**Example:**
+```bash
+conductor task delete task-20260220-140000-hello --project my-project
+```
+
+**Output:**
+```
+Task task-20260220-140000-hello deleted.
+```
+
+**Error cases:**
+- `409 Conflict`: task has running runs — stop them first with `conductor task stop`
+- `404 Not Found`: task does not exist in the specified project
+
+---
+
 #### `conductor job`
 
 Manage jobs via the conductor server API.
@@ -202,7 +266,7 @@ conductor job <subcommand> [flags]
 Submit a new job to the conductor server.
 
 ```bash
-conductor job submit --project PROJECT --task TASK --agent AGENT --prompt PROMPT [flags]
+conductor job submit --project PROJECT --task TASK --agent AGENT (--prompt PROMPT | --prompt-file PATH) [flags]
 ```
 
 | Flag | Type | Default | Description |
@@ -211,11 +275,14 @@ conductor job submit --project PROJECT --task TASK --agent AGENT --prompt PROMPT
 | `--project` | string | "" | Project ID (required) |
 | `--task` | string | "" | Task ID (required) |
 | `--agent` | string | "" | Agent type, e.g. claude (required) |
-| `--prompt` | string | "" | Task prompt (required) |
+| `--prompt` | string | "" | Task prompt (mutually exclusive with `--prompt-file`) |
+| `--prompt-file` | string | "" | Path to file containing task prompt (mutually exclusive with `--prompt`) |
 | `--project-root` | string | "" | Working directory for the task |
 | `--attach-mode` | string | "create" | Attach mode: create, attach, or resume |
 | `--wait` | bool | false | Wait for task completion by polling |
 | `--json` | bool | false | Output raw JSON response |
+
+Exactly one of `--prompt` or `--prompt-file` must be provided. Errors are returned if both are set, neither is set, the file is not found, or the file is empty.
 
 **Example:**
 ```bash
@@ -224,6 +291,14 @@ conductor job submit \
   --task task-20260220-140000-hello \
   --agent claude \
   --prompt "Write hello world" \
+  --wait
+
+# Submit with prompt from file (useful for long or multi-line prompts)
+conductor job submit \
+  --project my-project \
+  --task task-20260220-140001-analysis \
+  --agent claude \
+  --prompt-file /path/to/prompt.md \
   --wait
 ```
 
@@ -252,6 +327,79 @@ PROJECT     TASK                              STATUS   LAST ACTIVITY
 my-project  task-20260220-140000-hello        success  2026-02-20T14:01:30Z
 my-project  task-20260220-150000-analysis     running  2026-02-20T15:02:00Z
 ```
+
+#### `conductor project`
+
+Manage projects via the conductor server API.
+
+```bash
+conductor project <subcommand> [flags]
+```
+
+**Subcommands:**
+
+##### `conductor project list`
+
+List all projects known to the conductor server.
+
+```bash
+conductor project list [--server URL] [--json]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--json` | bool | false | Output raw JSON response |
+
+**Example:**
+```bash
+conductor project list
+conductor project list --json
+```
+
+**Output:**
+```
+PROJECT        TASKS  LAST ACTIVITY
+my-project     5      2026-02-20 15:02
+other-project  2      2026-02-19 10:30
+```
+
+---
+
+##### `conductor project stats`
+
+Show detailed statistics for a project.
+
+```bash
+conductor project stats --project <id> [--server URL] [--json]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:8080" | Conductor server URL |
+| `--project` | string | "" | Project ID (required) |
+| `--json` | bool | false | Output raw JSON response |
+
+**Example:**
+```bash
+conductor project stats --project my-project
+conductor project stats --project my-project --json
+```
+
+**Output:**
+```
+Project:            my-project
+Tasks:              5
+Runs (total):       12
+  Running:          1
+  Completed:        9
+  Failed:           2
+  Crashed:          0
+Message bus files:  2
+Message bus size:   4.50 KB
+```
+
+---
 
 #### `conductor version`
 
