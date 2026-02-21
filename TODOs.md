@@ -82,7 +82,7 @@
 
 ### Submitted Task Bucket
 
-- [ ] `task-20260222-100000-ci-fix`: fix GitHub workflows so `go test ./...`, `go build ./...`, and frontend build pass on PR/main.
+- [x] `task-20260222-100000-ci-fix`: fix GitHub workflows so `go test ./...`, `go build ./...`, and frontend build pass on PR/main.
 - [ ] `task-20260222-100100-shell-wrap`: implement `run-agent wrap --agent ... -- <args>` to register and run console prompts as tracked tasks.
 - [ ] `task-20260222-100200-shell-setup`: add `run-agent shell-setup` to install/remove shell aliases for `claude`/`codex`/`gemini` -> `run-agent wrap`.
 - [ ] `task-20260222-100300-native-watch`: implement first-class `run-agent watch` replacement for ad-hoc shell monitoring loops.
