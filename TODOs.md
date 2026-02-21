@@ -36,7 +36,7 @@
 
 - [x] Log design-review checklist and implementation backlog to `TODO.md`.
 - [x] Update `.md` docs for message bus usage with `run-agent`.
-- [ ] Create feature requests for remaining project-goal-related manual bash workflows and expose them as conductor/run-agent commands.
+- [x] Create feature requests for remaining project-goal-related manual bash workflows and expose them as conductor/run-agent commands (`docs/dev/feature-requests-project-goal-manual-workflows.md`); split into actionable command tasks.
 - [x] Log external release/update simplification request for swarm run-agent backlog (`swarm/tasks/TASK-20260221-devrig-release-update-simplification.md`).
 - [ ] Message bus UX gap: make `run-agent bus` first-class for legacy repo-local `MESSAGE-BUS.md` files (no manual `--bus` path plumbing).
 - [ ] Message bus format gap: add migration/compat mode for mixed legacy markdown logs so `bus read --tail` returns predictable latest entries.
@@ -101,3 +101,9 @@
 - [x] `task-20260222-100900-ui-messagebus-type`: add message-type selector (PROGRESS/FACT/DECISION/ERROR/QUESTION) in compose UI.
 - [x] `task-20260222-101000-ui-project-bus`: expose project-level message bus view by default when no task is selected.
 - [x] `task-20260222-101100-docs-rlm-flow`: document RLM + `THE_PROMPT_v5` recursive orchestration using `run-agent job` + bus posting.
+- [ ] `task-20260222-102100-goal-decompose-cli`: implement `conductor goal decompose` / `run-agent goal decompose` skeleton with deterministic workflow spec output (`--json`, `--out`).
+- [ ] `task-20260222-102110-job-batch-cli`: implement `run-agent job batch` + `conductor job submit-batch` for fan-out/fan-in orchestration from spec files.
+- [ ] `task-20260222-102120-workflow-runner-cli`: implement `run-agent workflow run` + `conductor workflow run` with stage state persistence/resume.
+- [ ] `task-20260222-102130-output-synthesize-cli`: implement `run-agent output synthesize` + `conductor task synthesize` with merge/reduce/vote strategies and provenance.
+- [ ] `task-20260222-102140-review-quorum-cli`: implement `run-agent review quorum` + `conductor review run` to enforce 2+ reviewer quorum and structured verdicts.
+- [ ] `task-20260222-102150-iteration-loop-cli`: implement `run-agent iterate` + `conductor iterate` for fixed planning/review iteration loops with auto bus logging.
