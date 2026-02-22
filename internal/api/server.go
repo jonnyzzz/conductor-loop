@@ -174,7 +174,9 @@ func (s *Server) ListenAndServe(explicit bool) error {
 	}
 	srv := s.server
 	s.mu.Unlock()
-	s.logger.Printf("conductor: listening on http://%s:%d", s.apiConfig.Host, actualPort)
+	apiURL, uiURL := startupURLs(s.apiConfig.Host, actualPort)
+	s.logger.Printf("API listening on %s", apiURL)
+	s.logger.Printf("Web UI available at %s", uiURL)
 	return srv.Serve(ln)
 }
 
@@ -217,4 +219,50 @@ func resolveRootDir(root string) (string, error) {
 
 func intToString(value int) string {
 	return strconv.Itoa(value)
+}
+
+func startupURLs(host string, port int) (string, string) {
+	listenURL := httpBaseURL(resolveListenHost(host), port) + "/"
+	uiURL := httpBaseURL(resolveNavigationHost(host), port) + "/ui/"
+	return listenURL, uiURL
+}
+
+func resolveListenHost(host string) string {
+	host = trimBrackets(strings.TrimSpace(host))
+	if host == "" {
+		return "0.0.0.0"
+	}
+	return host
+}
+
+func resolveNavigationHost(host string) string {
+	host = resolveListenHost(host)
+	if isUnspecifiedHost(host) {
+		return "localhost"
+	}
+	return host
+}
+
+func resolveLoopbackHost(host string) string {
+	host = resolveListenHost(host)
+	if isUnspecifiedHost(host) {
+		return "127.0.0.1"
+	}
+	return host
+}
+
+func isUnspecifiedHost(host string) bool {
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsUnspecified()
+}
+
+func trimBrackets(host string) string {
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		return strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	}
+	return host
+}
+
+func httpBaseURL(host string, port int) string {
+	return "http://" + net.JoinHostPort(host, strconv.Itoa(port))
 }

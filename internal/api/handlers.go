@@ -727,15 +727,15 @@ func (s *Server) handleRunStop(w http.ResponseWriter, r *http.Request, runID str
 }
 
 func (s *Server) conductorURL() string {
-	host := strings.TrimSpace(s.apiConfig.Host)
-	if host == "" || host == "0.0.0.0" {
-		host = "127.0.0.1"
+	host := resolveLoopbackHost(s.apiConfig.Host)
+	port := s.ActualPort()
+	if port == 0 {
+		port = s.apiConfig.Port
 	}
-	port := s.apiConfig.Port
 	if port == 0 {
 		port = 14355
 	}
-	return fmt.Sprintf("http://%s:%d", host, port)
+	return httpBaseURL(host, port)
 }
 
 func (s *Server) startTask(req TaskCreateRequest, firstRunDir, prompt string) {

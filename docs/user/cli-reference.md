@@ -87,7 +87,8 @@ conductor \
 conductor 2026/02/05 10:00:00 Starting Conductor Loop server
 conductor 2026/02/05 10:00:00 Config loaded from: config.yaml
 conductor 2026/02/05 10:00:00 Root directory: /Users/you/conductor-loop
-conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:14355
+conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:14355/
+conductor 2026/02/05 10:00:00 Web UI available at http://localhost:14355/ui/
 conductor 2026/02/05 10:00:00 Task execution: enabled
 ```
 
@@ -1445,7 +1446,7 @@ run-agent serve --root ./runs
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--host` | string | "127.0.0.1" | HTTP server host |
+| `--host` | string | "0.0.0.0" | HTTP server host |
 | `--port` | int | 14355 | HTTP server port |
 | `--root` | string | "" | Root directory |
 | `--config` | string | "" | Config file path |
@@ -1461,6 +1462,13 @@ run-agent serve --root ./runs --port 8090
 
 # Listen on all interfaces
 run-agent serve --root ./runs --host 0.0.0.0 --port 14355
+```
+
+On startup, the server logs both URLs:
+
+```text
+run-agent serve 2026/02/05 10:00:00 API listening on http://0.0.0.0:14355/
+run-agent serve 2026/02/05 10:00:00 Web UI available at http://localhost:14355/ui/
 ```
 
 **Note:** When opening the web UI via `file://`, the `API_BASE` in `web/src/app.js` defaults to

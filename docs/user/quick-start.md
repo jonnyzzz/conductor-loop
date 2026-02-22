@@ -62,7 +62,8 @@ conductor --config config.yaml --root ./runs
 
 # You should see:
 # conductor 2026/02/05 10:00:00 Starting Conductor Loop server
-# conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:14355
+# conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:14355/
+# conductor 2026/02/05 10:00:00 Web UI available at http://localhost:14355/ui/
 # conductor 2026/02/05 10:00:00 Root directory: /Users/you/conductor-loop
 ```
 

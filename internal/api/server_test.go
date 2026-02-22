@@ -3,12 +3,16 @@ package api
 import (
 	"bytes"
 	"context"
+	stderrors "errors"
+	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,6 +73,135 @@ func TestIntToString(t *testing.T) {
 	if intToString(42) != "42" {
 		t.Fatalf("unexpected intToString output")
 	}
+}
+
+func TestStartupURLs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		host    string
+		wantAPI string
+		wantUI  string
+	}{
+		{
+			name:    "wildcard ipv4",
+			host:    "0.0.0.0",
+			wantAPI: "http://0.0.0.0:14355/",
+			wantUI:  "http://localhost:14355/ui/",
+		},
+		{
+			name:    "explicit ipv4",
+			host:    "127.0.0.1",
+			wantAPI: "http://127.0.0.1:14355/",
+			wantUI:  "http://127.0.0.1:14355/ui/",
+		},
+		{
+			name:    "wildcard ipv6",
+			host:    "::",
+			wantAPI: "http://[::]:14355/",
+			wantUI:  "http://localhost:14355/ui/",
+		},
+		{
+			name:    "explicit ipv6",
+			host:    "[::1]",
+			wantAPI: "http://[::1]:14355/",
+			wantUI:  "http://[::1]:14355/ui/",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			apiURL, uiURL := startupURLs(tt.host, 14355)
+			if apiURL != tt.wantAPI {
+				t.Fatalf("api url mismatch: got %q want %q", apiURL, tt.wantAPI)
+			}
+			if uiURL != tt.wantUI {
+				t.Fatalf("ui url mismatch: got %q want %q", uiURL, tt.wantUI)
+			}
+		})
+	}
+}
+
+func TestConductorURLUsesActualPortAndLoopbackHost(t *testing.T) {
+	server := &Server{
+		apiConfig:  config.APIConfig{Host: "0.0.0.0", Port: 14355},
+		actualPort: 15444,
+	}
+	if got := server.conductorURL(); got != "http://127.0.0.1:15444" {
+		t.Fatalf("unexpected conductor url: %q", got)
+	}
+}
+
+func TestServerListenAndServeLogsURLs(t *testing.T) {
+	root := t.TempDir()
+	basePort := findFreeTCPPort(t)
+	var logs bytes.Buffer
+
+	server, err := NewServer(Options{
+		RootDir:   root,
+		APIConfig: config.APIConfig{Host: "127.0.0.1", Port: basePort},
+		Logger:    log.New(&logs, "", 0),
+	})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.ListenAndServe(false)
+	}()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for server.ActualPort() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	actualPort := server.ActualPort()
+	if actualPort == 0 {
+		t.Fatalf("server did not report an actual port")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := server.Shutdown(ctx); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+
+	select {
+	case err := <-errCh:
+		if err != nil && !stderrors.Is(err, http.ErrServerClosed) {
+			t.Fatalf("ListenAndServe: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatalf("ListenAndServe did not exit after shutdown")
+	}
+
+	apiLine := fmt.Sprintf("API listening on http://127.0.0.1:%d/", actualPort)
+	uiLine := fmt.Sprintf("Web UI available at http://127.0.0.1:%d/ui/", actualPort)
+	if !strings.Contains(logs.String(), apiLine) {
+		t.Fatalf("expected log line %q in logs: %s", apiLine, logs.String())
+	}
+	if !strings.Contains(logs.String(), uiLine) {
+		t.Fatalf("expected log line %q in logs: %s", uiLine, logs.String())
+	}
+}
+
+func findFreeTCPPort(t *testing.T) int {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen on port 0: %v", err)
+	}
+	defer ln.Close()
+
+	addr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("unexpected address type %T", ln.Addr())
+	}
+	return addr.Port
 }
 
 func TestHandleAllRunsStreamMethodNotAllowed(t *testing.T) {
