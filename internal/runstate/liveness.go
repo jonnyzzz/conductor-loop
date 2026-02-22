@@ -2,6 +2,8 @@
 package runstate
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -28,29 +30,37 @@ func ReadRunInfoWithClock(path string, now func() time.Time) (*storage.RunInfo, 
 		return nil, err
 	}
 
-	if !shouldCheckLiveness(info) {
+	if !shouldCheckLiveness(info) && !shouldPromoteDoneCompletion(info, path) {
 		return info, nil
 	}
 
 	changed := false
 	if err := storage.UpdateRunInfo(path, func(current *storage.RunInfo) error {
-		if !shouldCheckLiveness(current) {
+		if shouldCheckLiveness(current) {
+			if runAlive(current) {
+				return nil
+			}
+			if hasTaskDoneMarker(path) {
+				markCompletedByDone(current, now)
+			} else {
+				current.Status = storage.StatusFailed
+				if current.EndTime.IsZero() {
+					current.EndTime = now().UTC()
+				}
+				if current.ExitCode == 0 {
+					current.ExitCode = staleRunExitCode
+				}
+				if strings.TrimSpace(current.ErrorSummary) == "" {
+					current.ErrorSummary = "reconciled stale running status: process is not alive"
+				}
+			}
+			changed = true
 			return nil
 		}
-		if runAlive(current) {
-			return nil
+		if shouldPromoteDoneCompletion(current, path) {
+			markCompletedByDone(current, now)
+			changed = true
 		}
-		current.Status = storage.StatusFailed
-		if current.EndTime.IsZero() {
-			current.EndTime = now().UTC()
-		}
-		if current.ExitCode == 0 {
-			current.ExitCode = staleRunExitCode
-		}
-		if strings.TrimSpace(current.ErrorSummary) == "" {
-			current.ErrorSummary = "reconciled stale running status: process is not alive"
-		}
-		changed = true
 		return nil
 	}); err != nil {
 		return nil, err
@@ -60,6 +70,71 @@ func ReadRunInfoWithClock(path string, now func() time.Time) (*storage.RunInfo, 
 		return info, nil
 	}
 	return storage.ReadRunInfo(path)
+}
+
+func shouldPromoteDoneCompletion(info *storage.RunInfo, runInfoPath string) bool {
+	if info == nil || !hasTaskDoneMarker(runInfoPath) {
+		return false
+	}
+	status := strings.TrimSpace(info.Status)
+	switch status {
+	case storage.StatusCompleted:
+		return false
+	case storage.StatusRunning:
+		return !runAlive(info)
+	case storage.StatusFailed:
+		// Heal previously reconciled stale failures when DONE exists.
+		return info.ExitCode == staleRunExitCode
+	default:
+		return false
+	}
+}
+
+func markCompletedByDone(info *storage.RunInfo, now func() time.Time) {
+	if info == nil {
+		return
+	}
+	info.Status = storage.StatusCompleted
+	if info.EndTime.IsZero() {
+		info.EndTime = now().UTC()
+	}
+	if info.ExitCode < 0 {
+		info.ExitCode = 0
+	}
+	const doneSummary = "reconciled stale running status: task DONE marker is present"
+	switch strings.TrimSpace(info.ErrorSummary) {
+	case "", "reconciled stale running status: process is not alive":
+		info.ErrorSummary = doneSummary
+	}
+}
+
+func hasTaskDoneMarker(runInfoPath string) bool {
+	taskDir, ok := taskDirFromRunInfoPath(runInfoPath)
+	if !ok {
+		return false
+	}
+	donePath := filepath.Join(taskDir, "DONE")
+	info, err := os.Stat(donePath)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
+}
+
+func taskDirFromRunInfoPath(runInfoPath string) (string, bool) {
+	runDir := filepath.Dir(strings.TrimSpace(runInfoPath))
+	if runDir == "." || runDir == "" {
+		return "", false
+	}
+	runsDir := filepath.Dir(runDir)
+	if filepath.Base(runsDir) != "runs" {
+		return "", false
+	}
+	taskDir := filepath.Dir(runsDir)
+	if taskDir == "." || taskDir == "" || taskDir == string(filepath.Separator) {
+		return "", false
+	}
+	return taskDir, true
 }
 
 func shouldCheckLiveness(info *storage.RunInfo) bool {
