@@ -64,6 +64,8 @@ jobs:
         run: |
           set -euo pipefail
           ls -la dist
+          test -f LICENSE
+          test -f NOTICE
           test -f install.sh
           test -f run-agent.cmd
           bash -n install.sh
@@ -83,6 +85,8 @@ jobs:
         with:
           tag_name: ${{ github.event.release.tag_name }}
           files: |
+            LICENSE
+            NOTICE
             install.sh
             run-agent.cmd
             dist/run-agent-linux-amd64

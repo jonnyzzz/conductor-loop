@@ -22,7 +22,11 @@ Conductor Loop is currently in pre-release (`dev` version). It has comprehensive
 
 ### What license is Conductor Loop under?
 
-MIT License - see the LICENSE file for details. This means you can freely use, modify, and distribute it, including for commercial purposes.
+Apache License 2.0 - see the [LICENSE](../../LICENSE),
+[NOTICE](../../NOTICE), and
+[Third-Party License Inventory](../legal/THIRD_PARTY_LICENSES.md). This is a
+permissive license that allows commercial use, modification, and
+redistribution, including an express patent grant.
 
 ---
 

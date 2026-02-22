@@ -856,7 +856,9 @@ Contributors are recognized in several ways:
 
 ## License
 
-By contributing to Conductor Loop, you agree that your contributions will be licensed under the MIT License.
+By contributing to Conductor Loop, you agree that your contributions will be
+licensed under the Apache License 2.0 (see [LICENSE](../../LICENSE) and
+[NOTICE](../../NOTICE)).
 
 ---
 

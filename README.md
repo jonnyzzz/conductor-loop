@@ -1,6 +1,6 @@
 # Conductor Loop - Agent Orchestration Framework
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 **Conductor Loop** is a powerful agent orchestration framework that enables running AI agents (Claude, Codex, Gemini, Perplexity, xAI) with advanced features like the Ralph Loop for automatic task management, hierarchical task execution, live log streaming, and a beautiful web UI for monitoring.
 
@@ -193,7 +193,8 @@ Run `./bin/run-agent validate` to check your installed agent versions.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+Apache License 2.0 - see [LICENSE](LICENSE), [NOTICE](NOTICE), and
+[Third-Party License Inventory](docs/legal/THIRD_PARTY_LICENSES.md).
 
 ## Contributing
 
