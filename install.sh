@@ -73,8 +73,15 @@ normalize_download_base() {
     */releases/latest/download)
       printf '%s\n' "$base"
       ;;
+    */releases/latest)
+      printf '%s/download\n' "$base"
+      ;;
     */releases/download)
       printf '%s/latest/download\n' "${base%/download}"
+      ;;
+    */releases/download/*)
+      # Enforce always-latest behavior even if callers pass a pinned tag path.
+      printf '%s/releases/latest/download\n' "${base%%/releases/download/*}"
       ;;
     */releases)
       printf '%s/latest/download\n' "$base"

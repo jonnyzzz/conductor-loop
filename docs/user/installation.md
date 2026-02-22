@@ -37,6 +37,7 @@ The installer:
 - Detects your OS/arch (Linux/macOS)
 - Downloads from `https://run-agent.jonnyzzz.com/releases/latest/download` first
 - Falls back to GitHub release assets if mirror download fails
+- Canonicalizes `/releases`, `/releases/download`, and `/releases/download/<tag>` inputs to `/releases/latest/download`
 - Installs to `/usr/local/bin/run-agent` by default
 
 Optional overrides:
@@ -63,7 +64,7 @@ This smoke check verifies:
 - install from latest mirror URL
 - update when latest asset changes
 - fallback to secondary download base
-- URL normalization for `/releases`, `/releases/download`, and `/releases/latest/download`
+- URL normalization for `/releases`, `/releases/download`, `/releases/download/<tag>`, and `/releases/latest/download`
 
 Current expectation: `install.sh` does not verify checksums yet; it relies on trusted HTTPS endpoints.
 

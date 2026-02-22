@@ -237,34 +237,41 @@ base_url="http://127.0.0.1:${port}"
 mirror_base_releases="${base_url}/mirror/releases"
 mirror_base_download="${base_url}/mirror/releases/download"
 mirror_base_latest="${base_url}/mirror/releases/latest/download"
+mirror_base_pinned="${base_url}/mirror/releases/download/v0.0.0-pinned"
 fallback_base_latest="${base_url}/github/releases/latest/download"
+fallback_base_missing="${base_url}/github-missing/releases/latest/download"
 
 install_dir="$tmp_dir/install/bin"
 mkdir -p "$install_dir"
 installed_binary="$install_dir/run-agent"
 
-log "step 1/3: install from mirror using /releases base (normalizes to latest/download)"
+log "step 1/4: install from mirror using /releases base (normalizes to latest/download)"
 run_installer "$mirror_base_releases" "$fallback_base_latest"
 test -x "$installed_binary" || fail "installed binary is missing or not executable: $installed_binary"
 assert_installed_hash "$asset_v1"
 hash_step1="$(sha256_file "$installed_binary")"
 
-log "step 2/3: update from mirror using /releases/download base"
+log "step 2/4: update from mirror using /releases/download base"
 cp "$asset_v2" "$mirror_latest_asset"
 run_installer "$mirror_base_download" "$fallback_base_latest"
 assert_installed_hash "$asset_v2"
 hash_step2="$(sha256_file "$installed_binary")"
 [ "$hash_step1" != "$hash_step2" ] || fail 'update flow did not change installed binary'
 
-log "step 3/3: fallback to secondary base when mirror latest asset is missing"
+log "step 3/4: fallback to secondary base when mirror latest asset is missing"
 rm -f "$mirror_latest_asset"
 cp "$asset_v1" "$fallback_latest_asset"
 run_installer "$mirror_base_latest" "$fallback_base_latest"
 assert_installed_hash "$asset_v1"
+
+log "step 4/4: pinned-style /releases/download/<tag> base canonicalizes to latest/download"
+cp "$asset_v2" "$mirror_latest_asset"
+run_installer "$mirror_base_pinned" "$fallback_base_missing"
+assert_installed_hash "$asset_v2"
 
 version_output="$("$installed_binary" --version 2>&1 || true)"
 if [ -z "$version_output" ]; then
   fail 'installed binary did not return output for --version'
 fi
 
-log "PASS: install/update/latest/fallback smoke checks succeeded for asset ${asset_name}"
+log "PASS: install/update/latest/fallback/canonicalization smoke checks succeeded for asset ${asset_name}"
