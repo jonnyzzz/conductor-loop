@@ -32,6 +32,7 @@ func newRootCmd() *cobra.Command {
 
 	cmd.AddCommand(newTaskCmd())
 	cmd.AddCommand(newGoalCmd())
+	cmd.AddCommand(newWorkflowCmd())
 	cmd.AddCommand(newJobCmd())
 	cmd.AddCommand(newWrapCmd())
 	cmd.AddCommand(newShellSetupCmd())

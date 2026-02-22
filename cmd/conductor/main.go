@@ -68,6 +68,7 @@ func newRootCmd() *cobra.Command {
 
 	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newGoalCmd())
+	cmd.AddCommand(newWorkflowCmd())
 	cmd.AddCommand(newTaskCmd())
 	cmd.AddCommand(newJobCmd())
 	cmd.AddCommand(newProjectCmd())
