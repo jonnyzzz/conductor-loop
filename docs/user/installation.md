@@ -143,6 +143,22 @@ echo "your-claude-token-here" > ~/.conductor/tokens/claude.token
 chmod 600 ~/.conductor/tokens/*.token
 ```
 
+#### 5. Start with Startup Wrappers (Recommended)
+
+```bash
+# Full server (task execution enabled)
+./scripts/start-conductor.sh --config ~/.conductor/config.yaml --root ~/.conductor/runs
+
+# Monitor-only mode (read-only API/UI)
+./scripts/start-run-agent-monitor.sh --config ~/.conductor/config.yaml --root ~/.conductor/runs
+
+# Background mode with PID/log files
+./scripts/start-conductor.sh --background --config ~/.conductor/config.yaml --root ~/.conductor/runs
+
+# Smoke-check startup wrappers
+go test ./test/integration -run StartupScript -count=1
+```
+
 ### Option 3: Docker Deployment
 
 #### Using Docker Compose
@@ -362,14 +378,28 @@ run-agent shell-setup uninstall
 ### Test the Server
 
 ```bash
-# Start the server
-conductor --config ~/.conductor/config.yaml --root $(pwd)
+# Start the server (foreground)
+./scripts/start-conductor.sh --config ~/.conductor/config.yaml --root ~/.conductor/runs
+
+# Start monitor-only mode in background
+./scripts/start-run-agent-monitor.sh \
+  --config ~/.conductor/config.yaml \
+  --root ~/.conductor/runs \
+  --background
 
 # In another terminal, test the health endpoint
 curl http://localhost:14355/api/v1/health
 
 # Expected output:
 # {"status":"ok","version":"dev"}
+```
+
+Common overrides:
+
+```bash
+# Change host/port for either script
+CONDUCTOR_HOST=0.0.0.0 CONDUCTOR_PORT=15455 ./scripts/start-conductor.sh
+RUN_AGENT_MONITOR_HOST=0.0.0.0 RUN_AGENT_MONITOR_PORT=15456 ./scripts/start-run-agent-monitor.sh
 ```
 
 ### Run a Test Task

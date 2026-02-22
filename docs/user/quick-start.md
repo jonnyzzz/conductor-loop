@@ -48,8 +48,17 @@ chmod 600 ~/.conductor/tokens/codex.token
 Start the Conductor server:
 
 ```bash
-# Start the server
-./conductor --config config.yaml --root $(pwd)
+# Preferred wrapper (task execution enabled)
+./scripts/start-conductor.sh --config config.yaml --root ./runs
+
+# Optional monitor-only mode (no task execution, safe for dashboards)
+./scripts/start-run-agent-monitor.sh --config config.yaml --root ./runs
+
+# If you are not in a source checkout with scripts/, use the binary directly:
+conductor --config config.yaml --root ./runs
+
+# Background mode (writes PID/log files):
+./scripts/start-conductor.sh --background --config config.yaml --root ./runs
 
 # You should see:
 # conductor 2026/02/05 10:00:00 Starting Conductor Loop server
@@ -57,7 +66,7 @@ Start the Conductor server:
 # conductor 2026/02/05 10:00:00 Root directory: /Users/you/conductor-loop
 ```
 
-Leave this terminal running and open a new terminal for the next steps.
+If you start in foreground, leave this terminal running and open a new terminal for the next steps.
 
 ## Step 3: Test the Server
 

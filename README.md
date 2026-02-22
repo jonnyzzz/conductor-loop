@@ -51,17 +51,33 @@ storage:
   runs_dir: ./runs
 EOF
 
-# 3. Start the server
-./run-agent serve --config config.yaml --root $(pwd)
+# 3. Start the full conductor server (one command)
+./scripts/start-conductor.sh --config config.yaml --root ./runs
 
-# 4. Open the web UI (default port: 14355)
+# 4. Or start monitor-only mode (no task execution)
+./scripts/start-run-agent-monitor.sh --config config.yaml --root ./runs
+
+# 5. Open the web UI (default port: 14355)
 open http://localhost:14355/
 
-# 5. Watch a task until completion (waits for all sub-tasks to finish)
+# 6. Watch a task until completion (waits for all sub-tasks to finish)
 ./run-agent server watch --project my-project --timeout 30m
 ```
 
 See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
+
+Daily startup wrappers:
+
+```bash
+# Conductor server (task execution enabled)
+./scripts/start-conductor.sh
+
+# Monitor-only server (run-agent serve --disable-task-start)
+./scripts/start-run-agent-monitor.sh --background
+
+# Conductor in background mode with explicit files
+./scripts/start-conductor.sh --background --pid-file ./runs/conductor.pid --log-file ./runs/conductor.log
+```
 
 ## Documentation Website (Docker-only)
 
