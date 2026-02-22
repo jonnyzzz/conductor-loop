@@ -304,10 +304,6 @@ func statusPIDAlive(alive *bool) string {
 	return fmt.Sprintf("%t", *alive)
 }
 
-func buildStatusRow(root, projectID, taskID string) (statusRow, error) {
-	return buildStatusRowWithOptions(root, projectID, taskID, activityOptions{})
-}
-
 func buildStatusRowWithOptions(root, projectID, taskID string, opts activityOptions) (statusRow, error) {
 	taskDir := filepath.Join(root, projectID, taskID)
 	row := statusRow{

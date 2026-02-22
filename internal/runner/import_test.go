@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
@@ -146,22 +145,4 @@ func TestNormalizeImportedProcessDefaults(t *testing.T) {
 	if !filepath.IsAbs(normalized.StdoutPath) {
 		t.Fatalf("stdout path should be absolute: %q", normalized.StdoutPath)
 	}
-}
-
-func waitForRunStatus(t *testing.T, path, status string, timeout time.Duration) *storage.RunInfo {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		info, err := storage.ReadRunInfo(path)
-		if err == nil && info.Status == status {
-			return info
-		}
-		time.Sleep(25 * time.Millisecond)
-	}
-	info, err := storage.ReadRunInfo(path)
-	if err != nil {
-		t.Fatalf("read run-info after timeout: %v", err)
-	}
-	t.Fatalf("timed out waiting for status %q, last=%q", status, info.Status)
-	return nil
 }
