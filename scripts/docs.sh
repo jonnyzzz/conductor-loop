@@ -44,6 +44,18 @@ run_compose() {
   )
 }
 
+file_contains() {
+  local needle="$1"
+  local path="$2"
+
+  if command -v rg >/dev/null 2>&1; then
+    rg -q --fixed-strings -- "$needle" "$path"
+    return
+  fi
+
+  grep -qF -- "$needle" "$path"
+}
+
 verify_output() {
   public_dir="$website_dir/public"
 
@@ -61,10 +73,10 @@ verify_output() {
   done
 
   # Verify key internal links resolved into generated HTML.
-  rg -q 'href=/docs/getting-started/' "$public_dir/index.html" || fail "missing link /docs/getting-started/ in home page"
-  rg -q 'href=/docs/docker-builds/' "$public_dir/docs/getting-started/index.html" || fail "missing link /docs/docker-builds/ in getting-started page"
-  rg -q 'href=/docs/architecture/' "$public_dir/docs/getting-started/index.html" || fail "missing link /docs/architecture/ in getting-started page"
-  rg -q 'href=/docs/message-bus/' "$public_dir/docs/getting-started/index.html" || fail "missing link /docs/message-bus/ in getting-started page"
+  file_contains 'href=/docs/getting-started/' "$public_dir/index.html" || fail "missing link /docs/getting-started/ in home page"
+  file_contains 'href=/docs/docker-builds/' "$public_dir/docs/getting-started/index.html" || fail "missing link /docs/docker-builds/ in getting-started page"
+  file_contains 'href=/docs/architecture/' "$public_dir/docs/getting-started/index.html" || fail "missing link /docs/architecture/ in getting-started page"
+  file_contains 'href=/docs/message-bus/' "$public_dir/docs/getting-started/index.html" || fail "missing link /docs/message-bus/ in getting-started page"
 
   printf 'Verification complete: generated docs and key internal links are valid.\n'
 }
