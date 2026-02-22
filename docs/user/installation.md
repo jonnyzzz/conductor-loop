@@ -264,6 +264,34 @@ sudo systemctl status conductor
 
 ### Windows
 
+#### Windows Launcher (`run-agent.cmd`)
+
+Release assets include a single-file `run-agent.cmd` launcher (no external `.ps1` sidecar).
+It resolves the executable in this order:
+
+1. `RUN_AGENT_BIN` environment variable (explicit override)
+2. `run-agent.exe` next to `run-agent.cmd`
+3. `dist\\run-agent-windows-<arch>.exe` next to `run-agent.cmd`
+4. `run-agent.exe` / `run-agent` from `PATH` (unless `RUN_AGENT_CMD_DISABLE_PATH=1`)
+
+Typical startup flow:
+
+```powershell
+# Download release assets into one folder:
+# - run-agent.cmd
+# - run-agent-windows-amd64.exe (or arm64 variant)
+
+.\run-agent.cmd --version
+.\run-agent.cmd serve --root C:\conductor-data
+```
+
+Explicit binary override:
+
+```powershell
+$env:RUN_AGENT_BIN = "C:\tools\run-agent.exe"
+.\run-agent.cmd status --root C:\conductor-data
+```
+
 #### Build on Windows
 
 ```powershell
@@ -309,6 +337,10 @@ nssm start Conductor
 ```bash
 conductor version
 run-agent --version
+```
+
+```powershell
+.\run-agent.cmd --version
 ```
 
 ### Optional: Enable Wrapped Shell Aliases (Safe Opt-In)

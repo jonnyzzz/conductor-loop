@@ -65,6 +65,7 @@ jobs:
           set -euo pipefail
           ls -la dist
           test -f install.sh
+          test -f run-agent.cmd
           bash -n install.sh
           test -f dist/run-agent-linux-amd64
           test -f dist/run-agent-linux-arm64
@@ -83,6 +84,7 @@ jobs:
           tag_name: ${{ github.event.release.tag_name }}
           files: |
             install.sh
+            run-agent.cmd
             dist/run-agent-linux-amd64
             dist/run-agent-linux-arm64
             dist/run-agent-darwin-amd64
