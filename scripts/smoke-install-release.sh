@@ -21,6 +21,7 @@ Options:
   --dist-dir <path>       Directory with release artifacts (default: ./dist)
   --install-script <path> Path to install.sh (default: ./install.sh)
   --asset-name <name>     Asset name override (default: run-agent-<os>-<arch>)
+  --no-build              Fail if asset is missing (skip auto-build fallback)
   --keep-temp             Keep temporary directory for debugging
   -h, --help              Show this help
 EOF
@@ -106,6 +107,7 @@ repo_root="$(cd "$script_dir/.." && pwd)"
 dist_dir="${DIST_DIR:-$repo_root/dist}"
 install_script="${INSTALL_SCRIPT:-$repo_root/install.sh}"
 asset_name=""
+build_if_missing=1
 keep_temp=0
 
 while [ "$#" -gt 0 ]; do
@@ -125,6 +127,10 @@ while [ "$#" -gt 0 ]; do
       asset_name="$2"
       shift 2
       ;;
+    --no-build)
+      build_if_missing=0
+      shift
+      ;;
     --keep-temp)
       keep_temp=1
       shift
@@ -142,14 +148,27 @@ done
 has_cmd python3 || fail 'python3 is required to run local release-like HTTP server'
 [ -f "$install_script" ] || fail "install script not found: $install_script"
 
+goos="$(detect_os)"
+goarch="$(detect_arch)"
+
 if [ -z "$asset_name" ]; then
-  goos="$(detect_os)"
-  goarch="$(detect_arch)"
   asset_name="run-agent-${goos}-${goarch}"
 fi
 
 source_asset="${dist_dir}/${asset_name}"
-[ -f "$source_asset" ] || fail "required release artifact not found: $source_asset"
+if [ ! -f "$source_asset" ]; then
+  if [ "$build_if_missing" -ne 1 ]; then
+    fail "required release artifact not found: $source_asset"
+  fi
+  has_cmd go || fail "required release artifact not found and 'go' is unavailable: $source_asset"
+  mkdir -p "$dist_dir"
+  log "release artifact missing; building ${asset_name} via go build"
+  (
+    cd "$repo_root"
+    GOOS="$goos" GOARCH="$goarch" go build -o "$source_asset" ./cmd/run-agent
+  ) || fail "failed to build release artifact: $source_asset"
+  chmod 0755 "$source_asset" || true
+fi
 
 tmp_dir="$(mktemp -d 2>/dev/null || mktemp -d -t installer-smoke)"
 server_pid=""

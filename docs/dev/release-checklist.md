@@ -24,6 +24,9 @@ Use release candidate artifacts in `dist/` and run:
 bash scripts/smoke-install-release.sh --dist-dir dist --install-script install.sh
 ```
 
+If `dist/run-agent-<os>-<arch>` is missing, the smoke script now auto-builds it
+with `go build ./cmd/run-agent`. Use `--no-build` to require prebuilt artifacts.
+
 This validates:
 - initial install from latest mirror URL
 - update behavior when latest asset changes

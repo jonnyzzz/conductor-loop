@@ -56,6 +56,9 @@ For release candidates, validate installer behavior against concrete artifacts b
 bash scripts/smoke-install-release.sh --dist-dir dist --install-script install.sh
 ```
 
+If the platform asset is missing from `dist/`, the smoke script auto-builds it
+from `./cmd/run-agent`. Pass `--no-build` to enforce prebuilt-only validation.
+
 This smoke check verifies:
 - install from latest mirror URL
 - update when latest asset changes
