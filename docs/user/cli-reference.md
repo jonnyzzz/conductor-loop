@@ -437,6 +437,42 @@ conductor job submit \
   --follow
 ```
 
+##### `conductor job submit-batch`
+
+Submit multiple jobs in one CLI invocation. Items are submitted sequentially using the same base flags.
+
+```bash
+conductor job submit-batch --project PROJECT --agent AGENT [--prompt PROMPT ...] [--prompt-file PATH ...] [--task TASK ...] [flags]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
+| `--project` | string | "" | Project ID (required) |
+| `--agent` | string | "" | Agent type, e.g. claude (required) |
+| `--task` | stringArray | [] | Optional task IDs per prompt (repeat; count must equal total prompts) |
+| `--prompt` | stringArray | [] | Inline prompt text (repeat) |
+| `--prompt-file` | stringArray | [] | Prompt file paths (repeat) |
+| `--project-root` | string | "" | Working directory for all tasks |
+| `--attach-mode` | string | "create" | Attach mode: create, attach, or resume |
+| `--depends-on` | stringArray | [] | Task dependencies applied to each submitted task |
+| `--wait` | bool | false | Wait for each submitted task completion |
+| `--follow` | bool | false | Stream output after each submit (implies wait behavior per item) |
+| `--json` | bool | false | Print each submission response as JSON |
+| `--continue-on-fail` | bool | false | Continue submitting remaining items if one fails |
+
+At least one `--prompt` or `--prompt-file` is required.
+
+**Example:**
+```bash
+conductor job submit-batch \
+  --project my-project \
+  --agent claude \
+  --prompt "Implement parser" \
+  --prompt "Add tests for parser" \
+  --continue-on-fail
+```
+
 ##### `conductor job list`
 
 List tasks on the conductor server.
@@ -1248,6 +1284,43 @@ run-agent job \
 | 0 | Success |
 | 1 | Agent failed |
 | 2 | Configuration error |
+
+##### `run-agent job batch`
+
+Run multiple local jobs sequentially from repeated prompt flags.
+
+```bash
+run-agent job batch --project <id> [--prompt TEXT ...] [--prompt-file PATH ...] [--task TASK ...] [flags]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--project` | string | "" | Project ID (required) |
+| `--task` | stringArray | [] | Optional task IDs per prompt (repeat; count must equal total prompts) |
+| `--prompt` | stringArray | [] | Inline prompt text (repeat) |
+| `--prompt-file` | stringArray | [] | Prompt file paths (repeat) |
+| `--root` | string | "" | Root directory |
+| `--config` | string | "" | Config file path |
+| `--agent` | string | "" | Agent type |
+| `--cwd` | string | "" | Working directory |
+| `--message-bus` | string | "" | Message bus path |
+| `--parent-run-id` | string | "" | Parent run ID applied to all items |
+| `--conductor-url` | string | "" | Conductor URL injected into run env |
+| `--timeout` | duration | 0 | Per-item idle output timeout |
+| `--follow`, `-f` | bool | false | Stream output while each item runs |
+| `--continue-on-fail` | bool | false | Continue executing remaining items if one fails |
+
+At least one `--prompt` or `--prompt-file` is required.
+
+**Example:**
+```bash
+run-agent job batch \
+  --project proj_abc123 \
+  --agent codex \
+  --prompt "Implement feature A" \
+  --prompt "Implement feature B" \
+  --continue-on-fail
+```
 
 #### `run-agent wrap`
 

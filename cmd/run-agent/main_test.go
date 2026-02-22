@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -151,6 +153,88 @@ func TestRunAgentWrapValidation(t *testing.T) {
 		t.Fatal("expected error for missing --agent")
 	}
 	if !strings.Contains(err.Error(), "agent is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestJobBatchSubcommandRegistered(t *testing.T) {
+	cmd := newJobCmd()
+	found := false
+	for _, sub := range cmd.Commands() {
+		if sub.Name() == "batch" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected batch subcommand on job command")
+	}
+}
+
+func TestLoadBatchPrompts(t *testing.T) {
+	promptFile := filepath.Join(t.TempDir(), "prompt.txt")
+	if err := os.WriteFile(promptFile, []byte("from file"), 0o644); err != nil {
+		t.Fatalf("write prompt file: %v", err)
+	}
+
+	got, err := loadBatchPrompts([]string{"inline"}, []string{promptFile})
+	if err != nil {
+		t.Fatalf("loadBatchPrompts: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 prompts, got %d", len(got))
+	}
+	if got[0] != "inline" {
+		t.Fatalf("unexpected inline prompt: %q", got[0])
+	}
+	if got[1] != "from file" {
+		t.Fatalf("unexpected file prompt: %q", got[1])
+	}
+}
+
+func TestLoadBatchPromptsRejectsEmptyPrompt(t *testing.T) {
+	_, err := loadBatchPrompts([]string{"  "}, nil)
+	if err == nil {
+		t.Fatal("expected error for empty prompt")
+	}
+	if !strings.Contains(err.Error(), "empty") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestJobBatchRejectsMismatchedTaskCount(t *testing.T) {
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"job", "batch",
+		"--project", "my-project",
+		"--agent", "claude",
+		"--prompt", "one",
+		"--prompt", "two",
+		"--task", "task-20260222-010101-one",
+	})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for mismatched task count")
+	}
+	if !strings.Contains(err.Error(), "must match prompt count") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestJobBatchRejectsInvalidTaskID(t *testing.T) {
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"job", "batch",
+		"--project", "my-project",
+		"--agent", "claude",
+		"--prompt", "one",
+		"--task", "not-a-task-id",
+	})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid task id")
+	}
+	if !strings.Contains(err.Error(), "invalid task ID") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

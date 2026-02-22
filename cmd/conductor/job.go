@@ -66,6 +66,7 @@ func newJobCmd() *cobra.Command {
 		},
 	}
 	cmd.AddCommand(newJobSubmitCmd())
+	cmd.AddCommand(newJobSubmitBatchCmd())
 	cmd.AddCommand(newJobListCmd())
 	return cmd
 }
@@ -150,14 +151,132 @@ func newJobListCmd() *cobra.Command {
 	return cmd
 }
 
+func newJobSubmitBatchCmd() *cobra.Command {
+	var (
+		server         string
+		project        string
+		agent          string
+		taskIDs        []string
+		prompts        []string
+		promptFiles    []string
+		projectRoot    string
+		attachMode     string
+		dependsOn      []string
+		wait           bool
+		follow         bool
+		jsonOutput     bool
+		continueOnFail bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "submit-batch",
+		Short: "Submit multiple jobs to the conductor server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			batchPrompts, err := loadBatchPromptsFromFlags(prompts, promptFiles)
+			if err != nil {
+				return err
+			}
+			if len(batchPrompts) == 0 {
+				return fmt.Errorf("at least one --prompt or --prompt-file is required")
+			}
+
+			if len(taskIDs) != 0 && len(taskIDs) != len(batchPrompts) {
+				return fmt.Errorf("--task count (%d) must match prompt count (%d)", len(taskIDs), len(batchPrompts))
+			}
+
+			var firstErr error
+			for i, promptText := range batchPrompts {
+				currentTaskID := generateTaskID()
+				if len(taskIDs) > 0 {
+					currentTaskID = strings.TrimSpace(taskIDs[i])
+					if currentTaskID == "" {
+						return fmt.Errorf("task at index %d is empty", i)
+					}
+				}
+
+				req := jobCreateRequest{
+					ProjectID:   project,
+					TaskID:      currentTaskID,
+					AgentType:   agent,
+					Prompt:      promptText,
+					ProjectRoot: projectRoot,
+					AttachMode:  attachMode,
+					DependsOn:   dependsOn,
+				}
+				err := jobSubmit(cmd.OutOrStdout(), server, req, wait, follow, jsonOutput)
+				if err != nil {
+					if !continueOnFail {
+						return fmt.Errorf("batch item %d (task %s): %w", i+1, currentTaskID, err)
+					}
+					if firstErr == nil {
+						firstErr = err
+					}
+					fmt.Fprintf(cmd.ErrOrStderr(), "batch item %d failed (task %s): %v\n", i+1, currentTaskID, err)
+					continue
+				}
+
+				if !jsonOutput {
+					fmt.Fprintf(cmd.OutOrStdout(), "batch item %d/%d submitted: %s\n", i+1, len(batchPrompts), currentTaskID)
+				}
+			}
+
+			if firstErr != nil {
+				return fmt.Errorf("one or more batch items failed: %w", firstErr)
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&server, "server", "http://localhost:14355", "conductor server URL")
+	cmd.Flags().StringVar(&project, "project", "", "project ID (required)")
+	cmd.Flags().StringVar(&agent, "agent", "", "agent type, e.g. claude (required)")
+	cmd.Flags().StringArrayVar(&taskIDs, "task", nil, "task ID per prompt (repeat; must match prompt count)")
+	cmd.Flags().StringArrayVar(&prompts, "prompt", nil, "task prompt text (repeat)")
+	cmd.Flags().StringArrayVar(&promptFiles, "prompt-file", nil, "path to file containing task prompt (repeat)")
+	cmd.Flags().StringVar(&projectRoot, "project-root", "", "working directory for all tasks")
+	cmd.Flags().StringVar(&attachMode, "attach-mode", "create", "attach mode: create, attach, or resume")
+	cmd.Flags().StringArrayVar(&dependsOn, "depends-on", nil, "task dependencies (repeat or comma-separate)")
+	cmd.Flags().BoolVar(&wait, "wait", false, "wait for each task completion by polling run status")
+	cmd.Flags().BoolVar(&follow, "follow", false, "stream task output after each submission (implies --wait)")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output each response as JSON")
+	cmd.Flags().BoolVar(&continueOnFail, "continue-on-fail", false, "continue submitting remaining jobs when one fails")
+	_ = cmd.MarkFlagRequired("project")
+	_ = cmd.MarkFlagRequired("agent")
+
+	return cmd
+}
+
+func loadBatchPromptsFromFlags(prompts []string, promptFiles []string) ([]string, error) {
+	result := make([]string, 0, len(prompts)+len(promptFiles))
+	for i, prompt := range prompts {
+		trimmed := strings.TrimSpace(prompt)
+		if trimmed == "" {
+			return nil, fmt.Errorf("prompt at index %d is empty", i)
+		}
+		result = append(result, prompt)
+	}
+	for _, promptFile := range promptFiles {
+		trimmedPath := strings.TrimSpace(promptFile)
+		if trimmedPath == "" {
+			return nil, fmt.Errorf("prompt-file cannot be empty")
+		}
+		promptText, err := loadPrompt("", trimmedPath)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, promptText)
+	}
+	return result, nil
+}
+
 // jobCreateRequest is the JSON body for POST /api/v1/tasks.
 type jobCreateRequest struct {
-	ProjectID   string `json:"project_id"`
-	TaskID      string `json:"task_id"`
-	AgentType   string `json:"agent_type"`
-	Prompt      string `json:"prompt"`
-	ProjectRoot string `json:"project_root,omitempty"`
-	AttachMode  string `json:"attach_mode,omitempty"`
+	ProjectID   string   `json:"project_id"`
+	TaskID      string   `json:"task_id"`
+	AgentType   string   `json:"agent_type"`
+	Prompt      string   `json:"prompt"`
+	ProjectRoot string   `json:"project_root,omitempty"`
+	AttachMode  string   `json:"attach_mode,omitempty"`
 	DependsOn   []string `json:"depends_on,omitempty"`
 }
 

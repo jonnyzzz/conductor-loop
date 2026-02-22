@@ -216,33 +216,7 @@ func newJobCmd() *cobra.Command {
 				}
 				opts.ConfigPath = found
 			}
-			if !follow {
-				return runner.RunJob(projectID, taskID, opts)
-			}
-			// Pre-allocate run directory so we can follow output immediately.
-			rootDir := opts.RootDir
-			if rootDir == "" {
-				if v := os.Getenv("RUNS_DIR"); v != "" {
-					rootDir = v
-				} else {
-					rootDir = "./runs"
-				}
-			}
-			runsDir := filepath.Join(rootDir, projectID, taskID, "runs")
-			if err := os.MkdirAll(runsDir, 0o755); err != nil {
-				return fmt.Errorf("create runs dir: %w", err)
-			}
-			_, runDir, err := runner.AllocateRunDir(runsDir)
-			if err != nil {
-				return fmt.Errorf("allocate run dir: %w", err)
-			}
-			opts.PreallocatedRunDir = runDir
-			jobDone := make(chan error, 1)
-			go func() {
-				jobDone <- runner.RunJob(projectID, taskID, opts)
-			}()
-			_ = followOutput(runDir, "")
-			return <-jobDone
+			return runSingleJob(projectID, taskID, opts, follow)
 		},
 	}
 
@@ -261,7 +235,164 @@ func newJobCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&opts.Timeout, "timeout", 0, "idle output timeout (e.g. 30m, 2h); 0 means no limit")
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "stream output in real-time while job runs")
 
+	cmd.AddCommand(newJobBatchCmd())
+
 	return cmd
+}
+
+func newJobBatchCmd() *cobra.Command {
+	var (
+		projectID      string
+		taskIDs        []string
+		prompts        []string
+		promptFiles    []string
+		opts           runner.JobOptions
+		follow         bool
+		continueOnFail bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch",
+		Short: "Run multiple agent jobs sequentially",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectID = strings.TrimSpace(projectID)
+			if projectID == "" {
+				return fmt.Errorf("project is required")
+			}
+
+			batchPrompts, err := loadBatchPrompts(prompts, promptFiles)
+			if err != nil {
+				return err
+			}
+			if len(batchPrompts) == 0 {
+				return fmt.Errorf("at least one --prompt or --prompt-file is required")
+			}
+
+			if strings.TrimSpace(opts.ConfigPath) == "" && strings.TrimSpace(opts.Agent) == "" {
+				found, err := config.FindDefaultConfig()
+				if err != nil {
+					return err
+				}
+				opts.ConfigPath = found
+			}
+
+			if len(taskIDs) != 0 && len(taskIDs) != len(batchPrompts) {
+				return fmt.Errorf("--task count (%d) must match prompt count (%d)", len(taskIDs), len(batchPrompts))
+			}
+
+			var firstErr error
+			for i, prompt := range batchPrompts {
+				currentTaskID := storage.GenerateTaskID("")
+				if len(taskIDs) > 0 {
+					currentTaskID = strings.TrimSpace(taskIDs[i])
+					if currentTaskID == "" {
+						return fmt.Errorf("task at index %d is empty", i)
+					}
+					if err := storage.ValidateTaskID(currentTaskID); err != nil {
+						return err
+					}
+				}
+
+				currentOpts := opts
+				currentOpts.Prompt = prompt
+				currentOpts.PromptPath = ""
+				currentOpts.PreallocatedRunDir = ""
+				currentOpts.PreviousRunID = ""
+
+				err := runSingleJob(projectID, currentTaskID, currentOpts, follow)
+				if err != nil {
+					if !continueOnFail {
+						return fmt.Errorf("batch item %d (task %s): %w", i+1, currentTaskID, err)
+					}
+					if firstErr == nil {
+						firstErr = err
+					}
+					fmt.Fprintf(cmd.ErrOrStderr(), "batch item %d failed (task %s): %v\n", i+1, currentTaskID, err)
+					continue
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "batch item %d/%d completed: %s\n", i+1, len(batchPrompts), currentTaskID)
+			}
+
+			if firstErr != nil {
+				return fmt.Errorf("one or more batch items failed: %w", firstErr)
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&projectID, "project", "", "project id")
+	cmd.Flags().StringArrayVar(&taskIDs, "task", nil, "task id per prompt (repeat; must match prompt count)")
+	cmd.Flags().StringVar(&opts.RootDir, "root", "", "run-agent root directory")
+	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "config file path")
+	cmd.Flags().StringVar(&opts.Agent, "agent", "", "agent type")
+	cmd.Flags().StringArrayVar(&prompts, "prompt", nil, "prompt text (repeat)")
+	cmd.Flags().StringArrayVar(&promptFiles, "prompt-file", nil, "prompt file path (repeat)")
+	cmd.Flags().StringVar(&opts.WorkingDir, "cwd", "", "working directory")
+	cmd.Flags().StringVar(&opts.MessageBusPath, "message-bus", "", "message bus path")
+	cmd.Flags().StringVar(&opts.ConductorURL, "conductor-url", "", "conductor server URL (e.g. http://127.0.0.1:14355)")
+	cmd.Flags().StringVar(&opts.ParentRunID, "parent-run-id", "", "parent run id for all submitted jobs")
+	cmd.Flags().DurationVar(&opts.Timeout, "timeout", 0, "idle output timeout (e.g. 30m, 2h); 0 means no limit")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "stream output in real-time while each job runs")
+	cmd.Flags().BoolVar(&continueOnFail, "continue-on-fail", false, "continue submitting remaining jobs when one fails")
+
+	return cmd
+}
+
+func runSingleJob(projectID, taskID string, opts runner.JobOptions, follow bool) error {
+	if !follow {
+		return runner.RunJob(projectID, taskID, opts)
+	}
+	// Pre-allocate run directory so we can follow output immediately.
+	rootDir := opts.RootDir
+	if rootDir == "" {
+		if v := os.Getenv("RUNS_DIR"); v != "" {
+			rootDir = v
+		} else {
+			rootDir = "./runs"
+		}
+	}
+	runsDir := filepath.Join(rootDir, projectID, taskID, "runs")
+	if err := os.MkdirAll(runsDir, 0o755); err != nil {
+		return fmt.Errorf("create runs dir: %w", err)
+	}
+	_, runDir, err := runner.AllocateRunDir(runsDir)
+	if err != nil {
+		return fmt.Errorf("allocate run dir: %w", err)
+	}
+	opts.PreallocatedRunDir = runDir
+	jobDone := make(chan error, 1)
+	go func() {
+		jobDone <- runner.RunJob(projectID, taskID, opts)
+	}()
+	_ = followOutput(runDir, "")
+	return <-jobDone
+}
+
+func loadBatchPrompts(prompts []string, promptFiles []string) ([]string, error) {
+	result := make([]string, 0, len(prompts)+len(promptFiles))
+	for i, prompt := range prompts {
+		trimmed := strings.TrimSpace(prompt)
+		if trimmed == "" {
+			return nil, fmt.Errorf("prompt at index %d is empty", i)
+		}
+		result = append(result, prompt)
+	}
+	for _, promptFile := range promptFiles {
+		trimmedPath := strings.TrimSpace(promptFile)
+		if trimmedPath == "" {
+			return nil, fmt.Errorf("prompt-file cannot be empty")
+		}
+		content, err := os.ReadFile(trimmedPath)
+		if err != nil {
+			return nil, fmt.Errorf("read prompt file %q: %w", trimmedPath, err)
+		}
+		trimmed := strings.TrimSpace(string(content))
+		if trimmed == "" {
+			return nil, fmt.Errorf("prompt file %q is empty", trimmedPath)
+		}
+		result = append(result, string(content))
+	}
+	return result, nil
 }
 
 // resolveTaskID returns a valid task ID. If taskID is empty, a new ID is
