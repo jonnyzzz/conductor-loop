@@ -37,3 +37,8 @@ output-*.md
 /cover.html
 /output.md
 /run-agent
+
+# Hugo docs artifacts
+/website/public/
+/website/resources/
+/website/.hugo_build.lock

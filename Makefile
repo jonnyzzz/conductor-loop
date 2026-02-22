@@ -10,7 +10,7 @@ LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
 COVERAGE_THRESHOLD ?= 60
 
-.PHONY: build test test-coverage lint docker clean
+.PHONY: build test test-coverage lint docker docs-serve docs-build docs-verify clean
 
 build:
 	@mkdir -p $(BIN_DIR)
@@ -38,6 +38,15 @@ lint:
 
 docker:
 	docker build -t $(DOCKER_IMAGE) .
+
+docs-serve:
+	./scripts/docs.sh serve
+
+docs-build:
+	./scripts/docs.sh build
+
+docs-verify:
+	./scripts/docs.sh verify
 
 clean:
 	rm -rf $(BIN_DIR) run-agent

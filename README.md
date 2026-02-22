@@ -63,6 +63,24 @@ open http://localhost:14355/
 
 See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
 
+## Documentation Website (Docker-only)
+
+Conductor Loop documentation website lives in `website/` and is built with Hugo in Docker only.
+Local Hugo installation is intentionally not required.
+
+```bash
+# Start local docs preview on http://localhost:1313/
+./scripts/docs.sh serve
+
+# Build static docs to website/public/
+./scripts/docs.sh build
+
+# Verify generated artifacts and key internal links
+./scripts/docs.sh verify
+```
+
+See [Documentation Site Guide](docs/dev/documentation-site.md) for details.
+
 ## Architecture
 
 ```
@@ -97,6 +115,7 @@ See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
 
 ## Documentation
 
+- [Documentation Site Guide](docs/dev/documentation-site.md) - Docker-only Hugo docs workflow
 - [Installation Guide](docs/user/installation.md) - Installation instructions for all platforms
 - [Quick Start](docs/user/quick-start.md) - 5-minute tutorial
 - [Configuration](docs/user/configuration.md) - Complete config.yaml reference
@@ -109,7 +128,7 @@ See [Quick Start Guide](docs/user/quick-start.md) for detailed instructions.
 
 ### Developer Documentation
 
-- [Developer Guide](docs/dev/getting-started.md) - Contributing to Conductor Loop
+- [Developer Guide](docs/dev/development-setup.md) - Contributing to Conductor Loop
 - [Architecture](docs/dev/architecture.md) - System design and components
 - [Testing Guide](docs/dev/testing.md) - Running tests
 - [Release Checklist](docs/dev/release-checklist.md) - Release validation steps
@@ -140,7 +159,7 @@ Conductor Loop is designed for:
 ## Requirements
 
 - **Go**: 1.21 or higher
-- **Docker**: 20.10+ (optional, for containerized deployment)
+- **Docker**: 20.10+ (required for docs site serve/build; optional for non-container local runtime)
 - **Git**: Any recent version
 - **Node.js**: 18+ (for frontend development)
 - **API Tokens**: For your chosen agents (Claude, Codex, etc.)

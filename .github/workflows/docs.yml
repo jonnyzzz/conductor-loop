@@ -1,0 +1,21 @@
+name: Docs
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  hugo-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build docs via Docker
+        run: |
+          DOCKER_UID="$(id -u)" DOCKER_GID="$(id -g)" ./scripts/docs.sh build
+      - name: Verify generated docs artifacts and links
+        run: ./scripts/docs.sh verify
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-site
+          path: website/public

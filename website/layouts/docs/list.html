@@ -1,0 +1,17 @@
+{{ define "main" }}
+<section class="docs-header reveal">
+  <p class="eyebrow">Documentation</p>
+  <h1>{{ .Title }}</h1>
+  <p>{{ .Description }}</p>
+</section>
+
+<section class="cards reveal-delay">
+  {{ range .RegularPages.ByWeight }}
+  <a class="card" href="{{ .RelPermalink }}">
+    <h2>{{ .Title }}</h2>
+    <p>{{ .Description }}</p>
+    <span>Read guide -></span>
+  </a>
+  {{ end }}
+</section>
+{{ end }}

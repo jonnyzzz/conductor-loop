@@ -1,0 +1,21 @@
+{{ define "main" }}
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <h3>Guides</h3>
+    <ul>
+      {{ $current := .RelPermalink }}
+      {{ range (site.GetPage "section" "docs").RegularPages.ByWeight }}
+      <li>
+        <a href="{{ .RelPermalink }}"{{ if eq .RelPermalink $current }} class="active"{{ end }}>{{ .Title }}</a>
+      </li>
+      {{ end }}
+    </ul>
+  </aside>
+
+  <article class="docs-content reveal">
+    <p class="eyebrow">Guide</p>
+    <h1>{{ .Title }}</h1>
+    {{ .Content }}
+  </article>
+</div>
+{{ end }}
