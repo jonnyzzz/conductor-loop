@@ -11,6 +11,8 @@ import (
 
 	"github.com/jonnyzzz/conductor-loop/internal/agent"
 	"github.com/jonnyzzz/conductor-loop/internal/agent/claude"
+	"github.com/jonnyzzz/conductor-loop/internal/agent/codex"
+	"github.com/jonnyzzz/conductor-loop/internal/agent/gemini"
 	"github.com/jonnyzzz/conductor-loop/internal/agent/perplexity"
 	"github.com/jonnyzzz/conductor-loop/internal/agent/xai"
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
@@ -427,13 +429,19 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 	}); err != nil {
 		return idleTimedOut, errors.Wrap(err, "update run-info")
 	}
-	// For Claude: extract clean text from JSONL stream before falling back to raw copy.
-	if strings.ToLower(agentType) == "claude" {
+	// For stream-json CLI agents: extract clean text from JSON stream before
+	// falling back to raw copy.
+	switch strings.ToLower(agentType) {
+	case "claude":
 		if parseErr := claude.WriteOutputMDFromStream(runDir, info.StdoutPath); parseErr != nil {
 			log.Printf("JSONL parse for output.md failed (writing placeholder): %v", parseErr)
 			placeholder := "# Agent Output\n\n*The agent did not write output.md. Raw output is available in the stdout tab.*\n"
 			_ = os.WriteFile(filepath.Join(runDir, "output.md"), []byte(placeholder), 0o644)
 		}
+	case "codex":
+		_ = codex.WriteOutputMDFromStream(runDir, info.StdoutPath)
+	case "gemini":
+		_ = gemini.WriteOutputMDFromStream(runDir, info.StdoutPath)
 	}
 	if _, err := agent.CreateOutputMD(runDir, ""); err != nil {
 		return idleTimedOut, errors.Wrap(err, "ensure output.md")
@@ -660,7 +668,7 @@ func postRunEvent(busPath string, info *storage.RunInfo, msgType, body string) e
 func commandForAgent(agentType string) (string, []string, error) {
 	switch strings.ToLower(agentType) {
 	case "codex":
-		args := []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "-"}
+		args := []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "--json", "-"}
 		return "codex", args, nil
 	case "claude":
 		args := []string{
@@ -673,7 +681,7 @@ func commandForAgent(agentType string) (string, []string, error) {
 		}
 		return "claude", args, nil
 	case "gemini":
-		args := []string{"--screen-reader", "true", "--approval-mode", "yolo"}
+		args := []string{"--screen-reader", "true", "--approval-mode", "yolo", "--output-format", "stream-json"}
 		return "gemini", args, nil
 	default:
 		return "", nil, fmt.Errorf("unsupported agent type %q", agentType)

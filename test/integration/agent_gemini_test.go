@@ -178,6 +178,57 @@ func TestGeminiExecutionCumulativeStream(t *testing.T) {
 	}
 }
 
+func TestGeminiExecutionChunkedStream(t *testing.T) {
+	token := "test-token"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, _ := w.(http.Flusher)
+
+		chunks := []string{
+			"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello \"}]}}]}",
+			"\n",
+			"\n",
+			"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello world\"}]}}]}",
+			"\n\n",
+			"data: [DONE]\n\n",
+		}
+		for _, chunk := range chunks {
+			_, _ = io.WriteString(w, chunk)
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	runCtx := &agent.RunContext{
+		Prompt:     "hello gemini",
+		StdoutPath: filepath.Join(root, "agent-stdout.txt"),
+		StderrPath: filepath.Join(root, "agent-stderr.txt"),
+		Environment: map[string]string{
+			"GEMINI_API_KEY": token,
+		},
+	}
+
+	gem := &gemini.GeminiAgent{
+		BaseURL: server.URL,
+		Model:   "gemini-1.5-pro",
+	}
+	if err := gem.Execute(context.Background(), runCtx); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	stdoutBytes, err := os.ReadFile(runCtx.StdoutPath)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	if got := string(stdoutBytes); got != "Hello world" {
+		t.Fatalf("unexpected stdout: %q", got)
+	}
+}
+
 func TestGeminiExecutionUsesProcessEnvironmentToken(t *testing.T) {
 	token := "token-from-environment"
 	t.Setenv("GEMINI_API_KEY", token)

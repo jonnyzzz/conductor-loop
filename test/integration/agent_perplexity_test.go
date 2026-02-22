@@ -208,6 +208,61 @@ func TestPerplexityExecutionUsesRunContextToken(t *testing.T) {
 	}
 }
 
+func TestPerplexityExecutionChunkedStream(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher, _ := w.(http.Flusher)
+
+		chunks := []string{
+			"data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}",
+			"\n",
+			"\n",
+			"data: {\"choices\":[{\"delta\":{\"content\":\"Hello world\"}}],\"citations\":[\"https://chunk.example\"]}",
+			"\n\n",
+			"data: [DONE]\n\n",
+		}
+		for _, chunk := range chunks {
+			_, _ = io.WriteString(w, chunk)
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	runCtx := &agent.RunContext{
+		Prompt:     "Say hello",
+		StdoutPath: filepath.Join(root, "agent-stdout.txt"),
+		StderrPath: filepath.Join(root, "agent-stderr.txt"),
+	}
+
+	agentImpl := perplexity.NewPerplexityAgent(perplexity.Options{
+		Token:       "test-token",
+		APIEndpoint: server.URL,
+		HTTPClient:  server.Client(),
+	})
+	if err := agentImpl.Execute(context.Background(), runCtx); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	stdoutBytes, err := os.ReadFile(runCtx.StdoutPath)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	output := string(stdoutBytes)
+	if !strings.Contains(output, "Hello world") {
+		t.Fatalf("stdout missing content: %q", output)
+	}
+	if !strings.Contains(output, "Sources:") {
+		t.Fatalf("stdout missing sources section: %q", output)
+	}
+	if !strings.Contains(output, "https://chunk.example") {
+		t.Fatalf("stdout missing citation: %q", output)
+	}
+}
+
 func TestPerplexityExecutionSourcesFallbackToSearchResults(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")

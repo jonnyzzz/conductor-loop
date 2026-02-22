@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -79,6 +80,13 @@ func (a *CodexAgent) Execute(ctx context.Context, runCtx *agent.RunContext) (err
 		return err
 	}
 
+	// Extract output.md from JSON stream if not already written.
+	// Non-fatal: if parsing fails the caller's CreateOutputMD fallback handles it.
+	if runCtx.StdoutPath != "" {
+		runDir := filepath.Dir(runCtx.StdoutPath)
+		_ = WriteOutputMDFromStream(runDir, runCtx.StdoutPath)
+	}
+
 	return nil
 }
 
@@ -115,6 +123,7 @@ func codexArgs(workingDir string) []string {
 	args := []string{
 		"exec",
 		"--dangerously-bypass-approvals-and-sandbox",
+		"--json",
 		"-",
 	}
 	if strings.TrimSpace(workingDir) == "" {
@@ -123,6 +132,7 @@ func codexArgs(workingDir string) []string {
 	return []string{
 		"exec",
 		"--dangerously-bypass-approvals-and-sandbox",
+		"--json",
 		"-C",
 		workingDir,
 		"-",

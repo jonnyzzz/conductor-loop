@@ -14,11 +14,12 @@
     - `-C "$CWD"` - sets working directory
     - `-` - reads prompt from stdin
 
-TODO: We are not using -C parameter, and we do not use - option. Instead we use JSON stream output, and make it create all the files necessary
-
-Implementation Note (2026-02-20, Session #20): JSON stream support for Codex is deferred.
-The Claude backend was updated to use --output-format stream-json --verbose in this session,
-but Codex stream-json integration has not yet been implemented.
+Implementation Note (2026-02-22): Codex backend now runs:
+```bash
+codex exec --dangerously-bypass-approvals-and-sandbox --json -C "$CWD" -
+```
+`--json` enables verbose NDJSON events for deterministic parsing, while prompt
+input and working-directory behavior remain unchanged.
 
 Integrated into subsystem-agent-backend-codex.md.
 

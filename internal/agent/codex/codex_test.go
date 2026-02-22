@@ -58,9 +58,26 @@ func TestCodexArgs(t *testing.T) {
 	if len(args) == 0 || args[0] != "exec" {
 		t.Fatalf("unexpected args: %v", args)
 	}
+	hasJSON := false
+	for _, arg := range args {
+		if arg == "--json" {
+			hasJSON = true
+			break
+		}
+	}
+	if !hasJSON {
+		t.Fatalf("expected --json flag, got %v", args)
+	}
 	args = codexArgs("/tmp")
-	if len(args) < 4 || args[2] != "-C" {
-		t.Fatalf("expected -C in args, got %v", args)
+	foundCwd := false
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "-C" && args[i+1] == "/tmp" {
+			foundCwd = true
+			break
+		}
+	}
+	if !foundCwd {
+		t.Fatalf("expected -C /tmp in args, got %v", args)
 	}
 }
 

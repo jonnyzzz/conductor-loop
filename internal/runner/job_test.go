@@ -75,11 +75,47 @@ func TestCommandForAgent(t *testing.T) {
 	}
 }
 
+func TestCommandForAgentJSONFlags(t *testing.T) {
+	_, codexArgs, err := commandForAgent("codex")
+	if err != nil {
+		t.Fatalf("commandForAgent(codex): %v", err)
+	}
+	if !containsArg(codexArgs, "--json") {
+		t.Fatalf("expected codex args to include --json, got %v", codexArgs)
+	}
+
+	_, geminiArgs, err := commandForAgent("gemini")
+	if err != nil {
+		t.Fatalf("commandForAgent(gemini): %v", err)
+	}
+	if !containsArgPair(geminiArgs, "--output-format", "stream-json") {
+		t.Fatalf("expected gemini args to include --output-format stream-json, got %v", geminiArgs)
+	}
+}
+
 func TestEnvMap(t *testing.T) {
 	values := envMap([]string{"A=1", "B=2"})
 	if values["A"] != "1" || values["B"] != "2" {
 		t.Fatalf("unexpected env map: %+v", values)
 	}
+}
+
+func containsArg(args []string, want string) bool {
+	for _, arg := range args {
+		if arg == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsArgPair(args []string, key, value string) bool {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == key && args[i+1] == value {
+			return true
+		}
+	}
+	return false
 }
 
 func TestIsRestAgent(t *testing.T) {

@@ -18,6 +18,7 @@ import (
 
 const (
 	envCodexHelperMode       = "CODEX_HELPER_MODE"
+	envCodexHelperOutputMode = "CODEX_HELPER_OUTPUT_MODE"
 	envCodexExpectedPrompt   = "CODEX_EXPECT_PROMPT"
 	envCodexExpectedCwd      = "CODEX_EXPECT_CWD"
 	envCodexExpectedEnvKey   = "CODEX_EXPECT_ENV_KEY"
@@ -163,6 +164,70 @@ func TestCodexExecutionPromptFromFile(t *testing.T) {
 	}
 }
 
+func TestCodexWritesOutputMDFromJSONStream(t *testing.T) {
+	root := t.TempDir()
+	workingDir := filepath.Join(root, "work")
+	if err := os.MkdirAll(workingDir, 0o755); err != nil {
+		t.Fatalf("mkdir working dir: %v", err)
+	}
+	resolvedWorkingDir := workingDir
+	if resolved, err := filepath.EvalSymlinks(workingDir); err == nil {
+		resolvedWorkingDir = resolved
+	}
+
+	runDir := t.TempDir()
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+	stderrPath := filepath.Join(runDir, "agent-stderr.txt")
+	prompt := "prompt for codex stream parser"
+
+	codexPath := filepath.Join(root, codexBinaryName())
+	if err := copyFile(os.Args[0], codexPath, 0o755); err != nil {
+		t.Fatalf("copy codex helper: %v", err)
+	}
+	pathEnv := root + string(os.PathListSeparator) + os.Getenv("PATH")
+	t.Setenv("PATH", pathEnv)
+
+	t.Setenv(envCodexHelperMode, "1")
+	t.Setenv(envCodexHelperOutputMode, "json-stream")
+	t.Setenv(envCodexExpectedPrompt, prompt)
+	t.Setenv(envCodexExpectedCwd, resolvedWorkingDir)
+	t.Setenv(envCodexExpectedEnvKey, "OPENAI_API_KEY")
+	t.Setenv(envCodexExpectedEnvValue, "token-json-stream")
+
+	runCtx := &agent.RunContext{
+		Prompt:     prompt,
+		WorkingDir: resolvedWorkingDir,
+		StdoutPath: stdoutPath,
+		StderrPath: stderrPath,
+		Environment: map[string]string{
+			"OPENAI_API_KEY": "token-json-stream",
+		},
+	}
+
+	agentImpl := &codex.CodexAgent{}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := agentImpl.Execute(ctx, runCtx); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	outputBytes, err := os.ReadFile(filepath.Join(runDir, "output.md"))
+	if err != nil {
+		t.Fatalf("read output.md: %v", err)
+	}
+	if string(outputBytes) != "codex stream result" {
+		t.Fatalf("unexpected output.md content: %q", string(outputBytes))
+	}
+
+	stdoutBytes, err := os.ReadFile(stdoutPath)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	if !strings.Contains(string(stdoutBytes), "\"item\"") {
+		t.Fatalf("expected JSON stream output, got %q", string(stdoutBytes))
+	}
+}
+
 func TestCodexExecutionFailurePropagatesError(t *testing.T) {
 	root := t.TempDir()
 	workingDir := filepath.Join(root, "work")
@@ -248,6 +313,7 @@ func runCodexHelper() error {
 	expectedArgs := []string{
 		"exec",
 		"--dangerously-bypass-approvals-and-sandbox",
+		"--json",
 		"-C",
 		expectedCwd,
 		"-",
@@ -290,7 +356,13 @@ func runCodexHelper() error {
 		os.Exit(code)
 	}
 
-	_, _ = fmt.Fprintf(os.Stdout, "prompt:%s\n", string(data))
+	switch strings.TrimSpace(os.Getenv(envCodexHelperOutputMode)) {
+	case "json-stream":
+		_, _ = fmt.Fprintln(os.Stdout, `{"type":"item.started","item":{"type":"tool_call","name":"Read"}}`)
+		_, _ = fmt.Fprintln(os.Stdout, `{"type":"item.completed","item":{"type":"agent_message","text":"codex stream result"}}`)
+	default:
+		_, _ = fmt.Fprintf(os.Stdout, "prompt:%s\n", string(data))
+	}
 	_, _ = fmt.Fprintf(os.Stderr, "cwd:%s\n", cwd)
 	_, _ = fmt.Fprintf(os.Stderr, "env:%s=%s\n", expectedEnvKey, expectedEnvValue)
 	return nil
