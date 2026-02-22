@@ -49,7 +49,7 @@ attachments:
     label: agent stdout
 links:
   - kind: output
-    path: /Users/jonnyzzz/run-agent/conductor-loop/task-20260205-docs/runs/run_20260205-123456-12345/output.md
+    path: /path/to/run-agent/conductor-loop/task-20260205-docs/runs/run_20260205-123456-12345/output.md
 meta:
   agent_type: codex
 ---

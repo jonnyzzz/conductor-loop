@@ -179,7 +179,7 @@ exit_code: 0                              # Exit code (-1 if not finished)
 status: completed                         # running, completed, failed
 
 # Working directory and paths
-cwd: /Users/user/projects/my-project      # Working directory
+cwd: /path/to/projects/my-project      # Working directory
 prompt_path: ""                           # Path to prompt file (optional)
 output_path: output.md                    # Path to output file
 stdout_path: stdout                       # Path to stdout capture
@@ -282,7 +282,7 @@ status: running
 start_time: 2026-02-05T10:30:45.123Z
 end_time: 0001-01-01T00:00:00Z          # Zero value (not finished)
 exit_code: -1                            # Not finished
-cwd: /Users/user/projects/my-project
+cwd: /path/to/projects/my-project
 stdout_path: stdout
 stderr_path: stderr
 ```
@@ -300,7 +300,7 @@ status: completed
 start_time: 2026-02-05T10:30:45.123Z
 end_time: 2026-02-05T10:35:50.456Z      # Completion time
 exit_code: 0                             # Success
-cwd: /Users/user/projects/my-project
+cwd: /path/to/projects/my-project
 output_path: output.md
 stdout_path: stdout
 stderr_path: stderr
@@ -320,7 +320,7 @@ status: failed
 start_time: 2026-02-05T10:30:45.123Z
 end_time: 2026-02-05T10:31:50.123Z      # Failed quickly
 exit_code: 1                             # Error code
-cwd: /Users/user/projects/my-project
+cwd: /path/to/projects/my-project
 stderr_path: stderr
 ```
 
@@ -337,7 +337,7 @@ pgid: 67890
 status: running
 start_time: 2026-02-05T10:45:12.789Z
 exit_code: -1
-cwd: /Users/user/projects/my-project
+cwd: /path/to/projects/my-project
 ```
 
 ### Example: Restart Chain

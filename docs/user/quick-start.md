@@ -64,7 +64,7 @@ conductor --config config.yaml --root ./runs
 # conductor 2026/02/05 10:00:00 Starting Conductor Loop server
 # conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:14355/
 # conductor 2026/02/05 10:00:00 Web UI available at http://localhost:14355/ui/
-# conductor 2026/02/05 10:00:00 Root directory: /Users/you/conductor-loop
+# conductor 2026/02/05 10:00:00 Root directory: <project-root>
 ```
 
 If you start in foreground, leave this terminal running and open a new terminal for the next steps.
@@ -134,13 +134,13 @@ Status values:
 Use `run-agent status` to scan each task's latest run and show only active (`status: running`) runs:
 
 ```bash
-run-agent status --root /Users/you/run-agent --project my-project --status running
+run-agent status --root <run-agent-root> --project my-project --status running
 ```
 
 For automation-friendly output, add `--concise`:
 
 ```bash
-run-agent status --root /Users/you/run-agent --project my-project --status running --concise
+run-agent status --root <run-agent-root> --project my-project --status running --concise
 ```
 
 When no rows match, the command prints an explicit no-match message (instead of silent empty output).

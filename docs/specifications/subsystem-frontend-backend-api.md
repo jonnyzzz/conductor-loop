@@ -80,8 +80,8 @@ Get project details.
   "id": "swarm",
   "last_activity": "2026-02-04T17:31:55Z",
   "home_folders": {
-    "project_root": "/Users/user/projects/swarm",
-    "source_folders": ["/Users/user/projects/swarm/src"],
+    "project_root": "/path/to/projects/swarm",
+    "source_folders": ["/path/to/projects/swarm/src"],
     "additional_folders": []
   },
   "tasks": [
@@ -153,7 +153,7 @@ Create a new task or restart an existing task.
   "task_id": "20260204-180000-newfeature",
   "prompt": "Add feature X to the system...",
   "agent_type": "codex",
-  "project_root": "/Users/user/projects/myproject",
+  "project_root": "/path/to/projects/myproject",
   "attach_mode": "restart",
   "config": {
     "JRUN_PARENT_ID": "20260204-170000-11111"
@@ -191,7 +191,7 @@ Get run metadata.
   "start_time": "2026-02-04T17:30:42.569Z",
   "end_time": "2026-02-04T17:31:55.789Z",
   "exit_code": 0,
-  "cwd": "/Users/user/projects/swarm",
+  "cwd": "/path/to/projects/swarm",
   "backend_provider": "anthropic",
   "backend_model": "claude-sonnet-4-5"
 }

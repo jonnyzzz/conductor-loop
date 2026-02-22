@@ -12,7 +12,7 @@
   - `-p` - prompt mode
   - `--input-format text --output-format text` - text I/O for simplicity
 
-TODO:: Review how ~/Work/mcp-steroid/test* integrates with agents, apparently, you need --verbose and --output-format stream-json to make claude return the progress messages,
+TODO:: Review how <mcp-steroid-root>/test* integrates with agents, apparently, you need --verbose and --output-format stream-json to make claude return the progress messages,
 which are necessary for our work. Codex/Gemini JSON stream mode is now implemented; continue aligning parsing/normalization behavior across backends.
 
 Implementation Note (2026-02-20, Session #20): Claude backend updated to use

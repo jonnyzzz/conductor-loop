@@ -2,7 +2,7 @@
 
 ## Progress Snapshot (2026-02-21 19:40 local)
 
-- [x] Monitored run-agent task activity across `/Users/jonnyzzz/run-agent/*`.
+- [x] Monitored run-agent task activity across `<run-agent-root>/*`.
 - [x] Verified no currently running latest task-runs in tracked projects.
 - [x] Re-audited this file against conversation requests and expanded missing items.
 - [x] Reconciled stale running PID liveness in list/status paths with tests (`task-20260222-100450-status-liveness-reconcile`).
@@ -48,7 +48,7 @@
 - [ ] Continue recursive run-agent/conductor-loop delegation for large review and implementation batches.
 - [ ] Run additional parallel UX review passes and fold findings into implementation.
 - [ ] Continue explicit periodic "review status of sub agents/running agents" monitoring loop.
-- [ ] Review and integrate external release/update flow from `~/Work/devrig*` with simplified "always latest" path via controlled domain.
+- [ ] Review and integrate external release/update flow from `<devrig-root>*` with simplified "always latest" path via controlled domain.
 - [ ] Generate and integrate final product logo/favicon artifacts (Gemini + nanobanana workflow).
 - [ ] Keep UX review running in parallel while shipping fixes.
 
@@ -74,8 +74,8 @@
 ### Source Runs
 
 - `codex` task: `task-20260221-200300-review-codex` (partial findings captured from `agent-stderr.txt`; run manually stopped after report synthesis stalled).
-- `claude` task: `task-20260221-200301-review-claude` (full report at `/Users/jonnyzzz/run-agent/conductor-loop/task-20260221-200301-review-claude/runs/20260221-1902370000-58227-1/output.md`).
-- `gemini` task: `task-20260221-200302-review-gemini` (full report at `/Users/jonnyzzz/Work/conductor-loop/output.md`).
+- `claude` task: `task-20260221-200301-review-claude` (full report at `<run-agent-root>/conductor-loop/task-20260221-200301-review-claude/runs/20260221-1902370000-58227-1/output.md`).
+- `gemini` task: `task-20260221-200302-review-gemini` (full report at `<project-root>/output.md`).
 
 ### Aggregated Findings
 
@@ -107,3 +107,21 @@
 - [ ] `task-20260222-102130-output-synthesize-cli`: implement `run-agent output synthesize` + `conductor task synthesize` with merge/reduce/vote strategies and provenance.
 - [ ] `task-20260222-102140-review-quorum-cli`: implement `run-agent review quorum` + `conductor review run` to enforce 2+ reviewer quorum and structured verdicts.
 - [ ] `task-20260222-102150-iteration-loop-cli`: implement `run-agent iterate` + `conductor iterate` for fixed planning/review iteration loops with auto bus logging.
+
+## Release Finalization Bucket (2026-02-22 12:10 local)
+
+- [ ] `task-20260222-111500-ci-gha-green`: make GitHub Actions green on `main` by fixing current failures (`Lint` unused funcs, `Release Build` windows compile break in `internal/messagebus/lock_windows.go`) and verify with fresh runs.
+- [ ] `task-20260222-111510-startup-scripts`: add startup/bootstrapping scripts for local and release usage (single-command start path for conductor/run-agent serve, env/config wiring, health checks) plus docs.
+- [ ] `task-20260222-111520-release-v1`: deliver first stable release (non-prerelease), only after CI is green and startup scripts are merged; publish release assets and validate installer/download flows end-to-end.
+
+## New Task Intake (2026-02-22 12:36 local)
+
+- [ ] `task-20260222-111530-devrig-latest-release-flow`: review `<devrig-root>*` update/release logic and implement same approach here with no local version pinning (always resolve latest release).
+- [ ] `task-20260222-111540-hugo-docs-docker`: add project documentation site using Hugo, aligned with `<run-agent-root>` and `<mcp-steroid-root>/website`, with builds running only in Docker.
+- [ ] `task-20260222-111550-unified-run-agent-cmd`: consolidate run scripts into a single `run-agent.cmd` (pattern similar to `<intellij-root>/safepush.cmd`) and add integration tests for command behavior.
+
+## New Task Intake (2026-02-22 13:12 local)
+
+- [ ] `task-20260222-111600-license-apache20-audit`: review repository licensing posture and ensure Apache 2.0 compliance across source/docs/scripts/distribution artifacts.
+- [ ] `task-20260222-111610-internal-paths-audit`: audit repository for JetBrains-internal references and local absolute paths; remove/fix/sanitize where appropriate.
+- [ ] `task-20260222-111620-startup-url-visibility`: ensure conductor-loop startup clearly prints web server URL so operators can open UI quickly for current task progress.

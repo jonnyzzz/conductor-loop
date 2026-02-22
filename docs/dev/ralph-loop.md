@@ -216,7 +216,7 @@ The DONE file allows agents to signal task completion from within their executio
 
 **Path:** `{task_dir}/DONE`
 
-Example: `/home/user/run-agent/my-project/task-001/DONE`
+Example: `/path/to/run-agent/my-project/task-001/DONE`
 
 ### Creation
 

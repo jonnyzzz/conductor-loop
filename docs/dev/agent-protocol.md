@@ -129,16 +129,16 @@ type RunContext struct {
 **WorkingDir:**
 - Absolute path to working directory
 - Agent should execute in this directory
-- Example: `/home/user/projects/my-project`
+- Example: `/path/to/projects/my-project`
 
 **StdoutPath:**
 - Absolute path to stdout capture file
-- Example: `/home/user/run-agent/my-project/task-001/runs/20260205-150405123-12345/stdout`
+- Example: `/path/to/run-agent/my-project/task-001/runs/20260205-150405123-12345/stdout`
 - Agent must write all stdout to this file
 
 **StderrPath:**
 - Absolute path to stderr capture file
-- Example: `/home/user/run-agent/my-project/task-001/runs/20260205-150405123-12345/stderr`
+- Example: `/path/to/run-agent/my-project/task-001/runs/20260205-150405123-12345/stderr`
 - Agent must write all stderr to this file
 
 **Environment:**
@@ -153,13 +153,13 @@ runCtx := &agent.RunContext{
     ProjectID:  "my-project",
     TaskID:     "task-001",
     Prompt:     "Implement user authentication",
-    WorkingDir: "/home/user/projects/my-project",
-    StdoutPath: "/home/user/run-agent/.../stdout",
-    StderrPath: "/home/user/run-agent/.../stderr",
+    WorkingDir: "/path/to/projects/my-project",
+    StdoutPath: "/path/to/run-agent/.../stdout",
+    StderrPath: "/path/to/run-agent/.../stderr",
     Environment: map[string]string{
         "ANTHROPIC_API_KEY":  "sk-...",
-        "TASK_FOLDER":        "/home/user/run-agent/my-project/task-001",
-        "RUN_FOLDER":         "/home/user/run-agent/.../runs/20260205-150405123-12345",
+        "TASK_FOLDER":        "/path/to/run-agent/my-project/task-001",
+        "RUN_FOLDER":         "/path/to/run-agent/.../runs/20260205-150405123-12345",
         "JRUN_PROJECT_ID":    "my-project",
         "JRUN_TASK_ID":       "task-001",
         "JRUN_ID":            "20260205-150405123-12345",

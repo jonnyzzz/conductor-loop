@@ -90,11 +90,11 @@ exit_code: 0
 #### Path Fields
 
 ```yaml
-cwd: "/Users/user/projects/swarm"
-prompt_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/prompt.md"
-output_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/output.md"
-stdout_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stdout.txt"
-stderr_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stderr.txt"
+cwd: "/path/to/projects/swarm"
+prompt_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/prompt.md"
+output_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/output.md"
+stdout_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stdout.txt"
+stderr_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stderr.txt"
 ```
 
 - `cwd` (string): Current working directory where agent was executed (absolute path, OS-native)
@@ -225,11 +225,11 @@ pgid: 12345
 start_time: "2026-02-04T18:30:42.569Z"
 end_time: "2026-02-04T18:35:12.789Z"
 status: "completed"
-cwd: "/Users/user/projects/swarm"
-prompt_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/prompt.md"
-output_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/output.md"
-stdout_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stdout.txt"
-stderr_path: "/Users/user/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stderr.txt"
+cwd: "/path/to/projects/swarm"
+prompt_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/prompt.md"
+output_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/output.md"
+stdout_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stdout.txt"
+stderr_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stderr.txt"
 backend_provider: "anthropic"
 backend_model: "claude-sonnet-4-5"
 backend_endpoint: "https://api.anthropic.com/v1/messages"

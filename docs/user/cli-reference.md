@@ -86,7 +86,7 @@ conductor \
 ```
 conductor 2026/02/05 10:00:00 Starting Conductor Loop server
 conductor 2026/02/05 10:00:00 Config loaded from: config.yaml
-conductor 2026/02/05 10:00:00 Root directory: /Users/you/conductor-loop
+conductor 2026/02/05 10:00:00 Root directory: <project-root>
 conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:14355/
 conductor 2026/02/05 10:00:00 Web UI available at http://localhost:14355/ui/
 conductor 2026/02/05 10:00:00 Task execution: enabled
@@ -521,7 +521,7 @@ conductor goal decompose --project PROJECT (--goal TEXT | --goal-file PATH) [fla
 | `--out` | string | "" | Write spec to file; extension controls format (`.json`, `.yaml`, `.yml`) |
 
 **Behavior:**
-- Uses `/Users/jonnyzzz/Work/jonnyzzz.com-src/RLM.md` and `THE_PROMPT_v5.md` as declared semantics sources.
+- Uses `https://jonnyzzz.com/RLM.md` and `THE_PROMPT_v5.md` as declared semantics sources.
 - Generates a stable workflow DAG with deterministic task ordering and dependency links.
 - Same `--project` + goal content + strategy/template yields the same `workflow_id` and task IDs.
 
@@ -1183,7 +1183,7 @@ run-agent goal decompose --project PROJECT (--goal TEXT | --goal-file PATH) [fla
 | `--out` | string | "" | Write spec to file; extension controls format (`.json`, `.yaml`, `.yml`) |
 
 **Behavior:**
-- Uses `/Users/jonnyzzz/Work/jonnyzzz.com-src/RLM.md` and `THE_PROMPT_v5.md` as declared semantics sources.
+- Uses `https://jonnyzzz.com/RLM.md` and `THE_PROMPT_v5.md` as declared semantics sources.
 - Produces a predictable workflow schema with `workflow_id`, `tasks[]`, `depends_on[]`, `prompt_file`, and `agent`.
 - Deterministic: same input goal + project + strategy/template yields the same IDs and ordering.
 

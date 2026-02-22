@@ -6,23 +6,23 @@
 ## Verification Performed
 
 - Verified all absolute paths referenced in `prompts/continue-work.md` exist.
-- Ran `go build ./...` in `/Users/jonnyzzz/Work/conductor-loop` (pass).
-- Ran `go test ./...` in `/Users/jonnyzzz/Work/conductor-loop` (pass; all listed packages green).
+- Ran `go build ./...` in `<project-root>` (pass).
+- Ran `go test ./...` in `<project-root>` (pass; all listed packages green).
 - Checked `run-agent.sh` existence and invocation contract.
-- Validated monitor command form with `uv run python /Users/jonnyzzz/Work/conductor-loop/monitor-agents.py --help` (works).
+- Validated monitor command form with `uv run python <project-root>/monitor-agents.py --help` (works).
 - Cross-checked prompt statements against:
-  - `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-  - `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md`
-  - `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
-  - `/Users/jonnyzzz/Work/conductor-loop/Instructions.md`
-  - `/Users/jonnyzzz/Work/conductor-loop/DEVELOPMENT.md`
+  - `<project-root>/THE_PROMPT_v5.md`
+  - `<project-root>/ISSUES.md`
+  - `<project-root>/AGENTS.md`
+  - `<project-root>/Instructions.md`
+  - `<project-root>/DEVELOPMENT.md`
 
 ## Section-by-Section Feedback
 
 ### 1) Title + Context (`prompts/continue-work.md:1-8`)
 
 - Clear intent and project context.
-- Minor ambiguity: line 3 uses `~/Work/conductor-loop` while the rest of the prompt enforces absolute paths.
+- Minor ambiguity previously present in line 3 (`~/Work/conductor-loop`) was removed by switching to `<project-root>` placeholders.
 
 ### 2) Required Reading (`prompts/continue-work.md:9-20`)
 
