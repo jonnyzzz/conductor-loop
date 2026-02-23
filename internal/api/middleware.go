@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 )
 
 type apiError struct {
@@ -41,6 +43,10 @@ func apiErrorMethodNotAllowed() *apiError {
 	return &apiError{Status: http.StatusMethodNotAllowed, Code: "METHOD_NOT_ALLOWED", Message: "method not allowed"}
 }
 
+func apiErrorForbidden(message string) *apiError {
+	return &apiError{Status: http.StatusForbidden, Code: "FORBIDDEN", Message: message}
+}
+
 func apiErrorInternal(message string, err error) *apiError {
 	return &apiError{Status: http.StatusInternalServerError, Code: "INTERNAL", Message: message, Err: err}
 }
@@ -62,7 +68,12 @@ func (s *Server) writeError(w http.ResponseWriter, err *apiError) {
 		message = http.StatusText(status)
 	}
 	if err.Err != nil && s != nil && s.logger != nil {
-		s.logger.Printf("api error: %s: %v", message, err.Err)
+		obslog.Log(s.logger, "ERROR", "api", "request_error",
+			obslog.F("status", status),
+			obslog.F("code", code),
+			obslog.F("message", message),
+			obslog.F("error", err.Err),
+		)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -82,8 +93,20 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID := strings.TrimSpace(r.Header.Get(requestIDHeader))
+		if requestID == "" {
+			now := time.Now().UTC()
+			if s.now != nil {
+				now = s.now().UTC()
+			}
+			requestID = newRequestID(now)
+		}
+		ctx := withRequestID(r.Context(), requestID)
+		r = r.WithContext(ctx)
+
 		start := s.now()
 		recorder := &responseRecorder{ResponseWriter: w}
+		recorder.Header().Set(requestIDHeader, requestID)
 		next.ServeHTTP(recorder, r)
 		duration := s.now().Sub(start)
 		status := recorder.status
@@ -91,7 +114,19 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 			status = http.StatusOK
 		}
 		if s.logger != nil {
-			s.logger.Printf("%s %s %d %dB %s", r.Method, r.URL.Path, status, recorder.bytes, duration.Truncate(time.Millisecond))
+			projectID, taskID, runID := extractLogIdentifiers(r)
+			obslog.Log(s.logger, "INFO", "api", "request_completed",
+				obslog.F("request_id", requestID),
+				obslog.F("correlation_id", requestID),
+				obslog.F("method", r.Method),
+				obslog.F("path", r.URL.Path),
+				obslog.F("status", status),
+				obslog.F("bytes", recorder.bytes),
+				obslog.F("duration_ms", duration.Truncate(time.Millisecond).Milliseconds()),
+				obslog.F("project_id", projectID),
+				obslog.F("task_id", taskID),
+				obslog.F("run_id", runID),
+			)
 		}
 		s.metrics.RecordRequest(r.Method, status)
 	})
@@ -116,7 +151,8 @@ func (s *Server) withCORS(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 			w.Header().Add("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID, X-Conductor-Client")
+			w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID")
 		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -183,4 +219,43 @@ func containsWildcard(allowed []string) bool {
 		}
 	}
 	return false
+}
+
+func extractLogIdentifiers(r *http.Request) (projectID, taskID, runID string) {
+	if r == nil || r.URL == nil {
+		return "", "", ""
+	}
+	projectID = strings.TrimSpace(r.URL.Query().Get("project_id"))
+	taskID = strings.TrimSpace(r.URL.Query().Get("task_id"))
+	runID = strings.TrimSpace(r.URL.Query().Get("run_id"))
+
+	path := strings.TrimSpace(r.URL.Path)
+	if strings.HasPrefix(path, "/api/projects/") {
+		parts := splitPath(path, "/api/projects/")
+		if len(parts) > 0 && projectID == "" {
+			projectID = strings.TrimSpace(parts[0])
+		}
+		if len(parts) > 2 && parts[1] == "tasks" && taskID == "" {
+			taskID = strings.TrimSpace(parts[2])
+		}
+		if len(parts) > 4 && parts[3] == "runs" && runID == "" {
+			runID = strings.TrimSpace(parts[4])
+		}
+	}
+
+	if runID == "" && strings.HasPrefix(path, "/api/v1/runs/") {
+		parts := pathSegments(path, "/api/v1/runs/")
+		if len(parts) > 0 {
+			runID = strings.TrimSpace(parts[0])
+		}
+	}
+
+	if taskID == "" && strings.HasPrefix(path, "/api/v1/tasks/") {
+		parts := pathSegments(path, "/api/v1/tasks/")
+		if len(parts) > 0 {
+			taskID = strings.TrimSpace(parts[0])
+		}
+	}
+
+	return projectID, taskID, runID
 }

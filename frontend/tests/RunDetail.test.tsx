@@ -1,4 +1,6 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { vi } from 'vitest'
 import { RunDetail } from '../src/components/RunDetail'
 import type { FileContent, RunInfo, TaskDetail } from '../src/types'
 
@@ -82,5 +84,174 @@ describe('RunDetail', () => {
     expect(screen.getByText('Select a task')).toBeInTheDocument()
     expect(screen.getByText('Select a task from the tree to inspect metadata and run files.')).toBeInTheDocument()
     expect(screen.queryByText('Run files')).not.toBeInTheDocument()
+  })
+
+  it('shows stop agent for running runs and calls handler', async () => {
+    const user = userEvent.setup()
+    const onStopRun = vi.fn()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(
+      <RunDetail
+        task={task}
+        runInfo={runInfo}
+        selectedRunId="run-1"
+        onSelectRun={() => undefined}
+        fileName="output.md"
+        onSelectFile={() => undefined}
+        fileContent={fileContent}
+        onStopRun={onStopRun}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Stop agent' }))
+    expect(onStopRun).toHaveBeenCalledWith('run-1')
+    confirmSpy.mockRestore()
+  })
+
+  it('does not render delete actions in run detail', () => {
+    const completedTask: TaskDetail = {
+      ...task,
+      status: 'completed',
+      done: true,
+      runs: [
+        {
+          ...task.runs[0],
+          status: 'completed',
+          end_time: '2026-02-04T17:31:55Z',
+        },
+      ],
+    }
+    const completedRunInfo: RunInfo = {
+      ...runInfo,
+      exit_code: 0,
+      end_time: '2026-02-04T17:31:55Z',
+    }
+
+    render(
+      <RunDetail
+        task={completedTask}
+        runInfo={completedRunInfo}
+        selectedRunId="run-1"
+        onSelectRun={() => undefined}
+        fileName="output.md"
+        onSelectFile={() => undefined}
+        fileContent={fileContent}
+        onResumeTask={() => undefined}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('Delete run')).not.toBeInTheDocument()
+    expect(screen.queryByText('Delete task')).not.toBeInTheDocument()
+  })
+
+  it('handles tasks with null runs without crashing', () => {
+    const taskWithNullRuns: TaskDetail = {
+      ...task,
+      status: 'unknown',
+      runs: null as unknown as TaskDetail['runs'],
+    }
+
+    render(
+      <RunDetail
+        task={taskWithNullRuns}
+        runInfo={undefined}
+        selectedRunId={undefined}
+        onSelectRun={() => undefined}
+        fileName="output.md"
+        onSelectFile={() => undefined}
+        fileContent={fileContent}
+      />
+    )
+
+    expect(screen.getByText('No runs yet')).toBeInTheDocument()
+    expect(screen.getByText(/No running or failed runs\. Expand completed runs to inspect history\./)).toBeInTheDocument()
+  })
+
+  it('caps completed run rendering and progressively loads older history', async () => {
+    const user = userEvent.setup()
+    const completedRuns = Array.from({ length: 260 }, (_, i) => {
+      const sec = String(i % 60).padStart(2, '0')
+      const min = String(Math.floor(i / 60)).padStart(2, '0')
+      return {
+        id: `run-completed-${String(i).padStart(3, '0')}`,
+        agent: 'codex',
+        status: 'completed' as const,
+        exit_code: 0,
+        start_time: `2026-02-04T17:${min}:${sec}Z`,
+        end_time: `2026-02-04T17:${min}:${sec}Z`,
+      }
+    })
+    const heavyTask: TaskDetail = {
+      ...task,
+      runs: [
+        {
+          id: 'run-live',
+          agent: 'codex',
+          status: 'running',
+          exit_code: -1,
+          start_time: '2026-02-04T18:00:00Z',
+        },
+        ...completedRuns,
+      ],
+    }
+
+    render(
+      <RunDetail
+        task={heavyTask}
+        runInfo={undefined}
+        selectedRunId="run-live"
+        onSelectRun={() => undefined}
+        fileName="output.md"
+        onSelectFile={() => undefined}
+        fileContent={fileContent}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: '... 260 completed' }))
+
+    expect(screen.getByText('Showing latest 200 of 260 completed runs.')).toBeInTheDocument()
+    expect(screen.queryByText('run-completed-000')).not.toBeInTheDocument()
+    expect(screen.getByText('run-completed-259')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Load older completed (+60)' }))
+    expect(screen.getByText('Showing 260 completed runs.')).toBeInTheDocument()
+    expect(screen.getByText('run-completed-000')).toBeInTheDocument()
+  })
+
+  it('keeps selected completed run visible even when history is capped', async () => {
+    const completedRuns = Array.from({ length: 230 }, (_, i) => {
+      const sec = String(i % 60).padStart(2, '0')
+      const min = String(Math.floor(i / 60)).padStart(2, '0')
+      return {
+        id: `run-archive-${String(i).padStart(3, '0')}`,
+        agent: 'claude',
+        status: 'completed' as const,
+        exit_code: 0,
+        start_time: `2026-02-04T17:${min}:${sec}Z`,
+        end_time: `2026-02-04T17:${min}:${sec}Z`,
+      }
+    })
+    const archiveTask: TaskDetail = {
+      ...task,
+      status: 'completed',
+      runs: completedRuns,
+    }
+
+    render(
+      <RunDetail
+        task={archiveTask}
+        runInfo={undefined}
+        selectedRunId="run-archive-000"
+        onSelectRun={() => undefined}
+        fileName="output.md"
+        onSelectFile={() => undefined}
+        fileContent={fileContent}
+      />
+    )
+
+    expect(screen.getByText('run-archive-000')).toBeInTheDocument()
+    expect(screen.getByText('Showing latest 201 of 230 completed runs.')).toBeInTheDocument()
   })
 })

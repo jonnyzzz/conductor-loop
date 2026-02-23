@@ -39,6 +39,7 @@ type ImportOptions struct {
 	WorkingDir         string
 	MessageBusPath     string
 	PreallocatedRunDir string
+	ParentRunID        string
 	Process            ImportedProcess
 }
 
@@ -123,6 +124,7 @@ func runImportedProcess(projectID, taskID string, opts ImportOptions) (*storage.
 	info := &storage.RunInfo{
 		Version:          1,
 		RunID:            runID,
+		ParentRunID:      strings.TrimSpace(opts.ParentRunID),
 		ProjectID:        projectID,
 		TaskID:           taskID,
 		AgentType:        process.AgentType,

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/runstate"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 	"github.com/spf13/cobra"
@@ -110,11 +111,13 @@ func getWatchTaskStatus(root, projectID, taskID string) watchTaskStatus {
 		return ts
 	}
 	sort.Strings(runNames)
-	latest := runNames[len(runNames)-1]
-
-	infoPath := filepath.Join(runsDir, latest, "run-info.yaml")
-	info, err := storage.ReadRunInfo(infoPath)
-	if err != nil {
+	info := latestReadableWatchRunInfo(runsDir, runNames)
+	if info == nil {
+		if _, doneErr := os.Stat(filepath.Join(taskDir, "DONE")); doneErr == nil {
+			ts.Status = "done"
+			ts.Done = true
+			return ts
+		}
 		return ts
 	}
 
@@ -134,6 +137,18 @@ func getWatchTaskStatus(root, projectID, taskID string) watchTaskStatus {
 	ts.Done = info.Status == storage.StatusCompleted || info.Status == storage.StatusFailed || info.Status == "done"
 
 	return ts
+}
+
+func latestReadableWatchRunInfo(runsDir string, runNames []string) *storage.RunInfo {
+	for i := len(runNames) - 1; i >= 0; i-- {
+		infoPath := filepath.Join(runsDir, runNames[i], "run-info.yaml")
+		info, err := runstate.ReadRunInfo(infoPath)
+		if err != nil {
+			continue
+		}
+		return info
+	}
+	return nil
 }
 
 func watchPhaseForStatus(status string) string {

@@ -632,7 +632,7 @@ Or specify explicitly with `--config config.local.yaml`.
 
 Both YAML (`.yaml`/`.yml`) and HCL (`.hcl`) formats are supported.
 
-- Config schema: See `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/subsystem-runner-orchestration-config-schema.md`
+- Config schema: See `<project-root>/docs/specifications/subsystem-runner-orchestration-config-schema.md`
 
 ### API Tokens
 Tokens can be provided via environment variables or config. The `validate` command checks token availability:
@@ -792,11 +792,11 @@ go tool pprof mem.prof
 
 ## References
 
-- **Workflow Document**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-- **Implementation Plan**: `/Users/jonnyzzz/Work/conductor-loop/THE_PLAN_v5.md`
-- **Agent Conventions**: `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
-- **Specifications**: `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/`
-- **Architecture Decisions**: `/Users/jonnyzzz/Work/conductor-loop/docs/decisions/`
-- **Storage Layout**: `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/subsystem-storage-layout.md`
-- **Agent Protocol**: `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/subsystem-agent-protocol.md`
-- **Message Bus Tools**: `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/subsystem-message-bus-tools.md`
+- **Workflow Document**: `<project-root>/THE_PROMPT_v5.md`
+- **Implementation Plan**: `<project-root>/THE_PLAN_v5.md`
+- **Agent Conventions**: `<project-root>/AGENTS.md`
+- **Specifications**: `<project-root>/docs/specifications/`
+- **Architecture Decisions**: `<project-root>/docs/decisions/`
+- **Storage Layout**: `<project-root>/docs/specifications/subsystem-storage-layout.md`
+- **Agent Protocol**: `<project-root>/docs/specifications/subsystem-agent-protocol.md`
+- **Message Bus Tools**: `<project-root>/docs/specifications/subsystem-message-bus-tools.md`

@@ -38,9 +38,11 @@ jobs:
           mkdir -p dist
           EXT=""
           if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          ASSET="dist/run-agent-${GOOS}-${GOARCH}${EXT}"
           CGO_ENABLED=0 \
             go build -trimpath -ldflags="-s -w" \
-            -o "dist/run-agent-${GOOS}-${GOARCH}${EXT}" ./cmd/run-agent
+            -o "$ASSET" ./cmd/run-agent
+          sha256sum "$ASSET" > "${ASSET}.sha256"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -74,6 +76,11 @@ jobs:
           test -f dist/run-agent-darwin-amd64
           test -f dist/run-agent-darwin-arm64
           test -f dist/run-agent-windows-amd64.exe
+          test -f dist/run-agent-linux-amd64.sha256
+          test -f dist/run-agent-linux-arm64.sha256
+          test -f dist/run-agent-darwin-amd64.sha256
+          test -f dist/run-agent-darwin-arm64.sha256
+          test -f dist/run-agent-windows-amd64.exe.sha256
 
       - name: Smoke test installer against release-like artifacts
         run: |
@@ -90,8 +97,13 @@ jobs:
             install.sh
             run-agent.cmd
             dist/run-agent-linux-amd64
+            dist/run-agent-linux-amd64.sha256
             dist/run-agent-linux-arm64
+            dist/run-agent-linux-arm64.sha256
             dist/run-agent-darwin-amd64
+            dist/run-agent-darwin-amd64.sha256
             dist/run-agent-darwin-arm64
+            dist/run-agent-darwin-arm64.sha256
             dist/run-agent-windows-amd64.exe
+            dist/run-agent-windows-amd64.exe.sha256
           overwrite_files: true

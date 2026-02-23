@@ -6,11 +6,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/config"
+	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 )
@@ -24,6 +28,12 @@ func TestValidateIdentifier(t *testing.T) {
 	}
 	if err := validateIdentifier("..", "project_id"); err == nil {
 		t.Fatalf("expected error for ..")
+	}
+	if err := validateIdentifier("%2e%2e", "project_id"); err == nil {
+		t.Fatalf("expected error for encoded ..")
+	}
+	if err := validateIdentifier("bad%2fname", "project_id"); err == nil {
+		t.Fatalf("expected error for encoded path separator")
 	}
 	if err := validateIdentifier("ok", "project_id"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -422,6 +432,65 @@ func TestHandleTaskCreate(t *testing.T) {
 	}
 }
 
+func TestHandleTaskCreateRejectedDuringSelfUpdateDrain(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, APIConfig: config.APIConfig{}})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	server.selfUpdate.mu.Lock()
+	server.selfUpdate.state.State = selfUpdateStateDeferred
+	server.selfUpdate.mu.Unlock()
+
+	payload := TaskCreateRequest{ProjectID: "project", TaskID: "task", AgentType: "codex", Prompt: "hello"}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", resp.Code, resp.Body.String())
+	}
+	if !strings.Contains(resp.Body.String(), "self-update drain") {
+		t.Fatalf("expected self-update conflict body, got %s", resp.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, "project", "task")); !os.IsNotExist(err) {
+		t.Fatalf("task directory should not be created during drain mode")
+	}
+}
+
+func TestHandleTaskCreate_PromptWhitespacePreserved(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true, APIConfig: config.APIConfig{}})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	originalPrompt := "  keep-leading\nkeep-trailing  \n\n"
+	payload := TaskCreateRequest{
+		ProjectID: "project",
+		TaskID:    "task",
+		AgentType: "codex",
+		Prompt:    originalPrompt,
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	taskMDPath := filepath.Join(root, "project", "task", "TASK.md")
+	content, err := os.ReadFile(taskMDPath)
+	if err != nil {
+		t.Fatalf("read TASK.md: %v", err)
+	}
+	if string(content) != originalPrompt {
+		t.Fatalf("prompt mismatch: got %q, want %q", string(content), originalPrompt)
+	}
+}
+
 func TestHandleTaskCreate_ProjectRoot_Invalid(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
@@ -816,6 +885,535 @@ func TestHandleTaskCreate_Create_DoesNotOverwriteTaskMD(t *testing.T) {
 	if string(content) != original {
 		t.Fatalf("TASK.md was overwritten: got %q, want %q", string(content), original)
 	}
+}
+
+func seedThreadParentMessage(t *testing.T, root, projectID, taskID, runID, msgType, body string) string {
+	t.Helper()
+
+	taskDir := filepath.Join(root, projectID, taskID)
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir parent task dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte("parent task\n"), 0o644); err != nil {
+		t.Fatalf("write parent TASK.md: %v", err)
+	}
+	bus, err := messagebus.NewMessageBus(filepath.Join(taskDir, "TASK-MESSAGE-BUS.md"))
+	if err != nil {
+		t.Fatalf("open parent bus: %v", err)
+	}
+	msgID, err := bus.AppendMessage(&messagebus.Message{
+		Type:      msgType,
+		ProjectID: projectID,
+		TaskID:    taskID,
+		RunID:     runID,
+		Body:      body,
+	})
+	if err != nil {
+		t.Fatalf("append parent message: %v", err)
+	}
+	return msgID
+}
+
+func createDoneWritingAgentCLI(t *testing.T, dir, name string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		path := filepath.Join(dir, name+".bat")
+		content := "@echo off\r\n" +
+			"if \"%1\"==\"--version\" (\r\n" +
+			"  echo " + name + " 1.0.0\r\n" +
+			"  exit /b 0\r\n" +
+			")\r\n" +
+			"more >nul\r\n" +
+			"type nul > \"%TASK_FOLDER%\\DONE\"\r\n" +
+			"echo stdout\r\n"
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("write bat: %v", err)
+		}
+		return
+	}
+
+	path := filepath.Join(dir, name)
+	content := "#!/bin/sh\n" +
+		"if [ \"$1\" = \"--version\" ]; then echo '" + name + " 1.0.0'; exit 0; fi\n" +
+		"cat >/dev/null\n" +
+		": > \"$TASK_FOLDER/DONE\"\n" +
+		"echo stdout\n"
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+}
+
+func TestHandleTaskCreate_ThreadedAnswerRejectsNonUserRequestType(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	parentMsgID := seedThreadParentMessage(t, root, "project", "task-parent", "run-parent", "QUESTION", "How should this be fixed?")
+
+	payload := TaskCreateRequest{
+		ProjectID: "project",
+		TaskID:    "task-child",
+		AgentType: "codex",
+		Prompt:    "Implement the fix",
+		ThreadParent: &ThreadParentReference{
+			ProjectID: "project",
+			TaskID:    "task-parent",
+			RunID:     "run-parent",
+			MessageID: parentMsgID,
+		},
+		ThreadMessageType: "FACT",
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+	if !strings.Contains(resp.Body.String(), "thread_message_type must be USER_REQUEST") {
+		t.Fatalf("expected USER_REQUEST validation error, got %s", resp.Body.String())
+	}
+}
+
+func TestHandleTaskCreate_ThreadedAnswerSupportsQuestionAndFact(t *testing.T) {
+	for _, parentType := range []string{"QUESTION", "FACT"} {
+		parentType := parentType
+		t.Run(parentType, func(t *testing.T) {
+			root := t.TempDir()
+			server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+			if err != nil {
+				t.Fatalf("NewServer: %v", err)
+			}
+
+			parentMsgID := seedThreadParentMessage(t, root, "project", "task-parent", "run-parent", parentType, "Please answer this")
+
+			payload := TaskCreateRequest{
+				ProjectID: "project",
+				TaskID:    "task-child",
+				AgentType: "codex",
+				Prompt:    "Provide a full answer",
+				ThreadParent: &ThreadParentReference{
+					ProjectID: "project",
+					TaskID:    "task-parent",
+					RunID:     "run-parent",
+					MessageID: parentMsgID,
+				},
+				ThreadMessageType: "USER_REQUEST",
+			}
+			data, _ := json.Marshal(payload)
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+			resp := httptest.NewRecorder()
+			server.Handler().ServeHTTP(resp, req)
+			if resp.Code != http.StatusCreated {
+				t.Fatalf("expected 201, got %d: %s", resp.Code, resp.Body.String())
+			}
+		})
+	}
+}
+
+func TestHandleTaskCreate_ThreadedAnswerInvalidParentReferences(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	parentMsgID := seedThreadParentMessage(t, root, "project", "task-parent", "run-parent", "QUESTION", "Question")
+
+	t.Run("missing parent message", func(t *testing.T) {
+		payload := TaskCreateRequest{
+			ProjectID: "project",
+			TaskID:    "task-child-missing",
+			AgentType: "codex",
+			Prompt:    "Answer",
+			ThreadParent: &ThreadParentReference{
+				ProjectID: "project",
+				TaskID:    "task-parent",
+				RunID:     "run-parent",
+				MessageID: "MSG-missing",
+			},
+			ThreadMessageType: "USER_REQUEST",
+		}
+		data, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+		resp := httptest.NewRecorder()
+		server.Handler().ServeHTTP(resp, req)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d: %s", resp.Code, resp.Body.String())
+		}
+	})
+
+	t.Run("parent run mismatch", func(t *testing.T) {
+		payload := TaskCreateRequest{
+			ProjectID: "project",
+			TaskID:    "task-child-mismatch",
+			AgentType: "codex",
+			Prompt:    "Answer",
+			ThreadParent: &ThreadParentReference{
+				ProjectID: "project",
+				TaskID:    "task-parent",
+				RunID:     "run-other",
+				MessageID: parentMsgID,
+			},
+			ThreadMessageType: "USER_REQUEST",
+		}
+		data, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+		resp := httptest.NewRecorder()
+		server.Handler().ServeHTTP(resp, req)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d: %s", resp.Code, resp.Body.String())
+		}
+		if !strings.Contains(resp.Body.String(), "parent run_id mismatch") {
+			t.Fatalf("expected parent mismatch error, got %s", resp.Body.String())
+		}
+	})
+}
+
+func TestHandleTaskCreate_ThreadedAnswerPersistsLinkageMetadata(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	parentMsgID := seedThreadParentMessage(t, root, "project", "task-parent", "run-parent", "QUESTION", "Question")
+	payload := TaskCreateRequest{
+		ProjectID: "project",
+		TaskID:    "task-child",
+		AgentType: "codex",
+		Prompt:    "Answer parent request with evidence",
+		ThreadParent: &ThreadParentReference{
+			ProjectID: "project",
+			TaskID:    "task-parent",
+			RunID:     "run-parent",
+			MessageID: parentMsgID,
+		},
+		ThreadMessageType: "USER_REQUEST",
+	}
+
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	childTaskDir := filepath.Join(root, "project", "task-child")
+	threadLink, err := readTaskThreadLink(childTaskDir)
+	if err != nil {
+		t.Fatalf("readTaskThreadLink: %v", err)
+	}
+	if threadLink == nil {
+		t.Fatalf("expected thread link metadata")
+	}
+	if threadLink.ProjectID != "project" || threadLink.TaskID != "task-parent" || threadLink.RunID != "run-parent" || threadLink.MessageID != parentMsgID {
+		t.Fatalf("unexpected thread link: %+v", threadLink)
+	}
+
+	childBus, err := messagebus.NewMessageBus(filepath.Join(childTaskDir, "TASK-MESSAGE-BUS.md"))
+	if err != nil {
+		t.Fatalf("open child bus: %v", err)
+	}
+	childMessages, err := childBus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("read child bus: %v", err)
+	}
+	if len(childMessages) != 1 {
+		t.Fatalf("expected 1 child message, got %d", len(childMessages))
+	}
+	childMsg := childMessages[0]
+	if childMsg.Type != "USER_REQUEST" {
+		t.Fatalf("child message type=%q, want USER_REQUEST", childMsg.Type)
+	}
+	if len(childMsg.Parents) != 1 || childMsg.Parents[0].MsgID != parentMsgID {
+		t.Fatalf("child message parents=%+v, want %s", childMsg.Parents, parentMsgID)
+	}
+	if childMsg.Meta[threadMetaParentProjectIDKey] != "project" ||
+		childMsg.Meta[threadMetaParentTaskIDKey] != "task-parent" ||
+		childMsg.Meta[threadMetaParentRunIDKey] != "run-parent" ||
+		childMsg.Meta[threadMetaParentMessageIDKey] != parentMsgID {
+		t.Fatalf("unexpected child message meta: %+v", childMsg.Meta)
+	}
+
+	parentBus, err := messagebus.NewMessageBus(filepath.Join(root, "project", "task-parent", "TASK-MESSAGE-BUS.md"))
+	if err != nil {
+		t.Fatalf("open parent bus: %v", err)
+	}
+	parentMessages, err := parentBus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("read parent bus: %v", err)
+	}
+	if len(parentMessages) < 2 {
+		t.Fatalf("expected parent bus to contain linkage message, got %d entries", len(parentMessages))
+	}
+	var sourceLinkMsg *messagebus.Message
+	for _, msg := range parentMessages {
+		if msg == nil || msg.Type != "USER_REQUEST" {
+			continue
+		}
+		if msg.Meta[threadMetaChildTaskIDKey] == "task-child" {
+			sourceLinkMsg = msg
+			break
+		}
+	}
+	if sourceLinkMsg == nil {
+		t.Fatalf("expected source linkage message in parent bus")
+	}
+	if sourceLinkMsg.Meta[threadMetaChildProjectIDKey] != "project" ||
+		sourceLinkMsg.Meta[threadMetaParentMessageIDKey] != parentMsgID {
+		t.Fatalf("unexpected source linkage metadata: %+v", sourceLinkMsg.Meta)
+	}
+
+	taskReq := httptest.NewRequest(http.MethodGet, "/api/projects/project/tasks/task-child", nil)
+	taskResp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(taskResp, taskReq)
+	if taskResp.Code != http.StatusOK {
+		t.Fatalf("expected 200 from project task detail, got %d: %s", taskResp.Code, taskResp.Body.String())
+	}
+	var taskDetail struct {
+		ThreadParent *ThreadParentReference `json:"thread_parent"`
+	}
+	if err := json.Unmarshal(taskResp.Body.Bytes(), &taskDetail); err != nil {
+		t.Fatalf("decode task detail: %v", err)
+	}
+	if taskDetail.ThreadParent == nil || taskDetail.ThreadParent.MessageID != parentMsgID {
+		t.Fatalf("expected thread_parent in project task detail, got %+v", taskDetail.ThreadParent)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/projects/project/tasks", nil)
+	listResp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(listResp, listReq)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("expected 200 from project task list, got %d: %s", listResp.Code, listResp.Body.String())
+	}
+	var listPayload struct {
+		Items []struct {
+			ID           string                 `json:"id"`
+			ThreadParent *ThreadParentReference `json:"thread_parent"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(listResp.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("decode task list: %v", err)
+	}
+	for _, item := range listPayload.Items {
+		if item.ID != "task-child" {
+			continue
+		}
+		if item.ThreadParent == nil || item.ThreadParent.MessageID != parentMsgID {
+			t.Fatalf("expected thread_parent in task list item, got %+v", item.ThreadParent)
+		}
+		return
+	}
+	t.Fatalf("task-child not found in project task list response")
+}
+
+func TestHandleTaskCreate_ThreadedAnswerPropagatesParentRunIDToRunsFlat(t *testing.T) {
+	root := t.TempDir()
+	binDir := t.TempDir()
+	createDoneWritingAgentCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	server, err := NewServer(Options{RootDir: root})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() {
+		server.taskWg.Wait()
+	})
+
+	parentMsgID := seedThreadParentMessage(t, root, "project", "task-parent", "run-parent", "QUESTION", "Question")
+	payload := TaskCreateRequest{
+		ProjectID: "project",
+		TaskID:    "task-child-live",
+		AgentType: "codex",
+		Prompt:    "Answer parent request now",
+		ThreadParent: &ThreadParentReference{
+			ProjectID: "project",
+			TaskID:    "task-parent",
+			RunID:     "run-parent",
+			MessageID: parentMsgID,
+		},
+		ThreadMessageType: "USER_REQUEST",
+	}
+
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var created TaskCreateResponse
+	if err := json.Unmarshal(resp.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode task create response: %v", err)
+	}
+	if strings.TrimSpace(created.RunID) == "" {
+		t.Fatalf("expected run_id in create response")
+	}
+
+	server.taskWg.Wait()
+
+	runInfoPath := filepath.Join(root, "project", "task-child-live", "runs", created.RunID, "run-info.yaml")
+	info, err := storage.ReadRunInfo(runInfoPath)
+	if err != nil {
+		t.Fatalf("read run-info: %v", err)
+	}
+	if got := strings.TrimSpace(info.ParentRunID); got != "run-parent" {
+		t.Fatalf("run-info parent_run_id=%q, want %q", got, "run-parent")
+	}
+
+	flatReq := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat", nil)
+	flatResp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(flatResp, flatReq)
+	if flatResp.Code != http.StatusOK {
+		t.Fatalf("expected 200 from runs/flat, got %d: %s", flatResp.Code, flatResp.Body.String())
+	}
+
+	var flatPayload struct {
+		Runs []struct {
+			ID          string `json:"id"`
+			TaskID      string `json:"task_id"`
+			ParentRunID string `json:"parent_run_id,omitempty"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(flatResp.Body.Bytes(), &flatPayload); err != nil {
+		t.Fatalf("decode runs/flat: %v", err)
+	}
+	for _, run := range flatPayload.Runs {
+		if run.ID != created.RunID {
+			continue
+		}
+		if run.TaskID != "task-child-live" {
+			t.Fatalf("run task_id=%q, want %q", run.TaskID, "task-child-live")
+		}
+		if run.ParentRunID != "run-parent" {
+			t.Fatalf("runs/flat parent_run_id=%q, want %q", run.ParentRunID, "run-parent")
+		}
+		return
+	}
+	t.Fatalf("created run %q not found in runs/flat", created.RunID)
+}
+
+func TestHandleTaskCreate_ThreadedAttachImportPropagatesParentRunIDToRunsFlat(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-based import fixture is unix-only")
+	}
+
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() {
+		server.taskWg.Wait()
+	})
+
+	stdoutSource := filepath.Join(root, "external-stdout.log")
+	scriptPath := filepath.Join(root, "external.sh")
+	script := `#!/bin/sh
+echo "imported-start" >> "$SRC_STDOUT"
+sleep 0.6
+echo "imported-stop" >> "$SRC_STDOUT"
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	cmd := exec.Command(scriptPath)
+	cmd.Env = append(os.Environ(), "SRC_STDOUT="+stdoutSource)
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start fixture process: %v", err)
+	}
+	waitDone := make(chan error, 1)
+	go func() {
+		waitDone <- cmd.Wait()
+	}()
+
+	parentMsgID := seedThreadParentMessage(t, root, "project", "task-parent", "run-parent", "QUESTION", "Question")
+	payload := TaskCreateRequest{
+		ProjectID:  "project",
+		TaskID:     "task-child-attach",
+		AgentType:  "codex",
+		Prompt:     "Attach to existing process",
+		AttachMode: "attach",
+		ProcessImport: &ProcessImportRequest{
+			PID:        cmd.Process.Pid,
+			StdoutPath: stdoutSource,
+		},
+		ThreadParent: &ThreadParentReference{
+			ProjectID: "project",
+			TaskID:    "task-parent",
+			RunID:     "run-parent",
+			MessageID: parentMsgID,
+		},
+		ThreadMessageType: "USER_REQUEST",
+	}
+
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(data))
+	resp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(resp, req)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var created TaskCreateResponse
+	if err := json.Unmarshal(resp.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode task create response: %v", err)
+	}
+	if strings.TrimSpace(created.RunID) == "" {
+		t.Fatalf("expected run_id in create response")
+	}
+
+	server.taskWg.Wait()
+	if waitErr := <-waitDone; waitErr != nil {
+		t.Fatalf("fixture process wait: %v", waitErr)
+	}
+
+	runInfoPath := filepath.Join(root, "project", "task-child-attach", "runs", created.RunID, "run-info.yaml")
+	info, err := storage.ReadRunInfo(runInfoPath)
+	if err != nil {
+		t.Fatalf("read run-info: %v", err)
+	}
+	if got := strings.TrimSpace(info.ParentRunID); got != "run-parent" {
+		t.Fatalf("run-info parent_run_id=%q, want %q", got, "run-parent")
+	}
+
+	flatReq := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat", nil)
+	flatResp := httptest.NewRecorder()
+	server.Handler().ServeHTTP(flatResp, flatReq)
+	if flatResp.Code != http.StatusOK {
+		t.Fatalf("expected 200 from runs/flat, got %d: %s", flatResp.Code, flatResp.Body.String())
+	}
+
+	var flatPayload struct {
+		Runs []struct {
+			ID          string `json:"id"`
+			TaskID      string `json:"task_id"`
+			ParentRunID string `json:"parent_run_id,omitempty"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(flatResp.Body.Bytes(), &flatPayload); err != nil {
+		t.Fatalf("decode runs/flat: %v", err)
+	}
+	for _, run := range flatPayload.Runs {
+		if run.ID != created.RunID {
+			continue
+		}
+		if run.TaskID != "task-child-attach" {
+			t.Fatalf("run task_id=%q, want %q", run.TaskID, "task-child-attach")
+		}
+		if run.ParentRunID != "run-parent" {
+			t.Fatalf("runs/flat parent_run_id=%q, want %q", run.ParentRunID, "run-parent")
+		}
+		return
+	}
+	t.Fatalf("created run %q not found in runs/flat", created.RunID)
 }
 
 func TestRunInfoToResponse_AgentVersion(t *testing.T) {

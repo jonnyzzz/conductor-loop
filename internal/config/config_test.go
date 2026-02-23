@@ -319,6 +319,7 @@ agents {
 defaults {
   agent   = "claude"
   timeout = 10
+  max_concurrent_root_tasks = 2
 }
 
 storage {
@@ -348,6 +349,48 @@ storage {
 	}
 	if cfg.Defaults.Timeout != 10 {
 		t.Fatalf("expected timeout 10, got %d", cfg.Defaults.Timeout)
+	}
+	if cfg.Defaults.MaxConcurrentRootTasks != 2 {
+		t.Fatalf("expected max_concurrent_root_tasks 2, got %d", cfg.Defaults.MaxConcurrentRootTasks)
+	}
+}
+
+func TestLoadConfigYAMLRootTaskLimit(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	content := `agents:
+  claude:
+    type: claude
+
+defaults:
+  agent: claude
+  timeout: 10
+  max_concurrent_root_tasks: 3
+`
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := LoadConfigForServer(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfigForServer: %v", err)
+	}
+	if cfg.Defaults.MaxConcurrentRootTasks != 3 {
+		t.Fatalf("max_concurrent_root_tasks=%d, want 3", cfg.Defaults.MaxConcurrentRootTasks)
+	}
+}
+
+func TestValidateConfigRejectsNegativeRootTaskLimit(t *testing.T) {
+	cfg := &Config{
+		Agents: map[string]AgentConfig{
+			"claude": {Type: "claude"},
+		},
+		Defaults: DefaultConfig{
+			Timeout:                1,
+			MaxConcurrentRootTasks: -1,
+		},
+	}
+	if err := ValidateConfig(cfg); err == nil {
+		t.Fatalf("expected validation error for negative max_concurrent_root_tasks")
 	}
 }
 

@@ -49,6 +49,7 @@ directly on the local filesystem and do NOT require the server to be running.`,
 	cmd.AddCommand(newServerProjectCmd())
 	cmd.AddCommand(newServerWatchCmd())
 	cmd.AddCommand(newServerBusCmd())
+	cmd.AddCommand(newServerUpdateCmd())
 
 	return cmd
 }
@@ -56,10 +57,10 @@ directly on the local filesystem and do NOT require the server to be running.`,
 // ─── status ───────────────────────────────────────────────────────────────────
 
 type serverStatusResponse struct {
-	ActiveRunsCount  int               `json:"active_runs_count"`
-	UptimeSeconds    float64           `json:"uptime_seconds"`
-	ConfiguredAgents []string          `json:"configured_agents"`
-	Version          string            `json:"version"`
+	ActiveRunsCount  int                 `json:"active_runs_count"`
+	UptimeSeconds    float64             `json:"uptime_seconds"`
+	ConfiguredAgents []string            `json:"configured_agents"`
+	Version          string              `json:"version"`
 	RunningTasks     []serverRunningTask `json:"running_tasks,omitempty"`
 }
 
@@ -161,6 +162,158 @@ func serverFormatUptime(seconds float64) string {
 		return fmt.Sprintf("%dm %ds", m, s)
 	}
 	return fmt.Sprintf("%ds", s)
+}
+
+// ─── update ──────────────────────────────────────────────────────────────────
+
+type serverSelfUpdateStatus struct {
+	State               string    `json:"state"`
+	BinaryPath          string    `json:"binary_path,omitempty"`
+	RequestedAt         time.Time `json:"requested_at,omitempty"`
+	StartedAt           time.Time `json:"started_at,omitempty"`
+	FinishedAt          time.Time `json:"finished_at,omitempty"`
+	ActiveRunsAtRequest int       `json:"active_runs_at_request,omitempty"`
+	ActiveRunsNow       int       `json:"active_runs_now"`
+	ActiveRunsError     string    `json:"active_runs_error,omitempty"`
+	LastError           string    `json:"last_error,omitempty"`
+	LastNote            string    `json:"last_note,omitempty"`
+}
+
+type serverSelfUpdateRequest struct {
+	BinaryPath string `json:"binary_path"`
+}
+
+func newServerUpdateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "update",
+		Short: "Request or inspect safe server self-update",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
+	}
+	cmd.AddCommand(newServerUpdateStatusCmd())
+	cmd.AddCommand(newServerUpdateStartCmd())
+	return cmd
+}
+
+func newServerUpdateStatusCmd() *cobra.Command {
+	var (
+		serverURL  string
+		jsonOutput bool
+	)
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show current server self-update state",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resp, err := http.Get(serverURL + "/api/v1/admin/self-update") //nolint:noctx
+			if err != nil {
+				return fmt.Errorf("get self-update status: %w", err)
+			}
+			defer resp.Body.Close()
+
+			data, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return fmt.Errorf("read response: %w", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("server returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+			}
+			if jsonOutput {
+				fmt.Printf("%s\n", strings.TrimSpace(string(data)))
+				return nil
+			}
+
+			var status serverSelfUpdateStatus
+			if err := json.Unmarshal(data, &status); err != nil {
+				return fmt.Errorf("decode response: %w", err)
+			}
+
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintf(w, "State:\t%s\n", status.State)
+			fmt.Fprintf(w, "Active Root Runs:\t%d\n", status.ActiveRunsNow)
+			if status.ActiveRunsError != "" {
+				fmt.Fprintf(w, "Active Run Error:\t%s\n", status.ActiveRunsError)
+			}
+			if status.BinaryPath != "" {
+				fmt.Fprintf(w, "Candidate Binary:\t%s\n", status.BinaryPath)
+			}
+			if !status.RequestedAt.IsZero() {
+				fmt.Fprintf(w, "Requested At:\t%s\n", status.RequestedAt.Format(time.RFC3339))
+			}
+			if !status.StartedAt.IsZero() {
+				fmt.Fprintf(w, "Started At:\t%s\n", status.StartedAt.Format(time.RFC3339))
+			}
+			if !status.FinishedAt.IsZero() {
+				fmt.Fprintf(w, "Finished At:\t%s\n", status.FinishedAt.Format(time.RFC3339))
+			}
+			if status.LastError != "" {
+				fmt.Fprintf(w, "Last Error:\t%s\n", status.LastError)
+			}
+			if status.LastNote != "" {
+				fmt.Fprintf(w, "Last Note:\t%s\n", status.LastNote)
+			}
+			if err := w.Flush(); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", defaultServerURL, "run-agent server URL")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
+	return cmd
+}
+
+func newServerUpdateStartCmd() *cobra.Command {
+	var (
+		serverURL  string
+		binaryPath string
+		jsonOutput bool
+	)
+	cmd := &cobra.Command{
+		Use:   "start",
+		Short: "Request a safe server self-update to a new binary",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload := serverSelfUpdateRequest{BinaryPath: binaryPath}
+			reqBody, err := json.Marshal(payload)
+			if err != nil {
+				return fmt.Errorf("encode request: %w", err)
+			}
+			resp, err := http.Post(serverURL+"/api/v1/admin/self-update", "application/json", bytes.NewReader(reqBody)) //nolint:noctx
+			if err != nil {
+				return fmt.Errorf("request self-update: %w", err)
+			}
+			defer resp.Body.Close()
+
+			data, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return fmt.Errorf("read response: %w", err)
+			}
+			if resp.StatusCode != http.StatusAccepted {
+				return fmt.Errorf("server returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+			}
+			if jsonOutput {
+				fmt.Printf("%s\n", strings.TrimSpace(string(data)))
+				return nil
+			}
+
+			var status serverSelfUpdateStatus
+			if err := json.Unmarshal(data, &status); err != nil {
+				return fmt.Errorf("decode response: %w", err)
+			}
+			fmt.Printf("Self-update state: %s\n", status.State)
+			if status.State == "deferred" {
+				fmt.Printf("Update is waiting for %d active root run(s) to finish.\n", status.ActiveRunsNow)
+			} else {
+				fmt.Println("Update handoff has started.")
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", defaultServerURL, "run-agent server URL")
+	cmd.Flags().StringVar(&binaryPath, "binary", "", "path to the candidate run-agent binary")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output response as JSON")
+	cobra.MarkFlagRequired(cmd.Flags(), "binary") //nolint:errcheck
+	return cmd
 }
 
 // ─── task ─────────────────────────────────────────────────────────────────────
@@ -475,7 +628,7 @@ func newServerTaskDeleteCmd() *cobra.Command {
 			switch resp.StatusCode {
 			case http.StatusNoContent:
 				if jsonOutput {
-					fmt.Printf(`{"task_id":%q,"deleted":true}` + "\n", taskID)
+					fmt.Printf(`{"task_id":%q,"deleted":true}`+"\n", taskID)
 				} else {
 					fmt.Printf("Task %s deleted.\n", taskID)
 				}
@@ -878,12 +1031,12 @@ func serverFormatRunDuration(start time.Time, end *time.Time) string {
 // ─── job ──────────────────────────────────────────────────────────────────────
 
 type serverJobCreateRequest struct {
-	ProjectID   string `json:"project_id"`
-	TaskID      string `json:"task_id"`
-	AgentType   string `json:"agent_type"`
-	Prompt      string `json:"prompt"`
-	ProjectRoot string `json:"project_root,omitempty"`
-	AttachMode  string `json:"attach_mode,omitempty"`
+	ProjectID   string   `json:"project_id"`
+	TaskID      string   `json:"task_id"`
+	AgentType   string   `json:"agent_type"`
+	Prompt      string   `json:"prompt"`
+	ProjectRoot string   `json:"project_root,omitempty"`
+	AttachMode  string   `json:"attach_mode,omitempty"`
 	DependsOn   []string `json:"depends_on,omitempty"`
 }
 

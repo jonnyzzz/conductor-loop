@@ -1853,13 +1853,14 @@ run-agent watch --project <id> --task <id> [--task <id> ...] [flags]
 | Code | Meaning |
 |------|---------|
 | 204 | Run directory deleted successfully |
+| 403 | Request originated from web UI/browser context (destructive path disabled) |
 | 404 | Run or task directory not found |
 | 409 | Run is still running |
 | 500 | Filesystem error |
 
 ### Web UI Integration
 
-The React frontend (`frontend/src/RunDetail.tsx`) shows a **Delete run** button for completed and failed runs. The button is hidden while a run is in `running` status to prevent accidental deletion of live runs.
+The React frontend no longer exposes run deletion controls. Browser/UI-originated delete requests are rejected server-side with `403 Forbidden` to protect against stale clients.
 
 ---
 
@@ -1902,6 +1903,7 @@ A search bar in the task list panel lets users filter tasks by ID substring with
 | Code | Meaning |
 |------|---------|
 | 204 | Task directory deleted successfully |
+| 403 | Request originated from web UI/browser context (destructive path disabled) |
 | 404 | Task directory not found |
 | 409 | At least one run is still in `running` status |
 | 500 | Filesystem error |

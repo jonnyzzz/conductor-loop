@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	"github.com/jonnyzzz/conductor-loop/internal/runner"
 	"github.com/jonnyzzz/conductor-loop/internal/runstate"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
@@ -24,15 +26,19 @@ const maxJSONBodySize = 1 << 20
 
 // TaskCreateRequest defines the payload for task creation.
 type TaskCreateRequest struct {
-	ProjectID     string                `json:"project_id"`
-	TaskID        string                `json:"task_id"`
-	AgentType     string                `json:"agent_type"`
-	Prompt        string                `json:"prompt"`
-	Config        map[string]string     `json:"config,omitempty"`
-	ProjectRoot   string                `json:"project_root,omitempty"` // working directory for the task
-	AttachMode    string                `json:"attach_mode,omitempty"`  // "create" | "attach" | "resume"
-	ProcessImport *ProcessImportRequest `json:"process_import,omitempty"`
-	DependsOn     []string              `json:"depends_on,omitempty"`
+	ProjectID     string                 `json:"project_id"`
+	TaskID        string                 `json:"task_id"`
+	AgentType     string                 `json:"agent_type"`
+	Prompt        string                 `json:"prompt"`
+	Config        map[string]string      `json:"config,omitempty"`
+	ProjectRoot   string                 `json:"project_root,omitempty"` // working directory for the task
+	AttachMode    string                 `json:"attach_mode,omitempty"`  // "create" | "attach" | "resume"
+	ProcessImport *ProcessImportRequest  `json:"process_import,omitempty"`
+	DependsOn     []string               `json:"depends_on,omitempty"`
+	ThreadParent  *ThreadParentReference `json:"thread_parent,omitempty"`
+	// ThreadMessageType is validated only when ThreadParent is set.
+	// For threaded task creation, only USER_REQUEST is accepted.
+	ThreadMessageType string `json:"thread_message_type,omitempty"`
 }
 
 // ProcessImportRequest configures adoption of an already-running process into a new run.
@@ -47,22 +53,24 @@ type ProcessImportRequest struct {
 
 // TaskCreateResponse defines the response for task creation.
 type TaskCreateResponse struct {
-	ProjectID string   `json:"project_id"`
-	TaskID    string   `json:"task_id"`
-	RunID     string   `json:"run_id"` // the run ID that was allocated
-	Status    string   `json:"status"`
-	DependsOn []string `json:"depends_on,omitempty"`
+	ProjectID     string   `json:"project_id"`
+	TaskID        string   `json:"task_id"`
+	RunID         string   `json:"run_id"` // the run ID that was allocated
+	Status        string   `json:"status"`
+	QueuePosition int      `json:"queue_position,omitempty"`
+	DependsOn     []string `json:"depends_on,omitempty"`
 }
 
 // TaskResponse defines the task response payload.
 type TaskResponse struct {
-	ProjectID    string        `json:"project_id"`
-	TaskID       string        `json:"task_id"`
-	Status       string        `json:"status"`
-	LastActivity time.Time     `json:"last_activity"`
-	DependsOn    []string      `json:"depends_on,omitempty"`
-	BlockedBy    []string      `json:"blocked_by,omitempty"`
-	Runs         []RunResponse `json:"runs,omitempty"`
+	ProjectID     string        `json:"project_id"`
+	TaskID        string        `json:"task_id"`
+	Status        string        `json:"status"`
+	QueuePosition int           `json:"queue_position,omitempty"`
+	LastActivity  time.Time     `json:"last_activity"`
+	DependsOn     []string      `json:"depends_on,omitempty"`
+	BlockedBy     []string      `json:"blocked_by,omitempty"`
+	Runs          []RunResponse `json:"runs,omitempty"`
 }
 
 // RunResponse defines run metadata returned by the API.
@@ -168,7 +176,10 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) *apiError 
 	for _, extra := range s.extraRoots {
 		extraRuns, err := listRunResponsesFlat(extra)
 		if err != nil {
-			s.logger.Printf("warn: scan extra root %s: %v", extra, err)
+			obslog.Log(s.logger, "WARN", "api", "extra_root_scan_failed",
+				obslog.F("extra_root", extra),
+				obslog.F("error", err),
+			)
 			continue
 		}
 		for _, run := range extraRuns {
@@ -239,7 +250,10 @@ func (s *Server) handleRuns(w http.ResponseWriter, r *http.Request) *apiError {
 	for _, extra := range s.extraRoots {
 		extraRuns, err := listRunResponsesFlat(extra)
 		if err != nil {
-			s.logger.Printf("warn: scan extra root %s: %v", extra, err)
+			obslog.Log(s.logger, "WARN", "api", "extra_root_scan_failed",
+				obslog.F("extra_root", extra),
+				obslog.F("error", err),
+			)
 			continue
 		}
 		runs = append(runs, extraRuns...)
@@ -294,22 +308,47 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) *apiErro
 	if projectID == "" {
 		return apiErrorBadRequest("project_id is required")
 	}
+	if err := validateIdentifier(projectID, "project_id"); err != nil {
+		return err
+	}
 	after := strings.TrimSpace(r.URL.Query().Get("after"))
 	taskID := strings.TrimSpace(r.URL.Query().Get("task_id"))
+	if taskID != "" {
+		if err := validateIdentifier(taskID, "task_id"); err != nil {
+			return err
+		}
+	}
 
 	var busPath string
 	if taskID != "" {
 		taskDir, ok := findProjectTaskDir(s.rootDir, projectID, taskID)
 		if !ok {
-			taskDir = filepath.Join(s.rootDir, projectID, taskID)
+			var pathErr *apiError
+			taskDir, pathErr = joinPathWithinRoot(s.rootDir, projectID, taskID)
+			if pathErr != nil {
+				return pathErr
+			}
+		}
+		if err := requirePathWithinRoot(s.rootDir, taskDir, "task path"); err != nil {
+			return err
 		}
 		busPath = filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
 	} else {
 		projectDir, ok := findProjectDir(s.rootDir, projectID)
 		if !ok {
-			projectDir = filepath.Join(s.rootDir, projectID)
+			var pathErr *apiError
+			projectDir, pathErr = joinPathWithinRoot(s.rootDir, projectID)
+			if pathErr != nil {
+				return pathErr
+			}
+		}
+		if err := requirePathWithinRoot(s.rootDir, projectDir, "project path"); err != nil {
+			return err
 		}
 		busPath = filepath.Join(projectDir, "PROJECT-MESSAGE-BUS.md")
+	}
+	if err := requirePathWithinRoot(s.rootDir, busPath, "message bus path"); err != nil {
+		return err
 	}
 	bus, err := messagebus.NewMessageBus(busPath)
 	if err != nil {
@@ -381,15 +420,32 @@ func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) *apiE
 	if taskID != "" {
 		taskDir, ok := findProjectTaskDir(s.rootDir, req.ProjectID, taskID)
 		if !ok {
-			taskDir = filepath.Join(s.rootDir, req.ProjectID, taskID)
+			var pathErr *apiError
+			taskDir, pathErr = joinPathWithinRoot(s.rootDir, req.ProjectID, taskID)
+			if pathErr != nil {
+				return pathErr
+			}
+		}
+		if err := requirePathWithinRoot(s.rootDir, taskDir, "task path"); err != nil {
+			return err
 		}
 		busPath = filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
 	} else {
 		projectDir, ok := findProjectDir(s.rootDir, req.ProjectID)
 		if !ok {
-			projectDir = filepath.Join(s.rootDir, req.ProjectID)
+			var pathErr *apiError
+			projectDir, pathErr = joinPathWithinRoot(s.rootDir, req.ProjectID)
+			if pathErr != nil {
+				return pathErr
+			}
+		}
+		if err := requirePathWithinRoot(s.rootDir, projectDir, "project path"); err != nil {
+			return err
 		}
 		busPath = filepath.Join(projectDir, "PROJECT-MESSAGE-BUS.md")
+	}
+	if err := requirePathWithinRoot(s.rootDir, busPath, "message bus path"); err != nil {
+		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(busPath), 0o755); err != nil {
 		return apiErrorInternal("create message bus directory", err)
@@ -416,6 +472,23 @@ func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) *apiE
 	if err != nil {
 		return apiErrorInternal("append message", err)
 	}
+	req.TaskID = taskID
+	s.writeFormSubmissionAudit(r, formSubmissionAuditArgs{
+		Endpoint:  "POST /api/v1/messages",
+		ProjectID: req.ProjectID,
+		TaskID:    taskID,
+		MessageID: msgID,
+		Payload:   req,
+	})
+	obslog.Log(s.logger, "INFO", "api", "bus_message_posted",
+		obslog.F("request_id", requestIDFromRequest(r)),
+		obslog.F("correlation_id", requestIDFromRequest(r)),
+		obslog.F("project_id", req.ProjectID),
+		obslog.F("task_id", taskID),
+		obslog.F("run_id", msg.RunID),
+		obslog.F("message_id", msgID),
+		obslog.F("message_type", msgType),
+	)
 
 	return writeJSON(w, http.StatusCreated, PostMessageResponse{
 		MsgID:     msgID,
@@ -428,6 +501,14 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 	if err := decodeJSON(r, &req); err != nil {
 		return err
 	}
+	if s.startTasks {
+		s.rootRunGateMu.Lock()
+		blockedErr := s.taskCreateBlockedBySelfUpdateLocked()
+		s.rootRunGateMu.Unlock()
+		if blockedErr != nil {
+			return blockedErr
+		}
+	}
 	if err := validateIdentifier(req.ProjectID, "project_id"); err != nil {
 		return err
 	}
@@ -439,6 +520,10 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 	}
 	if strings.TrimSpace(req.Prompt) == "" {
 		return apiErrorBadRequest("prompt is required")
+	}
+	threadParentCtx, threadErr := s.validateThreadedParent(&req)
+	if threadErr != nil {
+		return threadErr
 	}
 
 	// Validate project_root if provided.
@@ -481,6 +566,7 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 	default:
 		return apiErrorBadRequest(fmt.Sprintf("invalid attach_mode %q: must be create, attach, or resume", attachMode))
 	}
+	req.AttachMode = attachMode
 
 	if req.ProcessImport != nil {
 		if req.ProcessImport.PID <= 0 {
@@ -523,7 +609,9 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 	}
 	req.DependsOn = dependsOn
 
-	prompt := strings.TrimSpace(req.Prompt)
+	// Preserve prompt bytes as provided by the client. Validation above already
+	// ensures the prompt contains non-whitespace content.
+	prompt := req.Prompt
 	if !strings.HasSuffix(prompt, "\n") {
 		prompt += "\n"
 	}
@@ -558,39 +646,98 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request) *apiEr
 	if err != nil {
 		return apiErrorInternal("allocate run directory", err)
 	}
-
-	if s.startTasks {
-		s.taskWg.Add(1)
-		go func() {
-			defer s.taskWg.Done()
-			s.startTask(req, runDir, runPrompt)
-		}()
+	if threadParentCtx != nil {
+		if err := s.persistThreadedTaskLinkage(taskDir, req, runID, threadParentCtx); err != nil {
+			return apiErrorInternal("persist threaded linkage", err)
+		}
 	}
-
-	resp := TaskCreateResponse{
+	s.writeFormSubmissionAudit(r, formSubmissionAuditArgs{
+		Endpoint:  "POST /api/v1/tasks",
 		ProjectID: req.ProjectID,
 		TaskID:    req.TaskID,
 		RunID:     runID,
-		Status:    "started",
-		DependsOn: dependsOn,
+		Payload:   req,
+	})
+
+	responseStatus := "started"
+	queuePosition := 0
+	if s.startTasks {
+		s.rootRunGateMu.Lock()
+		if blockedErr := s.taskCreateBlockedBySelfUpdateLocked(); blockedErr != nil {
+			s.rootRunGateMu.Unlock()
+			return blockedErr
+		}
+		if s.rootTaskPlanner != nil {
+			planResult, planErr := s.rootTaskPlanner.Submit(req, runDir, runPrompt)
+			if planErr != nil {
+				s.rootRunGateMu.Unlock()
+				return apiErrorInternal("plan root task start", planErr)
+			}
+			responseStatus = planResult.Status
+			queuePosition = planResult.QueuePosition
+			s.launchPlannedTasksLocked(planResult.Launches)
+		} else {
+			s.launchPlannedTasksLocked([]rootTaskLaunch{{
+				Request:   req,
+				RunID:     runID,
+				RunDir:    runDir,
+				RunPrompt: runPrompt,
+			}})
+		}
+		s.rootRunGateMu.Unlock()
+	}
+	obslog.Log(s.logger, "INFO", "api", "task_create_accepted",
+		obslog.F("request_id", requestIDFromRequest(r)),
+		obslog.F("correlation_id", requestIDFromRequest(r)),
+		obslog.F("project_id", req.ProjectID),
+		obslog.F("task_id", req.TaskID),
+		obslog.F("run_id", runID),
+		obslog.F("agent_type", req.AgentType),
+		obslog.F("attach_mode", attachMode),
+		obslog.F("planner_status", responseStatus),
+		obslog.F("queue_position", queuePosition),
+		obslog.F("task_start_enabled", s.startTasks),
+	)
+
+	resp := TaskCreateResponse{
+		ProjectID:     req.ProjectID,
+		TaskID:        req.TaskID,
+		RunID:         runID,
+		Status:        responseStatus,
+		QueuePosition: queuePosition,
+		DependsOn:     dependsOn,
 	}
 	return writeJSON(w, http.StatusCreated, resp)
 }
 
+// taskCreateBlockedBySelfUpdateLocked checks whether root-run admission is blocked.
+// Caller must hold s.rootRunGateMu.
+func (s *Server) taskCreateBlockedBySelfUpdateLocked() *apiError {
+	if s == nil || s.selfUpdate == nil || !s.selfUpdate.blocksNewRootRuns() {
+		return nil
+	}
+	state := s.selfUpdate.status().State
+	return apiErrorConflict(
+		"self-update drain is in progress; task creation is temporarily unavailable",
+		map[string]string{"self_update_state": state},
+	)
+}
+
 func (s *Server) handleTaskList(w http.ResponseWriter, r *http.Request) *apiError {
-	tasks, err := listTasks(s.rootDir)
+	tasks, err := listTasksWithQueue(s.rootDir, s.taskQueueSnapshot())
 	if err != nil {
 		return apiErrorInternal("list tasks", err)
 	}
 	resp := make([]TaskResponse, 0, len(tasks))
 	for _, task := range tasks {
 		resp = append(resp, TaskResponse{
-			ProjectID:    task.ProjectID,
-			TaskID:       task.TaskID,
-			Status:       task.Status,
-			LastActivity: task.LastActivity,
-			DependsOn:    task.DependsOn,
-			BlockedBy:    task.BlockedBy,
+			ProjectID:     task.ProjectID,
+			TaskID:        task.TaskID,
+			Status:        task.Status,
+			QueuePosition: task.QueuePosition,
+			LastActivity:  task.LastActivity,
+			DependsOn:     task.DependsOn,
+			BlockedBy:     task.BlockedBy,
 		})
 	}
 	return writeJSON(w, http.StatusOK, map[string][]TaskResponse{"tasks": resp})
@@ -602,13 +749,14 @@ func (s *Server) handleTaskGet(w http.ResponseWriter, r *http.Request, projectID
 	}
 	var task taskInfo
 	var err error
+	queueSnapshot := s.taskQueueSnapshot()
 	if projectID != "" {
 		if err := validateIdentifier(projectID, "project_id"); err != nil {
 			return err
 		}
-		task, err = getTask(s.rootDir, projectID, taskID)
+		task, err = getTaskWithQueue(s.rootDir, projectID, taskID, queueSnapshot)
 	} else {
-		task, err = findTask(s.rootDir, taskID)
+		task, err = findTaskWithQueue(s.rootDir, taskID, queueSnapshot)
 	}
 	if err != nil {
 		if stderrors.Is(err, errNotFound) {
@@ -625,13 +773,14 @@ func (s *Server) handleTaskGet(w http.ResponseWriter, r *http.Request, projectID
 		return apiErrorInternal("list task runs", err)
 	}
 	resp := TaskResponse{
-		ProjectID:    task.ProjectID,
-		TaskID:       task.TaskID,
-		Status:       task.Status,
-		LastActivity: task.LastActivity,
-		DependsOn:    task.DependsOn,
-		BlockedBy:    task.BlockedBy,
-		Runs:         runs,
+		ProjectID:     task.ProjectID,
+		TaskID:        task.TaskID,
+		Status:        task.Status,
+		QueuePosition: task.QueuePosition,
+		LastActivity:  task.LastActivity,
+		DependsOn:     task.DependsOn,
+		BlockedBy:     task.BlockedBy,
+		Runs:          runs,
 	}
 	return writeJSON(w, http.StatusOK, resp)
 }
@@ -642,13 +791,14 @@ func (s *Server) handleTaskCancel(w http.ResponseWriter, r *http.Request, projec
 	}
 	var task taskInfo
 	var err error
+	queueSnapshot := s.taskQueueSnapshot()
 	if projectID != "" {
 		if err := validateIdentifier(projectID, "project_id"); err != nil {
 			return err
 		}
-		task, err = getTask(s.rootDir, projectID, taskID)
+		task, err = getTaskWithQueue(s.rootDir, projectID, taskID, queueSnapshot)
 	} else {
-		task, err = findTask(s.rootDir, taskID)
+		task, err = findTaskWithQueue(s.rootDir, taskID, queueSnapshot)
 	}
 	if err != nil {
 		if stderrors.Is(err, errNotFound) {
@@ -668,6 +818,33 @@ func (s *Server) handleTaskCancel(w http.ResponseWriter, r *http.Request, projec
 	if err != nil {
 		return apiErrorInternal("stop task", err)
 	}
+	if s.rootTaskPlanner != nil {
+		launches, planErr := s.rootTaskPlanner.DropQueuedForTask(task.ProjectID, task.TaskID)
+		if planErr != nil {
+			obslog.Log(s.logger, "ERROR", "api", "task_queue_drop_failed",
+				obslog.F("project_id", task.ProjectID),
+				obslog.F("task_id", task.TaskID),
+				obslog.F("error", planErr),
+			)
+		} else {
+			s.launchPlannedTasks(launches)
+		}
+	}
+	s.writeFormSubmissionAudit(r, formSubmissionAuditArgs{
+		Endpoint:  "DELETE /api/v1/tasks/{task_id}",
+		ProjectID: task.ProjectID,
+		TaskID:    task.TaskID,
+		Payload: map[string]any{
+			"stopped_runs": stopped,
+		},
+	})
+	obslog.Log(s.logger, "WARN", "api", "task_cancel_requested",
+		obslog.F("request_id", requestIDFromRequest(r)),
+		obslog.F("correlation_id", requestIDFromRequest(r)),
+		obslog.F("project_id", task.ProjectID),
+		obslog.F("task_id", task.TaskID),
+		obslog.F("stopped_runs", stopped),
+	)
 	return writeJSON(w, http.StatusAccepted, map[string]int{"stopped_runs": stopped})
 }
 
@@ -723,6 +900,23 @@ func (s *Server) handleRunStop(w http.ResponseWriter, r *http.Request, runID str
 	if err := runner.TerminateProcessGroup(info.PGID); err != nil {
 		return apiErrorInternal("stop run", err)
 	}
+	s.writeFormSubmissionAudit(r, formSubmissionAuditArgs{
+		Endpoint:  "POST /api/v1/runs/{run_id}/stop",
+		ProjectID: info.ProjectID,
+		TaskID:    info.TaskID,
+		RunID:     info.RunID,
+		Payload: map[string]any{
+			"pgid": info.PGID,
+		},
+	})
+	obslog.Log(s.logger, "WARN", "api", "run_stop_requested",
+		obslog.F("request_id", requestIDFromRequest(r)),
+		obslog.F("correlation_id", requestIDFromRequest(r)),
+		obslog.F("project_id", info.ProjectID),
+		obslog.F("task_id", info.TaskID),
+		obslog.F("run_id", info.RunID),
+		obslog.F("pgid", info.PGID),
+	)
 	return writeJSON(w, http.StatusAccepted, map[string]string{"status": "stopping"})
 }
 
@@ -739,11 +933,17 @@ func (s *Server) conductorURL() string {
 }
 
 func (s *Server) startTask(req TaskCreateRequest, firstRunDir, prompt string) {
+	runID := strings.TrimSpace(filepath.Base(firstRunDir))
+	parentRunID := ""
+	if req.ThreadParent != nil {
+		parentRunID = strings.TrimSpace(req.ThreadParent.RunID)
+	}
 	if req.ProcessImport != nil {
 		opts := runner.ImportOptions{
 			RootDir:            s.rootDir,
 			WorkingDir:         strings.TrimSpace(req.ProjectRoot),
 			PreallocatedRunDir: firstRunDir,
+			ParentRunID:        parentRunID,
 			Process: runner.ImportedProcess{
 				PID:         req.ProcessImport.PID,
 				PGID:        req.ProcessImport.PGID,
@@ -754,12 +954,31 @@ func (s *Server) startTask(req TaskCreateRequest, firstRunDir, prompt string) {
 				Ownership:   req.ProcessImport.Ownership,
 			},
 		}
+		obslog.Log(s.logger, "INFO", "api", "task_import_started",
+			obslog.F("project_id", req.ProjectID),
+			obslog.F("task_id", req.TaskID),
+			obslog.F("run_id", runID),
+			obslog.F("agent_type", req.AgentType),
+			obslog.F("import_pid", req.ProcessImport.PID),
+		)
 		s.metrics.IncActiveRuns()
 		if err := runner.RunImportedProcess(req.ProjectID, req.TaskID, opts); err != nil {
-			s.logger.Printf("task %s/%s import failed: %v", req.ProjectID, req.TaskID, err)
+			obslog.Log(s.logger, "ERROR", "api", "task_import_failed",
+				obslog.F("project_id", req.ProjectID),
+				obslog.F("task_id", req.TaskID),
+				obslog.F("run_id", runID),
+				obslog.F("agent_type", req.AgentType),
+				obslog.F("error", err),
+			)
 			s.metrics.DecActiveRuns()
 			s.metrics.IncFailedRuns()
 		} else {
+			obslog.Log(s.logger, "INFO", "api", "task_import_completed",
+				obslog.F("project_id", req.ProjectID),
+				obslog.F("task_id", req.TaskID),
+				obslog.F("run_id", runID),
+				obslog.F("agent_type", req.AgentType),
+			)
 			s.metrics.DecActiveRuns()
 			s.metrics.IncCompletedRuns()
 		}
@@ -775,17 +994,124 @@ func (s *Server) startTask(req TaskCreateRequest, firstRunDir, prompt string) {
 		Environment:  req.Config,
 		FirstRunDir:  firstRunDir,
 		ConductorURL: s.conductorURL(),
+		ParentRunID:  parentRunID,
 		DependsOn:    req.DependsOn,
 	}
+	obslog.Log(s.logger, "INFO", "api", "task_run_started",
+		obslog.F("project_id", req.ProjectID),
+		obslog.F("task_id", req.TaskID),
+		obslog.F("run_id", runID),
+		obslog.F("agent_type", req.AgentType),
+	)
 	s.metrics.IncActiveRuns()
 	if err := runner.RunTask(req.ProjectID, req.TaskID, opts); err != nil {
-		s.logger.Printf("task %s/%s failed: %v", req.ProjectID, req.TaskID, err)
+		obslog.Log(s.logger, "ERROR", "api", "task_run_failed",
+			obslog.F("project_id", req.ProjectID),
+			obslog.F("task_id", req.TaskID),
+			obslog.F("run_id", runID),
+			obslog.F("agent_type", req.AgentType),
+			obslog.F("error", err),
+		)
 		s.metrics.DecActiveRuns()
 		s.metrics.IncFailedRuns()
 	} else {
+		obslog.Log(s.logger, "INFO", "api", "task_run_completed",
+			obslog.F("project_id", req.ProjectID),
+			obslog.F("task_id", req.TaskID),
+			obslog.F("run_id", runID),
+			obslog.F("agent_type", req.AgentType),
+		)
 		s.metrics.DecActiveRuns()
 		s.metrics.IncCompletedRuns()
 	}
+}
+
+func (s *Server) launchPlannedTasks(launches []rootTaskLaunch) {
+	if s == nil || len(launches) == 0 {
+		return
+	}
+	s.rootRunGateMu.Lock()
+	defer s.rootRunGateMu.Unlock()
+	s.launchPlannedTasksLocked(launches)
+}
+
+func (s *Server) onSelfUpdateDrainReleased() {
+	if s == nil || !s.startTasks || s.rootTaskPlanner == nil {
+		return
+	}
+	s.rootRunGateMu.Lock()
+	defer s.rootRunGateMu.Unlock()
+	if s.selfUpdate != nil && s.selfUpdate.blocksNewRootRuns() {
+		return
+	}
+	launches, err := s.rootTaskPlanner.Recover()
+	if err != nil {
+		obslog.Log(s.logger, "ERROR", "api", "root_task_planner_recover_after_self_update_failed",
+			obslog.F("error", err),
+		)
+		return
+	}
+	s.launchPlannedTasksLocked(launches)
+}
+
+// launchPlannedTasksLocked starts planned root runs while holding s.rootRunGateMu.
+func (s *Server) launchPlannedTasksLocked(launches []rootTaskLaunch) {
+	if s == nil || len(launches) == 0 {
+		return
+	}
+	for _, launch := range launches {
+		launch := launch
+		if strings.TrimSpace(launch.RunDir) == "" {
+			continue
+		}
+		s.activeRootRuns.Add(1)
+		s.taskWg.Add(1)
+		go func() {
+			defer s.taskWg.Done()
+			defer s.activeRootRuns.Add(-1)
+			s.startTask(launch.Request, launch.RunDir, launch.RunPrompt)
+			if s.rootTaskPlanner == nil {
+				return
+			}
+			s.rootRunGateMu.Lock()
+			defer s.rootRunGateMu.Unlock()
+			allowSchedule := true
+			if s.selfUpdate != nil && s.selfUpdate.blocksNewRootRuns() {
+				allowSchedule = false
+			}
+			next, err := s.rootTaskPlanner.OnRunFinishedWithScheduling(
+				launch.Request.ProjectID,
+				launch.Request.TaskID,
+				launch.RunID,
+				allowSchedule,
+			)
+			if err != nil {
+				obslog.Log(s.logger, "ERROR", "api", "root_task_planner_finish_failed",
+					obslog.F("project_id", launch.Request.ProjectID),
+					obslog.F("task_id", launch.Request.TaskID),
+					obslog.F("run_id", launch.RunID),
+					obslog.F("allow_schedule", allowSchedule),
+					obslog.F("error", err),
+				)
+				return
+			}
+			s.launchPlannedTasksLocked(next)
+		}()
+	}
+}
+
+func (s *Server) taskQueueSnapshot() map[taskQueueKey]taskQueueState {
+	if s == nil || s.rootTaskPlanner == nil {
+		return nil
+	}
+	snapshot, err := s.rootTaskPlanner.Snapshot()
+	if err != nil {
+		obslog.Log(s.logger, "ERROR", "api", "root_task_queue_snapshot_failed",
+			obslog.F("error", err),
+		)
+		return nil
+	}
+	return snapshot
 }
 
 func runInfoToResponse(info *storage.RunInfo) RunResponse {
@@ -842,10 +1168,14 @@ func validateIdentifier(value, name string) *apiError {
 	if trimmed == "" {
 		return apiErrorBadRequest(fmt.Sprintf("%s is required", name))
 	}
-	if strings.Contains(trimmed, "/") || strings.Contains(trimmed, "\\") {
+	decoded := trimmed
+	if unescaped, err := url.PathUnescape(trimmed); err == nil {
+		decoded = unescaped
+	}
+	if strings.Contains(decoded, "/") || strings.Contains(decoded, "\\") {
 		return apiErrorBadRequest(fmt.Sprintf("%s must not contain path separators", name))
 	}
-	if strings.Contains(trimmed, "..") {
+	if strings.Contains(decoded, "..") {
 		return apiErrorBadRequest(fmt.Sprintf("%s must not contain ..", name))
 	}
 	return nil
@@ -873,13 +1203,14 @@ func pathSegments(path, prefix string) []string {
 // storage helpers
 
 type taskInfo struct {
-	ProjectID    string
-	TaskID       string
-	Path         string
-	Status       string
-	LastActivity time.Time
-	DependsOn    []string
-	BlockedBy    []string
+	ProjectID     string
+	TaskID        string
+	Path          string
+	Status        string
+	QueuePosition int
+	LastActivity  time.Time
+	DependsOn     []string
+	BlockedBy     []string
 }
 
 var (
@@ -888,6 +1219,10 @@ var (
 )
 
 func listTasks(root string) ([]taskInfo, error) {
+	return listTasksWithQueue(root, nil)
+}
+
+func listTasksWithQueue(root string, queue map[taskQueueKey]taskQueueState) ([]taskInfo, error) {
 	root = filepath.Clean(strings.TrimSpace(root))
 	if root == "." || root == "" {
 		return nil, stderrors.New("root dir is empty")
@@ -907,7 +1242,7 @@ func listTasks(root string) ([]taskInfo, error) {
 		}
 		projectID := entry.Name()
 		projectDir := filepath.Join(root, projectID)
-		projectTasks, err := listProjectTasks(projectID, projectDir)
+		projectTasks, err := listProjectTasksWithQueue(projectID, projectDir, queue)
 		if err != nil {
 			return nil, err
 		}
@@ -917,6 +1252,10 @@ func listTasks(root string) ([]taskInfo, error) {
 }
 
 func listProjectTasks(projectID, projectDir string) ([]taskInfo, error) {
+	return listProjectTasksWithQueue(projectID, projectDir, nil)
+}
+
+func listProjectTasksWithQueue(projectID, projectDir string, queue map[taskQueueKey]taskQueueState) ([]taskInfo, error) {
 	taskEntries, err := os.ReadDir(projectDir)
 	if err != nil {
 		return nil, errors.Wrapf(err, "read project dir %s", projectID)
@@ -934,7 +1273,7 @@ func listProjectTasks(projectID, projectDir string) ([]taskInfo, error) {
 			}
 			return nil, errors.Wrapf(err, "stat TASK.md for %s/%s", projectID, taskID)
 		}
-		info, err := buildTaskInfo(filepath.Dir(projectDir), projectID, taskID, taskPath)
+		info, err := buildTaskInfoWithQueue(filepath.Dir(projectDir), projectID, taskID, taskPath, queue)
 		if err != nil {
 			return nil, err
 		}
@@ -944,6 +1283,10 @@ func listProjectTasks(projectID, projectDir string) ([]taskInfo, error) {
 }
 
 func getTask(root, projectID, taskID string) (taskInfo, error) {
+	return getTaskWithQueue(root, projectID, taskID, nil)
+}
+
+func getTaskWithQueue(root, projectID, taskID string, queue map[taskQueueKey]taskQueueState) (taskInfo, error) {
 	root = filepath.Clean(strings.TrimSpace(root))
 	if root == "." || root == "" {
 		return taskInfo{}, stderrors.New("root dir is empty")
@@ -955,7 +1298,7 @@ func getTask(root, projectID, taskID string) (taskInfo, error) {
 		}
 		return taskInfo{}, errors.Wrap(err, "stat TASK.md")
 	}
-	info, err := buildTaskInfo(root, projectID, taskID, taskPath)
+	info, err := buildTaskInfoWithQueue(root, projectID, taskID, taskPath, queue)
 	if err != nil {
 		return taskInfo{}, err
 	}
@@ -963,8 +1306,12 @@ func getTask(root, projectID, taskID string) (taskInfo, error) {
 }
 
 func findTask(root, taskID string) (taskInfo, error) {
+	return findTaskWithQueue(root, taskID, nil)
+}
+
+func findTaskWithQueue(root, taskID string, queue map[taskQueueKey]taskQueueState) (taskInfo, error) {
 	matches := make([]taskInfo, 0, 1)
-	tasks, err := listTasks(root)
+	tasks, err := listTasksWithQueue(root, queue)
 	if err != nil {
 		return taskInfo{}, err
 	}
@@ -983,6 +1330,10 @@ func findTask(root, taskID string) (taskInfo, error) {
 }
 
 func buildTaskInfo(rootDir, projectID, taskID, taskPath string) (taskInfo, error) {
+	return buildTaskInfoWithQueue(rootDir, projectID, taskID, taskPath, nil)
+}
+
+func buildTaskInfoWithQueue(rootDir, projectID, taskID, taskPath string, queue map[taskQueueKey]taskQueueState) (taskInfo, error) {
 	status := "idle"
 	done := false
 	if _, err := os.Stat(filepath.Join(taskPath, "DONE")); err == nil {
@@ -1020,19 +1371,27 @@ func buildTaskInfo(rootDir, projectID, taskID, taskPath string) (taskInfo, error
 			status = "blocked"
 		}
 	}
+	queuePosition := 0
+	if !done && status != "running" {
+		if state, ok := queue[taskQueueKey{ProjectID: projectID, TaskID: taskID}]; ok && state.Queued {
+			status = "queued"
+			queuePosition = state.QueuePosition
+		}
+	}
 	if lastActivity.IsZero() {
 		if info, err := os.Stat(filepath.Join(taskPath, "TASK.md")); err == nil {
 			lastActivity = info.ModTime()
 		}
 	}
 	return taskInfo{
-		ProjectID:    projectID,
-		TaskID:       taskID,
-		Path:         taskPath,
-		Status:       status,
-		LastActivity: lastActivity,
-		DependsOn:    dependsOn,
-		BlockedBy:    blockedBy,
+		ProjectID:     projectID,
+		TaskID:        taskID,
+		Path:          taskPath,
+		Status:        status,
+		QueuePosition: queuePosition,
+		LastActivity:  lastActivity,
+		DependsOn:     dependsOn,
+		BlockedBy:     blockedBy,
 	}, nil
 }
 

@@ -2,6 +2,54 @@
 
 Complete command-line reference for Conductor Loop binaries: `conductor` and `run-agent`.
 
+## Two Supported Working Scenarios
+
+Both workflows below drive the same lifecycle: create/submit task -> monitor output -> exchange bus messages -> stop/resume when needed.
+
+### 1. Console Cloud-Agent Workflow (CLI-first)
+
+Use this when a cloud agent (or operator) controls execution from a terminal.
+
+```bash
+# Submit and stream output
+conductor job submit \
+  --project my-project \
+  --task task-20260221-090000-cloud-agent \
+  --agent codex \
+  --prompt-file ./prompts/task.md \
+  --follow
+
+# Watch completion state
+conductor watch --project my-project --task task-20260221-090000-cloud-agent --timeout 30m
+
+# Lifecycle communication
+conductor bus read --project my-project --task task-20260221-090000-cloud-agent --follow
+conductor bus post --project my-project --task task-20260221-090000-cloud-agent \
+  --type PROGRESS --body "running integration tests"
+
+# If restarts were exhausted
+conductor task resume task-20260221-090000-cloud-agent --project my-project
+```
+
+If the agent has direct filesystem access to the runs root, use `run-agent bus read/post` for local bus operations.
+
+### 2. Web UI Workflow (browser-first)
+
+Use this when you want interactive control with visual context.
+
+1. Open `http://localhost:14355/ui/`.
+2. In **Tree**, select a project (or click **+ New Project**).
+3. Click **+ New Task**, fill `Agent` and `Prompt`, then click **Create Task**.
+4. Monitor progress in **Task details**, **Message bus**, and **Live logs**.
+5. Use **Stop agent** and **Resume task** as lifecycle controls.
+
+### When to Use Which
+
+| Workflow | Choose it when |
+|----------|----------------|
+| Console cloud-agent workflow | You need scriptable automation, CI/remote execution, or terminal-native logs |
+| Web UI workflow | You want quick visual monitoring and manual control of task/run/message state |
+
 ## `conductor` - Main CLI
 
 The main server and task orchestration CLI.
@@ -1475,6 +1523,30 @@ run-agent serve 2026/02/05 10:00:00 Web UI available at http://localhost:14355/u
 `http://localhost:14355` (conductor's port). If using `run-agent serve`, either open the UI
 through the server at `http://127.0.0.1:14355/ui/` or update `API_BASE` manually.
 
+#### `run-agent server update`
+
+Manage safe self-update flow on a running `run-agent serve` instance.
+
+```bash
+# Request update to a candidate binary path
+run-agent server update start --server http://localhost:14355 --binary /tmp/run-agent-new
+
+# Inspect current update state
+run-agent server update status --server http://localhost:14355
+```
+
+`start` behavior:
+- Returns `deferred` when root runs are active (no interruption to in-flight tasks).
+- Returns `applying` when the server can hand off immediately.
+- During `deferred`/`applying`, new root task starts are temporarily rejected (`409`) to drain safely.
+- Update requests and root-run launch admission are serialized so launches admitted after drain begins are rejected.
+- If handoff fails, rollback is attempted and queued planner launches deferred by drain mode resume automatically.
+
+`status` fields include:
+- `state`: `idle`, `deferred`, `applying`, `failed`
+- `active_runs_now`: current active root run count
+- `last_error`: rollback/handoff error details when failed
+
 #### `run-agent stop`
 
 Stop a running task by sending SIGTERM to its process group.
@@ -1935,16 +2007,25 @@ run-agent bus post [--type TYPE] [--body BODY] [flags]
 | `--bus` | string | "" | Path to message bus file (highest precedence) |
 | `--root` | string | "" | Root directory for project/task bus resolution (default: `$RUNS_DIR`, then `./runs`) |
 | `--type` | string | "INFO" | Message type |
-| `--project` | string | "" | Project ID (used with `--root`/`--task` to resolve bus path; also sets message `project_id`; falls back to `$JRUN_PROJECT_ID`) |
-| `--task` | string | "" | Task ID (used with `--project` to resolve task-level bus; also sets message `task_id`) |
-| `--run` | string | "" | Run ID (falls back to `$JRUN_ID`) |
+| `--project` | string | "" | Project ID (optional; used with `--root`/`--task` to resolve bus path; inferred when omitted) |
+| `--task` | string | "" | Task ID (optional; used with `--project` to resolve task-level bus; inferred when omitted) |
+| `--run` | string | "" | Run ID (optional; inferred when omitted) |
 | `--body` | string | "" | Message body (reads stdin if not provided and stdin is a pipe) |
+
+**Message context inference order (`project_id` / `task_id` / `run_id`):**
+1. Explicit flags: `--project`, `--task`, `--run`
+2. Context inference: resolved bus path, then `RUN_FOLDER`, then `TASK_FOLDER`
+3. Runner env fallback: `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`
+4. Error if `project_id` is still missing
 
 **Examples:**
 
 ```bash
-# Auto-discovery mode (from repo/task dir; no --bus needed)
-cd ~/Work/conductor-loop
+# Simplest form in a run-agent-managed shell (MESSAGE_BUS/JRUN_* are already set)
+run-agent bus post --type PROGRESS --body "starting analysis"
+
+# Auto-discovery mode from repo/task dir (no --bus/--project needed)
+cd <repo-root>
 run-agent bus post --type PROGRESS --body "starting analysis"
 
 # Explicit project/task mode (resolved from <root>/<project>/<task>/TASK-MESSAGE-BUS.md)
@@ -1969,15 +2050,14 @@ run-agent bus post \
   --type FACT \
   --body "tests passed"
 
-# Cross-repo usage: operate on a different repository bus path
+# Cross-repo usage with scoped bus path (project/task inferred from path)
 run-agent bus post \
-  --bus ~/Work/swarm/MESSAGE-BUS.md \
-  --project swarm \
+  --bus <runs-root>/swarm/task-20260221-120000-feat/TASK-MESSAGE-BUS.md \
   --type FACT \
   --body "coordinator handoff complete"
 
 # Post from stdin
-echo "waiting for human input" | run-agent bus post --project my-project --type QUESTION
+echo "waiting for human input" | run-agent bus post --type QUESTION
 ```
 
 **Practical type conventions:**
@@ -2014,7 +2094,7 @@ run-agent bus read [--tail N] [--follow] [flags]
 
 ```bash
 # Auto-discovery mode (from repo/task dir)
-cd ~/Work/conductor-loop
+cd <repo-root>
 run-agent bus read --tail 10
 
 # Explicit project/task mode
@@ -2031,7 +2111,7 @@ run-agent bus read --project my-project --root ./runs --tail 50
 run-agent bus read --bus /tmp/custom-bus.md --tail 10
 
 # Cross-repo usage
-run-agent bus read --bus ~/Work/swarm/MESSAGE-BUS.md --tail 30
+run-agent bus read --bus <other-repo-root>/MESSAGE-BUS.md --tail 30
 ```
 
 ##### `run-agent bus discover`
@@ -2058,7 +2138,7 @@ Search priority within each directory:
 run-agent bus discover
 
 # Discover from an explicit path
-run-agent bus discover --from ~/Work/swarm/tasks/task-123/runs/latest
+run-agent bus discover --from <other-repo-root>/tasks/task-123/runs/latest
 ```
 
 **Read/Post/Follow workflow (recommended):**
@@ -2071,10 +2151,10 @@ run-agent bus discover --from ~/Work/swarm/tasks/task-123/runs/latest
 # Terminal A: follow live task traffic
 run-agent bus read --project my-project --task task-20260221-120000-feat --root ./runs --follow
 
-# Terminal B: post lifecycle updates
-run-agent bus post --project my-project --task task-20260221-120000-feat --root ./runs \
+# Terminal B: post lifecycle updates (from the task shell/context)
+run-agent bus post \
   --type PROGRESS --body "starting dependency update"
-run-agent bus post --project my-project --task task-20260221-120000-feat --root ./runs \
+run-agent bus post \
   --type FACT --body "dependency update complete"
 ```
 
@@ -2082,6 +2162,7 @@ run-agent bus post --project my-project --task task-20260221-120000-feat --root 
 
 - `run-agent bus post`: `--bus` -> `$MESSAGE_BUS` -> resolved from `--project`/`--task` (+ `--root`) -> auto-discover from CWD.
 - `run-agent bus read`: resolved from `--project`/`--task` (+ `--root`) -> `--bus` -> `$MESSAGE_BUS` -> auto-discover from CWD.
+- `run-agent bus post` message scope (`project_id`/`task_id`/`run_id`): explicit flags -> bus/RUN_FOLDER/TASK_FOLDER context -> `JRUN_*` env -> error.
 - For `read`, `--bus` and `--project` are mutually exclusive.
 - Resolved paths are:
   - Project scope: `<root>/<project>/PROJECT-MESSAGE-BUS.md`

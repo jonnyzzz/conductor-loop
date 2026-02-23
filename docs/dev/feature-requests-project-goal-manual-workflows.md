@@ -12,7 +12,7 @@ This bundle is based on:
 - `docs/user/cli-reference.md`
 - `docs/user/rlm-orchestration.md`
 - `THE_PROMPT_v5.md`
-- `/Users/jonnyzzz/Work/jonnyzzz.com-src/RLM.md`
+- `artifacts/context/RLM.md`
 
 Current CLI coverage is good for single-command operations (`job submit`, `watch`, `status`, `output`, `bus`), but coordinators still rely on shell scripts for multi-step project-goal orchestration.
 
@@ -304,4 +304,3 @@ conductor iterate --project my-project --task task-20260221-goal --phase review 
 - Executes fixed iteration count (or early-stop policy) deterministically.
 - Auto-posts iteration DECISION/FACT entries to bus.
 - Produces a single merged iteration summary artifact for final reporting.
-

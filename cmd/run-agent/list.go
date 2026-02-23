@@ -190,15 +190,17 @@ func listTasksWithOptions(out io.Writer, root, projectID, statusFilter string, j
 		}
 		if len(runNames) > 0 {
 			sort.Strings(runNames)
-			latest := runNames[len(runNames)-1]
-			row.latestRunID = latest
-			infoPath := filepath.Join(runsDir, latest, "run-info.yaml")
-			if info, err := runstate.ReadRunInfo(infoPath); err == nil {
+			latestRunID, info := latestReadableRunInfo(runsDir, runNames)
+			if info != nil {
+				row.latestRunID = latestRunID
 				row.LatestStatus = info.Status
 				row.latestRunStart = info.StartTime
 				row.latestOutput = info.OutputPath
 				row.latestStdout = info.StdoutPath
 				row.latestStderr = info.StderrPath
+			} else if row.Done {
+				// A DONE marker is authoritative even if newest run directories are orphaned.
+				row.LatestStatus = "done"
 			}
 		} else if !row.Done && len(dependsOn) > 0 {
 			blockedBy, err := taskdeps.BlockedBy(root, projectID, dependsOn)
@@ -284,6 +286,19 @@ func attachListTaskActivity(row *taskRow, taskDir string, opts activityOptions) 
 		opts,
 	)
 	row.Activity = &signals
+}
+
+func latestReadableRunInfo(runsDir string, runNames []string) (string, *storage.RunInfo) {
+	for i := len(runNames) - 1; i >= 0; i-- {
+		runID := runNames[i]
+		infoPath := filepath.Join(runsDir, runID, "run-info.yaml")
+		info, err := runstate.ReadRunInfo(infoPath)
+		if err != nil {
+			continue
+		}
+		return runID, info
+	}
+	return "", nil
 }
 
 func listActivityAge(signals *taskActivitySignals) *int64 {

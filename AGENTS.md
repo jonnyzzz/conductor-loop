@@ -462,9 +462,9 @@ ln, err := net.Listen("tcp", ":8080")
 
 ## References
 
-- **Workflow**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-- **Plan**: `/Users/jonnyzzz/Work/conductor-loop/THE_PLAN_v5.md`
-- **Specifications**: `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/`
-- **Decisions**: `/Users/jonnyzzz/Work/conductor-loop/docs/decisions/`
-- **Agent Protocol**: `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/subsystem-agent-protocol.md`
-- **Storage Layout**: `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/subsystem-storage-layout.md`
+- **Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Plan**: `<project-root>/THE_PLAN_v5.md`
+- **Specifications**: `<project-root>/docs/specifications/`
+- **Decisions**: `<project-root>/docs/decisions/`
+- **Agent Protocol**: `<project-root>/docs/specifications/subsystem-agent-protocol.md`
+- **Storage Layout**: `<project-root>/docs/specifications/subsystem-storage-layout.md`

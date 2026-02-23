@@ -5,12 +5,14 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	"github.com/pkg/errors"
 )
 
@@ -157,6 +159,11 @@ func (rl *RalphLoop) Run(ctx context.Context) error {
 	restarts := 0
 	for {
 		if err := ctx.Err(); err != nil {
+			obslog.Log(log.Default(), "WARN", "runner", "ralph_loop_context_done",
+				obslog.F("project_id", rl.projectID),
+				obslog.F("task_id", rl.taskID),
+				obslog.F("error", err),
+			)
 			return err
 		}
 
@@ -171,6 +178,11 @@ func (rl *RalphLoop) Run(ctx context.Context) error {
 			if logErr := rl.appendMessage("ERROR", fmt.Sprintf("task failed: max restarts (%d) exceeded", rl.maxRestarts)); logErr != nil {
 				return logErr
 			}
+			obslog.Log(log.Default(), "ERROR", "runner", "ralph_loop_max_restarts_exceeded",
+				obslog.F("project_id", rl.projectID),
+				obslog.F("task_id", rl.taskID),
+				obslog.F("max_restarts", rl.maxRestarts),
+			)
 			return errors.New("max restarts exceeded")
 		}
 
@@ -181,6 +193,18 @@ func (rl *RalphLoop) Run(ctx context.Context) error {
 			if logErr := rl.appendMessage("WARNING", fmt.Sprintf("root agent failed on restart #%d: %v", restarts, err)); logErr != nil {
 				return logErr
 			}
+			obslog.Log(log.Default(), "WARN", "runner", "ralph_loop_attempt_failed",
+				obslog.F("project_id", rl.projectID),
+				obslog.F("task_id", rl.taskID),
+				obslog.F("attempt", restarts),
+				obslog.F("error", err),
+			)
+		} else {
+			obslog.Log(log.Default(), "INFO", "runner", "ralph_loop_attempt_completed",
+				obslog.F("project_id", rl.projectID),
+				obslog.F("task_id", rl.taskID),
+				obslog.F("attempt", restarts),
+			)
 		}
 		restarts++
 
@@ -219,6 +243,12 @@ func (rl *RalphLoop) handleDone(ctx context.Context) error {
 		if stderrors.Is(waitErr, ErrChildWaitTimeout) {
 			return rl.appendMessage("WARNING", fmt.Sprintf("timeout waiting for children after %s: %s", rl.waitTimeout, childRunIDs(remaining)))
 		}
+		_ = rl.appendMessage("ERROR", fmt.Sprintf("failed waiting for children: %v", waitErr))
+		obslog.Log(log.Default(), "ERROR", "runner", "ralph_loop_child_wait_failed",
+			obslog.F("project_id", rl.projectID),
+			obslog.F("task_id", rl.taskID),
+			obslog.F("error", waitErr),
+		)
 		return waitErr
 	}
 	return rl.appendMessage("INFO", "task completed (all children finished)")

@@ -104,9 +104,9 @@
 - [x] `task-20260222-102100-goal-decompose-cli`: implement `conductor goal decompose` / `run-agent goal decompose` skeleton with deterministic workflow spec output (`--json`, `--out`).
 - [x] `task-20260222-102110-job-batch-cli`: implement `run-agent job batch` + `conductor job submit-batch` for fan-out/fan-in orchestration from spec files.
 - [x] `task-20260222-102120-workflow-runner-cli`: implement `run-agent workflow run` + `conductor workflow run` with stage state persistence/resume.
-- [ ] `task-20260222-102130-output-synthesize-cli`: implement `run-agent output synthesize` + `conductor task synthesize` with merge/reduce/vote strategies and provenance (execution in progress via follow-up `task-20260222-202620-followup-blocked-rlm-backlog-completion`).
-- [ ] `task-20260222-102140-review-quorum-cli`: implement `run-agent review quorum` + `conductor review run` to enforce 2+ reviewer quorum and structured verdicts (execution in progress via follow-up `task-20260222-202620-followup-blocked-rlm-backlog-completion`).
-- [ ] `task-20260222-102150-iteration-loop-cli`: implement `run-agent iterate` + `conductor iterate` for fixed planning/review iteration loops with auto bus logging (execution in progress via follow-up `task-20260222-202620-followup-blocked-rlm-backlog-completion`).
+- [x] `task-20260222-102130-output-synthesize-cli`: implement `run-agent output synthesize` + `conductor task synthesize` with merge/reduce/vote strategies and provenance (closed via canonical revision `task-20260222-102130-output-synthesize-cli-r3`; base/`-r2` superseded by follow-up `task-20260222-202620-followup-blocked-rlm-backlog-completion`).
+- [x] `task-20260222-102140-review-quorum-cli`: implement `run-agent review quorum` + `conductor review run` to enforce 2+ reviewer quorum and structured verdicts (closed via canonical revision `task-20260222-102140-review-quorum-cli-r3`; base/`-r2` superseded by follow-up `task-20260222-202620-followup-blocked-rlm-backlog-completion`).
+- [x] `task-20260222-102150-iteration-loop-cli`: implement `run-agent iterate` + `conductor iterate` for fixed planning/review iteration loops with auto bus logging (closed via canonical revision `task-20260222-102150-iteration-loop-cli-r3`; base/`-r2` superseded by follow-up `task-20260222-202620-followup-blocked-rlm-backlog-completion`).
 
 ## Release Finalization Bucket (2026-02-22 12:10 local)
 
@@ -213,16 +213,16 @@
 
 ## New Task Intake (2026-02-22 21:30 local)
 
-- [ ] `task-20260222-213000-hot-update-while-running`: design and implement safe self-update behavior so the tool can update while tasks are running, with explicit guarantees for in-flight task continuity, process handoff/restart policy, and rollback/failure handling.
+- [x] `task-20260222-213000-hot-update-while-running`: design and implement safe self-update behavior so the tool can update while tasks are running, with explicit guarantees for in-flight task continuity, process handoff/restart policy, and rollback/failure handling.
 
 ## Audit Follow-ups (2026-02-22 21:26 local)
 
-- [ ] `task-20260222-202600-followup-missing-runinfo-recovery`: recover/fix missing `run-info.yaml` records for tasks with corrupted latest-run metadata and normalize reported statuses.
-- [ ] `task-20260222-202610-followup-restart-exhausted-status-normalization`: reconcile tasks that appear `running/pending` after agent exit/restart exhaustion so terminal status is accurate.
-- [ ] `task-20260222-202620-followup-blocked-rlm-backlog-completion`: execute the blocked RLM backlog items (`output-synthesize`, `review-quorum`, `iterate`) and close the gap with concrete outputs.
-- [ ] `task-20260222-202630-followup-unstarted-security-fixes-execution`: run the unstarted security-fix tasks and deliver actual implementation/test results instead of placeholder task entries.
-- [ ] `task-20260222-202640-followup-legacy-artifact-backfill`: backfill legacy tasks with missing artifacts/output markers where work was done but evidence/metadata is incomplete.
-- [ ] `task-20260222-202650-followup-goal-decompose-cli-retry`: retry and finish the previously failed `goal decompose` CLI implementation task with validated output.
+- [x] `task-20260222-202600-followup-missing-runinfo-recovery`: recover/fix missing `run-info.yaml` records for tasks with corrupted latest-run metadata and normalize reported statuses.
+- [x] `task-20260222-202610-followup-restart-exhausted-status-normalization`: reconcile tasks that appear `running/pending` after agent exit/restart exhaustion so terminal status is accurate.
+- [x] `task-20260222-202620-followup-blocked-rlm-backlog-completion`: execute the blocked RLM backlog items (`output-synthesize`, `review-quorum`, `iterate`) and close the gap with concrete outputs.
+- [x] `task-20260222-202630-followup-unstarted-security-fixes-execution`: run the unstarted security-fix tasks and deliver actual implementation/test results instead of placeholder task entries.
+- [x] `task-20260222-202640-followup-legacy-artifact-backfill`: backfill legacy tasks with missing artifacts/output markers where work was done but evidence/metadata is incomplete.
+- [x] `task-20260222-202650-followup-goal-decompose-cli-retry`: retry and finish the previously failed `goal decompose` CLI implementation task with validated output.
 
 ## New Task Intake (2026-02-22 21:41 local)
 

@@ -1,9 +1,10 @@
-export type RunStatus = 'running' | 'completed' | 'failed' | 'blocked' | 'stopped' | 'unknown'
+export type RunStatus = 'running' | 'queued' | 'completed' | 'failed' | 'blocked' | 'stopped' | 'unknown'
 
 export interface Project {
   id: string
   last_activity: string
   task_count: number
+  project_root?: string
 }
 
 export interface ProjectDetail extends Project {
@@ -20,11 +21,13 @@ export interface TaskSummary {
   name?: string
   project_id?: string
   status: RunStatus
+  queue_position?: number
   last_activity: string
   run_count?: number
   run_counts?: Partial<Record<RunStatus, number>>
   depends_on?: string[]
   blocked_by?: string[]
+  thread_parent?: ThreadParentReference
 }
 
 export interface TaskDetail {
@@ -32,12 +35,14 @@ export interface TaskDetail {
   name?: string
   project_id: string
   status: RunStatus
+  queue_position?: number
   last_activity: string
   created_at: string
   done: boolean
   state: string
   depends_on?: string[]
   blocked_by?: string[]
+  thread_parent?: ThreadParentReference
   runs: RunSummary[]
 }
 
@@ -97,6 +102,11 @@ export interface BusMessage {
   parents?: Array<string | { msg_id: string; kind?: string; meta?: Record<string, unknown> }>
   run_id?: string
   attachment_path?: string
+  issue_id?: string
+  meta?: Record<string, string>
+  project_id?: string
+  task_id?: string
+  // Backward-compat aliases retained while APIs converge on project_id/task_id.
   project?: string
   task?: string
 }
@@ -170,4 +180,12 @@ export interface FlatRunItem {
 
 export interface FlatRunsResponse {
   runs: FlatRunItem[]
+}
+
+export interface ThreadParentReference {
+  project_id: string
+  task_id: string
+  run_id: string
+  message_id: string
+  message_type?: string
 }

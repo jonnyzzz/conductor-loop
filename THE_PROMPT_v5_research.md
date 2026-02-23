@@ -2,7 +2,7 @@
 
 **Role**: Research Agent
 **Responsibilities**: Explore codebase, analyze patterns, gather information, provide recommendations
-**Base Prompt**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
 
 ---
 
@@ -37,9 +37,9 @@
 ### Stage 0: Understand Assignment
 1. **Read Context**
    - Read task prompt carefully
-   - Read `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md` for conventions
-   - Read `/Users/jonnyzzz/Work/conductor-loop/Instructions.md` for structure
-   - Read relevant specifications from `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/`
+   - Read `<project-root>/AGENTS.md` for conventions
+   - Read `<project-root>/Instructions.md` for structure
+   - Read relevant specifications from `<project-root>/docs/specifications/`
    - Read TASK_STATE.md for current progress
 
 2. **Clarify Scope**
@@ -343,9 +343,9 @@ grep -A 5 "FACT\|DECISION" TASK-MESSAGE-BUS.md | tail -20
 
 ## References
 
-- **Base Workflow**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-- **Agent Conventions**: `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
-- **Tool Paths**: `/Users/jonnyzzz/Work/conductor-loop/Instructions.md`
-- **Implementation Plan**: `/Users/jonnyzzz/Work/conductor-loop/THE_PLAN_v5.md`
-- **Specifications**: `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/`
-- **Decisions**: `/Users/jonnyzzz/Work/conductor-loop/docs/decisions/`
+- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Agent Conventions**: `<project-root>/AGENTS.md`
+- **Tool Paths**: `<project-root>/Instructions.md`
+- **Implementation Plan**: `<project-root>/THE_PLAN_v5.md`
+- **Specifications**: `<project-root>/docs/specifications/`
+- **Decisions**: `<project-root>/docs/decisions/`

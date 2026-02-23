@@ -262,6 +262,11 @@ func (rl *RalphLoop) checkDoneFile() bool {
 2. No restart attempted
 3. Run status: `success` (if exit code 0) or `stopped`
 4. Message logged: "DONE file detected"
+5. After successful loop exit, runner triggers completion fact propagation:
+   - Collect task FACT signals and run outcome summary
+   - Post synthesized `FACT` to `PROJECT-MESSAGE-BUS.md`
+   - Include source task/run IDs, timestamps, and source artifact paths
+   - Use `TASK-COMPLETE-FACT-PROPAGATION.yaml` for idempotency
 
 **If DONE file does not exist:**
 1. Ralph loop continues normal exit code handling
@@ -302,6 +307,7 @@ if rl.checkDoneFile() {
 - Run status: `success` or `stopped`
 - No restart
 - Return nil error
+- Follow-up completion propagation worker runs (best-effort, non-fatal on failure)
 
 #### 3. Max Restarts Exceeded
 

@@ -2,7 +2,7 @@
 
 **Role**: Implementation Agent
 **Responsibilities**: Write code, modify files, implement features, follow conventions
-**Base Prompt**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
 **Preferred Backend**: Codex (with IntelliJ MCP Steroid), fallback to Claude
 
 ---
@@ -17,7 +17,7 @@
 5. **Testing**: Write tests for new code (unit tests at minimum)
 
 ### Working Directory
-- **CWD**: Project source root (`/Users/jonnyzzz/Work/conductor-loop`)
+- **CWD**: Project source root (`<project-root>`)
 - **Context**: Write access to source files, read access everywhere
 - **Scope**: Focus on specific files/functions, keep changes minimal
 
@@ -42,8 +42,8 @@
 ### Stage 0: Understand Requirements
 1. **Read Context**
    - Read task prompt completely
-   - Read `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md` for conventions
-   - Read `/Users/jonnyzzz/Work/conductor-loop/Instructions.md` for tools
+   - Read `<project-root>/AGENTS.md` for conventions
+   - Read `<project-root>/Instructions.md` for tools
    - Read relevant specifications
    - Check TASK_STATE.md for context
 
@@ -455,9 +455,9 @@ go build ./...
 
 ## References
 
-- **Base Workflow**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-- **Agent Conventions**: `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
-- **Tool Paths**: `/Users/jonnyzzz/Work/conductor-loop/Instructions.md`
-- **Implementation Plan**: `/Users/jonnyzzz/Work/conductor-loop/THE_PLAN_v5.md`
+- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Agent Conventions**: `<project-root>/AGENTS.md`
+- **Tool Paths**: `<project-root>/Instructions.md`
+- **Implementation Plan**: `<project-root>/THE_PLAN_v5.md`
 - **Go Style Guide**: https://go.dev/doc/effective_go
 - **Project Patterns**: Examine `pkg/` and `internal/` for examples

@@ -13,7 +13,7 @@ import (
 // The format is KEY=VALUE lines, e.g.:
 //
 //	RUN_ID=run_20260128-163814-2127
-//	CWD=/Users/jonnyzzz/Work/...
+//	CWD=/path/to/project
 //	AGENT=codex
 //	CMD=codex exec ...
 //	STDOUT=.../agent-stdout.txt

@@ -9,6 +9,8 @@ There are two API surfaces:
 1. **`/api/v1/...`** — The primary REST API documented in this file, used for task creation, listing, and message bus access.
 2. **`/api/projects/...`** — A project-centric API used by the web UI. Provides endpoints like:
    - `GET /api/projects` — list projects
+   - `POST /api/projects` — create a project and persist its home/work folder
+   - `GET /api/projects/home-dirs` — list known project home/work folders for form suggestions
    - `GET /api/projects/{projectId}/tasks` — list tasks for a project
    - `GET /api/projects/{projectId}/tasks/{taskId}` — task detail with run list
    - `GET /api/projects/{projectId}/tasks/{taskId}/runs/{runId}` — run detail
@@ -39,6 +41,48 @@ api:
   host: 0.0.0.0
   port: 14355
 ```
+
+## Form Submission Audit Log
+
+Web UI form submissions are durably appended to a JSONL audit file:
+
+```
+<root>/_audit/form-submissions.jsonl
+```
+
+`<root>` is the API server root directory (`--root`, default `~/run-agent`).
+
+Logged endpoints:
+
+- `POST /api/v1/tasks`
+- `POST /api/projects`
+- `POST /api/projects/{project_id}/messages`
+- `POST /api/projects/{project_id}/tasks/{task_id}/messages`
+- `POST /api/v1/messages`
+
+Each JSON line includes:
+
+| Field | Description |
+|------|-------------|
+| `timestamp` | UTC timestamp of the accepted submission |
+| `request_id` | Request correlation id (`X-Request-ID` if provided; generated otherwise) |
+| `correlation_id` | Same value as `request_id` for cross-log joins |
+| `method` | HTTP method |
+| `path` | Request path |
+| `endpoint` | Route pattern label |
+| `remote_addr` | Client remote address when available |
+| `project_id` | Project identifier (if applicable) |
+| `task_id` | Task identifier (if applicable) |
+| `run_id` | Allocated run id (task creation only) |
+| `message_id` | Appended message id (message posting only) |
+| `payload` | Sanitized request body |
+
+Redaction and safety rules:
+
+- Fields with sensitive key names (`token`, `secret`, `password`, `api_key`, `authorization`, etc.) are replaced with `[REDACTED]`.
+- Token-like substrings in free-text fields (for example bearer tokens and JWT-like values) are masked.
+- Large text fields are truncated to keep log lines bounded.
+- Audit write failures are logged as warnings only; primary API request handling continues.
 
 ## Authentication
 
@@ -215,6 +259,64 @@ curl http://localhost:14355/api/v1/version
 }
 ```
 
+#### GET /api/v1/admin/self-update
+
+Get safe self-update state.
+
+**Request:**
+```bash
+curl http://localhost:14355/api/v1/admin/self-update
+```
+
+**Response:** `200 OK`
+```json
+{
+  "state": "idle",
+  "active_runs_now": 0
+}
+```
+
+`state` values:
+- `idle`: no update is pending.
+- `deferred`: update request accepted and waiting for active root runs to finish (new root-run starts are blocked).
+- `applying`: binary replacement and handoff in progress.
+- `failed`: update attempt failed (see `last_error`).
+
+#### POST /api/v1/admin/self-update
+
+Request a safe self-update to a candidate `run-agent` binary.
+
+**Request Body:**
+```json
+{
+  "binary_path": "/absolute/path/to/run-agent"
+}
+```
+
+**Request:**
+```bash
+curl -X POST http://localhost:14355/api/v1/admin/self-update \
+  -H "Content-Type: application/json" \
+  -d '{"binary_path":"/tmp/run-agent-new"}'
+```
+
+**Response:** `202 Accepted`
+```json
+{
+  "state": "deferred",
+  "binary_path": "/tmp/run-agent-new",
+  "active_runs_at_request": 2,
+  "active_runs_now": 2
+}
+```
+
+Safety behavior:
+- If root runs are active, the update is deferred automatically.
+- While update state is `deferred` or `applying`, `POST /api/v1/tasks` returns `409 Conflict`.
+- Handoff starts only when active root runs drop to zero.
+- Update admission and root-run launch admission use a shared gate so new root starts are not admitted after drain begins.
+- On failure, rollback is attempted, state changes to `failed`, and queued planner launches deferred by drain mode are resumed automatically.
+
 ---
 
 ### Tasks
@@ -230,9 +332,17 @@ Create a new task.
   "task_id": "task-001",
   "agent_type": "codex",
   "prompt": "Write a hello world script",
+  "attach_mode": "create",
   "config": {
     "key": "value"
-  }
+  },
+  "thread_parent": {
+    "project_id": "my-project",
+    "task_id": "task-20260222-160000-parent",
+    "run_id": "20260222-1601000000-12345-1",
+    "message_id": "MSG-20260222-160200-000000000-PID12345-0001"
+  },
+  "thread_message_type": "USER_REQUEST"
 }
 ```
 
@@ -244,7 +354,15 @@ Create a new task.
 | `task_id` | string | Yes | Task identifier |
 | `agent_type` | string | Yes | Agent to use (codex, claude, etc.) |
 | `prompt` | string | Yes | Task prompt/instructions |
+| `attach_mode` | string | No | `create`, `attach`, or `resume` |
 | `config` | object | No | Additional configuration |
+| `depends_on` | string[] | No | Task dependencies |
+| `thread_parent` | object | No | Parent message reference for threaded answer workflow |
+| `thread_parent.project_id` | string | Yes* | Parent project id (*required when `thread_parent` is set*) |
+| `thread_parent.task_id` | string | Yes* | Parent task id (*required when `thread_parent` is set*) |
+| `thread_parent.run_id` | string | Yes* | Parent run id (*required when `thread_parent` is set*) |
+| `thread_parent.message_id` | string | Yes* | Parent message id (*required when `thread_parent` is set*) |
+| `thread_message_type` | string | No | For threaded flow, must be exactly `USER_REQUEST` |
 
 **Identifier Rules:**
 - Must contain only alphanumeric, dash, underscore
@@ -263,22 +381,43 @@ curl -X POST http://localhost:14355/api/v1/tasks \
   }'
 ```
 
-**Response:** `200 OK`
+**Response:** `201 Created`
 ```json
 {
   "project_id": "my-project",
   "task_id": "task-001",
-  "status": "created"
+  "run_id": "20260222-1700000000-12345-1",
+  "status": "started",
+  "queue_position": 0,
+  "depends_on": []
 }
 ```
+
+`status` values for task creation:
+
+- `started`: planner started this root task immediately.
+- `queued`: planner accepted the task but postponed execution due `max_concurrent_root_tasks`.
+
+When `status` is `queued`, `queue_position` is `1..N` (oldest queued task is `1`).
 
 **Errors:**
 
 | Status | Error | Cause |
 |--------|-------|-------|
 | 400 | Bad Request | Invalid JSON, missing required fields, invalid identifiers |
+| 404 | Not Found | Threaded parent task/message reference not found |
+| 409 | Conflict | Invalid threaded parent type (only `QUESTION` and `FACT` are allowed sources) |
 | 500 | Internal Server Error | Failed to create task directory or files |
 | 503 | Service Unavailable | Task execution disabled (`--disable-task-start`) |
+
+**Threaded Answer Workflow Notes:**
+- Set `thread_parent` to create a child task linked to an existing task message.
+- Parent source message types currently supported: `QUESTION`, `FACT`.
+- `thread_message_type` is restricted to `USER_REQUEST` for this workflow.
+- The server persists linkage in:
+  - child task file: `TASK-THREAD-LINK.yaml`
+  - child task bus: `TASK-MESSAGE-BUS.md` (`USER_REQUEST` with parent metadata)
+  - parent task bus: `TASK-MESSAGE-BUS.md` backlink message for child-task navigation
 
 #### GET /api/v1/tasks
 
@@ -306,7 +445,8 @@ curl http://localhost:14355/api/v1/tasks?project_id=my-project
     {
       "project_id": "my-project",
       "task_id": "task-001",
-      "status": "running",
+      "status": "queued",
+      "queue_position": 1,
       "last_activity": "2026-02-05T10:00:00Z",
       "runs": [
         {
@@ -342,7 +482,8 @@ curl "http://localhost:14355/api/v1/tasks/task-001?project_id=my-project"
 {
   "project_id": "my-project",
   "task_id": "task-001",
-  "status": "running",
+  "status": "queued",
+  "queue_position": 1,
   "last_activity": "2026-02-05T10:00:00Z",
   "runs": [
     {
@@ -355,6 +496,8 @@ curl "http://localhost:14355/api/v1/tasks/task-001?project_id=my-project"
   ]
 }
 ```
+
+Task status values include `queued`, `running`, `blocked`, `completed`, `failed`, and `idle`.
 
 **Errors:**
 
@@ -585,6 +728,126 @@ curl -X POST http://localhost:14355/api/v1/runs/run_20260205_100001_abc123/stop
 | 404 | Not Found | Run does not exist |
 | 500 | Internal Server Error | Failed to stop process |
 
+#### GET /api/projects
+
+List projects visible to the web UI.
+
+Projects are assembled from run metadata (`run-info.yaml`) plus persisted project markers (`PROJECT-ROOT.txt`) created by `POST /api/projects`.
+
+**Request:**
+
+```bash
+curl "http://localhost:14355/api/projects"
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "projects": [
+    {
+      "id": "my-project",
+      "last_activity": "2026-02-22T17:42:10Z",
+      "task_count": 3,
+      "project_root": "/Users/alice/Work/my-project"
+    }
+  ]
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|------|------|-------------|
+| `id` | string | Project identifier |
+| `last_activity` | string | Most recent run or project marker timestamp |
+| `task_count` | int | Number of known tasks with runs |
+| `project_root` | string | Saved home/work folder path (when configured) |
+
+#### POST /api/projects
+
+Create a project and persist its default home/work folder path.
+
+This creates:
+
+- project directory: `<root>/<project_id>/`
+- project root marker file: `<root>/<project_id>/PROJECT-ROOT.txt`
+
+`<root>` is the conductor API root (`--root`, default `~/run-agent`).
+
+**Request Body:**
+
+```json
+{
+  "project_id": "my-project",
+  "project_root": "/Users/alice/Work/my-project"
+}
+```
+
+**Validation rules:**
+
+- `project_id` is required and must pass identifier validation
+- `project_id` must be unique (duplicate IDs return `409 Conflict`)
+- `project_root` is required
+- `project_root` must resolve to an absolute, existing directory
+- `project_root` must be outside the conductor storage root
+
+**Request:**
+
+```bash
+curl -X POST "http://localhost:14355/api/projects" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "my-project",
+    "project_root": "/Users/alice/Work/my-project"
+  }'
+```
+
+**Response:** `201 Created`
+
+```json
+{
+  "id": "my-project",
+  "last_activity": "2026-02-22T17:42:10Z",
+  "task_count": 0,
+  "project_root": "/Users/alice/Work/my-project"
+}
+```
+
+**Errors:**
+
+| Status | Cause |
+|--------|-------|
+| 400 Bad Request | Missing/invalid `project_id` or `project_root`; non-absolute path; non-existent directory |
+| 409 Conflict | Project ID already exists |
+| 500 Internal Server Error | Filesystem write/stat failure |
+
+#### GET /api/projects/home-dirs
+
+Return deduplicated project home/work folders used by the UI for datalist suggestions.
+
+Sources include:
+
+- run `cwd` values from existing runs
+- persisted `PROJECT-ROOT.txt` markers created by `POST /api/projects`
+
+**Request:**
+
+```bash
+curl "http://localhost:14355/api/projects/home-dirs"
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "dirs": [
+    "/Users/alice/Work/my-project",
+    "/Users/alice/Work/other-project"
+  ]
+}
+```
+
 #### DELETE /api/projects/{project_id}/tasks/{task_id}/runs/{run_id}
 
 Delete a completed or failed run directory from disk. This permanently removes all files for the specified run (agent output, stdout, stderr, prompt, run-info.yaml).
@@ -612,6 +875,7 @@ No response body on success.
 
 | Status | Cause |
 |--------|-------|
+| 403 Forbidden | Request came from web UI/browser context (destructive actions disabled in UI pathways) |
 | 404 Not Found | Run or task directory does not exist |
 | 409 Conflict | Run is still in `running` status; stop it first |
 | 500 Internal Server Error | Filesystem error removing the run directory |
@@ -621,7 +885,7 @@ No response body on success.
 - Only completed or failed runs can be deleted. Attempting to delete a running run returns `409 Conflict`.
 - Use `POST .../stop` first if you need to terminate a running run before deleting it.
 - Deleting a run is permanent and cannot be undone.
-- The web UI's "Delete run" button uses this endpoint.
+- The web UI does not expose this action; use CLI or explicit API clients.
 
 #### DELETE /api/projects/{project_id}/tasks/{task_id}
 
@@ -649,6 +913,7 @@ No response body on success.
 
 | Status | Cause |
 |--------|-------|
+| 403 Forbidden | Request came from web UI/browser context (destructive actions disabled in UI pathways) |
 | 404 Not Found | Task directory does not exist |
 | 409 Conflict | At least one run is still in `running` status; stop all runs first |
 | 500 Internal Server Error | Filesystem error removing the task directory |

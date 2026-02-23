@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 )
 
@@ -281,6 +282,53 @@ func TestRunTaskMaxRestarts(t *testing.T) {
 	}
 }
 
+func TestRunTask_PropagatesParentRunIDToRunInfo(t *testing.T) {
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "project", "task")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte("prompt"), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+
+	binDir := t.TempDir()
+	createDoneWritingCLI(t, binDir, "codex")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	const parentRunID = "run-parent-123"
+	if err := RunTask("project", "task", TaskOptions{
+		RootDir:     root,
+		Agent:       "codex",
+		ParentRunID: parentRunID,
+	}); err != nil {
+		t.Fatalf("RunTask: %v", err)
+	}
+
+	entries, err := os.ReadDir(filepath.Join(taskDir, "runs"))
+	if err != nil {
+		t.Fatalf("read runs dir: %v", err)
+	}
+	runInfoPath := ""
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		runInfoPath = filepath.Join(taskDir, "runs", entry.Name(), "run-info.yaml")
+		break
+	}
+	if runInfoPath == "" {
+		t.Fatalf("expected at least one run directory")
+	}
+	info, err := storage.ReadRunInfo(runInfoPath)
+	if err != nil {
+		t.Fatalf("read run-info: %v", err)
+	}
+	if got := strings.TrimSpace(info.ParentRunID); got != parentRunID {
+		t.Fatalf("run-info parent_run_id=%q, want %q", got, parentRunID)
+	}
+}
+
 func TestRunTask_PersistsDependsOn(t *testing.T) {
 	root := t.TempDir()
 	taskDir := filepath.Join(root, "project", "task")
@@ -382,10 +430,10 @@ func TestRunTask_WaitsForDependencies(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- RunTask("project", "task-main", TaskOptions{
-			RootDir:                 root,
-			Agent:                   "codex",
-			DependsOn:               []string{"task-dep"},
-			DependencyPollInterval:  20 * time.Millisecond,
+			RootDir:                root,
+			Agent:                  "codex",
+			DependsOn:              []string{"task-dep"},
+			DependencyPollInterval: 20 * time.Millisecond,
 		})
 	}()
 

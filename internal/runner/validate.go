@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/jonnyzzz/conductor-loop/internal/agent"
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 )
 
 // minVersions defines the minimum supported CLI version per agent type.
@@ -50,16 +51,28 @@ func ValidateAgent(ctx context.Context, agentType string) error {
 
 	version, err := agent.DetectCLIVersion(ctx, path)
 	if err != nil {
-		log.Printf("warning: could not detect %s version: %v", command, err)
+		obslog.Log(log.Default(), "WARN", "runner", "agent_version_detect_failed",
+			obslog.F("agent_type", clean),
+			obslog.F("command", command),
+			obslog.F("path", path),
+			obslog.F("error", err),
+		)
 		return nil
 	}
 
-	log.Printf("agent %s: detected version %q at %s", clean, version, path)
+	obslog.Log(log.Default(), "INFO", "runner", "agent_version_detected",
+		obslog.F("agent_type", clean),
+		obslog.F("version", version),
+		obslog.F("path", path),
+	)
 
 	if minVer, ok := minVersions[clean]; ok {
 		if !isVersionCompatible(version, minVer) {
-			log.Printf("WARNING: agent %s version %q may be below minimum %d.%d.%d",
-				clean, version, minVer[0], minVer[1], minVer[2])
+			obslog.Log(log.Default(), "WARN", "runner", "agent_version_below_minimum",
+				obslog.F("agent_type", clean),
+				obslog.F("version", version),
+				obslog.F("min_version", fmt.Sprintf("%d.%d.%d", minVer[0], minVer[1], minVer[2])),
+			)
 		}
 	}
 

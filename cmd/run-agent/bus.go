@@ -30,6 +30,14 @@ var busDiscoveryFileNames = []string{
 	"MESSAGE-BUS.md",
 }
 
+func normalizeInferredIdentifier(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" || trimmed == "." || trimmed == string(filepath.Separator) {
+		return ""
+	}
+	return trimmed
+}
+
 // resolveBusFilePath computes the message bus file path from the project/task hierarchy.
 // If taskID is non-empty, returns <root>/<project>/<task>/TASK-MESSAGE-BUS.md.
 // Otherwise, returns <root>/<project>/PROJECT-MESSAGE-BUS.md.
@@ -106,13 +114,105 @@ func inferMessageScopeFromBusPath(path string) (projectID, taskID string) {
 		return "", ""
 	}
 
-	if projectID == "." || projectID == string(filepath.Separator) {
-		projectID = ""
-	}
-	if taskID == "." || taskID == string(filepath.Separator) {
-		taskID = ""
-	}
+	projectID = normalizeInferredIdentifier(projectID)
+	taskID = normalizeInferredIdentifier(taskID)
 	return projectID, taskID
+}
+
+func inferMessageScopeFromTaskFolder(path string) (projectID, taskID string) {
+	clean := filepath.Clean(strings.TrimSpace(path))
+	if clean == "." || clean == "" {
+		return "", ""
+	}
+
+	taskID = normalizeInferredIdentifier(filepath.Base(clean))
+	projectID = normalizeInferredIdentifier(filepath.Base(filepath.Dir(clean)))
+	return projectID, taskID
+}
+
+func inferMessageScopeFromRunFolder(path string) (projectID, taskID, runID string) {
+	clean := filepath.Clean(strings.TrimSpace(path))
+	if clean == "." || clean == "" {
+		return "", "", ""
+	}
+
+	runID = normalizeInferredIdentifier(filepath.Base(clean))
+	runsDir := filepath.Dir(clean)
+	if normalizeInferredIdentifier(filepath.Base(runsDir)) != "runs" {
+		return "", "", ""
+	}
+
+	taskDir := filepath.Dir(runsDir)
+	taskID = normalizeInferredIdentifier(filepath.Base(taskDir))
+	projectID = normalizeInferredIdentifier(filepath.Base(filepath.Dir(taskDir)))
+	if projectID == "" || taskID == "" || runID == "" {
+		return "", "", ""
+	}
+	return projectID, taskID, runID
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func resolveBusPostPath(busPath, root, projectID, taskID string) (string, error) {
+	path := strings.TrimSpace(busPath)
+	if path == "" {
+		path = strings.TrimSpace(os.Getenv("MESSAGE_BUS"))
+	}
+	if path == "" && strings.TrimSpace(projectID) != "" {
+		path = resolveBusFilePath(root, projectID, taskID)
+	}
+	if path != "" {
+		return path, nil
+	}
+
+	discovered, err := discoverBusFilePath("")
+	if err != nil {
+		return "", fmt.Errorf("--bus or --project is required (or set MESSAGE_BUS env var, or run from a directory with MESSAGE-BUS.md/PROJECT-MESSAGE-BUS.md/TASK-MESSAGE-BUS.md): %w", err)
+	}
+	return discovered, nil
+}
+
+func resolveBusPostMessageContext(projectID, taskID, runID, busPath string) (resolvedProjectID, resolvedTaskID, resolvedRunID string) {
+	resolvedProjectID = strings.TrimSpace(projectID)
+	resolvedTaskID = strings.TrimSpace(taskID)
+	resolvedRunID = strings.TrimSpace(runID)
+
+	busProjectID, busTaskID := inferMessageScopeFromBusPath(busPath)
+	runProjectID, runTaskID, runRunID := inferMessageScopeFromRunFolder(os.Getenv("RUN_FOLDER"))
+	taskProjectID, taskTaskID := inferMessageScopeFromTaskFolder(os.Getenv("TASK_FOLDER"))
+
+	if resolvedProjectID == "" {
+		resolvedProjectID = firstNonEmpty(
+			busProjectID,
+			runProjectID,
+			taskProjectID,
+			os.Getenv("JRUN_PROJECT_ID"),
+		)
+	}
+	if resolvedTaskID == "" {
+		resolvedTaskID = firstNonEmpty(
+			busTaskID,
+			runTaskID,
+			taskTaskID,
+			os.Getenv("JRUN_TASK_ID"),
+		)
+	}
+	if resolvedRunID == "" {
+		resolvedRunID = firstNonEmpty(
+			runRunID,
+			os.Getenv("JRUN_ID"),
+		)
+	}
+
+	return resolvedProjectID, resolvedTaskID, resolvedRunID
 }
 
 func newBusPostCmd() *cobra.Command {
@@ -142,42 +242,23 @@ When --project is specified without --bus, the path is auto-resolved:
   - With --task:    <root>/<project>/<task>/TASK-MESSAGE-BUS.md
   - Without --task: <root>/<project>/PROJECT-MESSAGE-BUS.md
 
+Message project/task/run values are resolved in this order:
+  1. Explicit flags (--project/--task/--run)
+  2. Context inference (resolved bus path, RUN_FOLDER, TASK_FOLDER)
+  3. JRUN_PROJECT_ID/JRUN_TASK_ID/JRUN_ID environment variables
+  4. Error (project_id required)
+
 Use "run-agent bus discover" to preview auto-discovery from your current directory.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Resolve bus path: --bus > MESSAGE_BUS env > project/task hierarchy > CWD discovery.
-			if busPath == "" {
-				busPath = os.Getenv("MESSAGE_BUS")
+			resolvedBusPath, err := resolveBusPostPath(busPath, root, projectID, taskID)
+			if err != nil {
+				return err
 			}
-			if busPath == "" && projectID != "" {
-				busPath = resolveBusFilePath(root, projectID, taskID)
-			}
-			if busPath == "" {
-				discovered, err := discoverBusFilePath("")
-				if err != nil {
-					return fmt.Errorf("--bus or --project is required (or set MESSAGE_BUS env var, or run from a directory with MESSAGE-BUS.md/PROJECT-MESSAGE-BUS.md/TASK-MESSAGE-BUS.md): %w", err)
-				}
-				busPath = discovered
-			}
+			busPath = resolvedBusPath
 
+			projectID, taskID, runID = resolveBusPostMessageContext(projectID, taskID, runID, busPath)
 			if projectID == "" {
-				projectID = strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID"))
-			}
-			if taskID == "" {
-				taskID = strings.TrimSpace(os.Getenv("JRUN_TASK_ID"))
-			}
-			if runID == "" {
-				runID = strings.TrimSpace(os.Getenv("JRUN_ID"))
-			}
-			if inferredProject, inferredTask := inferMessageScopeFromBusPath(busPath); inferredProject != "" {
-				if projectID == "" {
-					projectID = inferredProject
-				}
-				if taskID == "" {
-					taskID = inferredTask
-				}
-			}
-			if projectID == "" {
-				return fmt.Errorf("project id is empty (set --project or JRUN_PROJECT_ID)")
+				return fmt.Errorf("project id is empty and could not be inferred; provide --project, set JRUN_PROJECT_ID, or use a scoped bus path (TASK-MESSAGE-BUS.md/PROJECT-MESSAGE-BUS.md)")
 			}
 
 			if body == "" {
@@ -213,9 +294,9 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 	cmd.Flags().StringVar(&busPath, "bus", "", "path to message bus file (uses MESSAGE_BUS env var if not set)")
 	cmd.Flags().StringVar(&root, "root", "", "root directory for project/task bus resolution (default: RUNS_DIR env var, then ./runs)")
 	cmd.Flags().StringVar(&msgType, "type", "INFO", "message type")
-	cmd.Flags().StringVar(&projectID, "project", "", "project ID (used with --root/--task to resolve bus path; also sets message project_id; falls back to JRUN_PROJECT_ID)")
-	cmd.Flags().StringVar(&taskID, "task", "", "task ID (used with --project to resolve task-level bus; also sets message task_id)")
-	cmd.Flags().StringVar(&runID, "run", "", "run ID (falls back to JRUN_ID)")
+	cmd.Flags().StringVar(&projectID, "project", "", "project ID (optional; inferred from context if omitted)")
+	cmd.Flags().StringVar(&taskID, "task", "", "task ID (optional; inferred from context if omitted)")
+	cmd.Flags().StringVar(&runID, "run", "", "run ID (optional; inferred from context if omitted)")
 	cmd.Flags().StringVar(&body, "body", "", "message body (reads from stdin if not provided and stdin is a pipe)")
 
 	return cmd

@@ -440,6 +440,66 @@ func TestListTasks_EmptyRunsWithDONE(t *testing.T) {
 	}
 }
 
+func TestListTasks_DoneWithOrphanLatestRunDir(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000001-aa"
+	taskDir := filepath.Join(root, project, task)
+	if err := os.MkdirAll(filepath.Join(taskDir, "runs", "run-999"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, "", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out map[string][]taskRow
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if len(out["tasks"]) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(out["tasks"]))
+	}
+	if out["tasks"][0].LatestStatus != "done" {
+		t.Fatalf("expected latest_status=done, got %q", out["tasks"][0].LatestStatus)
+	}
+	if !out["tasks"][0].Done {
+		t.Fatalf("expected done=true")
+	}
+}
+
+func TestListTasks_UsesLatestReadableRunInfoWhenNewestIsOrphaned(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000001-aa"
+	now := time.Now().UTC()
+
+	makeRun(t, root, project, task, "run-001", storage.StatusCompleted, now.Add(-time.Minute), 0)
+	if err := os.MkdirAll(filepath.Join(root, project, task, "runs", "run-999"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := listTasks(&buf, root, project, "", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out map[string][]taskRow
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if len(out["tasks"]) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(out["tasks"]))
+	}
+	if out["tasks"][0].LatestStatus != storage.StatusCompleted {
+		t.Fatalf("expected latest_status=%q, got %q", storage.StatusCompleted, out["tasks"][0].LatestStatus)
+	}
+}
+
 func TestListTasks_LastActivityColumn(t *testing.T) {
 	root := t.TempDir()
 	project := "proj"

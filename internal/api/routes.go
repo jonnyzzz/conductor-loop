@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	webui "github.com/jonnyzzz/conductor-loop/web"
 )
 
@@ -15,6 +16,7 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("/api/v1/health", s.wrap(s.handleHealth))
 	mux.Handle("/api/v1/version", s.wrap(s.handleVersion))
 	mux.Handle("/api/v1/status", s.wrap(s.handleStatus))
+	mux.Handle("/api/v1/admin/self-update", s.wrap(s.handleSelfUpdate))
 
 	mux.Handle("/api/v1/runs/stream/all", s.wrap(s.handleAllRunsStream))
 
@@ -37,6 +39,9 @@ func (s *Server) routes() http.Handler {
 	if uiFS, source, ok := findWebFS(); ok {
 		if s.logger != nil {
 			s.logger.Printf("serving web UI from %s", source)
+			obslog.Log(s.logger, "INFO", "api", "ui_assets_source_selected",
+				obslog.F("source", source),
+			)
 		}
 		fileServer := http.FileServer(uiFS)
 		mux.Handle("/", fileServer)

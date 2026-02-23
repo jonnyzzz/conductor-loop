@@ -23,8 +23,8 @@ type Config struct {
 // WebhookConfig holds configuration for run completion webhook notifications.
 type WebhookConfig struct {
 	URL     string   `yaml:"url"`
-	Events  []string `yaml:"events,omitempty"` // if empty, send all events
-	Secret  string   `yaml:"secret,omitempty"` // HMAC-SHA256 signing secret (optional)
+	Events  []string `yaml:"events,omitempty"`  // if empty, send all events
+	Secret  string   `yaml:"secret,omitempty"`  // HMAC-SHA256 signing secret (optional)
 	Timeout string   `yaml:"timeout,omitempty"` // HTTP timeout, e.g. "10s" (default: "10s")
 }
 
@@ -41,9 +41,10 @@ type AgentConfig struct {
 
 // DefaultConfig defines defaults used by the runner.
 type DefaultConfig struct {
-	Agent             string `yaml:"agent"`
-	Timeout           int    `yaml:"timeout"`
-	MaxConcurrentRuns int    `yaml:"max_concurrent_runs"`
+	Agent                  string `yaml:"agent"`
+	Timeout                int    `yaml:"timeout"`
+	MaxConcurrentRuns      int    `yaml:"max_concurrent_runs"`
+	MaxConcurrentRootTasks int    `yaml:"max_concurrent_root_tasks"`
 }
 
 // StorageConfig defines storage-related settings.
@@ -234,6 +235,9 @@ func parseHCLConfig(path string, data []byte) (*Config, error) {
 		}
 		if n, ok := m["max_concurrent_runs"].(int); ok {
 			cfg.Defaults.MaxConcurrentRuns = n
+		}
+		if n, ok := m["max_concurrent_root_tasks"].(int); ok {
+			cfg.Defaults.MaxConcurrentRootTasks = n
 		}
 	}
 

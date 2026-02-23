@@ -28,6 +28,9 @@ func ValidateConfig(cfg *Config) error {
 	if cfg.Defaults.Timeout <= 0 {
 		return fmt.Errorf("defaults.timeout must be positive")
 	}
+	if cfg.Defaults.MaxConcurrentRootTasks < 0 {
+		return fmt.Errorf("defaults.max_concurrent_root_tasks must be non-negative")
+	}
 	if cfg.API.SSE.PollIntervalMs < 0 {
 		return fmt.Errorf("api.sse.poll_interval_ms must be non-negative")
 	}

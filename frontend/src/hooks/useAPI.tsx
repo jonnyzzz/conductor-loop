@@ -13,9 +13,282 @@ import type {
   TaskSummary,
 } from '../types'
 import { APIClient, createClient } from '../api/client'
-import type { TaskStartRequest } from '../api/client'
+import type { ProjectCreateRequest, TaskStartRequest } from '../api/client'
+import type { SSEConnectionState } from './useSSE'
+import { mergeMessagesByID } from '../utils/messageStore'
 
 const APIClientContext = createContext<APIClient | null>(null)
+const RUNS_FLAT_EMPTY_REFETCH_MS = 1500
+const RUNS_FLAT_ACTIVE_REFETCH_MS = 800
+const RUNS_FLAT_IDLE_REFETCH_MS = 10000
+const RUNS_FLAT_STREAM_SYNC_EMPTY_REFETCH_MS = 1000
+const RUNS_FLAT_STREAM_SYNC_ACTIVE_REFETCH_MS = 810
+const RUNS_FLAT_STREAM_SYNC_IDLE_REFETCH_MS = 12000
+const RUNS_FLAT_DEFAULT_LIMIT_KEY_PART = 0
+
+function flatRunItemsEqual(previous: FlatRunItem, incoming: FlatRunItem): boolean {
+  return previous.id === incoming.id &&
+    previous.task_id === incoming.task_id &&
+    previous.agent === incoming.agent &&
+    previous.status === incoming.status &&
+    previous.exit_code === incoming.exit_code &&
+    previous.start_time === incoming.start_time &&
+    previous.end_time === incoming.end_time &&
+    previous.parent_run_id === incoming.parent_run_id &&
+    previous.previous_run_id === incoming.previous_run_id
+}
+
+export function stabilizeFlatRuns(
+  previous: FlatRunItem[] | undefined,
+  incoming: FlatRunItem[]
+): FlatRunItem[] {
+  if (!previous || previous.length !== incoming.length) {
+    return incoming
+  }
+  for (let i = 0; i < incoming.length; i += 1) {
+    const previousItem = previous[i]
+    const incomingItem = incoming[i]
+    if (previousItem === incomingItem) {
+      continue
+    }
+    if (!flatRunItemsEqual(previousItem, incomingItem)) {
+      return incoming
+    }
+  }
+  return previous
+}
+
+function compareFlatRunsByStartTime(a: FlatRunItem, b: FlatRunItem): number {
+  if (a.start_time === b.start_time) {
+    if (a.id === b.id) {
+      return 0
+    }
+    return a.id < b.id ? -1 : 1
+  }
+  return a.start_time < b.start_time ? -1 : 1
+}
+
+function flatRunLineageEdgeCount(run: FlatRunItem): number {
+  let count = 0
+  if (run.parent_run_id) {
+    count += 1
+  }
+  if (run.previous_run_id) {
+    count += 1
+  }
+  return count
+}
+
+function flatRunActivityTime(run: FlatRunItem): string {
+  if (run.end_time && run.end_time > run.start_time) {
+    return run.end_time
+  }
+  return run.start_time
+}
+
+function preferRicherAncestryRun(existing: FlatRunItem | undefined, candidate: FlatRunItem): FlatRunItem {
+  if (!existing) {
+    return candidate
+  }
+
+  const existingLineageEdges = flatRunLineageEdgeCount(existing)
+  const candidateLineageEdges = flatRunLineageEdgeCount(candidate)
+  if (candidateLineageEdges > existingLineageEdges) {
+    return candidate
+  }
+  if (candidateLineageEdges < existingLineageEdges) {
+    return existing
+  }
+
+  const existingActivity = flatRunActivityTime(existing)
+  const candidateActivity = flatRunActivityTime(candidate)
+  if (candidateActivity > existingActivity) {
+    return candidate
+  }
+  if (candidateActivity < existingActivity) {
+    return existing
+  }
+  if (candidate.start_time > existing.start_time) {
+    return candidate
+  }
+  if (candidate.start_time < existing.start_time) {
+    return existing
+  }
+
+  return existing
+}
+
+export function mergeFlatRunsForTree(
+  previousProjectRuns: FlatRunItem[] | undefined,
+  incomingRuns: FlatRunItem[]
+): FlatRunItem[] {
+  if (!previousProjectRuns || previousProjectRuns.length === 0) {
+    return incomingRuns
+  }
+  if (incomingRuns.length === 0) {
+    // Keep known ancestor context when scoped refreshes come back empty.
+    return previousProjectRuns
+  }
+
+  const mergedRuns = [...previousProjectRuns]
+  const indexByRunID = new Map<string, number>()
+  for (let i = 0; i < previousProjectRuns.length; i += 1) {
+    indexByRunID.set(previousProjectRuns[i].id, i)
+  }
+
+  let changed = false
+  for (const incomingRun of incomingRuns) {
+    const index = indexByRunID.get(incomingRun.id)
+    if (index === undefined) {
+      indexByRunID.set(incomingRun.id, mergedRuns.length)
+      mergedRuns.push(incomingRun)
+      changed = true
+      continue
+    }
+    const currentRun = mergedRuns[index]
+    if (!flatRunItemsEqual(currentRun, incomingRun)) {
+      mergedRuns[index] = incomingRun
+      changed = true
+    }
+  }
+
+  if (!changed) {
+    return previousProjectRuns
+  }
+  mergedRuns.sort(compareFlatRunsByStartTime)
+  return mergedRuns
+}
+
+export function scopedRunsForTree(
+  previousScopedRuns: FlatRunItem[] | undefined,
+  incomingScopedRuns: FlatRunItem[],
+  selectedTaskId: string | undefined,
+  selectedTaskLimit?: number,
+  previousProjectRuns?: FlatRunItem[]
+): FlatRunItem[] {
+  const stableIncomingScopedRuns = stabilizeFlatRuns(previousScopedRuns, incomingScopedRuns)
+  if (!selectedTaskId) {
+    // Keep root tree refreshes bounded to the active/scoped payload returned by API.
+    return stableIncomingScopedRuns
+  }
+  if (selectedTaskLimit && selectedTaskLimit > 0) {
+    return scopedRunsForSelectedTaskLimit(
+      previousScopedRuns,
+      stableIncomingScopedRuns,
+      previousProjectRuns
+    )
+  }
+  // Selected-task views may need temporary ancestry continuity across short polling races.
+  const mergedScopedRuns = mergeFlatRunsForTree(previousScopedRuns, stableIncomingScopedRuns)
+  return stabilizeFlatRuns(previousScopedRuns, mergedScopedRuns)
+}
+
+function scopedRunsForSelectedTaskLimit(
+  previousScopedRuns: FlatRunItem[] | undefined,
+  incomingScopedRuns: FlatRunItem[],
+  previousProjectRuns?: FlatRunItem[]
+): FlatRunItem[] {
+  if (incomingScopedRuns.length === 0) {
+    return previousScopedRuns ?? incomingScopedRuns
+  }
+
+  const ancestryByRunID = new Map<string, FlatRunItem>()
+  const indexAncestryRuns = (runs: FlatRunItem[] | undefined) => {
+    if (!runs || runs.length === 0) {
+      return
+    }
+    for (const run of runs) {
+      const existing = ancestryByRunID.get(run.id)
+      const preferred = preferRicherAncestryRun(existing, run)
+      if (preferred !== existing) {
+        ancestryByRunID.set(run.id, preferred)
+      }
+    }
+  }
+  indexAncestryRuns(previousScopedRuns)
+  indexAncestryRuns(previousProjectRuns)
+  if (ancestryByRunID.size === 0) {
+    return incomingScopedRuns
+  }
+
+  const nextRuns: FlatRunItem[] = [...incomingScopedRuns]
+  const includedRunIDs = new Set(nextRuns.map((run) => run.id))
+
+  const includeRun = (run: FlatRunItem | undefined) => {
+    if (!run || includedRunIDs.has(run.id)) {
+      return
+    }
+    includedRunIDs.add(run.id)
+    nextRuns.push(run)
+  }
+
+  const includeParentChain = (run: FlatRunItem) => {
+    let parentRunID = run.parent_run_id
+    while (parentRunID && !includedRunIDs.has(parentRunID)) {
+      const parent = ancestryByRunID.get(parentRunID)
+      if (!parent) {
+        break
+      }
+      includeRun(parent)
+      parentRunID = parent.parent_run_id
+    }
+  }
+
+  for (const run of incomingScopedRuns) {
+    includeParentChain(run)
+    if (run.previous_run_id && !includedRunIDs.has(run.previous_run_id)) {
+      const previousRun = ancestryByRunID.get(run.previous_run_id)
+      includeRun(previousRun)
+      if (previousRun) {
+        includeParentChain(previousRun)
+      }
+    }
+  }
+
+  if (nextRuns.length === incomingScopedRuns.length) {
+    return incomingScopedRuns
+  }
+  nextRuns.sort(compareFlatRunsByStartTime)
+  return stabilizeFlatRuns(previousScopedRuns, nextRuns)
+}
+
+export function stabilizeProjectStats(
+  previous: ProjectStats | undefined,
+  incoming: ProjectStats
+): ProjectStats {
+  if (!previous) {
+    return incoming
+  }
+  if (
+    previous.project_id === incoming.project_id &&
+    previous.total_tasks === incoming.total_tasks &&
+    previous.total_runs === incoming.total_runs &&
+    previous.running_runs === incoming.running_runs &&
+    previous.completed_runs === incoming.completed_runs &&
+    previous.failed_runs === incoming.failed_runs &&
+    previous.crashed_runs === incoming.crashed_runs &&
+    previous.message_bus_files === incoming.message_bus_files &&
+    previous.message_bus_total_bytes === incoming.message_bus_total_bytes
+  ) {
+    return previous
+  }
+  return incoming
+}
+
+export function runsFlatProjectQueryKey(projectId: string | undefined) {
+  return ['runs-flat', projectId] as const
+}
+
+export function runsFlatScopedQueryKey(
+  projectId: string | undefined,
+  selectedTaskId: string | undefined,
+  selectedTaskLimit?: number
+) {
+  const normalizedLimit = selectedTaskLimit && selectedTaskLimit > 0
+    ? selectedTaskLimit
+    : RUNS_FLAT_DEFAULT_LIMIT_KEY_PART
+  return [...runsFlatProjectQueryKey(projectId), selectedTaskId ?? '', normalizedLimit] as const
+}
 
 export function APIProvider({
   children,
@@ -77,9 +350,19 @@ export function useTask(projectId?: string, taskId?: string) {
 
 export function useProjectMessages(projectId?: string) {
   const api = useAPIClient()
+  const queryClient = useQueryClient()
+  const queryKey = ['messages', 'project', projectId] as const
   return useQuery<BusMessage[]>({
-    queryKey: ['messages', 'project', projectId],
-    queryFn: () => api.getProjectMessages(projectId ?? ''),
+    queryKey,
+    queryFn: async () => {
+      const cached = queryClient.getQueryData<BusMessage[]>(queryKey) ?? []
+      const since = cached[0]?.msg_id
+      const incoming = await api.getProjectMessages(projectId ?? '', since ? { since } : undefined)
+      if (!since || incoming.length === 0) {
+        return since ? cached : incoming
+      }
+      return mergeMessagesByID(cached, incoming)
+    },
     enabled: Boolean(projectId),
     staleTime: 0,
     refetchOnMount: 'always',
@@ -88,9 +371,19 @@ export function useProjectMessages(projectId?: string) {
 
 export function useTaskMessages(projectId?: string, taskId?: string) {
   const api = useAPIClient()
+  const queryClient = useQueryClient()
+  const queryKey = ['messages', 'task', projectId, taskId] as const
   return useQuery<BusMessage[]>({
-    queryKey: ['messages', 'task', projectId, taskId],
-    queryFn: () => api.getTaskMessages(projectId ?? '', taskId ?? ''),
+    queryKey,
+    queryFn: async () => {
+      const cached = queryClient.getQueryData<BusMessage[]>(queryKey) ?? []
+      const since = cached[0]?.msg_id
+      const incoming = await api.getTaskMessages(projectId ?? '', taskId ?? '', since ? { since } : undefined)
+      if (!since || incoming.length === 0) {
+        return since ? cached : incoming
+      }
+      return mergeMessagesByID(cached, incoming)
+    },
     enabled: Boolean(projectId && taskId),
     staleTime: 0,
     refetchOnMount: 'always',
@@ -138,37 +431,32 @@ export function useStartTask(projectId?: string) {
   })
 }
 
+export function useCreateProject() {
+  const api = useAPIClient()
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: ProjectCreateRequest) => api.createProject(payload),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['projects'] })
+      client.invalidateQueries({ queryKey: ['home-dirs'] })
+    },
+  })
+}
+
 export function useProjectStats(projectId?: string) {
   const api = useAPIClient()
+  const queryClient = useQueryClient()
+  const queryKey = ['project-stats', projectId] as const
   return useQuery<ProjectStats>({
-    queryKey: ['project-stats', projectId],
-    queryFn: () => api.getProjectStats(projectId ?? ''),
+    queryKey,
+    queryFn: async () => {
+      const incoming = await api.getProjectStats(projectId ?? '')
+      const previous = queryClient.getQueryData<ProjectStats>(queryKey)
+      return stabilizeProjectStats(previous, incoming)
+    },
     enabled: Boolean(projectId),
     staleTime: 5000,
     refetchInterval: 10000,
-  })
-}
-
-export function useDeleteRun(projectId?: string, taskId?: string) {
-  const api = useAPIClient()
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: (runId: string) => api.deleteRun(projectId ?? '', taskId ?? '', runId),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['task', projectId, taskId] })
-      client.invalidateQueries({ queryKey: ['tasks', projectId] })
-    },
-  })
-}
-
-export function useDeleteTask(projectId?: string) {
-  const api = useAPIClient()
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: (taskId: string) => api.deleteTask(projectId ?? '', taskId),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['tasks', projectId] })
-    },
   })
 }
 
@@ -211,14 +499,70 @@ export function useResumeTask(projectId?: string) {
   })
 }
 
-export function useProjectRunsFlat(projectId: string | undefined) {
+export function useProjectRunsFlat(
+  projectId: string | undefined,
+  selectedTaskId: string | undefined,
+  liveState?: SSEConnectionState,
+  selectedTaskLimit?: number
+) {
   const api = useAPIClient()
+  const queryClient = useQueryClient()
+  const normalizedSelectedTaskLimit = selectedTaskLimit && selectedTaskLimit > 0
+    ? selectedTaskLimit
+    : undefined
+  const scopedQueryKey = runsFlatScopedQueryKey(projectId, selectedTaskId, normalizedSelectedTaskLimit)
+  const projectQueryKey = runsFlatProjectQueryKey(projectId)
   return useQuery<FlatRunItem[]>({
-    queryKey: ['runs-flat', projectId],
-    queryFn: () => api.getProjectRunsFlat(projectId!),
+    queryKey: scopedQueryKey,
+    queryFn: async () => {
+      const incomingRuns = await api.getProjectRunsFlat(projectId!, {
+        activeOnly: true,
+        selectedTaskId: selectedTaskId ?? undefined,
+        selectedTaskLimit: normalizedSelectedTaskLimit,
+      })
+      const previousScopedRuns = queryClient.getQueryData<FlatRunItem[]>(scopedQueryKey)
+      const previousProjectRuns = queryClient.getQueryData<FlatRunItem[]>(projectQueryKey)
+      const treeScopedRuns = scopedRunsForTree(
+        previousScopedRuns,
+        incomingRuns,
+        selectedTaskId,
+        normalizedSelectedTaskLimit,
+        previousProjectRuns
+      )
+
+      const stableProjectRuns = mergeFlatRunsForTree(previousProjectRuns, treeScopedRuns)
+      if (stableProjectRuns !== previousProjectRuns) {
+        queryClient.setQueryData(projectQueryKey, stableProjectRuns)
+      }
+
+      return treeScopedRuns
+    },
     enabled: Boolean(projectId),
-    refetchInterval: 5000,
+    staleTime: 1000,
+    refetchInterval: (query) => {
+      const runs = query.state.data as FlatRunItem[] | undefined
+      return runsFlatRefetchIntervalFor(runs, liveState)
+    },
+    notifyOnChangeProps: ['data', 'error'],
   })
+}
+
+export function runsFlatRefetchIntervalFor(
+  runs: FlatRunItem[] | undefined,
+  liveState?: SSEConnectionState
+): number {
+  const isStreamHealthy = liveState === 'open'
+  if (!runs || runs.length === 0) {
+    return isStreamHealthy ? RUNS_FLAT_STREAM_SYNC_EMPTY_REFETCH_MS : RUNS_FLAT_EMPTY_REFETCH_MS
+  }
+
+  const hasActiveRun = runs.some((run) => run.status === 'running' || run.status === 'queued')
+  if (isStreamHealthy) {
+    return hasActiveRun
+      ? RUNS_FLAT_STREAM_SYNC_ACTIVE_REFETCH_MS
+      : RUNS_FLAT_STREAM_SYNC_IDLE_REFETCH_MS
+  }
+  return hasActiveRun ? RUNS_FLAT_ACTIVE_REFETCH_MS : RUNS_FLAT_IDLE_REFETCH_MS
 }
 
 export function useHomeDirs() {

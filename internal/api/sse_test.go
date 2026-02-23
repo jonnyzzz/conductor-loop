@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -81,12 +82,18 @@ func TestSSEWriterSendNil(t *testing.T) {
 }
 
 func TestRunStreamHandleLogLine(t *testing.T) {
-	rs := newRunStream("run-1", t.TempDir(), 10*time.Millisecond, 10)
+	rs := newRunStream("run-1", t.TempDir(), "project", "task", 10*time.Millisecond, 10)
 	sub := newSubscriber(1, false)
 	rs.subscribers[sub] = struct{}{}
 	rs.handleLogLine(LogLine{RunID: "run-1", Stream: "stdout", Line: "hello", Timestamp: time.Now().UTC()})
 	select {
-	case <-sub.events:
+	case ev := <-sub.events:
+		if !strings.Contains(ev.Data, `"project_id":"project"`) {
+			t.Fatalf("expected project_id in log payload, got %s", ev.Data)
+		}
+		if !strings.Contains(ev.Data, `"task_id":"task"`) {
+			t.Fatalf("expected task_id in log payload, got %s", ev.Data)
+		}
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("expected event")
 	}
@@ -107,14 +114,106 @@ func TestRunStreamCheckStatus(t *testing.T) {
 		t.Fatalf("write run-info: %v", err)
 	}
 
-	rs := newRunStream("run-1", runDir, 10*time.Millisecond, 10)
+	rs := newRunStream("run-1", runDir, "project", "task", 10*time.Millisecond, 10)
 	sub := newSubscriber(1, false)
 	rs.subscribers[sub] = struct{}{}
 	rs.checkStatus()
 	select {
-	case <-sub.events:
+	case ev := <-sub.events:
+		if !strings.Contains(ev.Data, `"project_id":"project"`) {
+			t.Fatalf("expected project_id in status payload, got %s", ev.Data)
+		}
+		if !strings.Contains(ev.Data, `"task_id":"task"`) {
+			t.Fatalf("expected task_id in status payload, got %s", ev.Data)
+		}
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("expected status event")
+	}
+}
+
+func TestRunStreamCheckStatus_EmitsRunningStatusOnce(t *testing.T) {
+	runDir := t.TempDir()
+	info := &storage.RunInfo{
+		RunID:     "run-1",
+		ProjectID: "project",
+		TaskID:    "task",
+		Status:    storage.StatusRunning,
+		ExitCode:  -1,
+		StartTime: time.Now().UTC(),
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	rs := newRunStream("run-1", runDir, "project", "task", 10*time.Millisecond, 10)
+	sub := newSubscriber(2, false)
+	rs.subscribers[sub] = struct{}{}
+
+	rs.checkStatus()
+	select {
+	case ev := <-sub.events:
+		if ev.Event != "status" {
+			t.Fatalf("expected status event, got %q", ev.Event)
+		}
+		if !strings.Contains(ev.Data, `"status":"running"`) {
+			t.Fatalf("expected running status payload, got %s", ev.Data)
+		}
+		if !strings.Contains(ev.Data, `"exit_code":-1`) {
+			t.Fatalf("expected exit_code in status payload, got %s", ev.Data)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatalf("expected status event")
+	}
+
+	// Status did not change; no duplicate event should be emitted.
+	rs.checkStatus()
+	select {
+	case ev := <-sub.events:
+		t.Fatalf("unexpected duplicate status event: %q", ev.Data)
+	case <-time.After(30 * time.Millisecond):
+	}
+}
+
+func TestRunStreamCheckStatus_ReconcilesStaleRunningPID(t *testing.T) {
+	runDir := t.TempDir()
+	info := &storage.RunInfo{
+		RunID:     "run-1",
+		ProjectID: "project",
+		TaskID:    "task",
+		Status:    storage.StatusRunning,
+		ExitCode:  -1,
+		PID:       99999999,
+		PGID:      99999999,
+		StartTime: time.Now().Add(-time.Minute).UTC(),
+	}
+	infoPath := filepath.Join(runDir, "run-info.yaml")
+	if err := storage.WriteRunInfo(infoPath, info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	rs := newRunStream("run-1", runDir, "project", "task", 10*time.Millisecond, 10)
+	sub := newSubscriber(1, false)
+	rs.subscribers[sub] = struct{}{}
+	rs.checkStatus()
+
+	select {
+	case evt := <-sub.events:
+		if evt.Event != "status" {
+			t.Fatalf("expected status event, got %q", evt.Event)
+		}
+		if !strings.Contains(evt.Data, `"status":"failed"`) {
+			t.Fatalf("expected failed status payload, got %s", evt.Data)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatalf("expected status event")
+	}
+
+	reloaded, err := storage.ReadRunInfo(infoPath)
+	if err != nil {
+		t.Fatalf("read run-info: %v", err)
+	}
+	if reloaded.Status != storage.StatusFailed {
+		t.Fatalf("expected reconciled status=%q, got %q", storage.StatusFailed, reloaded.Status)
 	}
 }
 

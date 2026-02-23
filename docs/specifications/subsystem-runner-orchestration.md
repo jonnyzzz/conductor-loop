@@ -25,6 +25,7 @@ The runner is the only component that may spawn agent processes. All inter-agent
 - Create run directories and record run metadata.
 - Launch agents detached from the parent process (new process group/session).
 - Manage the Ralph restart loop for the root agent.
+- After task completion, synthesize task-level FACTs into a project-level FACT entry.
 - Ensure message bus handling agents are started per incoming message (typically orchestrated by the root agent; no dedicated poller/heartbeat in MVP).
 - Record START/STOP/CRASH events for auditability.
 - Ensure the run-agent binary is available on PATH for spawned agents.
@@ -55,6 +56,19 @@ Ralph loop termination logic:
 1. If DONE is missing, start or restart the root agent (subject to max_restarts), with a small delay between attempts.
 
 Between restart attempts, pause restart_delay to avoid tight loops.
+
+Task completion fact propagation:
+- After Ralph loop exits successfully, run an internal propagation worker.
+- Read task-level FACT messages from `TASK-MESSAGE-BUS.md`.
+- Read task run outcomes from `runs/*/run-info.yaml`.
+- Post one synthesized `FACT` message to `<root>/<project>/PROJECT-MESSAGE-BUS.md` with traceability metadata:
+  - source project/task IDs
+  - run IDs and latest run outcome
+  - DONE timestamp
+  - source paths (`TASK-MESSAGE-BUS.md`, latest `run-info.yaml`, latest `output.md`)
+- Use idempotency state file `TASK-COMPLETE-FACT-PROPAGATION.yaml` plus a lock file to prevent duplicates across retries/restarts.
+- If the state file is missing but the same propagation key already exists in project bus metadata, treat it as already propagated.
+- Propagation failures are logged as task-level `ERROR` and do not fail task completion.
 
 ### run-agent serve (subcommand)
 - Serves the Monitoring UI and message bus API endpoints (REST + SSE).
@@ -169,6 +183,7 @@ The root agent prompt must include:
 ## Observability
 - run-info.yaml is the canonical per-run audit record (start or end times, pid or pgid, paths, and exit codes).
 - RUN_START, RUN_STOP, and RUN_CRASH events are posted to the task message bus for UI reconstruction.
+- Task completion emits a synthesized project-level FACT (kind: `task_completion_propagation`) with source links and propagation key.
 - No separate start/stop log file in MVP; the combination of run-info.yaml and message bus is the source of truth.
 
 ## Security / Permissions

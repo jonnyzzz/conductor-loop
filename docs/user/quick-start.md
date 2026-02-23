@@ -87,6 +87,58 @@ curl http://localhost:14355/api/v1/version
 # {"version":"dev"}
 ```
 
+## Supported Working Scenarios
+
+Conductor Loop supports one task lifecycle with two operator workflows.
+
+### Scenario 1: Console Cloud-Agent Workflow (CLI-first)
+
+Use this when you work from a terminal and the cloud agent controls task execution through `conductor`/`run-agent`.
+
+Expected flow: submit task -> stream logs -> exchange message bus updates -> wait for completion -> resume/retry if needed.
+
+```bash
+# Submit a task (explicit task ID keeps follow-up commands simple)
+conductor job submit \
+  --project my-project \
+  --task task-20260205-095500-cloud-agent \
+  --agent codex \
+  --prompt-file ./prompts/cloud-agent-task.md \
+  --follow
+
+# Watch the same task until it reaches a terminal state
+conductor watch --project my-project --task task-20260205-095500-cloud-agent --timeout 30m
+
+# Read and post task lifecycle messages
+conductor bus read --project my-project --task task-20260205-095500-cloud-agent --follow
+conductor bus post --project my-project --task task-20260205-095500-cloud-agent \
+  --type FACT --body "validation passed"
+
+# If the task exhausted restarts, clear DONE and re-submit
+conductor task resume task-20260205-095500-cloud-agent --project my-project
+```
+
+If your agent has direct file-system access to runs, the equivalent local bus commands are `run-agent bus read/post --root ./runs`.
+
+### Scenario 2: Web UI Workflow (browser-first)
+
+Use this when you want the same task lifecycle through interactive navigation.
+
+Expected flow: open UI -> choose project -> create task -> monitor tabs -> post updates -> stop/resume when needed.
+
+1. Open `http://localhost:14355/ui/`.
+2. In **Tree**, select a project (or click **+ New Project**).
+3. Click **+ New Task**, set `Agent` + `Prompt`, then click **Create Task**.
+4. Track execution in **Task details**, **Message bus**, and **Live logs**.
+5. Use **Stop agent** for a running run, or **Resume task** after a `DONE` state.
+
+### When to Use Which
+
+| Workflow | Choose it when |
+|----------|----------------|
+| Console cloud-agent workflow | You need scriptable/repeatable terminal automation or remote/headless operation |
+| Web UI workflow | You want visual monitoring and fast manual task lifecycle control |
+
 ## Step 4: Run Your First Task
 
 ### Simple "Hello World" Task
@@ -282,7 +334,7 @@ The **Ralph Loop** is Conductor Loop's automatic restart mechanism. When you run
 Example with explicit restart settings via `run-agent task --max-restarts 3`:
 
 ```bash
-./bin/run-agent task \
+run-agent task \
   --project my-project \
   --task task-20260205-130000-flaky-test \
   --root ./runs \
@@ -304,17 +356,17 @@ For local runs, use `run-agent bus` (direct file access):
 
 ```bash
 # Follow task-scoped messages while a task is running
-./bin/run-agent bus read \
+run-agent bus read \
   --project my-project \
   --task task-20260205-100000-hello-world \
   --root ./runs \
   --follow
 
 # Read recent project-scoped messages
-./bin/run-agent bus read --project my-project --root ./runs --tail 50
+run-agent bus read --project my-project --root ./runs --tail 50
 
 # Post a task-scoped progress update
-./bin/run-agent bus post \
+run-agent bus post \
   --project my-project \
   --task task-20260205-100000-hello-world \
   --root ./runs \
@@ -322,7 +374,7 @@ For local runs, use `run-agent bus` (direct file access):
   --body "started auth module refactor"
 
 # Post a project-scoped decision
-./bin/run-agent bus post \
+run-agent bus post \
   --project my-project \
   --root ./runs \
   --type DECISION \
@@ -335,28 +387,28 @@ Use these three patterns in day-to-day task operations:
 
 ```bash
 # 1) Read recent context before touching a task
-./bin/run-agent bus read \
+run-agent bus read \
   --project my-project \
   --task task-20260205-100000-hello-world \
   --root ./runs \
   --tail 30
 
 # 2) Follow live events while the task is executing
-./bin/run-agent bus read \
+run-agent bus read \
   --project my-project \
   --task task-20260205-100000-hello-world \
   --root ./runs \
   --follow
 
 # 3) Post explicit lifecycle updates
-./bin/run-agent bus post \
+run-agent bus post \
   --project my-project \
   --task task-20260205-100000-hello-world \
   --root ./runs \
   --type PROGRESS \
   --body "starting integration test batch"
 
-./bin/run-agent bus post \
+run-agent bus post \
   --project my-project \
   --task task-20260205-100000-hello-world \
   --root ./runs \

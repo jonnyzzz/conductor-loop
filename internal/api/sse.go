@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
+	"github.com/jonnyzzz/conductor-loop/internal/runstate"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/pkg/errors"
 )
@@ -227,10 +228,28 @@ func (s *Server) streamMessages(w http.ResponseWriter, r *http.Request) *apiErro
 	if projectID == "" {
 		return apiErrorBadRequest("project_id is required")
 	}
+	if err := validateIdentifier(projectID, "project_id"); err != nil {
+		return err
+	}
 	taskID := strings.TrimSpace(r.URL.Query().Get("task_id"))
-	busPath := filepath.Join(s.rootDir, projectID, "PROJECT-MESSAGE-BUS.md")
 	if taskID != "" {
-		busPath = filepath.Join(s.rootDir, projectID, taskID, "TASK-MESSAGE-BUS.md")
+		if err := validateIdentifier(taskID, "task_id"); err != nil {
+			return err
+		}
+	}
+
+	busPath, pathErr := joinPathWithinRoot(s.rootDir, projectID, "PROJECT-MESSAGE-BUS.md")
+	if pathErr != nil {
+		return pathErr
+	}
+	if taskID != "" {
+		busPath, pathErr = joinPathWithinRoot(s.rootDir, projectID, taskID, "TASK-MESSAGE-BUS.md")
+		if pathErr != nil {
+			return pathErr
+		}
+	}
+	if err := requirePathWithinRoot(s.rootDir, busPath, "message bus path"); err != nil {
+		return err
 	}
 	return s.streamMessageBusPath(w, r, busPath)
 }
@@ -373,15 +392,19 @@ func (s *sseWriter) Send(event SSEEvent) error {
 
 type logPayload struct {
 	RunID     string `json:"run_id"`
+	ProjectID string `json:"project_id,omitempty"`
+	TaskID    string `json:"task_id,omitempty"`
 	Stream    string `json:"stream,omitempty"`
 	Line      string `json:"line"`
 	Timestamp string `json:"timestamp"`
 }
 
 type statusPayload struct {
-	RunID    string `json:"run_id"`
-	Status   string `json:"status"`
-	ExitCode int    `json:"exit_code"`
+	RunID     string `json:"run_id"`
+	ProjectID string `json:"project_id,omitempty"`
+	TaskID    string `json:"task_id,omitempty"`
+	Status    string `json:"status"`
+	ExitCode  int    `json:"exit_code"`
 }
 
 // messagePayload is the JSON payload for a message SSE event.
@@ -607,15 +630,52 @@ func (m *StreamManager) ensureRun(runID string) (*runStream, error) {
 		return nil, err
 	}
 	runDir := filepath.Dir(path)
+	projectID := ""
+	taskID := ""
+	if info, readErr := runstate.ReadRunInfo(path); readErr == nil {
+		projectID = strings.TrimSpace(info.ProjectID)
+		taskID = strings.TrimSpace(info.TaskID)
+	}
+	if projectID == "" || taskID == "" {
+		inferredProjectID, inferredTaskID := inferRunScopeFromDir(runDir)
+		if projectID == "" {
+			projectID = inferredProjectID
+		}
+		if taskID == "" {
+			taskID = inferredTaskID
+		}
+	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if existing, ok := m.runs[cleanID]; ok {
 		return existing, nil
 	}
-	rs := newRunStream(cleanID, runDir, m.pollInterval, m.maxClientsRun)
+	rs := newRunStream(cleanID, runDir, projectID, taskID, m.pollInterval, m.maxClientsRun)
 	m.runs[cleanID] = rs
 	return rs, nil
+}
+
+func inferRunScopeFromDir(runDir string) (projectID string, taskID string) {
+	cleanRunDir := filepath.Clean(strings.TrimSpace(runDir))
+	if cleanRunDir == "." || cleanRunDir == "" {
+		return "", ""
+	}
+	runsDir := filepath.Dir(cleanRunDir)
+	if filepath.Base(runsDir) != "runs" {
+		return "", ""
+	}
+	taskDir := filepath.Dir(runsDir)
+	projectDir := filepath.Dir(taskDir)
+	taskID = strings.TrimSpace(filepath.Base(taskDir))
+	projectID = strings.TrimSpace(filepath.Base(projectDir))
+	if taskID == "." || taskID == string(filepath.Separator) {
+		taskID = ""
+	}
+	if projectID == "." || projectID == string(filepath.Separator) {
+		projectID = ""
+	}
+	return projectID, taskID
 }
 
 func (m *StreamManager) unsubscribe(runID string, sub *subscriber) {
@@ -636,6 +696,8 @@ func (m *StreamManager) unsubscribe(runID string, sub *subscriber) {
 type runStream struct {
 	runID        string
 	runDir       string
+	projectID    string
+	taskID       string
 	pollInterval time.Duration
 	maxClients   int
 
@@ -651,10 +713,12 @@ type runStream struct {
 	lastExit    int
 }
 
-func newRunStream(runID, runDir string, pollInterval time.Duration, maxClients int) *runStream {
+func newRunStream(runID, runDir, projectID, taskID string, pollInterval time.Duration, maxClients int) *runStream {
 	return &runStream{
 		runID:        runID,
 		runDir:       runDir,
+		projectID:    strings.TrimSpace(projectID),
+		taskID:       strings.TrimSpace(taskID),
 		pollInterval: pollInterval,
 		maxClients:   maxClients,
 		subscribers:  make(map[*subscriber]struct{}),
@@ -758,6 +822,8 @@ func (rs *runStream) loop(ctx context.Context, stdoutTailer, stderrTailer *Taile
 
 func (rs *runStream) handleLogLine(line LogLine) {
 	var cursor Cursor
+	var projectID string
+	var taskID string
 	rs.mu.Lock()
 	switch line.Stream {
 	case "stdout":
@@ -770,10 +836,14 @@ func (rs *runStream) handleLogLine(line LogLine) {
 	for sub := range rs.subscribers {
 		subs = append(subs, sub)
 	}
+	projectID = rs.projectID
+	taskID = rs.taskID
 	rs.mu.Unlock()
 
 	payload := logPayload{
 		RunID:     line.RunID,
+		ProjectID: projectID,
+		TaskID:    taskID,
 		Stream:    line.Stream,
 		Line:      line.Line,
 		Timestamp: line.Timestamp.Format(time.RFC3339Nano),
@@ -796,27 +866,34 @@ func (rs *runStream) handleLogLine(line LogLine) {
 
 func (rs *runStream) checkStatus() {
 	path := filepath.Join(rs.runDir, "run-info.yaml")
-	info, err := storage.ReadRunInfo(path)
+	info, err := runstate.ReadRunInfo(path)
 	if err != nil {
 		return
 	}
 	status := strings.TrimSpace(info.Status)
+	projectID := strings.TrimSpace(info.ProjectID)
+	taskID := strings.TrimSpace(info.TaskID)
 	exitCode := info.ExitCode
-	shouldReport := false
-	if exitCode >= 0 {
-		if status == "" {
-			status = storage.StatusCompleted
-		}
-		shouldReport = true
-	} else if status != "" && status != storage.StatusRunning {
-		shouldReport = true
+	if status == "" && exitCode >= 0 {
+		status = storage.StatusCompleted
 	}
+	// Emit the first observed non-empty status (including running/queued) so
+	// the UI can react immediately to newly discovered runs.
+	shouldReport := status != ""
 	rs.mu.Lock()
+	if projectID != "" {
+		rs.projectID = projectID
+	}
+	if taskID != "" {
+		rs.taskID = taskID
+	}
 	changed := shouldReport && (status != rs.lastStatus || exitCode != rs.lastExit)
 	if changed {
 		rs.lastStatus = status
 		rs.lastExit = exitCode
 	}
+	projectID = rs.projectID
+	taskID = rs.taskID
 	subs := make([]*subscriber, 0, len(rs.subscribers))
 	for sub := range rs.subscribers {
 		subs = append(subs, sub)
@@ -826,9 +903,11 @@ func (rs *runStream) checkStatus() {
 		return
 	}
 	payload := statusPayload{
-		RunID:    rs.runID,
-		Status:   status,
-		ExitCode: exitCode,
+		RunID:     rs.runID,
+		ProjectID: projectID,
+		TaskID:    taskID,
+		Status:    status,
+		ExitCode:  exitCode,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -871,8 +950,14 @@ func (rs *runStream) catchUp(sub *subscriber, cursor, snapshot Cursor) {
 }
 
 func (rs *runStream) sendCatchup(sub *subscriber, cursor Cursor, stream, line string) {
+	rs.mu.Lock()
+	projectID := rs.projectID
+	taskID := rs.taskID
+	rs.mu.Unlock()
 	payload := logPayload{
 		RunID:     rs.runID,
+		ProjectID: projectID,
+		TaskID:    taskID,
 		Stream:    stream,
 		Line:      line,
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),

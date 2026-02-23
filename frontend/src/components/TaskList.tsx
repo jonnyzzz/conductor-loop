@@ -9,7 +9,7 @@ import { ProjectStats } from './ProjectStats'
 
 const STATUS_BADGE_ORDER: RunStatus[] = ['running', 'failed', 'completed']
 
-const statusFilters = ['all', 'running', 'blocked', 'completed', 'failed'] as const
+const statusFilters = ['all', 'running', 'queued', 'blocked', 'completed', 'failed'] as const
 export type StatusFilter = (typeof statusFilters)[number]
 
 function parseDate(value?: string) {
@@ -205,6 +205,9 @@ export function TaskList({
               <div className="list-item-meta">
                 <span className={clsx('status-dot', `status-${task.status}`)} />
                 {task.status} · {new Date(task.last_activity).toLocaleString()}
+                {task.status === 'queued' && task.queue_position && task.queue_position > 0
+                  ? ` · queue #${task.queue_position}`
+                  : ''}
                 {task.status === 'blocked' && task.blocked_by && task.blocked_by.length > 0
                   ? ` · blocked by ${task.blocked_by.join(', ')}`
                   : ''}

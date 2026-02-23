@@ -3,12 +3,14 @@ package runner
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
 	"github.com/pkg/errors"
 )
@@ -38,6 +40,7 @@ type TaskOptions struct {
 	FirstRunDir    string // optional: pre-allocated run directory used for the first run attempt
 	ResumeMode     bool   // when true, prepend restart prefix even on the first run attempt
 	ConductorURL   string // e.g. "http://127.0.0.1:14355"; passed to JobOptions
+	ParentRunID    string // optional: parent run ID for threaded child task linkage
 	DependsOn      []string
 	// DependencyPollInterval controls how often dependency status is checked while blocked.
 	// Zero means a default interval is used.
@@ -106,6 +109,13 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 	if err != nil {
 		return errors.Wrap(err, "new message bus")
 	}
+	obslog.Log(log.Default(), "INFO", "runner", "task_run_started",
+		obslog.F("project_id", projectID),
+		obslog.F("task_id", taskID),
+		obslog.F("agent", opts.Agent),
+		obslog.F("message_bus_path", busPath),
+		obslog.F("resume_mode", opts.ResumeMode),
+	)
 
 	dependsOn, err := resolveTaskDependencies(rootDir, projectID, taskID, taskDir, opts.DependsOn)
 	if err != nil {
@@ -113,6 +123,11 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 	}
 
 	if err := waitForDependencies(taskDir, rootDir, projectID, taskID, dependsOn, opts.DependencyPollInterval, bus); err != nil {
+		obslog.Log(log.Default(), "ERROR", "runner", "task_dependency_wait_failed",
+			obslog.F("project_id", projectID),
+			obslog.F("task_id", taskID),
+			obslog.F("error", err),
+		)
 		return err
 	}
 
@@ -129,6 +144,7 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 			Prompt:         jobPrompt,
 			WorkingDir:     opts.WorkingDir,
 			MessageBusPath: busPath,
+			ParentRunID:    opts.ParentRunID,
 			PreviousRunID:  previousRunID,
 			Environment:    opts.Environment,
 			Timeout:        opts.Timeout,
@@ -165,7 +181,43 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 	if err != nil {
 		return err
 	}
-	return loop.Run(context.Background())
+	if err := loop.Run(context.Background()); err != nil {
+		obslog.Log(log.Default(), "ERROR", "runner", "task_run_failed",
+			obslog.F("project_id", projectID),
+			obslog.F("task_id", taskID),
+			obslog.F("error", err),
+		)
+		return err
+	}
+	obslog.Log(log.Default(), "INFO", "runner", "task_loop_completed",
+		obslog.F("project_id", projectID),
+		obslog.F("task_id", taskID),
+	)
+
+	propagationResult, err := propagateTaskCompletionToProject(rootDir, projectID, taskID, taskDir, busPath)
+	if err != nil {
+		appendDependencyMessage(bus, projectID, taskID, "ERROR", fmt.Sprintf("task completion fact propagation failed: %v", err))
+		obslog.Log(log.Default(), "ERROR", "runner", "task_completion_propagation_failed",
+			obslog.F("project_id", projectID),
+			obslog.F("task_id", taskID),
+			obslog.F("error", err),
+		)
+		return nil
+	}
+	if propagationResult.Posted {
+		appendDependencyMessage(bus, projectID, taskID, "FACT",
+			fmt.Sprintf("task completion facts propagated to project bus (msg_id=%s key=%s)", propagationResult.ProjectMessageID, propagationResult.PropagationKey))
+	} else {
+		appendDependencyMessage(bus, projectID, taskID, "INFO",
+			fmt.Sprintf("task completion facts already propagated (key=%s)", propagationResult.PropagationKey))
+	}
+	obslog.Log(log.Default(), "INFO", "runner", "task_run_finished",
+		obslog.F("project_id", projectID),
+		obslog.F("task_id", taskID),
+		obslog.F("completion_msg_posted", propagationResult.Posted),
+		obslog.F("propagation_key", propagationResult.PropagationKey),
+	)
+	return nil
 }
 
 func resolveTaskDependencies(rootDir, projectID, taskID, taskDir string, requested []string) ([]string, error) {

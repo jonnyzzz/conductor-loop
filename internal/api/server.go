@@ -13,27 +13,31 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/metrics"
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	"github.com/jonnyzzz/conductor-loop/internal/runner"
 	"github.com/pkg/errors"
 )
 
 // Options configures the REST API server.
 type Options struct {
-	RootDir          string
-	ExtraRoots       []string
-	ConfigPath       string
-	APIConfig        config.APIConfig
-	Version          string
-	AgentNames       []string
-	Logger           *log.Logger
-	DisableTaskStart bool
-	Now              func() time.Time
-	Metrics          *metrics.Registry
+	RootDir                 string
+	ExtraRoots              []string
+	ConfigPath              string
+	APIConfig               config.APIConfig
+	RootTaskLimit           int
+	ProjectRunsFlatCacheTTL time.Duration
+	Version                 string
+	AgentNames              []string
+	Logger                  *log.Logger
+	DisableTaskStart        bool
+	Now                     func() time.Time
+	Metrics                 *metrics.Registry
 }
 
 // Server serves REST API endpoints for tasks and runs.
@@ -54,12 +58,19 @@ type Server struct {
 
 	actualPort int
 
-	mu     sync.Mutex
-	taskWg sync.WaitGroup
+	mu              sync.Mutex
+	taskWg          sync.WaitGroup
+	rootRunGateMu   sync.Mutex
+	auditMu         sync.Mutex
+	rootTaskPlanner *rootTaskPlanner
+	selfUpdate      *selfUpdateManager
+	activeRootRuns  atomic.Int64
 
 	sseOnce        sync.Once
 	sseManagerInst *StreamManager
 	sseErr         error
+
+	projectRunsCache *projectRunInfosCache
 }
 
 // WaitForTasks waits for all background task goroutines to finish.
@@ -98,6 +109,14 @@ func NewServer(opts Options) (*Server, error) {
 		version = "dev"
 	}
 
+	projectRunsFlatCacheTTL := opts.ProjectRunsFlatCacheTTL
+	if projectRunsFlatCacheTTL < 0 {
+		return nil, errors.New("project runs flat cache ttl must be non-negative")
+	}
+	if projectRunsFlatCacheTTL == 0 {
+		projectRunsFlatCacheTTL = defaultProjectRunsFlatCacheTTL
+	}
+
 	m := opts.Metrics
 	if m == nil {
 		m = metrics.New()
@@ -109,19 +128,41 @@ func NewServer(opts Options) (*Server, error) {
 	})
 
 	s := &Server{
-		apiConfig:  cfg,
-		rootDir:    rootDir,
-		extraRoots: opts.ExtraRoots,
-		configPath: strings.TrimSpace(opts.ConfigPath),
-		version:    version,
-		agentNames: opts.AgentNames,
-		startTime:  now(),
-		logger:     logger,
-		now:        now,
-		startTasks: !opts.DisableTaskStart,
-		metrics:    m,
+		apiConfig:        cfg,
+		rootDir:          rootDir,
+		extraRoots:       opts.ExtraRoots,
+		configPath:       strings.TrimSpace(opts.ConfigPath),
+		version:          version,
+		agentNames:       opts.AgentNames,
+		startTime:        now(),
+		logger:           logger,
+		now:              now,
+		startTasks:       !opts.DisableTaskStart,
+		metrics:          m,
+		projectRunsCache: newProjectRunInfosCache(projectRunsFlatCacheTTL, now),
 	}
+	if opts.RootTaskLimit < 0 {
+		return nil, errors.New("root task limit must be non-negative")
+	}
+	if opts.RootTaskLimit > 0 {
+		s.rootTaskPlanner = newRootTaskPlanner(rootDir, opts.RootTaskLimit, now, logger)
+	}
+	s.selfUpdate = newSelfUpdateManager(selfUpdateOptions{
+		Logger:              logger,
+		Now:                 now,
+		CountActiveRootRuns: s.countActiveRootRuns,
+		OnDrainReleased:     s.onSelfUpdateDrainReleased,
+	})
 	s.handler = s.routes()
+
+	if s.startTasks && s.rootTaskPlanner != nil {
+		launches, recoverErr := s.rootTaskPlanner.Recover()
+		if recoverErr != nil {
+			return nil, errors.Wrap(recoverErr, "recover root task planner state")
+		}
+		s.launchPlannedTasks(launches)
+	}
+
 	return s, nil
 }
 
@@ -177,6 +218,13 @@ func (s *Server) ListenAndServe(explicit bool) error {
 	apiURL, uiURL := startupURLs(s.apiConfig.Host, actualPort)
 	s.logger.Printf("API listening on %s", apiURL)
 	s.logger.Printf("Web UI available at %s", uiURL)
+	obslog.Log(s.logger, "INFO", "api", "server_listening",
+		obslog.F("host", s.apiConfig.Host),
+		obslog.F("port", actualPort),
+		obslog.F("api_url", apiURL),
+		obslog.F("ui_url", uiURL),
+		obslog.F("root_dir", s.rootDir),
+	)
 	return srv.Serve(ln)
 }
 
@@ -194,11 +242,25 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	srv := s.server
+	port := s.actualPort
 	s.mu.Unlock()
 	if srv == nil {
 		return nil
 	}
-	return srv.Shutdown(ctx)
+	obslog.Log(s.logger, "INFO", "api", "server_shutdown_started",
+		obslog.F("port", port),
+	)
+	if err := srv.Shutdown(ctx); err != nil {
+		obslog.Log(s.logger, "ERROR", "api", "server_shutdown_failed",
+			obslog.F("port", port),
+			obslog.F("error", err),
+		)
+		return err
+	}
+	obslog.Log(s.logger, "INFO", "api", "server_shutdown_completed",
+		obslog.F("port", port),
+	)
+	return nil
 }
 
 func resolveRootDir(root string) (string, error) {

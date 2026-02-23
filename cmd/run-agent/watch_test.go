@@ -99,6 +99,52 @@ func TestWatchSingleCompletedTask(t *testing.T) {
 	}
 }
 
+func TestGetWatchTaskStatus_ReconcilesStaleRunningPID(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000099-stale"
+	start := time.Now().Add(-time.Minute).UTC()
+	runDir := makeRunWithPID(t, root, project, task, "run-001", storage.StatusRunning, start, -1, 99999999)
+	infoPath := filepath.Join(runDir, "run-info.yaml")
+
+	ts := getWatchTaskStatus(root, project, task)
+	if ts.Status != storage.StatusFailed {
+		t.Fatalf("expected status=%q, got %q", storage.StatusFailed, ts.Status)
+	}
+	if !ts.Done {
+		t.Fatalf("expected done=true")
+	}
+
+	info, err := storage.ReadRunInfo(infoPath)
+	if err != nil {
+		t.Fatalf("read run-info: %v", err)
+	}
+	if info.Status != storage.StatusFailed {
+		t.Fatalf("expected persisted status=%q, got %q", storage.StatusFailed, info.Status)
+	}
+}
+
+func TestGetWatchTaskStatus_DoneWithOrphanRunDir(t *testing.T) {
+	root := t.TempDir()
+	project := "proj"
+	task := "task-20260101-000100-orphan"
+	taskDir := filepath.Join(root, project, task)
+	if err := os.MkdirAll(filepath.Join(taskDir, "runs", "run-001"), 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write DONE: %v", err)
+	}
+
+	ts := getWatchTaskStatus(root, project, task)
+	if ts.Status != "done" {
+		t.Fatalf("expected status=done, got %q", ts.Status)
+	}
+	if !ts.Done {
+		t.Fatalf("expected done=true")
+	}
+}
+
 // TestWatchSingleRunningTaskCompletesInTime verifies that watch waits for a running task to finish.
 func TestWatchSingleRunningTaskCompletesInTime(t *testing.T) {
 	root := t.TempDir()

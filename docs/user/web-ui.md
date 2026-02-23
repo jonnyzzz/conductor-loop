@@ -38,6 +38,32 @@ start http://localhost:14355/
 # Chrome, Firefox, Safari, Edge
 ```
 
+## Web UI Workflow (Task Lifecycle)
+
+The Web UI supports the same lifecycle as the console cloud-agent workflow, but through navigation and forms.
+
+### Expected Flow
+
+1. Open `http://localhost:14355/ui/`.
+2. In the **Tree** panel, choose a project (or click **+ New Project**).
+3. Click **+ New Task**, fill `Agent`, `Prompt`, and optional fields, then click **Create Task**.
+4. Track execution in:
+   - **Task details** for run metadata/files (`output.md`, `stdout`, `stderr`, prompt, messages)
+   - **Live logs** for continuous stream output
+   - **Message bus** for task/project communication
+   - **Queue indicators** (`queued` status and queue position) when root-task capacity is saturated
+5. Use **Stop agent** to terminate a running run when needed.
+6. Use **Resume task** after a `DONE` state to clear exhaustion and allow re-submission.
+
+### When to Prefer Web UI vs Console
+
+| Workflow | Best for |
+|----------|----------|
+| Web UI workflow | Interactive operations, visual debugging, and manual task/run navigation |
+| Console cloud-agent workflow | Scripted automation, remote/headless operation, and CLI-first orchestration |
+
+CLI equivalents are documented in [CLI Reference](cli-reference.md) (`conductor job submit`, `conductor watch`, `conductor bus read/post`, `conductor task resume`).
+
 ## Overview
 
 The web UI provides several main views:
@@ -83,17 +109,46 @@ The run detail header shows a live heartbeat badge based on recent activity in `
 
 This helps you quickly spot stuck or crashed agents without tailing the log.
 
-### Stop Button
+### New Project Action
 
-Running tasks show a **■ Stop** button in the run detail panel header. Clicking it sends SIGTERM to the agent process via `POST /api/projects/{p}/tasks/{t}/runs/{r}/stop`.
+Use **+ New Project** in the tree panel header to register a project before creating any tasks.
+
+The dialog requires:
+
+1. `Project ID / Name`
+2. `Home / Work Folder`
+
+Validation in the UI and API includes:
+
+- Required fields
+- Duplicate project ID rejection
+- Folder path sanity checks (absolute path or `~/...`)
+
+On success:
+
+- The project appears in the project list immediately (no manual refresh needed)
+- The newly created project is selected automatically
+- The project home/work folder is persisted at:
+  - `<root>/<project_id>/PROJECT-ROOT.txt`
+
+`<root>` is the conductor API storage root (`--root`, default `~/run-agent`). The saved folder is used as the default `Project Home Directory` when creating new tasks in that project.
+
+### Stop Agent Button
+
+Running tasks show a **■ Stop agent** button in the run detail panel header. Clicking it sends SIGTERM to the agent process via `POST /api/projects/{p}/tasks/{t}/runs/{r}/stop`.
 
 ### Resume Task Button
 
 When a task is stopped (the `DONE` file is present), a **▶ Resume** button appears in the task header. Clicking it calls `POST /api/projects/{p}/tasks/{t}/resume`, which removes the `DONE` file and resets the run counter so the Ralph Loop can restart the task.
 
-### Delete Run Button
+### Safety Restrictions For Operators
 
-Completed and failed runs show a **🗑 Delete run** button in the run detail panel header. Clicking it permanently removes the run directory (output files, logs, metadata) via `DELETE /api/projects/{p}/tasks/{t}/runs/{r}`. The button is only visible when the run has reached a terminal status (completed or failed); it is hidden for running runs.
+The web UI is intentionally non-destructive:
+
+- No run/task/project delete controls are rendered.
+- No destructive cleanup controls are rendered.
+- Browser/UI-originated destructive API calls (delete + project GC) are rejected by the server with `403 Forbidden`, including stale UI clients.
+- `Stop agent` remains available for running agents.
 
 ### Project Message Bus Panel & Compose Form
 
@@ -116,6 +171,16 @@ Scope-to-file mapping:
 
 The Web UI does not maintain a separate bus. It reads/writes the same files that `run-agent bus read/post` uses.
 
+### Form Submission Audit Trail
+
+Web UI form submissions (new project, new task, and message compose) are also written to:
+
+```
+<root>/_audit/form-submissions.jsonl
+```
+
+Each line is JSON with request metadata (`timestamp`, `request_id`, `path`, `project_id`, `task_id`) and a sanitized `payload`. Secret-like values are redacted as `[REDACTED]`.
+
 Screenshot: [The main interface shows a clean, modern design with a task list on the left and log viewer on the right]
 
 ## Task List View
@@ -131,17 +196,19 @@ A search bar at the top of the task list lets you filter tasks by ID substring (
 - **Project ID**: Each task card shows the `project_id`; the run detail header also displays project and task identifiers
 - **Quick Navigation**: Click any task to view details
 - **Search Bar**: Filter tasks by ID substring (case-insensitive); shows match count
-- **Run Status Filters**: Filter buttons (All / Running / Completed / Failed) narrow the run list inside a task detail view
+- **Task Status Filters**: Filter buttons include queued/running/blocked/completed/failed states
 - **Sort Options**: Sort by time, status, or project
 
 ### Status Colors
 
 | Status | Color | Meaning |
 |--------|-------|---------|
-| Running | Blue | Task is executing |
+| Running | Yellow | Task is executing |
+| Queued | Light blue | Task is accepted and waiting for a root-task slot |
+| Blocked | Orange | Task is waiting on dependencies |
 | Success | Green | Task completed successfully |
 | Failed | Red | Task failed |
-| Created | Gray | Task created, not started |
+| Unknown/Idle | Gray | Task has no active run |
 
 ### Task List Layout
 
@@ -484,7 +551,7 @@ For frontend development:
 
 ```bash
 # Start backend (built React UI served at http://localhost:14355/)
-./bin/conductor --config config.yaml
+conductor --config config.yaml
 
 # Or start Vite dev server for hot-reload development (in frontend/)
 cd frontend

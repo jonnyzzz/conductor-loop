@@ -2,7 +2,7 @@
 
 **Role**: Test Agent
 **Responsibilities**: Run tests, verify functionality, report results, measure coverage
-**Base Prompt**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
 
 ---
 
@@ -16,7 +16,7 @@
 5. **Performance Testing**: Run benchmarks and performance tests
 
 ### Working Directory
-- **CWD**: Project source root (`/Users/jonnyzzz/Work/conductor-loop`)
+- **CWD**: Project source root (`<project-root>`)
 - **Context**: Read source and tests, execute tests
 - **Scope**: Run specific tests or full test suite
 
@@ -40,7 +40,7 @@
 ### Stage 0: Identify Tests
 1. **Read Context**
    - Read task prompt for test scope
-   - Read `/Users/jonnyzzz/Work/conductor-loop/Instructions.md` for test commands
+   - Read `<project-root>/Instructions.md` for test commands
    - Read TASK_STATE.md for context
    - Check which files changed (if testing after implementation)
 
@@ -537,8 +537,8 @@ func TestConcurrent(t *testing.T) {
 
 ## References
 
-- **Base Workflow**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-- **Agent Conventions**: `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
-- **Tool Paths**: `/Users/jonnyzzz/Work/conductor-loop/Instructions.md`
+- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Agent Conventions**: `<project-root>/AGENTS.md`
+- **Tool Paths**: `<project-root>/Instructions.md`
 - **Go Testing**: https://go.dev/doc/tutorial/add-a-test
 - **Go Test Command**: https://pkg.go.dev/cmd/go#hdr-Test_packages

@@ -46,6 +46,7 @@ agents:
 defaults:
   agent: codex                                # Default agent if not specified
   timeout: 300                                # Default timeout in seconds
+  max_concurrent_root_tasks: 2                # Root-task slots (0 = unlimited, default)
 
 api:
   host: 0.0.0.0                               # API server host
@@ -205,6 +206,7 @@ defaults:
   agent: codex                # Default agent
   timeout: 300                # Default timeout (seconds)
   max_concurrent_runs: 4      # 0 = unlimited (default)
+  max_concurrent_root_tasks: 2  # Root-task concurrency limit (0 = unlimited)
 ```
 
 | Field | Type | Default | Description |
@@ -212,6 +214,7 @@ defaults:
 | `agent` | string | first agent | Default agent type |
 | `timeout` | int | 300 | Default task timeout in seconds |
 | `max_concurrent_runs` | int | 0 | Maximum simultaneous agent runs; 0 means unlimited |
+| `max_concurrent_root_tasks` | int | 0 | Maximum concurrent root tasks scheduled by planner; 0 means unlimited |
 
 #### Concurrency Limiting
 
@@ -226,6 +229,30 @@ defaults:
 
 The current queue depth is visible in the Prometheus metrics endpoint as
 `conductor_queued_runs_total`. Set to `0` (the default) to disable the limit entirely.
+
+#### Root-Task Planner Concurrency
+
+`max_concurrent_root_tasks` controls how many **root tasks** can run concurrently.
+When the limit is reached:
+
+- New root tasks are accepted but marked `queued`.
+- A planner chooses which tasks start immediately (up to `N`) and preserves deterministic FIFO order.
+- As running root tasks complete/fail/stop, queued tasks are promoted automatically.
+
+Fairness and determinism policy:
+
+- Primary sort key: submission order (oldest first).
+- Tie-breakers: `project_id`, `task_id`, then `run_id` (lexicographic).
+
+Example:
+
+```yaml
+defaults:
+  max_concurrent_root_tasks: 2
+```
+
+If five root tasks are submitted at once, two start immediately and three stay queued.
+When one running root task exits, the oldest queued task is promoted.
 
 ### `api` - API Server Configuration
 

@@ -16,6 +16,7 @@ import (
 	"github.com/jonnyzzz/conductor-loop/internal/agent/perplexity"
 	"github.com/jonnyzzz/conductor-loop/internal/agent/xai"
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/jonnyzzz/conductor-loop/internal/webhook"
 	"github.com/pkg/errors"
@@ -45,6 +46,8 @@ func RunJob(projectID, taskID string, opts JobOptions) error {
 }
 
 func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error) {
+	logger := log.Default()
+
 	rootDir, err := resolveRootDir(opts.RootDir)
 	if err != nil {
 		return nil, err
@@ -108,7 +111,12 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		return nil, errors.New("agent type is empty")
 	}
 	if tokenErr := ValidateToken(agentType, selection.Config.Token); tokenErr != nil {
-		log.Printf("warning: %v", tokenErr)
+		obslog.Log(logger, "WARN", "runner", "agent_token_validation_warning",
+			obslog.F("project_id", projectID),
+			obslog.F("task_id", taskID),
+			obslog.F("agent_type", agentType),
+			obslog.F("warning", tokenErr),
+		)
 	}
 
 	parentRunID := strings.TrimSpace(opts.ParentRunID)
@@ -157,6 +165,15 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		}
 		_ = storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), sentinel)
 	}
+	obslog.Log(logger, "INFO", "runner", "run_directory_allocated",
+		obslog.F("project_id", projectID),
+		obslog.F("task_id", taskID),
+		obslog.F("run_id", runID),
+		obslog.F("run_dir", runDir),
+		obslog.F("agent_type", agentType),
+		obslog.F("parent_run_id", parentRunID),
+		obslog.F("previous_run_id", opts.PreviousRunID),
+	)
 
 	// detectAgentVersion spawns an external process and is best-effort.
 	agentVersion := detectAgentVersion(context.Background(), agentType)
@@ -179,7 +196,22 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	if err := acquireSem(ctx); err != nil {
 		return nil, fmt.Errorf("acquire run slot: %w", err)
 	}
-	defer releaseSem()
+	obslog.Log(logger, "INFO", "runner", "run_slot_acquired",
+		obslog.F("project_id", projectID),
+		obslog.F("task_id", taskID),
+		obslog.F("run_id", runID),
+		obslog.F("agent_type", agentType),
+		obslog.F("max_concurrent_runs", maxConcurrent),
+	)
+	defer func() {
+		releaseSem()
+		obslog.Log(logger, "INFO", "runner", "run_slot_released",
+			obslog.F("project_id", projectID),
+			obslog.F("task_id", taskID),
+			obslog.F("run_id", runID),
+			obslog.F("agent_type", agentType),
+		)
+	}()
 
 	// Derive ConductorURL from opts or fall back to config.
 	conductorURL := strings.TrimSpace(opts.ConductorURL)
@@ -209,6 +241,15 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	if err := os.WriteFile(promptPath, []byte(promptContent), 0o644); err != nil {
 		return nil, errors.Wrap(err, "write prompt")
 	}
+	obslog.Log(logger, "INFO", "runner", "run_prepared",
+		obslog.F("project_id", projectID),
+		obslog.F("task_id", taskID),
+		obslog.F("run_id", runID),
+		obslog.F("agent_type", agentType),
+		obslog.F("rest_agent", restAgent),
+		obslog.F("working_dir", workingDir),
+		obslog.F("message_bus_path", busPath),
+	)
 
 	var notifier *webhook.Notifier
 	if cfg != nil {
@@ -292,6 +333,13 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 			timeoutBody = fmt.Sprintf("agent job timed out after %s of idle output", opts.Timeout)
 		}
 		_ = postRunEvent(busPath, info, "WARN", timeoutBody)
+		obslog.Log(logger, "WARN", "runner", "run_timeout",
+			obslog.F("project_id", info.ProjectID),
+			obslog.F("task_id", info.TaskID),
+			obslog.F("run_id", info.RunID),
+			obslog.F("agent_type", info.AgentType),
+			obslog.F("timeout", opts.Timeout),
+		)
 	}
 
 	// Send webhook notification asynchronously (non-blocking; failures are logged to message bus).
@@ -315,8 +363,26 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 	}
 
 	if execErr != nil {
+		obslog.Log(logger, "ERROR", "runner", "run_execution_failed",
+			obslog.F("project_id", info.ProjectID),
+			obslog.F("task_id", info.TaskID),
+			obslog.F("run_id", info.RunID),
+			obslog.F("agent_type", info.AgentType),
+			obslog.F("status", info.Status),
+			obslog.F("exit_code", info.ExitCode),
+			obslog.F("error_summary", info.ErrorSummary),
+			obslog.F("error", execErr),
+		)
 		return info, execErr
 	}
+	obslog.Log(logger, "INFO", "runner", "run_execution_completed",
+		obslog.F("project_id", info.ProjectID),
+		obslog.F("task_id", info.TaskID),
+		obslog.F("run_id", info.RunID),
+		obslog.F("agent_type", info.AgentType),
+		obslog.F("status", info.Status),
+		obslog.F("exit_code", info.ExitCode),
+	)
 	return info, nil
 }
 
@@ -434,7 +500,13 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 	switch strings.ToLower(agentType) {
 	case "claude":
 		if parseErr := claude.WriteOutputMDFromStream(runDir, info.StdoutPath); parseErr != nil {
-			log.Printf("JSONL parse for output.md failed (writing placeholder): %v", parseErr)
+			obslog.Log(log.Default(), "WARN", "runner", "output_parse_fallback",
+				obslog.F("project_id", info.ProjectID),
+				obslog.F("task_id", info.TaskID),
+				obslog.F("run_id", info.RunID),
+				obslog.F("agent_type", info.AgentType),
+				obslog.F("error", parseErr),
+			)
 			placeholder := "# Agent Output\n\n*The agent did not write output.md. Raw output is available in the stdout tab.*\n"
 			_ = os.WriteFile(filepath.Join(runDir, "output.md"), []byte(placeholder), 0o644)
 		}
@@ -648,9 +720,16 @@ func postRunEvent(busPath string, info *storage.RunInfo, msgType, body string) e
 	}
 	bus, err := messagebus.NewMessageBus(busPath)
 	if err != nil {
+		obslog.Log(log.Default(), "ERROR", "runner", "run_event_bus_open_failed",
+			obslog.F("project_id", info.ProjectID),
+			obslog.F("task_id", info.TaskID),
+			obslog.F("run_id", info.RunID),
+			obslog.F("message_type", msgType),
+			obslog.F("error", err),
+		)
 		return errors.Wrap(err, "new message bus")
 	}
-	_, err = bus.AppendMessage(&messagebus.Message{
+	msgID, err := bus.AppendMessage(&messagebus.Message{
 		Type:      msgType,
 		ProjectID: info.ProjectID,
 		TaskID:    info.TaskID,
@@ -658,8 +737,22 @@ func postRunEvent(busPath string, info *storage.RunInfo, msgType, body string) e
 		Body:      body,
 	})
 	if err != nil {
+		obslog.Log(log.Default(), "ERROR", "runner", "run_event_post_failed",
+			obslog.F("project_id", info.ProjectID),
+			obslog.F("task_id", info.TaskID),
+			obslog.F("run_id", info.RunID),
+			obslog.F("message_type", msgType),
+			obslog.F("error", err),
+		)
 		return errors.Wrap(err, "append message")
 	}
+	obslog.Log(log.Default(), "INFO", "runner", "run_event_posted",
+		obslog.F("project_id", info.ProjectID),
+		obslog.F("task_id", info.TaskID),
+		obslog.F("run_id", info.RunID),
+		obslog.F("message_type", msgType),
+		obslog.F("message_id", msgID),
+	)
 	return nil
 }
 

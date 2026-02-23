@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/config"
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	"github.com/pkg/errors"
 )
 
@@ -231,7 +232,15 @@ func warnJRunEnvMismatch(projectID, taskID, runID, parentRunID string) {
 			continue
 		}
 		if envVal != c.jobValue {
-			log.Printf("warning: env %s=%q differs from job value %q", c.envKey, envVal, c.jobValue)
+			obslog.Log(log.Default(), "WARN", "runner", "jrun_env_mismatch",
+				obslog.F("env_key", c.envKey),
+				obslog.F("env_value", envVal),
+				obslog.F("expected_value", c.jobValue),
+				obslog.F("project_id", projectID),
+				obslog.F("task_id", taskID),
+				obslog.F("run_id", runID),
+				obslog.F("parent_run_id", parentRunID),
+			)
 		}
 	}
 }

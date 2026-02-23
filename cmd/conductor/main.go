@@ -16,6 +16,7 @@ import (
 
 	"github.com/jonnyzzz/conductor-loop/internal/api"
 	"github.com/jonnyzzz/conductor-loop/internal/config"
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	"github.com/spf13/cobra"
 )
 
@@ -96,12 +97,18 @@ func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string
 	if configPath == "" {
 		found, err := config.FindDefaultConfig()
 		if err != nil {
+			obslog.Log(logger, "ERROR", "startup", "config_discovery_failed",
+				obslog.F("error", err),
+			)
 			return err
 		}
 		if found == "" {
 			return fmt.Errorf("no config file found; use --config to specify one")
 		}
 		logger.Printf("Using config: %s", found)
+		obslog.Log(logger, "INFO", "startup", "config_discovered",
+			obslog.F("config_path", found),
+		)
 		configPath = found
 	}
 
@@ -114,10 +121,18 @@ func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string
 		loaded, err := config.LoadConfigForServer(configPath)
 		if err != nil {
 			logger.Printf("config load failed: %v (continuing with defaults)", err)
+			obslog.Log(logger, "ERROR", "startup", "config_load_failed",
+				obslog.F("config_path", configPath),
+				obslog.F("error", err),
+			)
 			disableTaskStart = true
 		} else {
 			cfg = loaded
 			apiConfig = loaded.API
+			obslog.Log(logger, "INFO", "startup", "config_loaded",
+				obslog.F("config_path", configPath),
+				obslog.F("agent_count", len(loaded.Agents)),
+			)
 		}
 	}
 
@@ -153,6 +168,7 @@ func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string
 	}
 	if apiConfig.AuthEnabled && apiConfig.APIKey == "" {
 		logger.Printf("WARNING: auth_enabled=true but no api_key set; authentication disabled")
+		obslog.Log(logger, "WARN", "startup", "auth_disabled_missing_api_key")
 		apiConfig.AuthEnabled = false
 	}
 
@@ -174,14 +190,26 @@ func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string
 		ExtraRoots:       extraRoots,
 		ConfigPath:       configPath,
 		APIConfig:        apiConfig,
+		RootTaskLimit:    rootTaskLimit(cfg),
 		Version:          version,
 		AgentNames:       agentNames,
 		Logger:           logger,
 		DisableTaskStart: disableTaskStart,
 	})
 	if err != nil {
+		obslog.Log(logger, "ERROR", "startup", "server_init_failed",
+			obslog.F("error", err),
+		)
 		return err
 	}
+	obslog.Log(logger, "INFO", "startup", "server_starting",
+		obslog.F("root_dir", rootDir),
+		obslog.F("config_path", configPath),
+		obslog.F("host", apiConfig.Host),
+		obslog.F("port", apiConfig.Port),
+		obslog.F("task_start_enabled", !disableTaskStart),
+		obslog.F("auth_enabled", apiConfig.AuthEnabled),
+	)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -194,15 +222,26 @@ func runServer(configPath, rootDir string, disableTaskStart bool, cliHost string
 	select {
 	case err := <-errCh:
 		if err == nil || errors.Is(err, http.ErrServerClosed) {
+			obslog.Log(logger, "INFO", "startup", "server_stopped")
 			return nil
 		}
+		obslog.Log(logger, "ERROR", "startup", "server_stopped_with_error",
+			obslog.F("error", err),
+		)
 		return err
-	case <-signalCh:
+	case sig := <-signalCh:
+		obslog.Log(logger, "INFO", "startup", "shutdown_signal_received",
+			obslog.F("signal", sig.String()),
+		)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
+			obslog.Log(logger, "ERROR", "startup", "server_shutdown_failed",
+				obslog.F("error", err),
+			)
 			return fmt.Errorf("shutdown server: %w", err)
 		}
+		obslog.Log(logger, "INFO", "startup", "server_shutdown_completed")
 		return nil
 	}
 }
@@ -214,4 +253,14 @@ func parseBool(value string) bool {
 	default:
 		return false
 	}
+}
+
+func rootTaskLimit(cfg *config.Config) int {
+	if cfg == nil {
+		return 0
+	}
+	if cfg.Defaults.MaxConcurrentRootTasks < 0 {
+		return 0
+	}
+	return cfg.Defaults.MaxConcurrentRootTasks
 }

@@ -5,6 +5,9 @@ import type { FileContent, RunInfo, TaskDetail } from '../types'
 import { FileViewer } from './FileViewer'
 import { RunTree } from './RunTree'
 
+const COMPLETED_RUNS_INITIAL_LIMIT = 200
+const COMPLETED_RUNS_LOAD_STEP = 200
+
 function formatDateTime(value?: string): string {
   const raw = (value ?? '').trim()
   if (!raw || raw === '0001-01-01T00:00:00Z') {
@@ -17,6 +20,15 @@ function formatDateTime(value?: string): string {
   return parsed.toLocaleString()
 }
 
+function runActivityTimestamp(run: { start_time: string; end_time?: string }): number {
+  const end = Date.parse(run.end_time ?? '')
+  if (!Number.isNaN(end)) {
+    return end
+  }
+  const start = Date.parse(run.start_time)
+  return Number.isNaN(start) ? 0 : start
+}
+
 export function RunDetail({
   task,
   runInfo,
@@ -26,8 +38,6 @@ export function RunDetail({
   onSelectFile,
   fileContent,
   taskState,
-  onDeleteRun,
-  onDeleteTask,
   onStopRun,
   onResumeTask,
 }: {
@@ -39,30 +49,77 @@ export function RunDetail({
   onSelectFile: (name: string) => void
   fileContent?: FileContent
   taskState?: string
-  onDeleteRun?: (runId: string) => void
-  onDeleteTask?: (taskId: string) => void
   onStopRun?: (runId: string) => void
   onResumeTask?: (taskId: string) => void
 }) {
   const [showCompletedRuns, setShowCompletedRuns] = useState(false)
+  const [completedRunsLimit, setCompletedRunsLimit] = useState(COMPLETED_RUNS_INITIAL_LIMIT)
+  const taskRuns = useMemo(() => (
+    Array.isArray(task?.runs) ? task.runs : []
+  ), [task?.runs])
 
   const completedRuns = useMemo(() => {
-    if (!task?.runs) return []
-    return task.runs.filter((r) => r.status === 'completed')
-  }, [task?.runs])
+    return taskRuns.filter((r) => r.status === 'completed')
+  }, [taskRuns])
+
+  const nonCompletedRuns = useMemo(() => {
+    return taskRuns.filter((r) => r.status !== 'completed')
+  }, [taskRuns])
+
+  const completedRunsNewestFirst = useMemo(() => {
+    const sorted = [...completedRuns]
+    sorted.sort((a, b) => {
+      const byTime = runActivityTimestamp(b) - runActivityTimestamp(a)
+      if (byTime !== 0) {
+        return byTime
+      }
+      return b.id.localeCompare(a.id)
+    })
+    return sorted
+  }, [completedRuns])
+
+  const selectedCompletedRun = useMemo(() => {
+    if (!selectedRunId) {
+      return undefined
+    }
+    return completedRuns.find((run) => run.id === selectedRunId)
+  }, [completedRuns, selectedRunId])
+
+  const visibleCompletedRuns = useMemo(() => {
+    if (!showCompletedRuns) {
+      return []
+    }
+    if (completedRunsNewestFirst.length <= completedRunsLimit) {
+      return completedRunsNewestFirst
+    }
+    const capped = completedRunsNewestFirst.slice(0, completedRunsLimit)
+    if (selectedCompletedRun && !capped.some((run) => run.id === selectedCompletedRun.id)) {
+      return [...capped, selectedCompletedRun]
+    }
+    return capped
+  }, [completedRunsLimit, completedRunsNewestFirst, selectedCompletedRun, showCompletedRuns])
+
+  const visibleCompletedCount = useMemo(() => {
+    return new Set(visibleCompletedRuns.map((run) => run.id)).size
+  }, [visibleCompletedRuns])
+
+  const hiddenCompletedRuns = useMemo(() => {
+    return Math.max(0, completedRuns.length - visibleCompletedCount)
+  }, [completedRuns.length, visibleCompletedCount])
 
   const visibleRuns = useMemo(() => {
-    if (!task?.runs) return []
-    if (showCompletedRuns) return task.runs
-    return task.runs.filter((r) => r.status !== 'completed')
-  }, [task?.runs, showCompletedRuns])
+    if (!showCompletedRuns) {
+      return nonCompletedRuns
+    }
+    return [...nonCompletedRuns, ...visibleCompletedRuns]
+  }, [nonCompletedRuns, showCompletedRuns, visibleCompletedRuns])
 
   const runMix = useMemo(() => {
-    if (!task?.runs?.length) {
+    if (taskRuns.length === 0) {
       return 'No runs yet'
     }
     const counts: Record<string, number> = {}
-    task.runs.forEach((run) => {
+    taskRuns.forEach((run) => {
       counts[run.status] = (counts[run.status] ?? 0) + 1
     })
 
@@ -70,21 +127,22 @@ export function RunDetail({
       .filter((status) => (counts[status] ?? 0) > 0)
       .map((status) => `${counts[status]} ${status}`)
     return parts.join(' | ')
-  }, [task?.runs])
+  }, [taskRuns])
 
   useEffect(() => {
     setShowCompletedRuns(false)
+    setCompletedRunsLimit(COMPLETED_RUNS_INITIAL_LIMIT)
   }, [task?.id])
 
   useEffect(() => {
-    if (!task?.runs || !selectedRunId) {
+    if (!selectedRunId) {
       return
     }
-    const selectedRun = task.runs.find((run) => run.id === selectedRunId)
+    const selectedRun = taskRuns.find((run) => run.id === selectedRunId)
     if (selectedRun?.status === 'completed') {
       setShowCompletedRuns(true)
     }
-  }, [task?.runs, selectedRunId])
+  }, [selectedRunId, taskRuns])
 
   const restartHint = useMemo(() => {
     if (!task) {
@@ -98,6 +156,16 @@ export function RunDetail({
         state: 'task-restart-hint-open',
         title: 'Blocked by dependencies',
         detail: `Task is waiting for: ${blockedBy}.`,
+      }
+    }
+    if (task.status === 'queued') {
+      const queueSuffix = task.queue_position && task.queue_position > 0
+        ? ` (#${task.queue_position})`
+        : ''
+      return {
+        state: 'task-restart-hint-open',
+        title: `Queued for root slot${queueSuffix}`,
+        detail: 'Task is waiting for root-task scheduler capacity and will start automatically when a slot is free.',
       }
     }
     if (task.done) {
@@ -159,33 +227,18 @@ export function RunDetail({
           <div className="panel-title">Run detail</div>
           <div className="panel-subtitle">{`${task.project_id} / ${task.id}`}</div>
         </div>
-        {task.status !== 'running' && (onDeleteTask || (onResumeTask && task.done)) && (
+        {task.status !== 'running' && onResumeTask && task.done && (
           <div className="panel-actions">
-            {onResumeTask && task.done && (
-              <Button
-                inline
-                onClick={() => {
-                  if (window.confirm(`Resume task ${task.id}? This will clear the DONE marker.`)) {
-                    onResumeTask(task.id)
-                  }
-                }}
-              >
-                Resume task
-              </Button>
-            )}
-            {onDeleteTask && (
-              <Button
-                inline
-                danger
-                onClick={() => {
-                  if (window.confirm(`Delete task ${task.id} and all its runs? This cannot be undone.`)) {
-                    onDeleteTask(task.id)
-                  }
-                }}
-              >
-                Delete task
-              </Button>
-            )}
+            <Button
+              inline
+              onClick={() => {
+                if (window.confirm(`Resume task ${task.id}? This will clear the DONE marker.`)) {
+                  onResumeTask(task.id)
+                }
+              }}
+            >
+              Resume task
+            </Button>
           </div>
         )}
       </div>
@@ -205,7 +258,7 @@ export function RunDetail({
           </div>
           <div className="task-overview-item">
             <div className="metadata-label">Runs</div>
-            <div className="metadata-value">{task.runs.length}</div>
+            <div className="metadata-value">{taskRuns.length}</div>
             <div className="task-overview-note">{runMix}</div>
           </div>
           <div className="task-overview-item">
@@ -246,27 +299,12 @@ export function RunDetail({
                 inline
                 danger
                 onClick={() => {
-                  if (window.confirm(`Stop run ${runInfo.run_id}?`)) {
+                  if (window.confirm(`Stop agent for run ${runInfo.run_id}?`)) {
                     onStopRun(runInfo.run_id)
                   }
                 }}
               >
-                Stop run
-              </Button>
-            </div>
-          )}
-          {runInfo && task?.status !== 'running' && onDeleteRun && (
-            <div className="panel-actions" style={{ marginBottom: '8px' }}>
-              <Button
-                inline
-                danger
-                onClick={() => {
-                  if (window.confirm(`Delete run ${runInfo.run_id}? This cannot be undone.`)) {
-                    onDeleteRun(runInfo.run_id)
-                  }
-                }}
-              >
-                Delete run
+                Stop agent
               </Button>
             </div>
           )}
@@ -343,6 +381,22 @@ export function RunDetail({
               {!showCompletedRuns && (
                 <div className="runs-completed-hint">Archived history is hidden. Click to include completed runs.</div>
               )}
+              {showCompletedRuns && (
+                <div className="runs-completed-hint">
+                  {hiddenCompletedRuns > 0
+                    ? `Showing latest ${visibleCompletedCount} of ${completedRuns.length} completed runs.`
+                    : `Showing ${completedRuns.length} completed runs.`}
+                </div>
+              )}
+              {showCompletedRuns && hiddenCompletedRuns > 0 && (
+                <button
+                  type="button"
+                  className="runs-completed-toggle"
+                  onClick={() => setCompletedRunsLimit((value) => value + COMPLETED_RUNS_LOAD_STEP)}
+                >
+                  {`Load older completed (+${Math.min(COMPLETED_RUNS_LOAD_STEP, hiddenCompletedRuns)})`}
+                </button>
+              )}
             </div>
           )}
           {task ? (
@@ -371,7 +425,7 @@ export function RunDetail({
           <div className="panel-subtitle">Default view: output.md</div>
         </div>
         <div className="panel-actions">
-          {(task?.runs?.find((r) => r.id === selectedRunId)?.files ?? []).map((option) => (
+          {(taskRuns.find((r) => r.id === selectedRunId)?.files ?? []).map((option) => (
             <Button
               key={option.name}
               inline

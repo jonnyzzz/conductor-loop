@@ -219,6 +219,202 @@ func TestBusPostWithProjectAndTask(t *testing.T) {
 	}
 }
 
+func TestBusPostExplicitFlagsTakePrecedenceOverContext(t *testing.T) {
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "path-project", "task-20260101-000001-path")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
+
+	t.Setenv("MESSAGE_BUS", busPath)
+	t.Setenv("JRUN_PROJECT_ID", "env-project")
+	t.Setenv("JRUN_TASK_ID", "task-20260101-000001-env")
+	t.Setenv("JRUN_ID", "run-env")
+	t.Setenv("TASK_FOLDER", filepath.Join(root, "context-project", "task-20260101-000001-context"))
+	t.Setenv("RUN_FOLDER", filepath.Join(root, "runs", "run-project", "task-20260101-000001-run", "runs", "run-context"))
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"bus", "post",
+		"--project", "flag-project",
+		"--task", "task-20260101-000001-flag",
+		"--run", "run-flag",
+		"--type", "FACT",
+		"--body", "explicit precedence",
+	})
+
+	var runErr error
+	captureStdout(t, func() {
+		runErr = cmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("bus post failed: %v", runErr)
+	}
+
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("open bus: %v", err)
+	}
+	messages, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	last := messages[0]
+	if last.ProjectID != "flag-project" {
+		t.Fatalf("project_id=%q, want %q", last.ProjectID, "flag-project")
+	}
+	if last.TaskID != "task-20260101-000001-flag" {
+		t.Fatalf("task_id=%q, want %q", last.TaskID, "task-20260101-000001-flag")
+	}
+	if last.RunID != "run-flag" {
+		t.Fatalf("run_id=%q, want %q", last.RunID, "run-flag")
+	}
+}
+
+func TestBusPostInfersFromRunFolderContext(t *testing.T) {
+	root := t.TempDir()
+	busPath := filepath.Join(root, "custom-bus.md")
+
+	t.Setenv("MESSAGE_BUS", busPath)
+	t.Setenv("JRUN_PROJECT_ID", "")
+	t.Setenv("JRUN_TASK_ID", "")
+	t.Setenv("JRUN_ID", "")
+	t.Setenv("TASK_FOLDER", "")
+
+	runID := "20260101-0000010000-12345-1"
+	runFolder := filepath.Join(root, "context-project", "task-20260101-000001-context", "runs", runID)
+	if err := os.MkdirAll(runFolder, 0o755); err != nil {
+		t.Fatalf("mkdir run folder: %v", err)
+	}
+	t.Setenv("RUN_FOLDER", runFolder)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"bus", "post",
+		"--type", "INFO",
+		"--body", "context inferred",
+	})
+
+	var runErr error
+	captureStdout(t, func() {
+		runErr = cmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("bus post failed: %v", runErr)
+	}
+
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("open bus: %v", err)
+	}
+	messages, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	last := messages[0]
+	if last.ProjectID != "context-project" {
+		t.Fatalf("project_id=%q, want %q", last.ProjectID, "context-project")
+	}
+	if last.TaskID != "task-20260101-000001-context" {
+		t.Fatalf("task_id=%q, want %q", last.TaskID, "task-20260101-000001-context")
+	}
+	if last.RunID != runID {
+		t.Fatalf("run_id=%q, want %q", last.RunID, runID)
+	}
+}
+
+func TestBusPostMissingContextReturnsActionableError(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("MESSAGE_BUS", filepath.Join(root, "custom-bus.md"))
+	t.Setenv("JRUN_PROJECT_ID", "")
+	t.Setenv("JRUN_TASK_ID", "")
+	t.Setenv("JRUN_ID", "")
+	t.Setenv("TASK_FOLDER", "")
+	t.Setenv("RUN_FOLDER", "")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"bus", "post",
+		"--type", "INFO",
+		"--body", "no context",
+	})
+
+	var runErr error
+	captureStdout(t, func() {
+		runErr = cmd.Execute()
+	})
+	if runErr == nil {
+		t.Fatal("expected bus post to fail when project context is missing")
+	}
+	if !strings.Contains(runErr.Error(), "project id is empty and could not be inferred") {
+		t.Fatalf("unexpected error: %v", runErr)
+	}
+	if !strings.Contains(runErr.Error(), "--project") {
+		t.Fatalf("error should mention --project guidance: %v", runErr)
+	}
+}
+
+func TestBusPostPrefersBusPathContextOverJRunEnv(t *testing.T) {
+	root := t.TempDir()
+	taskID := "task-20260101-000001-path"
+	taskDir := filepath.Join(root, "path-project", taskID)
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
+
+	t.Setenv("MESSAGE_BUS", busPath)
+	t.Setenv("JRUN_PROJECT_ID", "env-project")
+	t.Setenv("JRUN_TASK_ID", "task-20260101-000001-env")
+	t.Setenv("JRUN_ID", "run-env")
+	t.Setenv("TASK_FOLDER", "")
+	t.Setenv("RUN_FOLDER", "")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"bus", "post",
+		"--type", "FACT",
+		"--body", "path context wins",
+	})
+
+	var runErr error
+	captureStdout(t, func() {
+		runErr = cmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("bus post failed: %v", runErr)
+	}
+
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("open bus: %v", err)
+	}
+	messages, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	last := messages[0]
+	if last.ProjectID != "path-project" {
+		t.Fatalf("project_id=%q, want %q", last.ProjectID, "path-project")
+	}
+	if last.TaskID != taskID {
+		t.Fatalf("task_id=%q, want %q", last.TaskID, taskID)
+	}
+	if last.RunID != "run-env" {
+		t.Fatalf("run_id=%q, want %q", last.RunID, "run-env")
+	}
+}
+
 // TestBusRootDefaultsToRunsDir verifies that resolveBusFilePath defaults root to
 // "./runs" when neither RUNS_DIR env var nor an explicit root is provided.
 func TestBusRootDefaultsToRunsDir(t *testing.T) {

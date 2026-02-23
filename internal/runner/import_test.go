@@ -122,6 +122,64 @@ sleep 0.2
 	}
 }
 
+func TestRunImportedProcessPropagatesParentRunIDToRunInfo(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-based process fixture is unix-only")
+	}
+
+	root := t.TempDir()
+	stdoutSource := filepath.Join(root, "external-parent-stdout.log")
+	scriptPath := filepath.Join(root, "external-parent.sh")
+	script := `#!/bin/sh
+sleep 0.2
+echo "stdout-parent" >> "$SRC_STDOUT"
+sleep 0.2
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	cmd := exec.Command(scriptPath)
+	cmd.Env = append(os.Environ(),
+		"SRC_STDOUT="+stdoutSource,
+	)
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start fixture process: %v", err)
+	}
+	waitDone := make(chan error, 1)
+	go func() {
+		waitDone <- cmd.Wait()
+	}()
+
+	const parentRunID = "run-parent-import"
+	err := RunImportedProcess("project", "task-import-parent", ImportOptions{
+		RootDir:     root,
+		WorkingDir:  root,
+		ParentRunID: parentRunID,
+		Process: ImportedProcess{
+			PID:         cmd.Process.Pid,
+			AgentType:   "codex",
+			CommandLine: scriptPath,
+			StdoutPath:  stdoutSource,
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunImportedProcess: %v", err)
+	}
+	if waitErr := <-waitDone; waitErr != nil {
+		t.Fatalf("fixture process wait: %v", waitErr)
+	}
+
+	runDir := singleRunDir(t, root, "project", "task-import-parent")
+	info, err := storage.ReadRunInfo(filepath.Join(runDir, "run-info.yaml"))
+	if err != nil {
+		t.Fatalf("read run-info: %v", err)
+	}
+	if got := strings.TrimSpace(info.ParentRunID); got != parentRunID {
+		t.Fatalf("parent_run_id=%q, want %q", got, parentRunID)
+	}
+}
+
 func TestNormalizeImportedProcessDefaults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "stdout.log")
 	parent := filepath.Dir(path)

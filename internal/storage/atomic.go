@@ -1,12 +1,15 @@
 package storage
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
@@ -23,9 +26,19 @@ func WriteRunInfo(path string, info *RunInfo) error {
 	}
 	data, err := yaml.Marshal(info)
 	if err != nil {
+		obslog.Log(log.Default(), "ERROR", "storage", "run_info_marshal_failed",
+			obslog.F("run_info_path", path),
+			obslog.F("run_id", info.RunID),
+			obslog.F("error", err),
+		)
 		return errors.Wrap(err, "marshal run-info")
 	}
 	if err := writeFileAtomic(path, data); err != nil {
+		obslog.Log(log.Default(), "ERROR", "storage", "run_info_write_failed",
+			obslog.F("run_info_path", path),
+			obslog.F("run_id", info.RunID),
+			obslog.F("error", err),
+		)
 		return errors.Wrap(err, "write run-info")
 	}
 	return nil
@@ -38,10 +51,20 @@ func ReadRunInfo(path string) (*RunInfo, error) {
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
+		obslog.Log(log.Default(), "ERROR", "storage", "run_info_read_failed",
+			obslog.F("run_info_path", path),
+			obslog.F("run_id", runIDFromRunInfoPath(path)),
+			obslog.F("error", err),
+		)
 		return nil, errors.Wrap(err, "read run-info")
 	}
 	var info RunInfo
 	if err := yaml.Unmarshal(data, &info); err != nil {
+		obslog.Log(log.Default(), "ERROR", "storage", "run_info_unmarshal_failed",
+			obslog.F("run_info_path", path),
+			obslog.F("run_id", runIDFromRunInfoPath(path)),
+			obslog.F("error", err),
+		)
 		return nil, errors.Wrap(err, "unmarshal run-info")
 	}
 	return &info, nil
@@ -60,6 +83,10 @@ func UpdateRunInfo(path string, update func(*RunInfo) error) error {
 	lockPath := path + ".lock"
 	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
+		obslog.Log(log.Default(), "ERROR", "storage", "run_info_lock_open_failed",
+			obslog.F("run_info_path", path),
+			obslog.F("error", err),
+		)
 		return errors.Wrap(err, "open run-info lock file")
 	}
 	defer func() {
@@ -68,21 +95,63 @@ func UpdateRunInfo(path string, update func(*RunInfo) error) error {
 		_ = os.Remove(lockPath)
 	}()
 
+	lockStart := time.Now()
 	if err := messagebus.LockExclusive(lockFile, updateRunInfoLockTimeout); err != nil {
+		obslog.Log(log.Default(), "ERROR", "storage", "run_info_lock_acquire_failed",
+			obslog.F("run_info_path", path),
+			obslog.F("run_id", runIDFromRunInfoPath(path)),
+			obslog.F("lock_timeout", updateRunInfoLockTimeout),
+			obslog.F("error", err),
+		)
 		return errors.Wrap(err, "acquire run-info lock")
+	}
+	lockWait := time.Since(lockStart)
+	if lockWait >= 200*time.Millisecond {
+		obslog.Log(log.Default(), "WARN", "storage", "run_info_lock_wait_slow",
+			obslog.F("run_info_path", path),
+			obslog.F("run_id", runIDFromRunInfoPath(path)),
+			obslog.F("wait_ms", lockWait.Milliseconds()),
+		)
 	}
 
 	info, err := ReadRunInfo(path)
 	if err != nil {
+		obslog.Log(log.Default(), "ERROR", "storage", "run_info_read_for_update_failed",
+			obslog.F("run_info_path", path),
+			obslog.F("run_id", runIDFromRunInfoPath(path)),
+			obslog.F("error", err),
+		)
 		return errors.Wrap(err, "read run-info for update")
 	}
 	if err := update(info); err != nil {
+		obslog.Log(log.Default(), "ERROR", "storage", "run_info_update_callback_failed",
+			obslog.F("run_info_path", path),
+			obslog.F("run_id", info.RunID),
+			obslog.F("error", err),
+		)
 		return errors.Wrap(err, "apply run-info update")
 	}
 	if err := WriteRunInfo(path, info); err != nil {
+		obslog.Log(log.Default(), "ERROR", "storage", "run_info_rewrite_failed",
+			obslog.F("run_info_path", path),
+			obslog.F("run_id", info.RunID),
+			obslog.F("error", err),
+		)
 		return errors.Wrap(err, "rewrite run-info")
 	}
 	return nil
+}
+
+func runIDFromRunInfoPath(path string) string {
+	clean := filepath.Clean(strings.TrimSpace(path))
+	if clean == "." || clean == "" {
+		return ""
+	}
+	parent := filepath.Base(filepath.Dir(clean))
+	if parent == "." || parent == string(filepath.Separator) {
+		return ""
+	}
+	return parent
 }
 
 func writeFileAtomic(path string, data []byte) error {

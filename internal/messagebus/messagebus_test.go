@@ -2,6 +2,7 @@ package messagebus
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -66,6 +67,53 @@ func TestReadMessagesSinceNotFound(t *testing.T) {
 	}
 	_, _ = bus.AppendMessage(&Message{Type: "FACT", ProjectID: "project", Body: "hello"})
 	if _, err := bus.ReadMessages("missing"); err == nil {
+		t.Fatalf("expected since id error")
+	} else if !errors.Is(err, ErrSinceIDNotFound) {
+		t.Fatalf("expected ErrSinceIDNotFound, got %v", err)
+	}
+}
+
+func TestReadMessagesSinceLimited(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	ids := make([]string, 0, 5)
+	for i := 1; i <= 5; i++ {
+		msgID, appendErr := bus.AppendMessage(&Message{
+			Type:      "FACT",
+			ProjectID: "project",
+			Body:      fmt.Sprintf("message-%d", i),
+		})
+		if appendErr != nil {
+			t.Fatalf("AppendMessage(%d): %v", i, appendErr)
+		}
+		ids = append(ids, msgID)
+	}
+
+	msgs, err := bus.ReadMessagesSinceLimited(ids[1], 2)
+	if err != nil {
+		t.Fatalf("ReadMessagesSinceLimited: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(msgs))
+	}
+	if strings.TrimSpace(msgs[0].Body) != "message-4" || strings.TrimSpace(msgs[1].Body) != "message-5" {
+		t.Fatalf("unexpected bodies: %q, %q", msgs[0].Body, msgs[1].Body)
+	}
+}
+
+func TestReadMessagesSinceLimitedSinceNotFound(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "TASK-MESSAGE-BUS.md")
+	bus, err := NewMessageBus(path)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+	if _, err := bus.AppendMessage(&Message{Type: "FACT", ProjectID: "project", Body: "hello"}); err != nil {
+		t.Fatalf("AppendMessage: %v", err)
+	}
+	if _, err := bus.ReadMessagesSinceLimited("missing", 5); err == nil {
 		t.Fatalf("expected since id error")
 	} else if !errors.Is(err, ErrSinceIDNotFound) {
 		t.Fatalf("expected ErrSinceIDNotFound, got %v", err)

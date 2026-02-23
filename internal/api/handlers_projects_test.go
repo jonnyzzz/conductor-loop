@@ -43,6 +43,62 @@ func makeProjectRun(t *testing.T, root, projectID, taskID, runID string, status 
 	return info
 }
 
+func makeProjectRunWithParent(
+	t *testing.T,
+	root, projectID, taskID, runID, parentRunID string,
+	status string,
+	start time.Time,
+) *storage.RunInfo {
+	return makeProjectRunWithLinks(
+		t,
+		root,
+		projectID,
+		taskID,
+		runID,
+		parentRunID,
+		"",
+		status,
+		start,
+	)
+}
+
+func makeProjectRunWithLinks(
+	t *testing.T,
+	root, projectID, taskID, runID, parentRunID, previousRunID string,
+	status string,
+	start time.Time,
+) *storage.RunInfo {
+	t.Helper()
+
+	runDir := filepath.Join(root, projectID, taskID, "runs", runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir run: %v", err)
+	}
+
+	info := &storage.RunInfo{
+		RunID:         runID,
+		ProjectID:     projectID,
+		TaskID:        taskID,
+		ParentRunID:   parentRunID,
+		PreviousRunID: previousRunID,
+		Status:        status,
+		StartTime:     start.UTC(),
+		StdoutPath:    filepath.Join(runDir, "agent-stdout.txt"),
+	}
+	if status != storage.StatusRunning {
+		end := start.Add(30 * time.Second).UTC()
+		info.EndTime = end
+	}
+
+	if err := os.WriteFile(info.StdoutPath, []byte("ok\n"), 0o644); err != nil {
+		t.Fatalf("write stdout: %v", err)
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+	return info
+}
+
 func TestServeRunFileStream_UnknownFile(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
@@ -126,6 +182,1028 @@ func TestProjectTasksIncludesBlockedTaskWithoutRuns(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("task-main not found in response: %+v", resp.Items)
+	}
+}
+
+func TestProjectRunsFlatPreservesMultiLevelParentChain(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 18, 0, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusRunning, start)
+	makeProjectRunWithParent(t, root, "project", "task-child", "run-child", "run-root", storage.StatusRunning, start.Add(1*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-grand", "run-grand", "run-child", storage.StatusRunning, start.Add(2*time.Minute))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID          string `json:"id"`
+			TaskID      string `json:"task_id"`
+			ParentRunID string `json:"parent_run_id,omitempty"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(resp.Runs) != 3 {
+		t.Fatalf("expected 3 runs, got %d", len(resp.Runs))
+	}
+	if resp.Runs[0].ID != "run-root" || resp.Runs[0].TaskID != "task-root" || resp.Runs[0].ParentRunID != "" {
+		t.Fatalf("unexpected root run: %+v", resp.Runs[0])
+	}
+	if resp.Runs[1].ID != "run-child" || resp.Runs[1].TaskID != "task-child" || resp.Runs[1].ParentRunID != "run-root" {
+		t.Fatalf("unexpected child run: %+v", resp.Runs[1])
+	}
+	if resp.Runs[2].ID != "run-grand" || resp.Runs[2].TaskID != "task-grand" || resp.Runs[2].ParentRunID != "run-child" {
+		t.Fatalf("unexpected grandchild run: %+v", resp.Runs[2])
+	}
+}
+
+func TestProjectRunsFlatActiveOnlyFiltersTerminalRunsButKeepsAncestors(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 0, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(t, root, "project", "task-active", "run-active", "run-root", storage.StatusRunning, start.Add(1*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-terminal", "run-terminal", "", storage.StatusCompleted, start.Add(2*time.Minute))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat?active_only=1", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-active" {
+		t.Fatalf("unexpected active_only runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatActiveOnlyKeepsDescendantRunsForHierarchy(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 15, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusRunning, start)
+	makeProjectRunWithParent(t, root, "project", "task-child", "run-child", "run-root", storage.StatusCompleted, start.Add(1*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-grand", "run-grand", "run-child", storage.StatusFailed, start.Add(2*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-terminal", "run-terminal", "", storage.StatusCompleted, start.Add(3*time.Minute))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat?active_only=1", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-child,run-grand" {
+		t.Fatalf("unexpected active_only hierarchy runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatActiveOnlyKeepsTerminalHierarchyAnchorsWithUnrelatedActiveRun(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 20, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(t, root, "project", "task-child", "run-child", "run-root", storage.StatusCompleted, start.Add(1*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-grand", "run-grand", "run-child", storage.StatusFailed, start.Add(2*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-active", "run-active", "", storage.StatusRunning, start.Add(3*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-terminal", "run-terminal", "", storage.StatusCompleted, start.Add(4*time.Minute))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat?active_only=1", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-child,run-grand,run-active" {
+		t.Fatalf("unexpected active_only hierarchy anchors with unrelated active run: %v", got)
+	}
+}
+
+func TestProjectRunsFlatActiveOnlyNoActiveReturnsLatestPerTask(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 25, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root-old", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root-new", "", storage.StatusFailed, start.Add(1*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-child", "run-child-old", "", storage.StatusCompleted, start.Add(2*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-child", "run-child-new", "", storage.StatusCompleted, start.Add(3*time.Minute))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat?active_only=1", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root-new,run-child-new" {
+		t.Fatalf("unexpected active_only idle runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatActiveOnlyNoActiveKeepsLatestParentAncestry(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 26, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root-old", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root-new", "", storage.StatusCompleted, start.Add(1*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-child", "run-child-new", "run-root-old", storage.StatusCompleted, start.Add(2*time.Minute))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat?active_only=1", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root-old,run-root-new,run-child-new" {
+		t.Fatalf("unexpected active_only idle ancestry runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatActiveOnlyNoActiveKeepsCrossTaskDescendantsForHierarchy(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 26, 30, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-linked",
+		"run-root",
+		storage.StatusCompleted,
+		start.Add(1*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-latest",
+		"",
+		storage.StatusCompleted,
+		start.Add(2*time.Minute),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat?active_only=1", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-child-linked,run-child-latest" {
+		t.Fatalf("unexpected active_only idle cross-task descendant runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatActiveOnlyNoActiveKeepsBridgeRunsForDeepCrossTaskHierarchy(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 26, 45, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-linked",
+		"run-root",
+		storage.StatusCompleted,
+		start.Add(1*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-bridge",
+		"run-child-linked",
+		storage.StatusCompleted,
+		start.Add(2*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-grand",
+		"run-grand-linked",
+		"run-child-bridge",
+		storage.StatusCompleted,
+		start.Add(3*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-latest",
+		"",
+		storage.StatusCompleted,
+		start.Add(4*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-grand",
+		"run-grand-latest",
+		"",
+		storage.StatusCompleted,
+		start.Add(5*time.Minute),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat?active_only=1", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-child-linked,run-child-bridge,run-grand-linked,run-child-latest,run-grand-latest" {
+		t.Fatalf("unexpected active_only idle deep hierarchy runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatActiveOnlyNoActiveKeepsRestartAnchorForParentHierarchy(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 27, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-old",
+		"run-root",
+		storage.StatusCompleted,
+		start.Add(1*time.Minute),
+	)
+	makeProjectRunWithLinks(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-new",
+		"",
+		"run-child-old",
+		storage.StatusCompleted,
+		start.Add(2*time.Minute),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat?active_only=1", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-child-old,run-child-new" {
+		t.Fatalf("unexpected active_only idle restart-anchor runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatActiveOnlyNoActiveKeepsParentAnchorWithoutPreviousLink(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 28, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-linked",
+		"run-root",
+		storage.StatusCompleted,
+		start.Add(1*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-latest",
+		"",
+		storage.StatusCompleted,
+		start.Add(2*time.Minute),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/project/runs/flat?active_only=1", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-child-linked,run-child-latest" {
+		t.Fatalf("unexpected active_only idle parent-anchor runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatSelectedTaskIncludesTerminalRuns(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 30, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(t, root, "project", "task-selected", "run-selected", "run-root", storage.StatusFailed, start.Add(1*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-other", "run-other", "", storage.StatusCompleted, start.Add(2*time.Minute))
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/project/runs/flat?active_only=1&selected_task_id=task-selected",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-selected" {
+		t.Fatalf("unexpected selected-task runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatSelectedTaskLimitKeepsLatestRuns(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 31, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(t, root, "project", "task-selected", "run-selected-old", "run-root", storage.StatusCompleted, start.Add(1*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-selected", "run-selected-new", "run-root", storage.StatusFailed, start.Add(2*time.Minute))
+	makeProjectRunWithParent(t, root, "project", "task-other", "run-other", "", storage.StatusCompleted, start.Add(3*time.Minute))
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/project/runs/flat?active_only=1&selected_task_id=task-selected&selected_task_limit=1",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-selected-new" {
+		t.Fatalf("unexpected selected-task limited runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatSelectedTaskLimitKeepsParentAnchorWithoutPreviousLink(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 31, 30, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-selected",
+		"run-selected-linked",
+		"run-root",
+		storage.StatusCompleted,
+		start.Add(1*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-selected",
+		"run-selected-latest",
+		"",
+		storage.StatusFailed,
+		start.Add(2*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-other",
+		"run-other",
+		"",
+		storage.StatusCompleted,
+		start.Add(3*time.Minute),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/project/runs/flat?active_only=1&selected_task_id=task-selected&selected_task_limit=1",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-selected-linked,run-selected-latest" {
+		t.Fatalf("unexpected selected-task parent-anchor runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatSelectedTaskLimitKeepsCrossTaskAnchorWhenLatestHasOnlySameTaskParent(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 31, 45, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-selected",
+		"run-selected-linked",
+		"run-root",
+		storage.StatusCompleted,
+		start.Add(1*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-selected",
+		"run-selected-local-root",
+		"",
+		storage.StatusCompleted,
+		start.Add(2*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-selected",
+		"run-selected-latest",
+		"run-selected-local-root",
+		storage.StatusFailed,
+		start.Add(3*time.Minute),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/project/runs/flat?active_only=1&selected_task_id=task-selected&selected_task_limit=1",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-selected-linked,run-selected-local-root,run-selected-latest" {
+		t.Fatalf("unexpected selected-task cross-anchor runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatSelectedTaskLimitKeepsRestartAnchorDescendants(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 32, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-selected",
+		"run-selected-old",
+		"run-root",
+		storage.StatusCompleted,
+		start.Add(1*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-grandchild",
+		"run-grandchild",
+		"run-selected-old",
+		storage.StatusCompleted,
+		start.Add(2*time.Minute),
+	)
+	makeProjectRunWithLinks(
+		t,
+		root,
+		"project",
+		"task-selected",
+		"run-selected-new",
+		"",
+		"run-selected-old",
+		storage.StatusCompleted,
+		start.Add(3*time.Minute),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/project/runs/flat?active_only=1&selected_task_id=task-selected&selected_task_limit=1",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-selected-old,run-grandchild,run-selected-new" {
+		t.Fatalf("unexpected selected-task restart-anchor runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatSelectedTaskLimitKeepsAncestorBridgeForRestartedParentTask(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 33, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-linked",
+		"run-root",
+		storage.StatusCompleted,
+		start.Add(1*time.Minute),
+	)
+	makeProjectRunWithLinks(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-restarted",
+		"",
+		"run-child-linked",
+		storage.StatusCompleted,
+		start.Add(2*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-grandchild",
+		"run-grandchild-selected",
+		"run-child-restarted",
+		storage.StatusFailed,
+		start.Add(3*time.Minute),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/project/runs/flat?active_only=1&selected_task_id=task-grandchild&selected_task_limit=1",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-child-linked,run-child-restarted,run-grandchild-selected" {
+		t.Fatalf("unexpected selected-task ancestor-bridge runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatSelectedTaskLimitKeepsAncestorBridgeWhenParentRunDetached(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 34, 0, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root", "run-root", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-linked",
+		"run-root",
+		storage.StatusCompleted,
+		start.Add(1*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-detached",
+		"",
+		storage.StatusCompleted,
+		start.Add(2*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-grandchild",
+		"run-grandchild-selected",
+		"run-child-detached",
+		storage.StatusFailed,
+		start.Add(3*time.Minute),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/project/runs/flat?active_only=1&selected_task_id=task-grandchild&selected_task_limit=1",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root,run-child-linked,run-child-detached,run-grandchild-selected" {
+		t.Fatalf("unexpected selected-task detached-parent runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatSelectedTaskLimitUsesBranchAnchorWhenNewerAnchorIsUnrelated(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 34, 30, 0, time.UTC)
+	makeProjectRunWithParent(t, root, "project", "task-root-a", "run-root-a", "", storage.StatusCompleted, start)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-linked-a",
+		"run-root-a",
+		storage.StatusCompleted,
+		start.Add(1*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-detached-a",
+		"",
+		storage.StatusCompleted,
+		start.Add(2*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-grandchild",
+		"run-grandchild-selected",
+		"run-child-detached-a",
+		storage.StatusFailed,
+		start.Add(3*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-root-b",
+		"run-root-b",
+		"",
+		storage.StatusCompleted,
+		start.Add(4*time.Minute),
+	)
+	makeProjectRunWithParent(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-linked-b",
+		"run-root-b",
+		storage.StatusCompleted,
+		start.Add(5*time.Minute),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/project/runs/flat?active_only=1&selected_task_id=task-grandchild&selected_task_limit=1",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root-a,run-child-linked-a,run-child-detached-a,run-grandchild-selected" {
+		t.Fatalf("unexpected selected-task branch-anchor runs: %v", got)
+	}
+}
+
+func TestProjectRunsFlatRejectsInvalidSelectedTaskLimit(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/project/runs/flat?active_only=1&selected_task_limit=bad",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -542,6 +1620,81 @@ func TestProjectMessages_ListWithMessages(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "hello world") {
 		t.Errorf("expected message body in response, got: %q", rec.Body.String())
+	}
+}
+
+func TestProjectMessages_ListLimitReturnsLatestMessages(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	post := func(body string) string {
+		t.Helper()
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/projects/proj1/messages",
+			strings.NewReader(`{"type":"PROGRESS","body":"`+body+`"}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		server.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("post message %q: expected 201, got %d: %s", body, rec.Code, rec.Body.String())
+		}
+		var payload struct {
+			MsgID string `json:"msg_id"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode post response: %v", err)
+		}
+		return payload.MsgID
+	}
+
+	post("m-1")
+	id2 := post("m-2")
+	post("m-3")
+	post("m-4")
+	post("m-5")
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/projects/proj1/messages?limit=2", nil)
+	listRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", listRec.Code, listRec.Body.String())
+	}
+
+	var listResp struct {
+		Messages []struct {
+			Body  string `json:"body"`
+			MsgID string `json:"msg_id"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(listRec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("decode list response: %v", err)
+	}
+	if len(listResp.Messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(listResp.Messages))
+	}
+	if strings.TrimSpace(listResp.Messages[0].Body) != "m-4" || strings.TrimSpace(listResp.Messages[1].Body) != "m-5" {
+		t.Fatalf("unexpected limited messages: %+v", listResp.Messages)
+	}
+
+	sinceReq := httptest.NewRequest(http.MethodGet, "/api/projects/proj1/messages?since="+id2+"&limit=2", nil)
+	sinceRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(sinceRec, sinceReq)
+	if sinceRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", sinceRec.Code, sinceRec.Body.String())
+	}
+	if err := json.Unmarshal(sinceRec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("decode since response: %v", err)
+	}
+	if len(listResp.Messages) != 2 {
+		t.Fatalf("expected 2 messages after since+limit, got %d", len(listResp.Messages))
+	}
+	if strings.TrimSpace(listResp.Messages[0].Body) != "m-4" || strings.TrimSpace(listResp.Messages[1].Body) != "m-5" {
+		t.Fatalf("unexpected since+limit messages: %+v", listResp.Messages)
 	}
 }
 
@@ -1242,6 +2395,140 @@ func TestFindProjectDir_NotFound(t *testing.T) {
 	}
 }
 
+func TestProjectsCreate_SuccessPersistsAndLists(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	projectRoot := t.TempDir()
+	payload := map[string]string{
+		"project_id":   "new-project",
+		"project_root": projectRoot,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	createReq := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader(body))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(createRec, createReq)
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", createRec.Code, createRec.Body.String())
+	}
+
+	var created projectSummary
+	if err := json.Unmarshal(createRec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("unmarshal create response: %v", err)
+	}
+	if created.ID != "new-project" {
+		t.Fatalf("expected id=new-project, got %q", created.ID)
+	}
+	if created.TaskCount != 0 {
+		t.Fatalf("expected task_count=0, got %d", created.TaskCount)
+	}
+	if created.ProjectRoot != projectRoot {
+		t.Fatalf("expected project_root=%q, got %q", projectRoot, created.ProjectRoot)
+	}
+
+	markerPath := filepath.Join(root, "new-project", projectRootMarkerFile)
+	markerData, err := os.ReadFile(markerPath)
+	if err != nil {
+		t.Fatalf("read marker file: %v", err)
+	}
+	if strings.TrimSpace(string(markerData)) != projectRoot {
+		t.Fatalf("marker content=%q, want %q", strings.TrimSpace(string(markerData)), projectRoot)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/projects", nil)
+	listRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", listRec.Code, listRec.Body.String())
+	}
+	var listResp struct {
+		Projects []projectSummary `json:"projects"`
+	}
+	if err := json.Unmarshal(listRec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("unmarshal projects response: %v", err)
+	}
+	if len(listResp.Projects) != 1 {
+		t.Fatalf("expected 1 project, got %d", len(listResp.Projects))
+	}
+	if listResp.Projects[0].ID != "new-project" {
+		t.Fatalf("expected listed project id=new-project, got %q", listResp.Projects[0].ID)
+	}
+	if listResp.Projects[0].ProjectRoot != projectRoot {
+		t.Fatalf("expected listed project_root=%q, got %q", projectRoot, listResp.Projects[0].ProjectRoot)
+	}
+
+	homeDirsReq := httptest.NewRequest(http.MethodGet, "/api/projects/home-dirs", nil)
+	homeDirsRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(homeDirsRec, homeDirsReq)
+	if homeDirsRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", homeDirsRec.Code, homeDirsRec.Body.String())
+	}
+	var homeDirsResp struct {
+		Dirs []string `json:"dirs"`
+	}
+	if err := json.Unmarshal(homeDirsRec.Body.Bytes(), &homeDirsResp); err != nil {
+		t.Fatalf("unmarshal home dirs response: %v", err)
+	}
+	if len(homeDirsResp.Dirs) != 1 || homeDirsResp.Dirs[0] != projectRoot {
+		t.Fatalf("expected home dirs [%q], got %v", projectRoot, homeDirsResp.Dirs)
+	}
+}
+
+func TestProjectsCreate_DuplicateProjectID(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(root, "existing-project"), 0o755); err != nil {
+		t.Fatalf("mkdir existing project: %v", err)
+	}
+
+	projectRoot := t.TempDir()
+	body := strings.NewReader(`{"project_id":"existing-project","project_root":"` + projectRoot + `"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/projects", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "project already exists") {
+		t.Fatalf("expected duplicate error, got %s", rec.Body.String())
+	}
+}
+
+func TestProjectsCreate_InvalidProjectRoot(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	body := strings.NewReader(`{"project_id":"new-project","project_root":"relative/path"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/projects", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "project_root must be an absolute path") {
+		t.Fatalf("expected project_root validation error, got %s", rec.Body.String())
+	}
+}
+
 // makeProjectRunAt creates a run with a controlled start time for pagination ordering tests.
 func makeProjectRunAt(t *testing.T, root, projectID, taskID, runID, status string, startTime time.Time) *storage.RunInfo {
 	t.Helper()
@@ -1560,6 +2847,28 @@ func TestDeleteTask_Success(t *testing.T) {
 	}
 }
 
+func TestDeleteTask_UIRequestForbidden(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "project", "task-del", "run-1", storage.StatusCompleted, "output\n")
+
+	taskDir := filepath.Join(root, "project", "task-del")
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/project/tasks/task-del", nil)
+	req.Header.Set("Origin", "http://localhost:14355")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, statErr := os.Stat(taskDir); os.IsNotExist(statErr) {
+		t.Fatalf("task directory should not be deleted for UI request")
+	}
+}
+
 func TestDeleteTask_RunningConflict(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
@@ -1620,6 +2929,28 @@ func TestDeleteRun_Success(t *testing.T) {
 
 	if _, statErr := os.Stat(runDir); !os.IsNotExist(statErr) {
 		t.Errorf("expected run directory to be deleted, but it still exists at %s", runDir)
+	}
+}
+
+func TestDeleteRun_UIRequestForbidden(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "project", "task", "run-del-ui", storage.StatusCompleted, "output\n")
+
+	runDir := filepath.Join(root, "project", "task", "runs", "run-del-ui")
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/project/tasks/task/runs/run-del-ui", nil)
+	req.Header.Set("Origin", "http://localhost:14355")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, statErr := os.Stat(runDir); os.IsNotExist(statErr) {
+		t.Fatalf("run directory should not be deleted for UI request")
 	}
 }
 
@@ -1792,6 +3123,29 @@ func TestProjectGC_DryRun(t *testing.T) {
 		if _, statErr := os.Stat(runDir); os.IsNotExist(statErr) {
 			t.Errorf("run %s should not be deleted in dry-run mode", runID)
 		}
+	}
+}
+
+func TestProjectGC_UIRequestForbidden(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	past := time.Now().Add(-48 * time.Hour)
+	makeProjectRunAt(t, root, "proj-gc-ui", "task-gc-ui", "run-1", storage.StatusCompleted, past)
+
+	runDir := filepath.Join(root, "proj-gc-ui", "task-gc-ui", "runs", "run-1")
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/proj-gc-ui/gc?older_than=1h", nil)
+	req.Header.Set("Origin", "http://localhost:14355")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, statErr := os.Stat(runDir); os.IsNotExist(statErr) {
+		t.Fatalf("run directory should not be deleted for UI request")
 	}
 }
 
@@ -2158,6 +3512,28 @@ func TestDeleteProject_Empty(t *testing.T) {
 	}
 	if _, err := os.Stat(projectDir); !os.IsNotExist(err) {
 		t.Errorf("expected project dir to be deleted")
+	}
+}
+
+func TestDeleteProject_UIRequestForbidden(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	makeProjectRun(t, root, "proj-del-ui", "task-20260101-120000-aaa", "run-1", storage.StatusCompleted, "output")
+
+	projectDir := filepath.Join(root, "proj-del-ui")
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/proj-del-ui", nil)
+	req.Header.Set("Origin", "http://localhost:14355")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(projectDir); os.IsNotExist(err) {
+		t.Fatalf("project dir should not be deleted for UI request")
 	}
 }
 

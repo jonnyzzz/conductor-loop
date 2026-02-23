@@ -2,7 +2,7 @@
 
 **Role**: Orchestrator Agent
 **Responsibilities**: Plan tasks, spawn sub-agents, coordinate workflows, monitor progress
-**Base Prompt**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
 
 ---
 
@@ -33,10 +33,10 @@
 
 ### Stage 0: Initialize
 1. **Read Context**
-   - Read `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-   - Read `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
-   - Read `/Users/jonnyzzz/Work/conductor-loop/Instructions.md`
-   - Read `/Users/jonnyzzz/Work/conductor-loop/THE_PLAN_v5.md`
+   - Read `<project-root>/THE_PROMPT_v5.md`
+   - Read `<project-root>/AGENTS.md`
+   - Read `<project-root>/Instructions.md`
+   - Read `<project-root>/THE_PLAN_v5.md`
    - Read TASK.md (task description)
    - Read TASK_STATE.md (current state)
    - Read TASK-MESSAGE-BUS.md (recent updates)
@@ -336,9 +336,9 @@ grep -A 10 "msg_id:" TASK-MESSAGE-BUS.md | tail -n 20
 
 ## References
 
-- **Base Workflow**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-- **Agent Conventions**: `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
-- **Tool Paths**: `/Users/jonnyzzz/Work/conductor-loop/Instructions.md`
-- **Implementation Plan**: `/Users/jonnyzzz/Work/conductor-loop/THE_PLAN_v5.md`
-- **Agent Protocol**: `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/subsystem-agent-protocol.md`
-- **Storage Layout**: `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/subsystem-storage-layout.md`
+- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Agent Conventions**: `<project-root>/AGENTS.md`
+- **Tool Paths**: `<project-root>/Instructions.md`
+- **Implementation Plan**: `<project-root>/THE_PLAN_v5.md`
+- **Agent Protocol**: `<project-root>/docs/specifications/subsystem-agent-protocol.md`
+- **Storage Layout**: `<project-root>/docs/specifications/subsystem-storage-layout.md`

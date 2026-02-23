@@ -2,7 +2,7 @@
 
 **Role**: Review Agent
 **Responsibilities**: Code review, quality checks, provide structured feedback
-**Base Prompt**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
 **Quorum Requirement**: 2+ agents for non-trivial/multi-line changes
 
 ---
@@ -37,7 +37,7 @@
 ### Stage 0: Understand Changes
 1. **Read Context**
    - Read task prompt and review scope
-   - Read `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md` for conventions
+   - Read `<project-root>/AGENTS.md` for conventions
    - Read implementation agent output
    - Check TASK_STATE.md for context
 
@@ -445,8 +445,8 @@ When multiple review agents are used:
 
 ## References
 
-- **Base Workflow**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-- **Agent Conventions**: `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
-- **Tool Paths**: `/Users/jonnyzzz/Work/conductor-loop/Instructions.md`
+- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Agent Conventions**: `<project-root>/AGENTS.md`
+- **Tool Paths**: `<project-root>/Instructions.md`
 - **Go Code Review Comments**: https://go.dev/wiki/CodeReviewComments
 - **Effective Go**: https://go.dev/doc/effective_go

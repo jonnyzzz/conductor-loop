@@ -6,12 +6,14 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
@@ -265,12 +267,55 @@ func (mb *MessageBus) AppendMessage(msg *Message) (string, error) {
 
 		lastErr = mb.tryAppend(data)
 		if lastErr == nil {
+			if attempt > 0 {
+				obslog.Log(log.Default(), "INFO", "messagebus", "append_recovered_after_retry",
+					obslog.F("path", mb.path),
+					obslog.F("message_id", msg.MsgID),
+					obslog.F("message_type", msg.Type),
+					obslog.F("project_id", msg.ProjectID),
+					obslog.F("task_id", msg.TaskID),
+					obslog.F("run_id", msg.RunID),
+					obslog.F("attempt", attempt+1),
+					obslog.F("max_retries", mb.maxRetries),
+				)
+			}
 			return msg.MsgID, nil
 		}
 		if !stderrors.Is(lastErr, ErrLockTimeout) {
+			obslog.Log(log.Default(), "ERROR", "messagebus", "append_failed",
+				obslog.F("path", mb.path),
+				obslog.F("message_id", msg.MsgID),
+				obslog.F("message_type", msg.Type),
+				obslog.F("project_id", msg.ProjectID),
+				obslog.F("task_id", msg.TaskID),
+				obslog.F("run_id", msg.RunID),
+				obslog.F("attempt", attempt+1),
+				obslog.F("error", lastErr),
+			)
 			return "", lastErr
 		}
+		obslog.Log(log.Default(), "WARN", "messagebus", "append_lock_timeout_retrying",
+			obslog.F("path", mb.path),
+			obslog.F("message_id", msg.MsgID),
+			obslog.F("message_type", msg.Type),
+			obslog.F("project_id", msg.ProjectID),
+			obslog.F("task_id", msg.TaskID),
+			obslog.F("run_id", msg.RunID),
+			obslog.F("attempt", attempt+1),
+			obslog.F("max_retries", mb.maxRetries),
+			obslog.F("error", lastErr),
+		)
 	}
+	obslog.Log(log.Default(), "ERROR", "messagebus", "append_exhausted_retries",
+		obslog.F("path", mb.path),
+		obslog.F("message_id", msg.MsgID),
+		obslog.F("message_type", msg.Type),
+		obslog.F("project_id", msg.ProjectID),
+		obslog.F("task_id", msg.TaskID),
+		obslog.F("run_id", msg.RunID),
+		obslog.F("max_retries", mb.maxRetries),
+		obslog.F("error", lastErr),
+	)
 	return "", fmt.Errorf("append failed after %d attempts: %w", mb.maxRetries, lastErr)
 }
 
@@ -282,6 +327,11 @@ func (mb *MessageBus) tryAppend(data []byte) error {
 
 	if err := LockExclusive(file, mb.lockTimeout); err != nil {
 		file.Close()
+		obslog.Log(log.Default(), "WARN", "messagebus", "append_lock_failed",
+			obslog.F("path", mb.path),
+			obslog.F("lock_timeout", mb.lockTimeout),
+			obslog.F("error", err),
+		)
 		return fmt.Errorf("lock message bus: %w", err)
 	}
 
@@ -289,19 +339,35 @@ func (mb *MessageBus) tryAppend(data []byte) error {
 	// We hold the exclusive lock while renaming, so no other writer can interleave.
 	if mb.autoRotateBytes > 0 {
 		if fi, statErr := file.Stat(); statErr == nil && fi.Size() >= mb.autoRotateBytes {
+			previousSize := fi.Size()
 			_ = Unlock(file)
 			file.Close()
 
 			archivePath := mb.path + "." + mb.now().UTC().Format("20060102-150405") + ".archived"
 			_ = os.Rename(mb.path, archivePath) // best-effort; new file created on next open
+			obslog.Log(log.Default(), "INFO", "messagebus", "bus_rotated",
+				obslog.F("path", mb.path),
+				obslog.F("archive_path", archivePath),
+				obslog.F("previous_size_bytes", previousSize),
+				obslog.F("rotate_threshold_bytes", mb.autoRotateBytes),
+			)
 
 			// Open (or create) the fresh bus file.
 			file, err = os.OpenFile(mb.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, messageBusFileMode)
 			if err != nil {
+				obslog.Log(log.Default(), "ERROR", "messagebus", "bus_open_after_rotation_failed",
+					obslog.F("path", mb.path),
+					obslog.F("error", err),
+				)
 				return errors.Wrap(err, "open new message bus after rotation")
 			}
 			if err := LockExclusive(file, mb.lockTimeout); err != nil {
 				file.Close()
+				obslog.Log(log.Default(), "ERROR", "messagebus", "bus_lock_after_rotation_failed",
+					obslog.F("path", mb.path),
+					obslog.F("lock_timeout", mb.lockTimeout),
+					obslog.F("error", err),
+				)
 				return fmt.Errorf("lock new message bus after rotation: %w", err)
 			}
 		}
@@ -345,6 +411,71 @@ func (mb *MessageBus) ReadMessages(sinceID string) ([]*Message, error) {
 	return filterSince(messages, sinceID)
 }
 
+// ReadMessagesSinceLimited reads messages after sinceID and keeps only the latest limit entries.
+// For limit <= 0 it behaves like ReadMessages(sinceID).
+func (mb *MessageBus) ReadMessagesSinceLimited(sinceID string, limit int) ([]*Message, error) {
+	if mb == nil {
+		return nil, errors.New("message bus is nil")
+	}
+	if err := validateBusPath(mb.path); err != nil {
+		return nil, errors.Wrap(err, "validate message bus path")
+	}
+	if limit <= 0 {
+		return mb.ReadMessages(sinceID)
+	}
+
+	normalizedSinceID := strings.TrimSpace(sinceID)
+	file, err := os.Open(mb.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*Message{}, nil
+		}
+		return nil, errors.Wrap(err, "open message bus")
+	}
+	defer file.Close()
+
+	foundSince := normalizedSinceID == ""
+	tail := make([]*Message, 0, min(limit, 16))
+	tailStart := 0
+
+	pushTail := func(msg *Message) {
+		if len(tail) < limit {
+			tail = append(tail, msg)
+			return
+		}
+		tail[tailStart] = msg
+		tailStart = (tailStart + 1) % limit
+	}
+
+	parseErr := parseMessagesReader(bufio.NewReader(file), func(msg *Message) {
+		if msg == nil {
+			return
+		}
+		if !foundSince {
+			if msg.MsgID == normalizedSinceID {
+				foundSince = true
+			}
+			return
+		}
+		pushTail(msg)
+	})
+	if parseErr != nil {
+		return nil, parseErr
+	}
+
+	if !foundSince {
+		return nil, fmt.Errorf("since id %q not found: %w", normalizedSinceID, ErrSinceIDNotFound)
+	}
+	if len(tail) < limit || tailStart == 0 {
+		return tail, nil
+	}
+
+	ordered := make([]*Message, 0, len(tail))
+	ordered = append(ordered, tail[tailStart:]...)
+	ordered = append(ordered, tail[:tailStart]...)
+	return ordered, nil
+}
+
 const readLastNChunkSize = 64 * 1024 // 64KB initial seek window
 
 // ReadLastN returns the last n messages without loading the entire file into memory.
@@ -382,12 +513,13 @@ func (mb *MessageBus) ReadLastN(n int) ([]*Message, error) {
 		return mb.readAllLastN(n)
 	}
 
-	// Initial chunk size: 64KB * ceil(n/10), minimum 64KB.
-	multiplier := (n + 9) / 10
-	if multiplier < 1 {
-		multiplier = 1
+	// Estimate bytes by message count, then grow exponentially when needed.
+	// This avoids eagerly reading the whole file for moderate tail sizes.
+	const estimatedBytesPerMessage int64 = 384
+	chunkSize := int64(n) * estimatedBytesPerMessage
+	if chunkSize < readLastNChunkSize {
+		chunkSize = readLastNChunkSize
 	}
-	chunkSize := int64(readLastNChunkSize) * int64(multiplier)
 
 	for attempt := 0; attempt < 4; attempt++ {
 		if chunkSize >= fileSize {
@@ -513,7 +645,23 @@ func serializeMessage(msg *Message) ([]byte, error) {
 }
 
 func parseMessages(data []byte) ([]*Message, error) {
-	reader := bufio.NewReader(bytes.NewReader(data))
+	messages := make([]*Message, 0)
+	if err := parseMessagesReader(bufio.NewReader(bytes.NewReader(data)), func(msg *Message) {
+		messages = append(messages, msg)
+	}); err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+func parseMessagesReader(reader *bufio.Reader, onMessage func(*Message)) error {
+	if reader == nil {
+		return errors.New("message reader is nil")
+	}
+	if onMessage == nil {
+		return errors.New("message callback is nil")
+	}
+
 	const (
 		stateSeekHeader = iota
 		stateHeader
@@ -523,13 +671,12 @@ func parseMessages(data []byte) ([]*Message, error) {
 	var headerBuf bytes.Buffer
 	var bodyBuf bytes.Buffer
 	var current *Message
-	messages := make([]*Message, 0)
 	lineNo := 0
 
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil && err != io.EOF {
-			return nil, errors.Wrap(err, "read message bus")
+			return errors.Wrap(err, "read message bus")
 		}
 		if err == io.EOF && line == "" {
 			break
@@ -542,7 +689,7 @@ func parseMessages(data []byte) ([]*Message, error) {
 				state = stateHeader
 				headerBuf.Reset()
 			} else if msg, ok := parseLegacyMessageLine(trimmed, lineNo); ok {
-				messages = append(messages, msg)
+				onMessage(msg)
 			}
 		case stateHeader:
 			if trimmed == "---" {
@@ -575,7 +722,7 @@ func parseMessages(data []byte) ([]*Message, error) {
 			if trimmed == "---" {
 				if current != nil {
 					current.Body = finalizeBody(bodyBuf.Bytes())
-					messages = append(messages, current)
+					onMessage(current)
 				}
 				headerBuf.Reset()
 				state = stateHeader
@@ -592,10 +739,10 @@ func parseMessages(data []byte) ([]*Message, error) {
 		bodyBytes := bodyBuf.Bytes()
 		if len(bodyBytes) > 0 && bodyBytes[len(bodyBytes)-1] == '\n' {
 			current.Body = finalizeBody(bodyBytes)
-			messages = append(messages, current)
+			onMessage(current)
 		}
 	}
-	return messages, nil
+	return nil
 }
 
 var legacyTimestampLayouts = []string{

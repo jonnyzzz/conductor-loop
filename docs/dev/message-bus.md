@@ -126,6 +126,24 @@ type Message struct {
 - **Attachment**: Optional. Path to attached file (relative to storage root)
 - **Body**: Optional. Message content (stored separately in YAML document, not in header)
 
+### Threaded User-Request Linkage (2026-02)
+
+Threaded task answers now persist explicit parent linkage fields end-to-end:
+
+- `parent_project_id`
+- `parent_task_id`
+- `parent_run_id`
+- `parent_message_id`
+
+Persistence points:
+
+- Child task metadata file: `TASK-THREAD-LINK.yaml`
+- Child task bus message: `type: USER_REQUEST` + parent linkage in `meta`
+- Parent task bus backlink message: `type: USER_REQUEST` with `parents[]` referencing the source message and child task identifiers in `meta`
+
+For threaded task creation flow, the only accepted posted type is `USER_REQUEST`.
+Parent source message types must be `QUESTION` or `FACT`.
+
 ### Message Bus Interface
 
 **Reference:** `internal/messagebus/messagebus.go:40-46`

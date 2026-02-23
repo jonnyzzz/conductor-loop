@@ -11,7 +11,7 @@ func TestParseCwdTxtBasic(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cwd.txt")
 	content := `RUN_ID=20260221-1507120000-12345-1
-CWD=/Users/jonnyzzz/Work/myproject
+CWD=/workspace/myproject
 AGENT=claude
 CMD=claude --permission-mode bypassPermissions
 STDOUT=/tmp/run/agent-stdout.txt
@@ -35,7 +35,7 @@ PID=5678
 	if info.PID != 5678 {
 		t.Errorf("PID: got %d, want 5678", info.PID)
 	}
-	if info.CWD != "/Users/jonnyzzz/Work/myproject" {
+	if info.CWD != "/workspace/myproject" {
 		t.Errorf("CWD: got %q", info.CWD)
 	}
 	if info.Status != StatusRunning {
@@ -207,9 +207,9 @@ PID=notanumber
 
 func TestStartTimeFromRunID(t *testing.T) {
 	tests := []struct {
-		name    string
-		runID   string
-		wantUTC time.Time
+		name     string
+		runID    string
+		wantUTC  time.Time
 		wantZero bool
 	}{
 		{

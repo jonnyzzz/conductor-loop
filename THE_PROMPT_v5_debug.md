@@ -2,7 +2,7 @@
 
 **Role**: Debug Agent
 **Responsibilities**: Diagnose failures, root cause analysis, bug fixes, verification
-**Base Prompt**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
 
 ---
 
@@ -16,7 +16,7 @@
 5. **Documentation**: Document findings and fixes for future reference
 
 ### Working Directory
-- **CWD**: Project source root (`/Users/jonnyzzz/Work/conductor-loop`)
+- **CWD**: Project source root (`<project-root>`)
 - **Context**: Full access to source, tests, logs, and artifacts
 - **Scope**: Focus on specific failure or bug
 
@@ -286,7 +286,7 @@ Initial hypothesis: Index out of bounds when reading from empty queue
 3. Found that bounds check was missing when queue is empty
 
 ### Root Cause
-**File**: `/Users/jonnyzzz/Work/conductor-loop/pkg/messagebus/reader.go:123`
+**File**: `<project-root>/pkg/messagebus/reader.go:123`
 
 **Problematic Code**:
 ```go
@@ -310,7 +310,7 @@ func (r *Reader) readFromQueue() (*Message, error) {
 ### Changes Made
 
 #### 1. Add Bounds Check
-**File**: `/Users/jonnyzzz/Work/conductor-loop/pkg/messagebus/reader.go:123`
+**File**: `<project-root>/pkg/messagebus/reader.go:123`
 
 **Before**:
 ```go
@@ -334,7 +334,7 @@ func (r *Reader) readFromQueue() (*Message, error) {
 ```
 
 #### 2. Add Test for Empty Queue
-**File**: `/Users/jonnyzzz/Work/conductor-loop/pkg/messagebus/reader_test.go:234`
+**File**: `<project-root>/pkg/messagebus/reader_test.go:234`
 
 **Added**:
 ```go
@@ -386,8 +386,8 @@ ok      github.com/jonnyzzz/conductor-loop/pkg/messagebus       0.456s
 ---
 
 ## Files Modified
-- `/Users/jonnyzzz/Work/conductor-loop/pkg/messagebus/reader.go` - Added bounds check
-- `/Users/jonnyzzz/Work/conductor-loop/pkg/messagebus/reader_test.go` - Added regression test
+- `<project-root>/pkg/messagebus/reader.go` - Added bounds check
+- `<project-root>/pkg/messagebus/reader_test.go` - Added regression test
 
 ## Files Created
 - None
@@ -590,8 +590,8 @@ ok      github.com/jonnyzzz/conductor-loop/pkg/messagebus       0.456s
 
 ## References
 
-- **Base Workflow**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-- **Agent Conventions**: `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
-- **Tool Paths**: `/Users/jonnyzzz/Work/conductor-loop/Instructions.md`
+- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Agent Conventions**: `<project-root>/AGENTS.md`
+- **Tool Paths**: `<project-root>/Instructions.md`
 - **Delve Debugger**: https://github.com/go-delve/delve
 - **Go Diagnostics**: https://go.dev/doc/diagnostics

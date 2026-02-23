@@ -9,6 +9,7 @@ const API_BASE = window.location.protocol === 'file:'
   : '';
 
 const REFRESH_MS = 5000;
+const UI_REQUEST_HEADERS = { 'X-Conductor-Client': 'web-ui' };
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ let projSseSource    = null;
 // ── API ──────────────────────────────────────────────────────────────────────
 
 async function apiFetch(path) {
-  const resp = await fetch(API_BASE + path);
+  const resp = await fetch(API_BASE + path, { headers: UI_REQUEST_HEADERS });
   if (!resp.ok) {
     const err = new Error(`HTTP ${resp.status}`);
     err.status = resp.status;
@@ -294,17 +295,18 @@ async function stopCurrentRun() {
   try {
     const resp = await fetch(API_BASE + `${prefix}/runs/${enc(state.selectedRun)}/stop`, {
       method: 'POST',
+      headers: UI_REQUEST_HEADERS,
     });
     if (!resp.ok) {
       const data = await resp.json().catch(() => ({}));
       const msg = (data.error && data.error.message) || `HTTP ${resp.status}`;
-      showToast(`Stop failed: ${msg}`, true);
+      showToast(`Stop agent failed: ${msg}`, true);
       return;
     }
-    showToast('Stop signal sent');
+    showToast('Stop agent signal sent');
     await loadRunMeta();
   } catch (e) {
-    showToast(`Stop error: ${e.message}`, true);
+    showToast(`Stop agent error: ${e.message}`, true);
   }
 }
 
@@ -522,7 +524,7 @@ async function submitNewTask() {
   try {
     const resp = await fetch(API_BASE + '/api/v1/tasks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...UI_REQUEST_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     if (!resp.ok) {
@@ -618,7 +620,7 @@ async function postMessage() {
       : `${API_BASE}/api/projects/${enc(state.selectedProject)}/messages`;
     const resp = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...UI_REQUEST_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, body }),
     });
     if (!resp.ok) {

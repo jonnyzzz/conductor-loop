@@ -72,6 +72,13 @@ sha256_file() {
   fail 'neither sha256sum nor shasum is available'
 }
 
+write_sha256_file() {
+  asset_path="$1"
+  checksum_path="$2"
+  checksum="$(sha256_file "$asset_path")"
+  printf '%s  %s\n' "$checksum" "$(basename "$asset_path")" >"$checksum_path"
+}
+
 wait_for_file() {
   file_path="$1"
   attempts="$2"
@@ -93,6 +100,23 @@ run_installer() {
   RUN_AGENT_DOWNLOAD_BASE="$mirror_base" \
   RUN_AGENT_FALLBACK_DOWNLOAD_BASE="$fallback_base" \
     bash "$install_script"
+}
+
+run_installer_expect_failure() {
+  mirror_base="$1"
+  fallback_base="$2"
+
+  set +e
+  RUN_AGENT_INSTALL_DIR="$install_dir" \
+  RUN_AGENT_DOWNLOAD_BASE="$mirror_base" \
+  RUN_AGENT_FALLBACK_DOWNLOAD_BASE="$fallback_base" \
+    bash "$install_script" >/dev/null 2>&1
+  status=$?
+  set -e
+
+  if [ "$status" -eq 0 ]; then
+    fail "expected installer failure but command succeeded for mirror base ${mirror_base}"
+  fi
 }
 
 assert_installed_hash() {
@@ -188,8 +212,9 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 mirror_latest_dir="$tmp_dir/http-root/mirror/releases/latest/download"
+mirror_pinned_dir="$tmp_dir/http-root/mirror/releases/download/v0.0.0-pinned"
 fallback_latest_dir="$tmp_dir/http-root/github/releases/latest/download"
-mkdir -p "$mirror_latest_dir" "$fallback_latest_dir"
+mkdir -p "$mirror_latest_dir" "$mirror_pinned_dir" "$fallback_latest_dir"
 
 asset_v1="$tmp_dir/${asset_name}.v1"
 asset_v2="$tmp_dir/${asset_name}.v2"
@@ -201,9 +226,15 @@ chmod 0755 "$asset_v1" "$asset_v2"
 printf '\ninstaller-smoke-update-marker\n' >>"$asset_v2"
 
 mirror_latest_asset="$mirror_latest_dir/$asset_name"
+mirror_pinned_asset="$mirror_pinned_dir/$asset_name"
 fallback_latest_asset="$fallback_latest_dir/$asset_name"
+mirror_latest_checksum="$mirror_latest_asset.sha256"
+mirror_pinned_checksum="$mirror_pinned_asset.sha256"
+fallback_latest_checksum="$fallback_latest_asset.sha256"
 cp "$asset_v1" "$mirror_latest_asset"
 cp "$asset_v1" "$fallback_latest_asset"
+write_sha256_file "$asset_v1" "$mirror_latest_checksum"
+write_sha256_file "$asset_v1" "$fallback_latest_checksum"
 
 python3 - "$tmp_dir/http-root" "$port_file" <<'PY' >/dev/null 2>&1 &
 import http.server
@@ -245,28 +276,40 @@ install_dir="$tmp_dir/install/bin"
 mkdir -p "$install_dir"
 installed_binary="$install_dir/run-agent"
 
-log "step 1/4: install from mirror using /releases base (normalizes to latest/download)"
+log "step 1/5: install from mirror using /releases base (normalizes to latest/download)"
 run_installer "$mirror_base_releases" "$fallback_base_latest"
 test -x "$installed_binary" || fail "installed binary is missing or not executable: $installed_binary"
 assert_installed_hash "$asset_v1"
 hash_step1="$(sha256_file "$installed_binary")"
 
-log "step 2/4: update from mirror using /releases/download base"
+log "step 2/5: update from mirror using /releases/download base"
 cp "$asset_v2" "$mirror_latest_asset"
+write_sha256_file "$asset_v2" "$mirror_latest_checksum"
 run_installer "$mirror_base_download" "$fallback_base_latest"
 assert_installed_hash "$asset_v2"
 hash_step2="$(sha256_file "$installed_binary")"
 [ "$hash_step1" != "$hash_step2" ] || fail 'update flow did not change installed binary'
 
-log "step 3/4: fallback to secondary base when mirror latest asset is missing"
+log "step 3/5: fallback to secondary base when mirror latest asset is missing"
 rm -f "$mirror_latest_asset"
+rm -f "$mirror_latest_checksum"
 cp "$asset_v1" "$fallback_latest_asset"
+write_sha256_file "$asset_v1" "$fallback_latest_checksum"
 run_installer "$mirror_base_latest" "$fallback_base_latest"
 assert_installed_hash "$asset_v1"
 
-log "step 4/4: pinned-style /releases/download/<tag> base canonicalizes to latest/download"
-cp "$asset_v2" "$mirror_latest_asset"
+log "step 4/5: pinned /releases/download/<tag> base is preserved (not forced to latest)"
+cp "$asset_v1" "$mirror_latest_asset"
+write_sha256_file "$asset_v1" "$mirror_latest_checksum"
+cp "$asset_v2" "$mirror_pinned_asset"
+write_sha256_file "$asset_v2" "$mirror_pinned_checksum"
 run_installer "$mirror_base_pinned" "$fallback_base_missing"
+assert_installed_hash "$asset_v2"
+
+log "step 5/5: checksum mismatch fails install before binary replacement"
+cp "$asset_v1" "$mirror_latest_asset"
+write_sha256_file "$asset_v2" "$mirror_latest_checksum"
+run_installer_expect_failure "$mirror_base_latest" "$fallback_base_missing"
 assert_installed_hash "$asset_v2"
 
 version_output="$("$installed_binary" --version 2>&1 || true)"
@@ -274,4 +317,4 @@ if [ -z "$version_output" ]; then
   fail 'installed binary did not return output for --version'
 fi
 
-log "PASS: install/update/latest/fallback/canonicalization smoke checks succeeded for asset ${asset_name}"
+log "PASS: install/update/latest/fallback/pinned/checksum smoke checks succeeded for asset ${asset_name}"

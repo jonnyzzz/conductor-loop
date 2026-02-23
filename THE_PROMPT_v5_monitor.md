@@ -2,7 +2,7 @@
 
 **Role**: Monitor Agent
 **Responsibilities**: Watch agent runs, update status, detect issues, maintain run summaries
-**Base Prompt**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
 
 ---
 
@@ -35,8 +35,8 @@
 
 ### Stage 0: Initialize Monitoring
 1. **Read Configuration**
-   - Read `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md` for conventions
-   - Read `/Users/jonnyzzz/Work/conductor-loop/Instructions.md` for paths
+   - Read `<project-root>/AGENTS.md` for conventions
+   - Read `<project-root>/Instructions.md` for paths
    - Identify runs directory location
    - Check monitoring interval requirements
 
@@ -188,7 +188,7 @@ tail -f runs/run_*/agent-stdout.txt
 CONDUCTOR LOOP - AGENT STATUS MONITOR
 ======================================================================
 Timestamp: 2026-02-04 23:45:00
-Runs Directory: /Users/jonnyzzz/Work/conductor-loop/runs
+Runs Directory: <project-root>/runs
 
 Status Summary:
   Running:   3 agents
@@ -220,7 +220,7 @@ Recommendations:
 ```json
 {
   "timestamp": "2026-02-04T23:45:00Z",
-  "runs_dir": "/Users/jonnyzzz/Work/conductor-loop/runs",
+  "runs_dir": "<project-root>/runs",
   "summary": {
     "running": 3,
     "completed": 12,
@@ -441,10 +441,10 @@ This role complements `monitor-agents.py`:
 
 ## References
 
-- **Base Workflow**: `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-- **Agent Conventions**: `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
-- **Tool Paths**: `/Users/jonnyzzz/Work/conductor-loop/Instructions.md`
-- **Storage Layout**: `/Users/jonnyzzz/Work/conductor-loop/docs/specifications/subsystem-storage-layout.md`
-- **Python Monitor**: `/Users/jonnyzzz/Work/conductor-loop/monitor-agents.py`
-- **Watch Script**: `/Users/jonnyzzz/Work/conductor-loop/watch-agents.sh`
-- **Monitor Script**: `/Users/jonnyzzz/Work/conductor-loop/monitor-agents.sh`
+- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Agent Conventions**: `<project-root>/AGENTS.md`
+- **Tool Paths**: `<project-root>/Instructions.md`
+- **Storage Layout**: `<project-root>/docs/specifications/subsystem-storage-layout.md`
+- **Python Monitor**: `<project-root>/monitor-agents.py`
+- **Watch Script**: `<project-root>/watch-agents.sh`
+- **Monitor Script**: `<project-root>/monitor-agents.sh`

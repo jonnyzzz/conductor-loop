@@ -24,8 +24,84 @@ export interface TaskStartRequest {
   project_root: string
   attach_mode: 'create' | 'attach' | 'resume'
   depends_on?: string[]
+  thread_parent?: {
+    project_id: string
+    task_id: string
+    run_id: string
+    message_id: string
+  }
+  thread_message_type?: 'USER_REQUEST'
   project_id?: string  // injected by startTask
   agent_type?: string  // set to 'claude' as default
+}
+
+export interface ProjectCreateRequest {
+  project_id: string
+  project_root: string
+}
+
+export interface TaskStartResponse {
+  task_id: string
+  status: string
+  run_id: string
+  queue_position?: number
+}
+
+const BUS_MESSAGE_FETCH_LIMIT = 500
+const TASKS_PAGE_LIMIT = 500
+
+interface MessageListRequestOptions {
+  since?: string
+  limit?: number
+}
+
+function normalizeStringArray(value: string[] | null | undefined): string[] | undefined {
+  return Array.isArray(value) ? value : undefined
+}
+
+function normalizeRunSummary<T extends { files?: unknown }>(run: T): T {
+  if (run.files === undefined || Array.isArray(run.files)) {
+    return run
+  }
+  return {
+    ...run,
+    files: undefined,
+  }
+}
+
+function normalizeTaskSummary(task: TaskSummary): TaskSummary {
+  const dependsOn = normalizeStringArray(task.depends_on)
+  const blockedBy = normalizeStringArray(task.blocked_by)
+  if (dependsOn === task.depends_on && blockedBy === task.blocked_by) {
+    return task
+  }
+  return {
+    ...task,
+    depends_on: dependsOn,
+    blocked_by: blockedBy,
+  }
+}
+
+function buildMessageListQuery(options?: MessageListRequestOptions): string {
+  const params = new URLSearchParams()
+  const since = options?.since?.trim()
+  const limit = options?.limit && options.limit > 0
+    ? options.limit
+    : BUS_MESSAGE_FETCH_LIMIT
+
+  params.set('limit', String(limit))
+  if (since) {
+    params.set('since', since)
+  }
+  return params.toString()
+}
+
+function isSinceCursorMiss(err: unknown): boolean {
+  if (!(err instanceof Error)) {
+    return false
+  }
+  const normalized = err.message.toLowerCase()
+  return normalized.includes('api 404') && normalized.includes('message id not found')
 }
 
 export class APIClient {
@@ -38,6 +114,7 @@ export class APIClient {
   private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const url = `${this.baseURL}${path}`
     const headers = new Headers(options.headers)
+    headers.set('X-Conductor-Client', 'web-ui')
     if (options.body !== undefined) {
       headers.set('Content-Type', 'application/json')
     }
@@ -71,28 +148,78 @@ export class APIClient {
     return data.projects
   }
 
+  async createProject(payload: ProjectCreateRequest): Promise<Project> {
+    return this.request<Project>('/api/projects', {
+      method: 'POST',
+      body: payload,
+    })
+  }
+
   async getProject(projectId: string): Promise<ProjectDetail> {
     return this.request<ProjectDetail>(`/api/projects/${encodeURIComponent(projectId)}`)
   }
 
   async getTasks(projectId: string): Promise<TaskSummary[]> {
-    const data = await this.request<TasksResponse>(
-      `/api/projects/${encodeURIComponent(projectId)}/tasks?limit=500`
-    )
-    return data.items
+    const items: TaskSummary[] = []
+    let offset = 0
+
+    for (;;) {
+      const data = await this.request<TasksResponse>(
+        `/api/projects/${encodeURIComponent(projectId)}/tasks?limit=${TASKS_PAGE_LIMIT}&offset=${offset}`
+      )
+      const pageItems = data.items ?? []
+      items.push(...pageItems)
+
+      if (!data.has_more || pageItems.length === 0) {
+        break
+      }
+      offset += pageItems.length
+    }
+
+    return items.map((item) => normalizeTaskSummary(item))
   }
 
   async getTask(projectId: string, taskId: string): Promise<TaskDetail> {
-    return this.request<TaskDetail>(
+    const task = await this.request<TaskDetail>(
       `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`
     )
+    const dependsOn = normalizeStringArray(task.depends_on)
+    const blockedBy = normalizeStringArray(task.blocked_by)
+    const hasRunsArray = Array.isArray(task.runs)
+    const sourceRuns = hasRunsArray ? task.runs : []
+    let runsChanged = !hasRunsArray
+    const normalizedRuns = sourceRuns.map((run, index) => {
+      const normalized = normalizeRunSummary(run)
+      if (normalized !== sourceRuns[index]) {
+        runsChanged = true
+      }
+      return normalized
+    })
+    if (!runsChanged && dependsOn === task.depends_on && blockedBy === task.blocked_by) {
+      return task
+    }
+    return {
+      ...task,
+      depends_on: dependsOn,
+      blocked_by: blockedBy,
+      runs: normalizedRuns,
+    }
   }
 
   async getRuns(projectId: string, taskId: string): Promise<RunSummary[]> {
     const data = await this.request<RunsResponse>(
       `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/runs`
     )
-    return data.items
+    const runs = data.items ?? []
+    let runsChanged = false
+    const normalized = runs.map((run, index) => {
+      const nextRun = normalizeRunSummary(run)
+      if (nextRun !== runs[index]) {
+        runsChanged = true
+      }
+      return nextRun
+    })
+    return runsChanged ? normalized : runs
   }
 
   async getRunInfo(projectId: string, taskId: string, runId: string): Promise<RunInfo> {
@@ -124,18 +251,25 @@ export class APIClient {
     )
   }
 
-  async getProjectMessages(projectId: string): Promise<BusMessage[]> {
-    const data = await this.request<{ messages: BusMessage[] }>(
-      `/api/projects/${encodeURIComponent(projectId)}/messages`
+  async getProjectMessages(
+    projectId: string,
+    options?: MessageListRequestOptions
+  ): Promise<BusMessage[]> {
+    return this.listBusMessages(
+      `/api/projects/${encodeURIComponent(projectId)}/messages`,
+      options
     )
-    return data.messages
   }
 
-  async getTaskMessages(projectId: string, taskId: string): Promise<BusMessage[]> {
-    const data = await this.request<{ messages: BusMessage[] }>(
-      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/messages`
+  async getTaskMessages(
+    projectId: string,
+    taskId: string,
+    options?: MessageListRequestOptions
+  ): Promise<BusMessage[]> {
+    return this.listBusMessages(
+      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/messages`,
+      options
     )
-    return data.messages
   }
 
   async postProjectMessage(projectId: string, body: Omit<BusMessage, 'msg_id' | 'timestamp'>): Promise<MessageResponse> {
@@ -156,7 +290,7 @@ export class APIClient {
     )
   }
 
-  async startTask(projectId: string, payload: TaskStartRequest): Promise<{ task_id: string; status: string; run_id: string }> {
+  async startTask(projectId: string, payload: TaskStartRequest): Promise<TaskStartResponse> {
     return this.request(`/api/v1/tasks`, {
       method: 'POST',
       body: { ...payload, project_id: projectId },
@@ -171,20 +305,6 @@ export class APIClient {
     )
   }
 
-  async deleteRun(projectId: string, taskId: string, runId: string): Promise<void> {
-    await this.request<void>(
-      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}`,
-      { method: 'DELETE' }
-    )
-  }
-
-  async deleteTask(projectId: string, taskId: string): Promise<void> {
-    await this.request<void>(
-      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`,
-      { method: 'DELETE' }
-    )
-  }
-
   async getProjectStats(projectId: string): Promise<ProjectStats> {
     return this.request<ProjectStats>(`/api/projects/${encodeURIComponent(projectId)}/stats`)
   }
@@ -196,15 +316,51 @@ export class APIClient {
     )
   }
 
-  async getProjectRunsFlat(projectId: string): Promise<FlatRunItem[]> {
-    const data = await this.request<FlatRunsResponse>(
-      `/api/projects/${encodeURIComponent(projectId)}/runs/flat`
-    )
+  async getProjectRunsFlat(
+    projectId: string,
+    options?: {
+      activeOnly?: boolean
+      selectedTaskId?: string
+      selectedTaskLimit?: number
+    }
+  ): Promise<FlatRunItem[]> {
+    const params = new URLSearchParams()
+    if (options?.activeOnly) {
+      params.set('active_only', '1')
+    }
+    if (options?.selectedTaskId) {
+      params.set('selected_task_id', options.selectedTaskId)
+    }
+    if (options?.selectedTaskLimit && options.selectedTaskLimit > 0) {
+      params.set('selected_task_limit', String(options.selectedTaskLimit))
+    }
+    const query = params.toString()
+    const path = query.length > 0
+      ? `/api/projects/${encodeURIComponent(projectId)}/runs/flat?${query}`
+      : `/api/projects/${encodeURIComponent(projectId)}/runs/flat`
+
+    const data = await this.request<FlatRunsResponse>(path)
     return data.runs
   }
 
   async getHomeDirs(): Promise<{ dirs: string[] }> {
     return this.request<{ dirs: string[] }>('/api/projects/home-dirs')
+  }
+
+  private async listBusMessages(path: string, options?: MessageListRequestOptions): Promise<BusMessage[]> {
+    const query = buildMessageListQuery(options)
+    try {
+      const data = await this.request<{ messages: BusMessage[] }>(`${path}?${query}`)
+      return data.messages
+    } catch (err) {
+      const since = options?.since?.trim()
+      if (!since || !isSinceCursorMiss(err)) {
+        throw err
+      }
+      const fallbackQuery = buildMessageListQuery({ limit: options?.limit })
+      const data = await this.request<{ messages: BusMessage[] }>(`${path}?${fallbackQuery}`)
+      return data.messages
+    }
   }
 }
 

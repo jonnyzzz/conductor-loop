@@ -2,6 +2,7 @@ package goaldecompose
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -83,6 +84,26 @@ func TestBuildSpec_Defaults(t *testing.T) {
 	}
 	if spec.MaxParallel != DefaultMaxParallel {
 		t.Fatalf("max_parallel = %d, want %d", spec.MaxParallel, DefaultMaxParallel)
+	}
+	if spec.Semantics.RLMDocument != defaultRLMSemanticsDocument {
+		t.Fatalf("rlm_document = %q, want %q", spec.Semantics.RLMDocument, defaultRLMSemanticsDocument)
+	}
+	if spec.Semantics.ThePromptDocument != thePromptSemanticsDocument {
+		t.Fatalf("the_prompt_document = %q, want %q", spec.Semantics.ThePromptDocument, thePromptSemanticsDocument)
+	}
+}
+
+func TestBuildSpec_RLMSemanticsOverrideFromEnv(t *testing.T) {
+	t.Setenv(rlmSemanticsDocumentEnvVar, "/tmp/example/../RLM.md")
+
+	spec, err := BuildSpec(BuildOptions{ProjectID: "p", GoalText: "x"})
+	if err != nil {
+		t.Fatalf("build spec: %v", err)
+	}
+
+	want := filepath.ToSlash(filepath.Clean("/tmp/example/../RLM.md"))
+	if spec.Semantics.RLMDocument != want {
+		t.Fatalf("rlm_document = %q, want %q", spec.Semantics.RLMDocument, want)
 	}
 }
 

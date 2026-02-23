@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -24,8 +25,9 @@ const (
 	// MaxParallelLimit reflects THE_PROMPT_v5 guidance for max parallel agents.
 	MaxParallelLimit = 16
 
-	rlmSemanticsDocument       = "/Users/jonnyzzz/Work/jonnyzzz.com-src/RLM.md"
-	thePromptSemanticsDocument = "THE_PROMPT_v5.md"
+	defaultRLMSemanticsDocument = "artifacts/context/RLM.md"
+	rlmSemanticsDocumentEnvVar  = "CONDUCTOR_RLM_SEMANTICS_DOC"
+	thePromptSemanticsDocument  = "THE_PROMPT_v5.md"
 )
 
 // BuildOptions controls deterministic workflow-spec generation from a goal.
@@ -89,6 +91,13 @@ type taskBlueprint struct {
 	rlmStep    string
 	stages     []int
 	dependsOn  []string
+}
+
+func resolveRLMSemanticsDocument() string {
+	if override := strings.TrimSpace(os.Getenv(rlmSemanticsDocumentEnvVar)); override != "" {
+		return filepath.ToSlash(filepath.Clean(override))
+	}
+	return defaultRLMSemanticsDocument
 }
 
 var defaultBlueprint = []taskBlueprint{
@@ -252,7 +261,7 @@ func BuildSpec(opts BuildOptions) (WorkflowSpec, error) {
 		Template:      template,
 		MaxParallel:   maxParallel,
 		Semantics: SemanticsSpec{
-			RLMDocument:       rlmSemanticsDocument,
+			RLMDocument:       resolveRLMSemanticsDocument(),
 			ThePromptDocument: thePromptSemanticsDocument,
 		},
 		Goal: GoalSpec{

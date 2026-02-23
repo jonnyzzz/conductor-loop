@@ -359,7 +359,7 @@ go tool pprof -http=:8080 mem.prof
 
 ```bash
 # Using run-agent.sh script
-./run-agent.sh claude /Users/jonnyzzz/Work/conductor-loop ./prompts/test.md
+./run-agent.sh claude "$PWD" ./prompts/test.md
 
 # Script creates run folder and captures output
 # Check: runs/run_20260204-HHMMSS-PID/
