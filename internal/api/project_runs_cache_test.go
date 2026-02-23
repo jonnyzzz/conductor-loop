@@ -138,6 +138,43 @@ func TestHandleProjectRunsFlatUsesCacheUntilTTLExpiry(t *testing.T) {
 	}
 }
 
+func TestHandleProjectTasksUsesProjectRunCacheUntilTTLExpiry(t *testing.T) {
+	root := t.TempDir()
+	now := time.Date(2026, time.February, 23, 2, 45, 0, 0, time.UTC)
+	nowFn := func() time.Time {
+		return now
+	}
+
+	server, err := NewServer(Options{
+		RootDir:                 root,
+		DisableTaskStart:        true,
+		Now:                     nowFn,
+		ProjectRunsFlatCacheTTL: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	makeProjectRun(t, root, "project", "task", "run-1", storage.StatusCompleted, "first\n")
+	first := fetchProjectTasksRunCount(t, server, "/api/projects/project/tasks")
+	if first != 1 {
+		t.Fatalf("expected run_count=1 on first fetch, got %d", first)
+	}
+
+	makeProjectRun(t, root, "project", "task", "run-2", storage.StatusCompleted, "second\n")
+	now = now.Add(500 * time.Millisecond)
+	second := fetchProjectTasksRunCount(t, server, "/api/projects/project/tasks")
+	if second != 1 {
+		t.Fatalf("expected cached run_count=1 before ttl expiry, got %d", second)
+	}
+
+	now = now.Add(600 * time.Millisecond)
+	third := fetchProjectTasksRunCount(t, server, "/api/projects/project/tasks")
+	if third != 2 {
+		t.Fatalf("expected refreshed run_count=2 after ttl expiry, got %d", third)
+	}
+}
+
 func fetchProjectRunsFlat(t *testing.T, server *Server, path string) []flatRunItem {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -151,4 +188,26 @@ func fetchProjectRunsFlat(t *testing.T, server *Server, path string) []flatRunIt
 		t.Fatalf("decode %s response: %v", path, err)
 	}
 	return resp.Runs
+}
+
+func fetchProjectTasksRunCount(t *testing.T, server *Server, path string) int {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET %s status=%d body=%s", path, rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Items []struct {
+			RunCount int `json:"run_count"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode %s response: %v", path, err)
+	}
+	if len(resp.Items) == 0 {
+		return 0
+	}
+	return resp.Items[0].RunCount
 }

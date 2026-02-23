@@ -21,8 +21,12 @@ export interface TaskSummary {
   name?: string
   project_id?: string
   status: RunStatus
+  done?: boolean
   queue_position?: number
   last_activity: string
+  last_run_status?: RunStatus
+  last_run_exit_code?: number
+  last_run_output_size?: number
   run_count?: number
   run_counts?: Partial<Record<RunStatus, number>>
   depends_on?: string[]
@@ -49,6 +53,7 @@ export interface TaskDetail {
 export interface RunFile {
   name: string
   label: string
+  size?: number
 }
 
 export interface RunSummary {

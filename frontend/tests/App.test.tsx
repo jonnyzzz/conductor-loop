@@ -121,6 +121,7 @@ vi.mock('../src/hooks/useAPI', () => ({
   }),
   useStopRun: () => ({ mutate: mockedState.stopRunMutate }),
   useResumeTask: () => ({ mutate: mockedState.resumeTaskMutate }),
+  useVersion: () => ({ data: { version: '1.2.3-test' } }),
 }))
 
 vi.mock('../src/components/TreePanel', () => ({
@@ -239,5 +240,10 @@ describe('App', () => {
     expect(mockedState.useRunInfoArgs.at(-1)).toEqual([undefined, undefined, undefined])
     expect(mockedState.useTaskFileArgs.at(-1)).toEqual([undefined, undefined, undefined])
     expect(mockedState.useRunFileArgs.at(-1)?.slice(0, 4)).toEqual([undefined, undefined, undefined, undefined])
+  })
+
+  it('renders app version in header', () => {
+    render(<App />)
+    expect(screen.getByTestId('app-version')).toHaveTextContent('v1.2.3-test')
   })
 })

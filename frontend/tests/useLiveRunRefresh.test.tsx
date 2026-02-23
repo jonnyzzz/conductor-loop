@@ -348,7 +348,7 @@ describe('useLiveRunRefresh', () => {
     expect(keys).not.toContain(JSON.stringify(['runs-flat', 'proj-1']))
   })
 
-  it('coalesces bursty log events into a single invalidation cycle', () => {
+  it('does not invalidate selected run-file queries for known run log events', () => {
     const queryClient = new QueryClient()
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     queryClient.setQueryData(['runs-flat', 'proj-1'], [{ id: 'run-1' }])
@@ -365,29 +365,9 @@ describe('useLiveRunRefresh', () => {
           data: JSON.stringify({ run_id: 'run-1', line: `line-${i}` }),
         }))
       }
-      vi.advanceTimersByTime(Math.max(0, LOG_REFRESH_DELAY_MS - 50))
-    })
-    expect(invalidateSpy).not.toHaveBeenCalled()
-
-    act(() => {
-      vi.advanceTimersByTime(100)
-    })
-    expect(invalidateSpy).toHaveBeenCalled()
-    const firstFlushKeys = invalidateSpy.mock.calls
-      .map((call) => call[0]?.queryKey)
-      .filter(Boolean)
-      .map((queryKey) => JSON.stringify(queryKey))
-    expect(firstFlushKeys).toContain(JSON.stringify(['run-file', 'proj-1', 'task-1', 'run-1']))
-    expect(firstFlushKeys).not.toContain(JSON.stringify(['runs-flat', 'proj-1']))
-
-    const callsAfterFirstFlush = invalidateSpy.mock.calls.length
-    act(() => {
-      mockedSSE.handlers?.log(new MessageEvent('log', {
-        data: JSON.stringify({ run_id: 'run-1', line: 'late-line' }),
-      }))
       vi.advanceTimersByTime(LOG_REFRESH_DELAY_MS + 100)
     })
-    expect(invalidateSpy.mock.calls.length).toBeGreaterThan(callsAfterFirstFlush)
+    expect(invalidateSpy).not.toHaveBeenCalled()
   })
 
   it('refreshes project/task caches when a log arrives for an unknown run in the selected project', () => {

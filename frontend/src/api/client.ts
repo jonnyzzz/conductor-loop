@@ -347,6 +347,10 @@ export class APIClient {
     return this.request<{ dirs: string[] }>('/api/projects/home-dirs')
   }
 
+  async getVersion(): Promise<{ version: string }> {
+    return this.request<{ version: string }>('/api/v1/version')
+  }
+
   private async listBusMessages(path: string, options?: MessageListRequestOptions): Promise<BusMessage[]> {
     const query = buildMessageListQuery(options)
     try {

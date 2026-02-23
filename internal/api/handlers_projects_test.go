@@ -2246,7 +2246,7 @@ func TestRunInfoToProjectRun_AgentVersionAndErrorSummary(t *testing.T) {
 		EndTime:      now.Add(time.Minute),
 		ErrorSummary: "agent reported failure",
 	}
-	r := runInfoToProjectRun(info)
+	r := runInfoToProjectRun(info, true)
 	if r.AgentVersion != "2.1.49 (Claude Code)" {
 		t.Errorf("expected AgentVersion=%q, got %q", "2.1.49 (Claude Code)", r.AgentVersion)
 	}
@@ -2267,7 +2267,7 @@ func TestRunInfoToProjectRun_EmptyOptionalFields(t *testing.T) {
 		StartTime: now,
 		EndTime:   now.Add(time.Minute),
 	}
-	r := runInfoToProjectRun(info)
+	r := runInfoToProjectRun(info, true)
 	if r.AgentVersion != "" {
 		t.Errorf("expected empty AgentVersion, got %q", r.AgentVersion)
 	}
@@ -2661,6 +2661,171 @@ func makeProjectRunAt(t *testing.T, root, projectID, taskID, runID, status strin
 		t.Fatalf("write run-info: %v", err)
 	}
 	return info
+}
+
+func TestProjectTasksPagination_ExposesLastRunSummaryFields(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	runDir := filepath.Join(root, "proj", "task-a", "runs", "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir run: %v", err)
+	}
+
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+	if err := os.WriteFile(stdoutPath, []byte("small"), 0o644); err != nil {
+		t.Fatalf("write stdout: %v", err)
+	}
+	outputPath := filepath.Join(runDir, "output.md")
+	if err := os.WriteFile(outputPath, []byte(strings.Repeat("x", 64)), 0o644); err != nil {
+		t.Fatalf("write output: %v", err)
+	}
+
+	startTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	info := &storage.RunInfo{
+		RunID:      "run-1",
+		ProjectID:  "proj",
+		TaskID:     "task-a",
+		Status:     storage.StatusCompleted,
+		StartTime:  startTime,
+		EndTime:    startTime.Add(time.Minute),
+		ExitCode:   17,
+		OutputPath: outputPath,
+		StdoutPath: stdoutPath,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Items []struct {
+			ID                string `json:"id"`
+			Done              bool   `json:"done"`
+			LastRunStatus     string `json:"last_run_status"`
+			LastRunExitCode   int    `json:"last_run_exit_code"`
+			LastRunOutputSize int64  `json:"last_run_output_size"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 task item, got %d", len(resp.Items))
+	}
+
+	item := resp.Items[0]
+	if item.ID != "task-a" {
+		t.Fatalf("task id=%q, want task-a", item.ID)
+	}
+	if item.Done {
+		t.Fatalf("done=%v, want false without DONE marker", item.Done)
+	}
+	if item.LastRunStatus != storage.StatusCompleted {
+		t.Fatalf("last_run_status=%q, want %q", item.LastRunStatus, storage.StatusCompleted)
+	}
+	if item.LastRunExitCode != 17 {
+		t.Fatalf("last_run_exit_code=%d, want 17", item.LastRunExitCode)
+	}
+	if item.LastRunOutputSize != 64 {
+		t.Fatalf("last_run_output_size=%d, want 64", item.LastRunOutputSize)
+	}
+}
+
+func TestProjectTaskRunsPagination_IncludesRunFileSizes(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	runDir := filepath.Join(root, "proj", "task-a", "runs", "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir run: %v", err)
+	}
+	outputPath := filepath.Join(runDir, "output.md")
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+	stderrPath := filepath.Join(runDir, "agent-stderr.txt")
+	promptPath := filepath.Join(runDir, "prompt.md")
+
+	if err := os.WriteFile(outputPath, []byte("output-bytes"), 0o644); err != nil {
+		t.Fatalf("write output: %v", err)
+	}
+	if err := os.WriteFile(stdoutPath, []byte("stdout"), 0o644); err != nil {
+		t.Fatalf("write stdout: %v", err)
+	}
+	if err := os.WriteFile(stderrPath, []byte("stderr!"), 0o644); err != nil {
+		t.Fatalf("write stderr: %v", err)
+	}
+	if err := os.WriteFile(promptPath, []byte("prompt-body"), 0o644); err != nil {
+		t.Fatalf("write prompt: %v", err)
+	}
+
+	startTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	info := &storage.RunInfo{
+		RunID:      "run-1",
+		ProjectID:  "proj",
+		TaskID:     "task-a",
+		Status:     storage.StatusCompleted,
+		StartTime:  startTime,
+		EndTime:    startTime.Add(time.Minute),
+		OutputPath: outputPath,
+		StdoutPath: stdoutPath,
+		StderrPath: stderrPath,
+		PromptPath: promptPath,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks/task-a/runs", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Items []struct {
+			ID    string `json:"id"`
+			Files []struct {
+				Name string `json:"name"`
+				Size int64  `json:"size"`
+			} `json:"files"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(resp.Items))
+	}
+
+	filesByName := make(map[string]int64)
+	for _, file := range resp.Items[0].Files {
+		filesByName[file.Name] = file.Size
+	}
+	if filesByName["output.md"] != int64(len("output-bytes")) {
+		t.Fatalf("output.md size=%d, want %d", filesByName["output.md"], len("output-bytes"))
+	}
+	if filesByName["stdout"] != int64(len("stdout")) {
+		t.Fatalf("stdout size=%d, want %d", filesByName["stdout"], len("stdout"))
+	}
+	if filesByName["stderr"] != int64(len("stderr!")) {
+		t.Fatalf("stderr size=%d, want %d", filesByName["stderr"], len("stderr!"))
+	}
+	if filesByName["prompt"] != int64(len("prompt-body")) {
+		t.Fatalf("prompt size=%d, want %d", filesByName["prompt"], len("prompt-body"))
+	}
 }
 
 func TestProjectTasksPagination_Default(t *testing.T) {

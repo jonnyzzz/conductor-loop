@@ -1432,4 +1432,193 @@ describe('treeBuilder', () => {
     expect(path.has('run-inline')).toBe(false)
   })
 
+  it('nests tasks correctly when backend-scoped payload contains only the ancestry-consistent anchor', () => {
+    // Regression scenario: backend selected-task scoped payloads used to include unrelated
+    // cross-task anchor runs (by wall-clock proximity) instead of the ancestry-consistent one.
+    // This caused the frontend to attach task-child under the wrong parent task.
+    // Fix: backend now only includes ancestry-consistent anchors in scoped payloads.
+    // This test verifies that given the CORRECT scoped payload (ancestry-consistent anchor
+    // only, no unrelated branch), buildTree nests task-child under task-root-a.
+    //
+    // Payload shape mirrors what /api/projects/{p}/runs/flat?active_only=1&selected_task_id=task-grandchild&selected_task_limit=1
+    // returns after the backend fix: only the ancestry chain is included, not the unrelated
+    // run-child-b (which had parent=run-root-b and was newer than run-child-a).
+    const tasks: TaskSummary[] = [
+      {
+        id: 'task-root-a',
+        status: 'completed',
+        last_activity: '2026-02-22T19:01:00Z',
+      },
+      {
+        id: 'task-root-b',
+        status: 'completed',
+        last_activity: '2026-02-22T19:03:00Z',
+      },
+      {
+        id: 'task-child',
+        status: 'completed',
+        last_activity: '2026-02-22T19:05:00Z',
+      },
+      {
+        id: 'task-grandchild',
+        status: 'failed',
+        last_activity: '2026-02-22T19:06:00Z',
+      },
+    ]
+
+    // Scoped payload: only ancestry-consistent chain included.
+    // run-root-b and run-child-b (which had parent=run-root-b) are absent.
+    const runs: FlatRunItem[] = [
+      {
+        id: 'run-root-a',
+        task_id: 'task-root-a',
+        agent: 'codex',
+        status: 'completed',
+        exit_code: 0,
+        start_time: '2026-02-22T19:00:00Z',
+        end_time: '2026-02-22T19:01:00Z',
+      },
+      {
+        id: 'run-child-a',
+        task_id: 'task-child',
+        agent: 'claude',
+        status: 'completed',
+        exit_code: 0,
+        start_time: '2026-02-22T19:01:30Z',
+        end_time: '2026-02-22T19:02:30Z',
+        parent_run_id: 'run-root-a',
+      },
+      {
+        id: 'run-child-selected',
+        task_id: 'task-child',
+        agent: 'claude',
+        status: 'completed',
+        exit_code: 0,
+        start_time: '2026-02-22T19:04:00Z',
+        end_time: '2026-02-22T19:05:00Z',
+        previous_run_id: 'run-child-a',
+      },
+      {
+        id: 'run-grandchild-selected',
+        task_id: 'task-grandchild',
+        agent: 'gemini',
+        status: 'failed',
+        exit_code: 1,
+        start_time: '2026-02-22T19:05:30Z',
+        end_time: '2026-02-22T19:06:00Z',
+        parent_run_id: 'run-child-selected',
+      },
+    ]
+
+    const tree = buildTree('conductor-loop', tasks, runs)
+
+    // task-root-a should be a direct child of the project root.
+    const rootA = tree.children.find((n) => n.type === 'task' && n.id === 'task-root-a')
+    expect(rootA).toBeDefined()
+
+    // task-child should be nested under task-root-a (via run-child-a → run-root-a cross-task link).
+    const childUnderRootA = rootA?.children.find((n) => n.type === 'task' && n.id === 'task-child')
+    expect(childUnderRootA).toBeDefined()
+
+    // task-grandchild should be nested under task-child.
+    const grandchild = childUnderRootA?.children.find((n) => n.type === 'task' && n.id === 'task-grandchild')
+    expect(grandchild).toBeDefined()
+
+    // task-root-b may appear in the tree (it's in the tasks list) but task-child must NOT
+    // be nested under it — task-child has no cross-task link to task-root-b in this payload.
+    const rootB = tree.children.find((n) => n.type === 'task' && n.id === 'task-root-b')
+    if (rootB) {
+      const childUnderRootB = rootB.children.find((n) => n.type === 'task' && n.id === 'task-child')
+      expect(childUnderRootB).toBeUndefined()
+    }
+
+    // task-child must NOT appear as a top-level task (it should be nested under task-root-a).
+    const childAtRoot = tree.children.find((n) => n.type === 'task' && n.id === 'task-child')
+    expect(childAtRoot).toBeUndefined()
+  })
+
+  it('uses latest cross-task run link when payload includes conflicting run parent edges', () => {
+    // Documents the known frontend behavior: when the flat-runs payload contains two
+    // cross-task runs for the same task (run-child-a → run-root-a and run-child-b → run-root-b,
+    // with run-child-b being newer), buildTree attaches task-child under whichever parent had
+    // the LATER cross-task run. This is why the backend anchor-selection fix in
+    // seedSelectedTaskParentAnchorRunInfos (handlers_projects.go) is critical: the frontend
+    // cannot independently distinguish "correct" from "unrelated" anchors in the payload.
+    const tasks: TaskSummary[] = [
+      {
+        id: 'task-root-a',
+        status: 'completed',
+        last_activity: '2026-02-22T19:01:00Z',
+      },
+      {
+        id: 'task-root-b',
+        status: 'completed',
+        last_activity: '2026-02-22T19:03:00Z',
+      },
+      {
+        id: 'task-child',
+        status: 'completed',
+        last_activity: '2026-02-22T19:05:00Z',
+      },
+    ]
+
+    const runs: FlatRunItem[] = [
+      {
+        id: 'run-root-a',
+        task_id: 'task-root-a',
+        agent: 'codex',
+        status: 'completed',
+        exit_code: 0,
+        start_time: '2026-02-22T19:00:00Z',
+        end_time: '2026-02-22T19:01:00Z',
+      },
+      {
+        id: 'run-child-a',
+        task_id: 'task-child',
+        agent: 'claude',
+        status: 'completed',
+        exit_code: 0,
+        start_time: '2026-02-22T19:01:30Z',
+        end_time: '2026-02-22T19:02:30Z',
+        parent_run_id: 'run-root-a',
+      },
+      {
+        id: 'run-root-b',
+        task_id: 'task-root-b',
+        agent: 'codex',
+        status: 'completed',
+        exit_code: 0,
+        start_time: '2026-02-22T19:02:30Z',
+        end_time: '2026-02-22T19:03:00Z',
+      },
+      // run-child-b is newer than run-child-a and has a cross-task link to run-root-b.
+      // When both are present in the payload, buildTree attaches task-child under task-root-b
+      // because run-child-b has a later end_time. This documents the regression vector.
+      {
+        id: 'run-child-b',
+        task_id: 'task-child',
+        agent: 'claude',
+        status: 'completed',
+        exit_code: 0,
+        start_time: '2026-02-22T19:03:30Z',
+        end_time: '2026-02-22T19:04:00Z',
+        parent_run_id: 'run-root-b',
+      },
+    ]
+
+    const tree = buildTree('conductor-loop', tasks, runs)
+
+    // With conflicting anchors in the payload, the frontend uses the LATEST cross-task link.
+    // task-child ends up under task-root-b (run-child-b is newer than run-child-a).
+    const rootB = tree.children.find((n) => n.type === 'task' && n.id === 'task-root-b')
+    expect(rootB).toBeDefined()
+    const childUnderRootB = rootB?.children.find((n) => n.type === 'task' && n.id === 'task-child')
+    expect(childUnderRootB).toBeDefined()
+
+    // task-child does NOT appear under task-root-a in this conflicting scenario.
+    const rootA = tree.children.find((n) => n.type === 'task' && n.id === 'task-root-a')
+    const childUnderRootA = rootA?.children.find((n) => n.type === 'task' && n.id === 'task-child')
+    expect(childUnderRootA).toBeUndefined()
+  })
+
 })

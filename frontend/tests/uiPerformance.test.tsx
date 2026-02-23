@@ -749,9 +749,8 @@ describe('ui performance regressions', () => {
     expect(optimizedMs).toBeLessThan(legacyMs)
   })
 
-  it('shortens SSE invalidate debounce windows for live status/log updates', () => {
+  it('keeps status debounce short and disables log-triggered file invalidation debounce', () => {
     const previousStatusDebounceMs = 150
-    const previousLogDebounceMs = 300
 
     // eslint-disable-next-line no-console
     console.info(
@@ -759,7 +758,24 @@ describe('ui performance regressions', () => {
     )
 
     expect(STATUS_REFRESH_DELAY_MS).toBeLessThan(previousStatusDebounceMs)
-    expect(LOG_REFRESH_DELAY_MS).toBeLessThan(previousLogDebounceMs)
+    expect(LOG_REFRESH_DELAY_MS).toBe(0)
+  })
+
+  it('eliminates log-driven run-file request churn while stream is open', () => {
+    const previousLogDrivenRefetchMs = 180
+    const previousPerMinute = 60000 / previousLogDrivenRefetchMs
+    const fallbackInterval = runFileRefetchIntervalFor('running', 'error')
+    const fallbackPerMinute = fallbackInterval ? (60000 / fallbackInterval) : 0
+    const streamOpenInterval = runFileRefetchIntervalFor('running', 'open')
+    const streamOpenPerMinute = streamOpenInterval ? (60000 / streamOpenInterval) : 0
+
+    // eslint-disable-next-line no-console
+    console.info(
+      `ui-perf runFileRequestChurn legacy_per_min=${previousPerMinute.toFixed(1)} fallback_per_min=${fallbackPerMinute.toFixed(1)} stream_open_per_min=${streamOpenPerMinute.toFixed(1)}`
+    )
+
+    expect(streamOpenPerMinute).toBe(0)
+    expect(fallbackPerMinute).toBeLessThan(previousPerMinute)
   })
 
   it('skips full message scans for unfiltered message-bus view', () => {

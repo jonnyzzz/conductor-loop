@@ -3,7 +3,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { FlatRunItem, RunInfo, TaskDetail, TaskSummary } from '../types'
 import { useSSE, type SSEConnectionState } from './useSSE'
 
-export const LOG_REFRESH_DELAY_MS = 180
+// Legacy constant retained for test compatibility; log events no longer
+// invalidate selected run-file queries directly.
+export const LOG_REFRESH_DELAY_MS = 0
 export const STATUS_REFRESH_DELAY_MS = 90
 
 type Selection = {
@@ -295,7 +297,6 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
   const pendingTaskListRefreshRef = useRef(false)
   const pendingTaskRefreshRef = useRef(false)
   const pendingRunRefreshRef = useRef(false)
-  const pendingLogRefreshRef = useRef(false)
 
   const invalidateRunsFlatQuery = useCallback(() => {
     const { projectId } = selectionRef.current
@@ -328,14 +329,6 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
       return
     }
     queryClient.invalidateQueries({ queryKey: ['run', projectId, taskId, runId] })
-  }, [queryClient])
-
-  const invalidateLogQueries = useCallback(() => {
-    const { projectId, taskId, runId } = selectionRef.current
-    if (!projectId || !taskId || !runId) {
-      return
-    }
-    queryClient.invalidateQueries({ queryKey: ['run-file', projectId, taskId, runId] })
   }, [queryClient])
 
   const patchStatusCaches = useCallback((eventRef: RunEventRef) => {
@@ -397,15 +390,11 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
     if (pendingRunRefreshRef.current) {
       invalidateRunQuery()
     }
-    if (pendingLogRefreshRef.current) {
-      invalidateLogQueries()
-    }
     pendingRunsFlatRefreshRef.current = false
     pendingTaskListRefreshRef.current = false
     pendingTaskRefreshRef.current = false
     pendingRunRefreshRef.current = false
-    pendingLogRefreshRef.current = false
-  }, [invalidateLogQueries, invalidateRunsFlatQuery, invalidateRunQuery, invalidateTaskListQuery, invalidateTaskQuery])
+  }, [invalidateRunsFlatQuery, invalidateRunQuery, invalidateTaskListQuery, invalidateTaskQuery])
 
   const scheduleInvalidate = useCallback((delayMs: number) => {
     const dueAt = Date.now() + delayMs
@@ -440,31 +429,6 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
     }
     scheduleInvalidate(STATUS_REFRESH_DELAY_MS)
   }, [scheduleInvalidate])
-
-  const queueLogRefresh = useCallback(() => {
-    pendingLogRefreshRef.current = true
-    scheduleInvalidate(LOG_REFRESH_DELAY_MS)
-  }, [scheduleInvalidate])
-
-  const shouldRefreshForLog = useCallback((eventRef: RunEventRef): boolean => {
-    const { projectId, taskId, runId } = selectionRef.current
-    if (!projectId || !taskId || !runId) {
-      return false
-    }
-    if (eventRef.projectId && eventRef.projectId !== projectId) {
-      return false
-    }
-    if (eventRef.taskId && eventRef.taskId !== taskId) {
-      return false
-    }
-    if (eventRef.runId && eventRef.runId !== runId) {
-      return false
-    }
-    if (!eventRef.runId) {
-      return false
-    }
-    return true
-  }, [])
 
   const maybeRefreshForUnknownRunLog = useCallback((eventRef: RunEventRef) => {
     const { projectId } = selectionRef.current
@@ -502,13 +466,9 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
       log: (event: MessageEvent) => {
         const eventRef = parseRunEventRef(event)
         maybeRefreshForUnknownRunLog(eventRef)
-        if (!shouldRefreshForLog(eventRef)) {
-          return
-        }
-        queueLogRefresh()
       },
     }),
-    [maybeRefreshForUnknownRunLog, patchStatusCaches, queryClient, queueLogRefresh, queueStatusRefresh, shouldRefreshForLog]
+    [maybeRefreshForUnknownRunLog, patchStatusCaches, queryClient, queueStatusRefresh]
   )
 
   useEffect(() => {
@@ -525,7 +485,6 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
       pendingTaskListRefreshRef.current = false
       pendingTaskRefreshRef.current = false
       pendingRunRefreshRef.current = false
-      pendingLogRefreshRef.current = false
     }
   }, [])
 

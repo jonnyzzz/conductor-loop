@@ -549,6 +549,18 @@ describe('runFileRefetchIntervalFor', () => {
     expect(runFileRefetchIntervalFor('queued')).toBe(2500)
   })
 
+  it('disables fallback polling while run-file stream is healthy', () => {
+    expect(runFileRefetchIntervalFor('running', 'connecting')).toBe(false)
+    expect(runFileRefetchIntervalFor('running', 'open')).toBe(false)
+    expect(runFileRefetchIntervalFor('queued', 'open')).toBe(false)
+  })
+
+  it('restores fallback polling when run-file stream is degraded', () => {
+    expect(runFileRefetchIntervalFor('running', 'reconnecting')).toBe(2500)
+    expect(runFileRefetchIntervalFor('running', 'error')).toBe(2500)
+    expect(runFileRefetchIntervalFor('running', 'disabled')).toBe(2500)
+  })
+
   it('disables fallback polling for terminal runs', () => {
     expect(runFileRefetchIntervalFor('completed')).toBe(false)
     expect(runFileRefetchIntervalFor('failed')).toBe(false)

@@ -1461,3 +1461,12 @@ body {
     max-width: none;
   }
 }
+
+.app-version {
+  font-size: 11px;
+  color: var(--app-subtle);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}

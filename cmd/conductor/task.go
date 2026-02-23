@@ -169,12 +169,16 @@ func newTaskListCmd() *cobra.Command {
 
 // taskListItem is a task entry in the project tasks list response.
 type taskListItem struct {
-	ID           string    `json:"id"`
-	ProjectID    string    `json:"project_id"`
-	Status       string    `json:"status"`
-	LastActivity time.Time `json:"last_activity"`
-	RunCount     int       `json:"run_count"`
-	BlockedBy    []string  `json:"blocked_by,omitempty"`
+	ID                string    `json:"id"`
+	ProjectID         string    `json:"project_id"`
+	Status            string    `json:"status"`
+	LastActivity      time.Time `json:"last_activity"`
+	RunCount          int       `json:"run_count"`
+	BlockedBy         []string  `json:"blocked_by,omitempty"`
+	Done              bool      `json:"done"`
+	LastRunStatus     string    `json:"last_run_status,omitempty"`
+	LastRunExitCode   int       `json:"last_run_exit_code,omitempty"`
+	LastRunOutputSize int64     `json:"last_run_output_size,omitempty"`
 }
 
 // taskListAPIResponse is the paginated JSON response from GET /api/projects/{id}/tasks.

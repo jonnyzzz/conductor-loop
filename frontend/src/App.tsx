@@ -4,7 +4,7 @@ import { TreePanel } from './components/TreePanel'
 import { RunDetail } from './components/RunDetail'
 import { LogViewer } from './components/LogViewer'
 import { MessageBus } from './components/MessageBus'
-import { useProjects, useResumeTask, useRunFile, useRunInfo, useStopRun, useTask, useTaskFile } from './hooks/useAPI'
+import { useProjects, useResumeTask, useRunFile, useRunInfo, useStopRun, useTask, useTaskFile, useVersion } from './hooks/useAPI'
 import { useLiveRunRefresh } from './hooks/useLiveRunRefresh'
 
 const defaultRunFile = 'output.md'
@@ -84,6 +84,8 @@ export function App() {
     runId: detailsSectionActive ? effectiveRunId : undefined,
   })
 
+  const versionQuery = useVersion()
+
   const logStreamUrl = effectiveProjectId && explicitTaskId
     ? `/api/projects/${effectiveProjectId}/tasks/${effectiveTaskId}/runs/stream`
     : undefined
@@ -112,6 +114,9 @@ export function App() {
           </div>
         </div>
         <div className="app-header-actions">
+          {versionQuery.data?.version && (
+            <span className="app-version" data-testid="app-version">v{versionQuery.data.version}</span>
+          )}
           <Button inline onClick={() => projectsQuery.refetch()}>Refresh all</Button>
         </div>
       </header>

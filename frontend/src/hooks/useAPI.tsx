@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useMemo } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   BusMessage,
@@ -411,11 +411,25 @@ export function useTaskFile(projectId?: string, taskId?: string, name?: string) 
   })
 }
 
-export function runFileRefetchIntervalFor(runStatus?: string): number | false {
-  if (runStatus === 'running' || runStatus === 'queued') {
+function isActiveRunStatus(runStatus?: string): boolean {
+  return runStatus === 'running' || runStatus === 'queued'
+}
+
+export function runFileRefetchIntervalFor(runStatus?: string, streamState?: SSEConnectionState): number | false {
+  if (!isActiveRunStatus(runStatus)) {
+    return false
+  }
+  // Active run-file streams should not be polled while stream is healthy.
+  if (streamState === 'open' || streamState === 'connecting') {
+    return false
+  }
+  if (streamState === 'reconnecting') {
     return RUN_FILE_ACTIVE_REFETCH_MS
   }
-  return false
+  if (streamState === 'error' || streamState === 'disabled' || streamState === undefined) {
+    return RUN_FILE_ACTIVE_REFETCH_MS
+  }
+  return RUN_FILE_ACTIVE_REFETCH_MS
 }
 
 export function useRunFile(
@@ -427,12 +441,104 @@ export function useRunFile(
   runStatus?: string
 ) {
   const api = useAPIClient()
+  const queryClient = useQueryClient()
+  const queryKey = useMemo(
+    () => ['run-file', projectId, taskId, runId, name, tail] as const,
+    [name, projectId, runId, tail, taskId]
+  )
+  const [streamState, setStreamState] = useState<SSEConnectionState>('disabled')
+  const replaceStreamChunkRef = useRef(true)
+
+  const streamURL = useMemo(() => {
+    if (!projectId || !taskId || !runId || !name || !isActiveRunStatus(runStatus)) {
+      return undefined
+    }
+    const params = new URLSearchParams({ name })
+    return (
+      `/api/projects/${encodeURIComponent(projectId)}` +
+      `/tasks/${encodeURIComponent(taskId)}` +
+      `/runs/${encodeURIComponent(runId)}` +
+      `/stream?${params.toString()}`
+    )
+  }, [name, projectId, runId, runStatus, taskId])
+
+  useEffect(() => {
+    replaceStreamChunkRef.current = true
+  }, [streamURL])
+
+  useEffect(() => {
+    if (!streamURL || !name) {
+      setStreamState('disabled')
+      return undefined
+    }
+
+    setStreamState('connecting')
+    const source = new EventSource(streamURL)
+    let closed = false
+
+    const handleOpen = () => {
+      setStreamState('open')
+    }
+
+    const handleMessage = (event: Event) => {
+      const messageEvent = event as MessageEvent
+      const incomingChunk = typeof messageEvent.data === 'string' ? messageEvent.data : ''
+      queryClient.setQueryData<FileContent | undefined>(queryKey, (current) => {
+        const currentPayload = current as (FileContent & Record<string, unknown>) | undefined
+        const currentContent = typeof currentPayload?.content === 'string' ? currentPayload.content : ''
+        const nextContent = replaceStreamChunkRef.current
+          ? incomingChunk
+          : `${currentContent}${incomingChunk}`
+        replaceStreamChunkRef.current = false
+        return {
+          ...currentPayload,
+          name: currentPayload?.name ?? name,
+          content: nextContent,
+          modified: new Date().toISOString(),
+          size_bytes: nextContent.length,
+        }
+      })
+    }
+
+    const handleDone = () => {
+      close('disabled')
+      queryClient.invalidateQueries({ queryKey })
+    }
+
+    const handleError = () => {
+      // Close stream to avoid duplicate replay on auto-reconnect; fallback polling resumes.
+      close('error')
+    }
+
+    function close(nextState: SSEConnectionState) {
+      if (closed) {
+        return
+      }
+      closed = true
+      source.removeEventListener('open', handleOpen)
+      source.removeEventListener('message', handleMessage)
+      source.removeEventListener('done', handleDone)
+      source.removeEventListener('error', handleError)
+      source.close()
+      setStreamState(nextState)
+    }
+
+    source.addEventListener('open', handleOpen)
+    source.addEventListener('message', handleMessage)
+    source.addEventListener('done', handleDone)
+    source.addEventListener('error', handleError)
+
+    return () => {
+      close('disabled')
+    }
+  }, [name, queryClient, queryKey, streamURL])
+
   return useQuery<FileContent>({
-    queryKey: ['run-file', projectId, taskId, runId, name, tail],
+    queryKey,
     queryFn: () => api.getRunFile(projectId ?? '', taskId ?? '', runId ?? '', name ?? '', tail),
     enabled: Boolean(projectId && taskId && runId && name),
     staleTime: 1000,
-    refetchInterval: runFileRefetchIntervalFor(runStatus),
+    refetchInterval: runFileRefetchIntervalFor(runStatus, streamState),
   })
 }
 
@@ -587,5 +693,14 @@ export function useHomeDirs() {
     queryKey: ['home-dirs'],
     queryFn: () => api.getHomeDirs(),
     staleTime: 30_000,
+  })
+}
+
+export function useVersion() {
+  const api = useAPIClient()
+  return useQuery({
+    queryKey: ['version'],
+    queryFn: () => api.getVersion(),
+    staleTime: Infinity,
   })
 }

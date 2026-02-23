@@ -103,6 +103,8 @@ type projectRun struct {
 	PreviousRunID    string     `json:"previous_run_id,omitempty"`
 	ErrorSummary     string     `json:"error_summary,omitempty"`
 	Files            []RunFile  `json:"files,omitempty"`
+	OutputPath       string     `json:"-"`
+	StdoutPath       string     `json:"-"`
 }
 
 // projectTask is the task shape the project API returns.
@@ -1129,12 +1131,12 @@ func (s *Server) handleProjectTasks(w http.ResponseWriter, r *http.Request) *api
 		return err
 	}
 
-	runs, err := s.allRunInfos()
+	runs, err := s.projectRunInfos(projectID)
 	if err != nil {
 		return apiErrorInternal("scan runs", err)
 	}
 
-	tasks := buildTasksWithQueue(s.rootDir, projectID, runs, s.taskQueueSnapshot())
+	tasks := buildTasksWithQueue(s.rootDir, projectID, runs, s.taskQueueSnapshot(), false)
 	// Sort by creation time, newest first.
 	sort.Slice(tasks, func(i, j int) bool {
 		return tasks[i].CreatedAt.After(tasks[j].CreatedAt)
@@ -1180,15 +1182,7 @@ func (s *Server) handleProjectTasks(w http.ResponseWriter, r *http.Request) *api
 			lastRun := t.Runs[len(t.Runs)-1]
 			item["last_run_status"] = lastRun.Status
 			item["last_run_exit_code"] = lastRun.ExitCode
-			var outputSize int64
-			for _, f := range lastRun.Files {
-				if f.Name == "stdout" || f.Name == "output.md" {
-					if f.Size > outputSize {
-						outputSize = f.Size
-					}
-				}
-			}
-			item["last_run_output_size"] = outputSize
+			item["last_run_output_size"] = maxTaskLastRunOutputSize(lastRun)
 		}
 		if t.QueuePosition > 0 {
 			item["queue_position"] = t.QueuePosition
@@ -1224,7 +1218,7 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 		return err
 	}
 
-	runs, err := s.allRunInfos()
+	runs, err := s.projectRunInfos(projectID)
 	if err != nil {
 		return apiErrorInternal("scan runs", err)
 	}
@@ -1304,7 +1298,7 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 			return s.serveRunFileStream(w, r, found)
 		}
 		// run info
-		return writeJSON(w, http.StatusOK, runInfoToProjectRun(found))
+		return writeJSON(w, http.StatusOK, runInfoToProjectRun(found, true))
 	}
 
 	// task resume endpoint (POST /api/projects/{p}/tasks/{t}/resume)
@@ -1327,7 +1321,7 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 	if r.Method != http.MethodGet {
 		return apiErrorMethodNotAllowed()
 	}
-	tasks := buildTasksWithQueue(s.rootDir, projectID, runs, s.taskQueueSnapshot())
+	tasks := buildTasksWithQueue(s.rootDir, projectID, runs, s.taskQueueSnapshot(), true)
 	for _, t := range tasks {
 		if t.ID == taskID {
 			return writeJSON(w, http.StatusOK, t)
@@ -1644,7 +1638,7 @@ func (s *Server) handleProjectTaskRunsList(w http.ResponseWriter, r *http.Reques
 	var taskRuns []projectRun
 	for _, run := range allRuns {
 		if run.ProjectID == projectID && run.TaskID == taskID {
-			taskRuns = append(taskRuns, runInfoToProjectRun(run))
+			taskRuns = append(taskRuns, runInfoToProjectRun(run, true))
 		}
 	}
 	if len(taskRuns) == 0 {
@@ -1933,17 +1927,23 @@ func (s *Server) allRunInfos() ([]*storage.RunInfo, error) {
 
 // buildTasks groups runs into tasks for a given project.
 func buildTasks(rootDir, projectID string, runs []*storage.RunInfo) []projectTask {
-	return buildTasksWithQueue(rootDir, projectID, runs, nil)
+	return buildTasksWithQueue(rootDir, projectID, runs, nil, true)
 }
 
 // buildTasksWithQueue groups runs into tasks and overlays queued planner state.
-func buildTasksWithQueue(rootDir, projectID string, runs []*storage.RunInfo, queue map[taskQueueKey]taskQueueState) []projectTask {
+func buildTasksWithQueue(
+	rootDir,
+	projectID string,
+	runs []*storage.RunInfo,
+	queue map[taskQueueKey]taskQueueState,
+	includeRunFiles bool,
+) []projectTask {
 	taskMap := make(map[string][]projectRun)
 	for _, run := range runs {
 		if run.ProjectID != projectID {
 			continue
 		}
-		taskMap[run.TaskID] = append(taskMap[run.TaskID], runInfoToProjectRun(run))
+		taskMap[run.TaskID] = append(taskMap[run.TaskID], runInfoToProjectRun(run, includeRunFiles))
 	}
 
 	if projectDir, ok := findProjectDir(rootDir, projectID); ok {
@@ -2154,7 +2154,7 @@ func buildRunFiles(info *storage.RunInfo) []RunFile {
 	return files
 }
 
-func runInfoToProjectRun(info *storage.RunInfo) projectRun {
+func runInfoToProjectRun(info *storage.RunInfo, includeFiles bool) projectRun {
 	r := projectRun{
 		ID:               info.RunID,
 		Agent:            info.AgentType,
@@ -2166,7 +2166,11 @@ func runInfoToProjectRun(info *storage.RunInfo) projectRun {
 		ParentRunID:      info.ParentRunID,
 		PreviousRunID:    info.PreviousRunID,
 		ErrorSummary:     info.ErrorSummary,
-		Files:            buildRunFiles(info),
+		OutputPath:       info.OutputPath,
+		StdoutPath:       info.StdoutPath,
+	}
+	if includeFiles {
+		r.Files = buildRunFiles(info)
 	}
 	if !info.EndTime.IsZero() {
 		t := info.EndTime
@@ -2175,18 +2179,37 @@ func runInfoToProjectRun(info *storage.RunInfo) projectRun {
 	return r
 }
 
+func maxTaskLastRunOutputSize(run projectRun) int64 {
+	outputSize := fileSizeOrZero(run.StdoutPath)
+	if outputPathSize := fileSizeOrZero(run.OutputPath); outputPathSize > outputSize {
+		outputSize = outputPathSize
+	}
+	return outputSize
+}
+
+func fileSizeOrZero(path string) int64 {
+	if strings.TrimSpace(path) == "" {
+		return 0
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return 0
+	}
+	return info.Size()
+}
+
 // streamTaskRuns fans in SSE log streams for all runs belonging to a project+task.
 // It subscribes to existing runs and discovers new ones while the client is connected.
 func (s *Server) streamTaskRuns(w http.ResponseWriter, r *http.Request, projectID, taskID string) *apiError {
 	// Collect initial run IDs for this project+task; also validate that the task exists.
-	allRuns, err := s.allRunInfos()
+	projectRuns, err := s.projectRunInfos(projectID)
 	if err != nil {
 		return apiErrorInternal("list runs", err)
 	}
 	var initialRunIDs []string
 	taskKnown := false
-	for _, run := range allRuns {
-		if run.ProjectID == projectID && run.TaskID == taskID {
+	for _, run := range projectRuns {
+		if run.TaskID == taskID {
 			taskKnown = true
 			initialRunIDs = append(initialRunIDs, run.RunID)
 		}
@@ -2253,13 +2276,13 @@ func (s *Server) streamTaskRuns(w http.ResponseWriter, r *http.Request, projectI
 					continue
 				}
 				// Only subscribe if this run belongs to our project+task.
-				latestRuns, latestErr := s.allRunInfos()
+				latestRuns, latestErr := s.projectRunInfos(projectID)
 				if latestErr != nil {
 					continue
 				}
 				match := false
 				for _, run := range latestRuns {
-					if run.RunID == runID && run.ProjectID == projectID && run.TaskID == taskID {
+					if run.RunID == runID && run.TaskID == taskID {
 						match = true
 						break
 					}
