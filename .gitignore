@@ -37,6 +37,17 @@ output-*.md
 /cover.html
 /output.md
 /run-agent
+/.tmp/
+/artifacts/
+/node_modules/
+/security-review-output.md
+
+# Keep only reference screenshots tracked
+/screenshots/*
+!/screenshots/ui-root-1440x900-initial.png
+!/screenshots/ui-review-ux-layout-1440x900-final.png
+!/screenshots/ui-review-1440x900-main.png
+!/screenshots/ux-mobile-full.png
 
 # Hugo docs artifacts
 /website/public/
