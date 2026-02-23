@@ -82,7 +82,7 @@ Message types defined: FACT, QUESTION, ANSWER, USER, START, STOP, ERROR, INFO, W
 Message routing: Separate PROJECT-MESSAGE-BUS.md and TASK-MESSAGE-BUS.md. Task messages stay in task scope. Project messages are project-wide. UI aggregates at read time.
 
 [2026-02-04 11:00:29] [tags: swarm, idea, legacy, message-bus, decisions]
-Message size limit: Soft 64KB body limit; larger payloads stored as attachments in task folder with timestamp + short description naming and attachment_path metadata.
+Message size limit: Soft 64KB body limit; larger payloads stored as attachments in the task folder with timestamp + short description naming and attachment_path metadata.
 
 [2026-02-04 11:00:29] [tags: swarm, idea, legacy, message-bus, decisions]
 Atomic writes: Writes via run-agent bus use temp + atomic rename swap. Direct writes disallowed. O_APPEND + flock (POSIX) chosen after all 3 agent reviewers agreed on this approach.
@@ -168,7 +168,7 @@ Agent backend environment variable mappings (hardcoded in runner): Codex → OPE
 Claude CLI flags: "claude -p --input-format text --output-format text --tools default --permission-mode bypassPermissions". Codex: "codex exec --dangerously-bypass-approvals-and-sandbox -C $CWD -". Gemini: "gemini --screen-reader true --approval-mode yolo".
 
 [2026-02-04 17:54:24] [tags: swarm, idea, legacy, backends, decisions]
-Perplexity is a native REST-backed agent (not CLI). Supports SSE streaming via stream=True parameter. All Perplexity models support streaming (sonar-pro, sonar-reasoning, sonar-deep-research, r1-1776). Citations arrive at end of stream.
+Perplexity is a native REST-backed agent (not CLI). Supports SSE streaming via stream=True parameter. All Perplexity models support streaming (sonar-pro, sonar-reasoning, sonar-deep-research, r1-1776). Citations arrive at the end of stream.
 
 [2026-02-04 17:54:24] [tags: swarm, idea, legacy, backends, decisions]
 xAI backend integration: Deferred to post-MVP. Tracked in ISSUES.md backlog.
@@ -333,3 +333,22 @@ Process group management: Use process groups (PGID) for managing agent hierarchi
 
 [2026-02-04 17:54:24] [tags: swarm, idea, legacy, principles]
 The web UI should be ready to maintain multiple backends/hosts (future goal). For MVP: localhost only, read-only interface.
+
+---
+
+## Validation Round 2 (codex)
+
+[2026-02-23 19:15:06] [tags: swarm, idea, legacy, validation]
+Feature Status: "Beads-inspired" message dependency model (planned 2026-02-11) was NOT implemented. Grep for "beads", "blocking", "kind" in internal/ yielded no results.
+
+[2026-02-23 19:15:06] [tags: swarm, idea, legacy, validation]
+Feature Status: Global facts storage and promotion (planned 2026-02-11) was NOT implemented. Grep for "global fact", "promote" in internal/ yielded no results.
+
+[2026-02-23 19:15:06] [tags: swarm, idea, legacy, validation]
+Feature Status: Multi-host support (planned 2026-01-29) is partially stubbed (RemoteAddr in audit logs) but no complex logic exists in codebase. Remains a future goal.
+
+[2026-02-23 19:15:06] [tags: swarm, idea, legacy, validation]
+Evolution: Tooling transitioned from shell scripts (`run-agent.sh`, `start-task.sh` in 729df20) to a unified Go binary (`run-agent` in 2d156d41). The `run-agent` binary successfully merged task, job, bus, and serve commands as planned.
+
+[2026-02-23 19:15:06] [tags: swarm, idea, legacy, validation]
+Evolution: Naming evolved from "jonnyzzz-swarm" (temporary) to "conductor-loop" (final choice on 2026-02-05) to reflect the "conductor" (orchestrator) and "loop" (Ralph restart loop) metaphors.

@@ -354,3 +354,33 @@ Legacy swarm specs (docs/swarm/docs/legacy/): initial designs. Key differences f
 
 [2026-02-21 17:36:06] [tags: evolution, all]
 Legacy swarm spec files deprecated (2026-02-21, commit 283157b): moved to docs/swarm/docs/legacy/ and superseded by docs/specifications/ versions.
+
+## Validation Round 2 (gemini)
+
+[2026-02-23 19:25:00] [tags: agent-backend, gemini, validation]
+Gemini implementation duality: \`internal/runner/job.go\` treats Gemini as a CLI agent (\`isRestAgent("gemini") == false\`) and executes \`gemini\` CLI command.
+However, \`internal/agent/gemini/gemini.go\` contains a full REST API implementation (\`GeminiAgent\`) which is **unused** by the main runner loop (\`RunJob\`).
+This confirms the design preference for the native CLI.
+
+[2026-02-23 19:25:00] [tags: agent-backend, gemini, validation]
+Gemini CLI flags confirmed in \`internal/runner/job.go\`: \`--screen-reader true\`, \`--approval-mode yolo\`, \`--output-format stream-json\`.
+Output parsing uses \`gemini.WriteOutputMDFromStream\` (located in \`internal/agent/gemini/stream_parser.go\`).
+
+[2026-02-23 19:25:00] [tags: agent-backend, claude, validation]
+Claude CLI flags confirmed in \`internal/runner/job.go\` and \`internal/agent/claude/claude.go\`:
+\`-p\`, \`--input-format text\`, \`--output-format stream-json\`, \`--verbose\`, \`--tools default\`, \`--permission-mode bypassPermissions\`.
+Working directory passed via \`-C\`.
+
+[2026-02-23 19:25:00] [tags: agent-backend, codex, validation]
+Codex CLI flags confirmed in \`internal/runner/job.go\` and \`internal/agent/codex/codex.go\`:
+\`exec\`, \`--dangerously-bypass-approvals-and-sandbox\`, \`--json\`, \`-\`.
+Working directory passed via \`-C\`.
+
+[2026-02-23 19:25:00] [tags: agent-backend, perplexity, xai, validation]
+Perplexity and xAI are confirmed as REST-only agents (\`isRestAgent\` returns true).
+They are instantiated via \`perplexity.NewPerplexityAgent\` and \`xai.NewAgent\` in \`executeREST\` (\`internal/runner/job.go\`).
+
+[2026-02-23 19:25:00] [tags: ui, validation]
+UI stack confirmed: React + JetBrains Ring UI + Vite (\`frontend/package.json\`).
+Default port: 14355 (confirmed in \`cmd/run-agent/serve.go\` and \`cmd/run-agent/server.go\`).
+API Routes confirmed in \`internal/api/routes.go\`: \`/api/v1/...\` pattern.

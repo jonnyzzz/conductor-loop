@@ -559,3 +559,23 @@ Installer supports: Linux/macOS, amd64/arm64 only. Asset name: `run-agent-<os>-<
 
 [2026-02-22 11:58:36] [tags: runner, release, installer]
 Smoke test script: `bash scripts/smoke-install-release.sh --dist-dir dist --install-script install.sh`. Auto-builds artifact with `go build ./cmd/run-agent` if missing; use `--no-build` to require prebuilt.
+
+## Validation Round 2 (gemini)
+
+[2026-02-23 19:25:00] [tags: runner, storage, config]
+Configuration file precedence: `config.yaml` > `config.yml` > `config.hcl`. This contradicts the earlier fact that HCL is the single source of truth. Both formats are supported, but YAML is checked first.
+
+[2026-02-23 19:25:00] [tags: runner, storage, config]
+`run-info.yaml` schema uses YAML tags in the source code (`internal/storage/runinfo.go`), confirming it is indeed a YAML file, not HCL.
+
+[2026-02-23 19:25:00] [tags: runner, storage, naming]
+RunID generation confirmed: `YYYYMMDD-HHMMSSMMMM-PID` (4-digit fractional seconds) in `internal/runner/orchestrator.go`.
+
+[2026-02-23 19:25:00] [tags: runner, storage, env]
+Environment variables `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `RUNS_DIR`, `MESSAGE_BUS`, `RUN_FOLDER` are confirmed to be injected into the agent process.
+
+[2026-02-23 19:25:00] [tags: runner, storage, ralph]
+Ralph loop defaults confirmed: `waitTimeout` 300s, `pollInterval` 1s, `maxRestarts` 100, `restartDelay` 1s.
+
+[2026-02-23 19:25:00] [tags: runner, storage, gc]
+GC command confirmed: `run-agent gc` supports `--older-than`, `--root`, `--dry-run`, `--project`, `--keep-failed`, `--rotate-bus`, `--bus-max-size`, `--delete-done-tasks`.
