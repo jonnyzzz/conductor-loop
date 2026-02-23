@@ -128,7 +128,7 @@
 
 ## New Task Intake (2026-02-22 15:45 local)
 
-- [ ] `task-20260222-154500-readme-refresh-current-state`: review `README.md` against current implementation/release state and update content so onboarding, commands, and feature/status claims are accurate as of current `main`.
+- [x] `task-20260222-154500-readme-refresh-current-state`: review `README.md` against current implementation/release state and update content so onboarding, commands, and feature/status claims are accurate as of current `main`.
 
 ## New Task Intake (2026-02-22 16:02 local)
 
@@ -226,8 +226,32 @@
 
 ## New Task Intake (2026-02-22 21:41 local)
 
-- [ ] `task-20260222-214100-ui-task-tree-nesting-regression-research`: investigate and fix task-tree nesting regression in Web UI (nesting hierarchy appears lost compared to prior behavior), including root-cause analysis and regression coverage.
+- [x] `task-20260222-214100-ui-task-tree-nesting-regression-research`: investigate and fix task-tree nesting regression in Web UI (nesting hierarchy appears lost compared to prior behavior), including root-cause analysis and regression coverage.
 
 ## New Task Intake (2026-02-22 21:42 local)
 
 - [ ] `task-20260222-214200-ui-latency-regression-investigation`: investigate Web UI performance regression where updates take multiple seconds to appear, identify root cause(s), and implement/verify fixes with measurable responsiveness improvements.
+
+## New Task Intake (2026-02-23 07:15 local)
+
+- [x] `task-20260223-071500-ui-restore-runs-task-tree`: restore the Web UI runs/tasks tree structure to the previous hierarchical view (project -> task -> runs), fix regressions that flattened/obscured hierarchy, and add regression coverage to prevent recurrence.
+
+## New Task Intake (2026-02-23 07:16 local)
+
+- [x] `task-20260223-071600-ui-show-product-version-header`: display the current product version in the Web UI header at the top-right area, sourced from runtime/build version metadata and covered by UI regression tests.
+
+## New Task Intake (2026-02-23 07:17 local)
+
+- [ ] `task-20260223-071700-agent-diversification-claude-gemini`: diversify active orchestration by routing a meaningful share of tasks to `claude` and `gemini` (not only `codex`), including scheduler/runner policy updates and verification across monitoring/retry flows.
+
+## New Task Intake (2026-02-23 07:18 local)
+
+- [ ] `task-20260223-071800-security-audit-followup-action-plan`: review current security audit outputs, prioritize confirmed findings, implement required fixes, and validate remediations with tests/documented evidence.
+
+## New Task Intake (2026-02-23 07:19 local)
+
+- [ ] `task-20260223-071900-ui-agent-output-regression-tdd-claude-codex-review`: fix regression where agent output/logs are no longer visible in Web UI; apply TDD (failing tests first, then fix), and require implementation by `claude` with final change review by `codex` before closure.
+
+## New Task Intake (2026-02-23 07:28 local)
+
+- [x] `task-20260223-072800-cli-monitor-loop-simplification`: replace ad-hoc bash monitor loop with first-class CLI workflow (start missing TODO tasks, resume failed unfinished tasks, stale-running recovery, and completed-with-output auto-finalize), with tests and docs so operators can run one concise command.
