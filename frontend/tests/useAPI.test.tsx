@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { FlatRunItem, ProjectStats } from '../src/types'
 import {
+  messageFallbackRefetchIntervalFor,
+  MESSAGE_FALLBACK_REFETCH_MS,
   mergeFlatRunsForTree,
   runFileRefetchIntervalFor,
   runsFlatRefetchIntervalFor,
@@ -565,5 +567,22 @@ describe('runFileRefetchIntervalFor', () => {
     expect(runFileRefetchIntervalFor('completed')).toBe(false)
     expect(runFileRefetchIntervalFor('failed')).toBe(false)
     expect(runFileRefetchIntervalFor(undefined)).toBe(false)
+  })
+})
+
+describe('messageFallbackRefetchIntervalFor', () => {
+  it('disables fallback polling when stream is healthy', () => {
+    expect(messageFallbackRefetchIntervalFor('open')).toBe(false)
+    expect(messageFallbackRefetchIntervalFor('connecting')).toBe(false)
+  })
+
+  it('uses bounded polling when stream is degraded', () => {
+    expect(messageFallbackRefetchIntervalFor('reconnecting')).toBe(MESSAGE_FALLBACK_REFETCH_MS)
+    expect(messageFallbackRefetchIntervalFor('error')).toBe(MESSAGE_FALLBACK_REFETCH_MS)
+    expect(messageFallbackRefetchIntervalFor('disabled')).toBe(MESSAGE_FALLBACK_REFETCH_MS)
+  })
+
+  it('keeps legacy default behavior when stream state is unknown', () => {
+    expect(messageFallbackRefetchIntervalFor(undefined)).toBe(false)
   })
 })

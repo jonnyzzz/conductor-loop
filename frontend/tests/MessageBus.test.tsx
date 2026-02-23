@@ -9,22 +9,38 @@ const mockedState = vi.hoisted(() => ({
   taskMessages: [] as BusMessage[],
   projectError: null as Error | null,
   taskError: null as Error | null,
+  projectFallbackIntervals: [] as Array<number | false | undefined>,
+  taskFallbackIntervals: [] as Array<number | false | undefined>,
+  sseState: 'open' as 'open' | 'connecting' | 'reconnecting' | 'error' | 'disabled',
   postTaskMutateAsync: vi.fn(async () => ({ msg_id: 'task-msg' })),
   postProjectMutateAsync: vi.fn(async () => ({ msg_id: 'project-msg' })),
   startTaskMutateAsync: vi.fn(async () => ({ task_id: 'thread-task', status: 'started', run_id: 'run-1' })),
 }))
 
 vi.mock('../src/hooks/useAPI', () => ({
-  useProjectMessages: () => ({
-    data: mockedState.projectMessages,
-    isFetching: false,
-    error: mockedState.projectError,
-  }),
-  useTaskMessages: () => ({
-    data: mockedState.taskMessages,
-    isFetching: false,
-    error: mockedState.taskError,
-  }),
+  messageFallbackRefetchIntervalFor: (
+    streamState?: 'open' | 'connecting' | 'reconnecting' | 'error' | 'disabled'
+  ) => (streamState === 'open' || streamState === 'connecting' ? false : 3000),
+  useProjectMessages: (_projectId?: string, options?: { fallbackPollIntervalMs?: number | false }) => {
+    mockedState.projectFallbackIntervals.push(options?.fallbackPollIntervalMs)
+    return {
+      data: mockedState.projectMessages,
+      isFetching: false,
+      error: mockedState.projectError,
+    }
+  },
+  useTaskMessages: (
+    _projectId?: string,
+    _taskId?: string,
+    options?: { fallbackPollIntervalMs?: number | false }
+  ) => {
+    mockedState.taskFallbackIntervals.push(options?.fallbackPollIntervalMs)
+    return {
+      data: mockedState.taskMessages,
+      isFetching: false,
+      error: mockedState.taskError,
+    }
+  },
   usePostTaskMessage: () => ({
     mutateAsync: mockedState.postTaskMutateAsync,
     isPending: false,
@@ -40,7 +56,7 @@ vi.mock('../src/hooks/useAPI', () => ({
 }))
 
 vi.mock('../src/hooks/useSSE', () => ({
-  useSSE: () => ({ state: 'open', errorCount: 0 }),
+  useSSE: () => ({ state: mockedState.sseState, errorCount: 0 }),
 }))
 
 type MockRingButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -73,6 +89,9 @@ describe('MessageBus', () => {
     mockedState.taskMessages = []
     mockedState.projectError = null
     mockedState.taskError = null
+    mockedState.projectFallbackIntervals = []
+    mockedState.taskFallbackIntervals = []
+    mockedState.sseState = 'open'
     mockedState.postTaskMutateAsync.mockReset()
     mockedState.postProjectMutateAsync.mockReset()
     mockedState.startTaskMutateAsync.mockReset()
@@ -108,6 +127,34 @@ describe('MessageBus', () => {
     expect(screen.getByText('task-1')).toBeInTheDocument()
     expect(screen.getByText('run-1')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /show more/i })).not.toBeInTheDocument()
+  })
+
+  it('uses SSE-only message refresh when stream is healthy', () => {
+    render(
+      <MessageBus
+        title="Task message bus"
+        projectId="conductor-loop"
+        taskId="task-1"
+        scope="task"
+      />
+    )
+
+    expect(mockedState.taskFallbackIntervals.every((interval) => interval === false)).toBe(true)
+  })
+
+  it('enables fallback message polling when stream is reconnecting', () => {
+    mockedState.sseState = 'reconnecting'
+
+    render(
+      <MessageBus
+        title="Task message bus"
+        projectId="conductor-loop"
+        taskId="task-1"
+        scope="task"
+      />
+    )
+
+    expect(mockedState.taskFallbackIntervals.some((interval) => interval === 3000)).toBe(true)
   })
 
   it('truncates only very long bodies and supports optional expand/collapse', async () => {

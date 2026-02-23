@@ -26,6 +26,12 @@ const RUNS_FLAT_STREAM_SYNC_ACTIVE_REFETCH_MS = 810
 const RUNS_FLAT_STREAM_SYNC_IDLE_REFETCH_MS = 3000
 const RUNS_FLAT_DEFAULT_LIMIT_KEY_PART = 0
 const RUN_FILE_ACTIVE_REFETCH_MS = 2500
+export const MESSAGE_FALLBACK_REFETCH_MS = 3000
+export const PROJECT_STATS_REFETCH_INTERVAL_MS = 10000
+
+type MessageQueryOptions = {
+  fallbackPollIntervalMs?: number | false
+}
 
 function flatRunItemsEqual(previous: FlatRunItem, incoming: FlatRunItem): boolean {
   return previous.id === incoming.id &&
@@ -349,7 +355,16 @@ export function useTask(projectId?: string, taskId?: string) {
   })
 }
 
-export function useProjectMessages(projectId?: string) {
+export function messageFallbackRefetchIntervalFor(
+  streamState?: SSEConnectionState
+): number | false {
+  if (!streamState || streamState === 'open' || streamState === 'connecting') {
+    return false
+  }
+  return MESSAGE_FALLBACK_REFETCH_MS
+}
+
+export function useProjectMessages(projectId?: string, options?: MessageQueryOptions) {
   const api = useAPIClient()
   const queryClient = useQueryClient()
   const queryKey = ['messages', 'project', projectId] as const
@@ -367,10 +382,15 @@ export function useProjectMessages(projectId?: string) {
     enabled: Boolean(projectId),
     staleTime: 0,
     refetchOnMount: 'always',
+    refetchInterval: options?.fallbackPollIntervalMs ?? false,
   })
 }
 
-export function useTaskMessages(projectId?: string, taskId?: string) {
+export function useTaskMessages(
+  projectId?: string,
+  taskId?: string,
+  options?: MessageQueryOptions
+) {
   const api = useAPIClient()
   const queryClient = useQueryClient()
   const queryKey = ['messages', 'task', projectId, taskId] as const
@@ -388,6 +408,7 @@ export function useTaskMessages(projectId?: string, taskId?: string) {
     enabled: Boolean(projectId && taskId),
     staleTime: 0,
     refetchOnMount: 'always',
+    refetchInterval: options?.fallbackPollIntervalMs ?? false,
   })
 }
 
@@ -578,7 +599,7 @@ export function useProjectStats(projectId?: string) {
     },
     enabled: Boolean(projectId),
     staleTime: 5000,
-    refetchInterval: 10000,
+    refetchInterval: PROJECT_STATS_REFETCH_INTERVAL_MS,
   })
 }
 

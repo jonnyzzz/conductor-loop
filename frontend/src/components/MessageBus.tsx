@@ -8,6 +8,7 @@ import type { BusMessage } from '../types'
 import { useSSE } from '../hooks/useSSE'
 import { DEFAULT_MAX_MESSAGES, mergeMessagesByID, parseMessageTimestamp, upsertMessageBatch } from '../utils/messageStore'
 import {
+  messageFallbackRefetchIntervalFor,
   usePostProjectMessage,
   usePostTaskMessage,
   useProjectMessages,
@@ -235,11 +236,6 @@ export function MessageBus({
   const [threadError, setThreadError] = useState('')
   const [threadDialogOpen, setThreadDialogOpen] = useState(false)
 
-  const projectMessagesQuery = useProjectMessages(scope === 'project' ? projectId : undefined)
-  const taskMessagesQuery = useTaskMessages(
-    scope === 'task' ? projectId : undefined,
-    scope === 'task' ? taskId : undefined
-  )
   const postTaskMessage = usePostTaskMessage(projectId, taskId)
   const postProjectMessage = usePostProjectMessage(projectId)
   const startTaskMutation = useStartTask(projectId)
@@ -298,16 +294,6 @@ export function MessageBus({
     setFilter(focusedMessageId)
   }, [focusedMessageId])
 
-  const hydratedMessages = scope === 'task' ? taskMessagesQuery.data : projectMessagesQuery.data
-
-  useEffect(() => {
-    if (!hydratedMessages) {
-      return
-    }
-    clearPendingSSEMessages()
-    setMessages((prev) => mergeMessagesByID(prev, hydratedMessages, DEFAULT_MAX_MESSAGES))
-  }, [clearPendingSSEMessages, hydratedMessages])
-
   const sseHandlers = useMemo(
     () => ({
       message: (event: MessageEvent) => {
@@ -325,6 +311,26 @@ export function MessageBus({
   const stream = useSSE(streamUrl, {
     events: sseHandlers,
   })
+  const messageFallbackPollIntervalMs = messageFallbackRefetchIntervalFor(stream.state)
+
+  const projectMessagesQuery = useProjectMessages(
+    scope === 'project' ? projectId : undefined,
+    { fallbackPollIntervalMs: messageFallbackPollIntervalMs }
+  )
+  const taskMessagesQuery = useTaskMessages(
+    scope === 'task' ? projectId : undefined,
+    scope === 'task' ? taskId : undefined,
+    { fallbackPollIntervalMs: messageFallbackPollIntervalMs }
+  )
+  const hydratedMessages = scope === 'task' ? taskMessagesQuery.data : projectMessagesQuery.data
+
+  useEffect(() => {
+    if (!hydratedMessages) {
+      return
+    }
+    clearPendingSSEMessages()
+    setMessages((prev) => mergeMessagesByID(prev, hydratedMessages, DEFAULT_MAX_MESSAGES))
+  }, [clearPendingSSEMessages, hydratedMessages])
 
   const activeQuery = scope === 'task' ? taskMessagesQuery : projectMessagesQuery
   const loadError = activeQuery.error instanceof Error ? activeQuery.error.message : ''

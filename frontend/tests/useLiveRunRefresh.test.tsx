@@ -70,11 +70,12 @@ describe('useLiveRunRefresh', () => {
     expect(keys).toContain(JSON.stringify(['tasks', 'proj-1']))
     expect(keys).toContain(JSON.stringify(['runs-flat', 'proj-1']))
     expect(keys).toContain(JSON.stringify(['task', 'proj-1', 'task-1']))
+    expect(keys).toContain(JSON.stringify(['project-stats', 'proj-1']))
     expect(keys).not.toContain(JSON.stringify(['run', 'proj-1', 'task-1', 'run-1']))
     expect(keys).not.toContain(JSON.stringify(['projects']))
   })
 
-  it('patches selected run status in cache immediately before invalidation', () => {
+  it('patches selected run status in cache before stats-only invalidation', () => {
     const queryClient = new QueryClient()
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
@@ -163,13 +164,12 @@ describe('useLiveRunRefresh', () => {
       .map((call) => call[0]?.queryKey)
       .filter(Boolean)
       .map((queryKey) => JSON.stringify(queryKey))
-    expect(keys).toContain(JSON.stringify(['task', 'proj-1', 'task-1']))
-    expect(keys).toContain(JSON.stringify(['run', 'proj-1', 'task-1', 'run-1']))
+    expect(keys).toEqual([JSON.stringify(['project-stats', 'proj-1'])])
     expect(keys).not.toContain(JSON.stringify(['tasks', 'proj-1']))
     expect(keys).not.toContain(JSON.stringify(['runs-flat', 'proj-1']))
   })
 
-  it('avoids full project invalidation for known runs even when task_id is omitted', () => {
+  it('limits known-run invalidation to project stats when task_id is omitted', () => {
     const queryClient = new QueryClient()
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     queryClient.setQueryData(['runs-flat', 'proj-1'], [{ id: 'run-1', task_id: 'task-1' }])
@@ -192,8 +192,7 @@ describe('useLiveRunRefresh', () => {
       .filter(Boolean)
       .map((queryKey) => JSON.stringify(queryKey))
 
-    expect(keys).toContain(JSON.stringify(['task', 'proj-1', 'task-1']))
-    expect(keys).toContain(JSON.stringify(['run', 'proj-1', 'task-1', 'run-1']))
+    expect(keys).toEqual([JSON.stringify(['project-stats', 'proj-1'])])
     expect(keys).not.toContain(JSON.stringify(['tasks', 'proj-1']))
     expect(keys).not.toContain(JSON.stringify(['runs-flat', 'proj-1']))
   })
@@ -219,7 +218,7 @@ describe('useLiveRunRefresh', () => {
     expect(invalidateSpy).not.toHaveBeenCalled()
   })
 
-  it('does not invalidate for known unrelated runs in the same project', () => {
+  it('refreshes project stats for known unrelated runs in the same project', () => {
     const queryClient = new QueryClient()
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     queryClient.setQueryData(['runs-flat', 'proj-1'], [
@@ -240,7 +239,11 @@ describe('useLiveRunRefresh', () => {
       vi.advanceTimersByTime(STATUS_REFRESH_DELAY_MS + 100)
     })
 
-    expect(invalidateSpy).not.toHaveBeenCalled()
+    const keys = invalidateSpy.mock.calls
+      .map((call) => call[0]?.queryKey)
+      .filter(Boolean)
+      .map((queryKey) => JSON.stringify(queryKey))
+    expect(keys).toEqual([JSON.stringify(['project-stats', 'proj-1'])])
   })
 
   it('refreshes quickly for newly discovered runs in the selected project', () => {
@@ -304,6 +307,7 @@ describe('useLiveRunRefresh', () => {
       .filter(Boolean)
       .map((queryKey) => JSON.stringify(queryKey))
     expect(keys).toContain(JSON.stringify(['runs-flat', 'proj-1']))
+    expect(keys).toContain(JSON.stringify(['project-stats', 'proj-1']))
     expect(keys).toContain(JSON.stringify(['task', 'proj-1', 'task-1']))
     expect(keys).not.toContain(JSON.stringify(['tasks', 'proj-1']))
   })
@@ -342,8 +346,7 @@ describe('useLiveRunRefresh', () => {
       .map((call) => call[0]?.queryKey)
       .filter(Boolean)
       .map((queryKey) => JSON.stringify(queryKey))
-    expect(keys.filter((key) => key === JSON.stringify(['task', 'proj-1', 'task-1']))).toHaveLength(1)
-    expect(keys.filter((key) => key === JSON.stringify(['run', 'proj-1', 'task-1', 'run-1']))).toHaveLength(1)
+    expect(keys).toEqual([JSON.stringify(['project-stats', 'proj-1'])])
     expect(keys).not.toContain(JSON.stringify(['tasks', 'proj-1']))
     expect(keys).not.toContain(JSON.stringify(['runs-flat', 'proj-1']))
   })
@@ -454,5 +457,44 @@ describe('useLiveRunRefresh', () => {
     })
 
     expect(invalidateSpy).not.toHaveBeenCalled()
+  })
+
+  it('reduces known-run status invalidation fan-out to stats-only refresh', () => {
+    const queryClient = new QueryClient()
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    queryClient.setQueryData(['runs-flat', 'proj-1'], [{ id: 'run-1', task_id: 'task-1' }])
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <HookHarness projectId="proj-1" taskId="task-1" runId="run-1" />
+      </QueryClientProvider>
+    )
+
+    act(() => {
+      mockedSSE.handlers?.status(new MessageEvent('status', {
+        data: JSON.stringify({
+          run_id: 'run-1',
+          project_id: 'proj-1',
+          task_id: 'task-1',
+          status: 'completed',
+          exit_code: 0,
+        }),
+      }))
+      vi.advanceTimersByTime(STATUS_REFRESH_DELAY_MS + 50)
+    })
+
+    const keys = invalidateSpy.mock.calls
+      .map((call) => call[0]?.queryKey)
+      .filter(Boolean)
+      .map((queryKey) => JSON.stringify(queryKey))
+    const optimizedInvalidations = keys.length
+    const legacyInvalidations = 3 // task + run + project-stats
+
+    console.info(
+      `ui-perf liveRefreshFanout legacy_invalidations=${legacyInvalidations} optimized_invalidations=${optimizedInvalidations}`
+    )
+
+    expect(keys).toEqual([JSON.stringify(['project-stats', 'proj-1'])])
+    expect(optimizedInvalidations).toBeLessThan(legacyInvalidations)
   })
 })

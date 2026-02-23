@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { BusMessage, FlatRunItem, TaskSummary } from '../src/types'
-import { runFileRefetchIntervalFor, runsFlatRefetchIntervalFor, scopedRunsForTree, stabilizeFlatRuns } from '../src/hooks/useAPI'
+import {
+  MESSAGE_FALLBACK_REFETCH_MS,
+  PROJECT_STATS_REFETCH_INTERVAL_MS,
+  messageFallbackRefetchIntervalFor,
+  runFileRefetchIntervalFor,
+  runsFlatRefetchIntervalFor,
+  scopedRunsForTree,
+  stabilizeFlatRuns,
+} from '../src/hooks/useAPI'
 import { LOG_REFRESH_DELAY_MS, STATUS_REFRESH_DELAY_MS } from '../src/hooks/useLiveRunRefresh'
 import { upsertMessageBatch, upsertMessageByID } from '../src/utils/messageStore'
 import {
@@ -707,6 +715,34 @@ describe('ui performance regressions', () => {
     expect(activeRunFallbackMs).toBe(2500)
     expect(queuedRunFallbackMs).toBe(2500)
     expect(runFileRefetchIntervalFor('completed')).toBe(false)
+  })
+
+  it('shrinks project-stats staleness from polling window to status debounce', () => {
+    const legacyStatsLagMs = PROJECT_STATS_REFETCH_INTERVAL_MS
+    const optimizedStatsLagMs = STATUS_REFRESH_DELAY_MS
+    const lagReductionPct = ((legacyStatsLagMs - optimizedStatsLagMs) / legacyStatsLagMs) * 100
+
+    // eslint-disable-next-line no-console
+    console.info(
+      `ui-perf projectStatsLag legacy_ms=${legacyStatsLagMs} optimized_ms=${optimizedStatsLagMs} reduction_pct=${lagReductionPct.toFixed(1)}`
+    )
+
+    expect(optimizedStatsLagMs).toBeLessThan(legacyStatsLagMs)
+  })
+
+  it('adds bounded message fallback polling when SSE is reconnecting', () => {
+    const legacyPerMinute = 0
+    const fallbackInterval = messageFallbackRefetchIntervalFor('reconnecting')
+    const fallbackPerMinute = fallbackInterval ? (60000 / fallbackInterval) : 0
+
+    // eslint-disable-next-line no-console
+    console.info(
+      `ui-perf messageFallbackPolling legacy_per_min=${legacyPerMinute.toFixed(1)} fallback_per_min=${fallbackPerMinute.toFixed(1)} fallback_ms=${fallbackInterval}`
+    )
+
+    expect(fallbackInterval).toBe(MESSAGE_FALLBACK_REFETCH_MS)
+    expect(fallbackPerMinute).toBeGreaterThan(legacyPerMinute)
+    expect(messageFallbackRefetchIntervalFor('open')).toBe(false)
   })
 
   it('stabilizes unchanged runs-flat payloads to avoid no-op tree rebuilds', () => {

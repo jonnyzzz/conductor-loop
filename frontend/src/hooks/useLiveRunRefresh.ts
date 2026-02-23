@@ -32,6 +32,7 @@ type StatusRefreshPlan = {
   refreshTaskList: boolean
   refreshTask: boolean
   refreshRun: boolean
+  refreshProjectStats: boolean
 }
 
 const noStatusRefresh: StatusRefreshPlan = {
@@ -39,6 +40,7 @@ const noStatusRefresh: StatusRefreshPlan = {
   refreshTaskList: false,
   refreshTask: false,
   refreshRun: false,
+  refreshProjectStats: false,
 }
 
 function runsFlatProjectQueryKey(projectId: string | undefined) {
@@ -253,7 +255,13 @@ function resolveStatusRefreshPlan(
   const selectedTaskId = selection.taskId
   const selectedRunId = selection.runId
   if (!selectedTaskId) {
-    return { refreshRunsFlat, refreshTaskList, refreshTask: false, refreshRun: false }
+    return {
+      refreshRunsFlat,
+      refreshTaskList,
+      refreshTask: false,
+      refreshRun: false,
+      refreshProjectStats: true,
+    }
   }
 
   if (!eventRef.runId && !eventRef.taskId) {
@@ -262,29 +270,29 @@ function resolveStatusRefreshPlan(
       refreshTaskList,
       refreshTask: refreshRunsFlat,
       refreshRun: Boolean(refreshRunsFlat && selectedRunId),
+      refreshProjectStats: true,
     }
   }
 
-  let refreshTask = false
-  if (selectedRunId && eventRef.runId && eventRef.runId === selectedRunId) {
-    refreshTask = true
-  }
-  if (eventTaskID && eventTaskID === selectedTaskId) {
-    refreshTask = true
-  } else if (!refreshTask && refreshRunsFlat) {
-    // Unknown/new runs can alter selected-task state; reconcile selected task once.
-    refreshTask = true
-  }
-
+  // Known selected-task run status events are patched in-place; avoid redundant
+  // task/run refetches unless the event introduces unknown run topology.
+  const refreshTask = refreshRunsFlat
   const refreshRun = Boolean(
     selectedRunId &&
+      refreshRunsFlat &&
       (
-        eventRef.runId === selectedRunId ||
-        (!eventRef.runId && refreshRunsFlat)
+        !eventRef.runId ||
+        eventRef.runId === selectedRunId
       )
   )
 
-  return { refreshRunsFlat, refreshTaskList, refreshTask, refreshRun }
+  return {
+    refreshRunsFlat,
+    refreshTaskList,
+    refreshTask,
+    refreshRun,
+    refreshProjectStats: true,
+  }
 }
 
 export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult {
@@ -297,6 +305,7 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
   const pendingTaskListRefreshRef = useRef(false)
   const pendingTaskRefreshRef = useRef(false)
   const pendingRunRefreshRef = useRef(false)
+  const pendingProjectStatsRefreshRef = useRef(false)
 
   const invalidateRunsFlatQuery = useCallback(() => {
     const { projectId } = selectionRef.current
@@ -329,6 +338,14 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
       return
     }
     queryClient.invalidateQueries({ queryKey: ['run', projectId, taskId, runId] })
+  }, [queryClient])
+
+  const invalidateProjectStatsQuery = useCallback(() => {
+    const { projectId } = selectionRef.current
+    if (!projectId) {
+      return
+    }
+    queryClient.invalidateQueries({ queryKey: ['project-stats', projectId] })
   }, [queryClient])
 
   const patchStatusCaches = useCallback((eventRef: RunEventRef) => {
@@ -390,11 +407,21 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
     if (pendingRunRefreshRef.current) {
       invalidateRunQuery()
     }
+    if (pendingProjectStatsRefreshRef.current) {
+      invalidateProjectStatsQuery()
+    }
     pendingRunsFlatRefreshRef.current = false
     pendingTaskListRefreshRef.current = false
     pendingTaskRefreshRef.current = false
     pendingRunRefreshRef.current = false
-  }, [invalidateRunsFlatQuery, invalidateRunQuery, invalidateTaskListQuery, invalidateTaskQuery])
+    pendingProjectStatsRefreshRef.current = false
+  }, [
+    invalidateProjectStatsQuery,
+    invalidateRunsFlatQuery,
+    invalidateRunQuery,
+    invalidateTaskListQuery,
+    invalidateTaskQuery,
+  ])
 
   const scheduleInvalidate = useCallback((delayMs: number) => {
     const dueAt = Date.now() + delayMs
@@ -412,7 +439,13 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
   }, [flushInvalidate])
 
   const queueStatusRefresh = useCallback((plan: StatusRefreshPlan) => {
-    if (!plan.refreshRunsFlat && !plan.refreshTaskList && !plan.refreshTask && !plan.refreshRun) {
+    if (
+      !plan.refreshRunsFlat &&
+      !plan.refreshTaskList &&
+      !plan.refreshTask &&
+      !plan.refreshRun &&
+      !plan.refreshProjectStats
+    ) {
       return
     }
     if (plan.refreshRunsFlat) {
@@ -426,6 +459,9 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
     }
     if (plan.refreshRun) {
       pendingRunRefreshRef.current = true
+    }
+    if (plan.refreshProjectStats) {
+      pendingProjectStatsRefreshRef.current = true
     }
     scheduleInvalidate(STATUS_REFRESH_DELAY_MS)
   }, [scheduleInvalidate])
@@ -446,7 +482,10 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
     if (!plan.refreshRunsFlat) {
       return
     }
-    queueStatusRefresh(plan)
+    queueStatusRefresh({
+      ...plan,
+      refreshProjectStats: false,
+    })
   }, [queryClient, queueStatusRefresh])
 
   const sseHandlers = useMemo(
@@ -485,6 +524,7 @@ export function useLiveRunRefresh(selection: Selection): UseLiveRunRefreshResult
       pendingTaskListRefreshRef.current = false
       pendingTaskRefreshRef.current = false
       pendingRunRefreshRef.current = false
+      pendingProjectStatsRefreshRef.current = false
     }
   }, [])
 

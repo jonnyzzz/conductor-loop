@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -2738,6 +2739,114 @@ func TestProjectTasksPagination_ExposesLastRunSummaryFields(t *testing.T) {
 	}
 	if item.LastRunOutputSize != 64 {
 		t.Fatalf("last_run_output_size=%d, want 64", item.LastRunOutputSize)
+	}
+}
+
+func TestProjectTasksPagination_SummaryPayloadStaysCompact(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 36; i++ {
+		runID := fmt.Sprintf("run-%03d", i)
+		runDir := filepath.Join(root, "proj", "task-a", "runs", runID)
+		if err := os.MkdirAll(runDir, 0o755); err != nil {
+			t.Fatalf("mkdir run: %v", err)
+		}
+
+		outputPath := filepath.Join(runDir, "output.md")
+		stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+		stderrPath := filepath.Join(runDir, "agent-stderr.txt")
+		promptPath := filepath.Join(runDir, "prompt.md")
+
+		if err := os.WriteFile(outputPath, []byte(strings.Repeat("out", 120)), 0o644); err != nil {
+			t.Fatalf("write output: %v", err)
+		}
+		if err := os.WriteFile(stdoutPath, []byte(strings.Repeat("stdout", 140)), 0o644); err != nil {
+			t.Fatalf("write stdout: %v", err)
+		}
+		if err := os.WriteFile(stderrPath, []byte(strings.Repeat("stderr", 60)), 0o644); err != nil {
+			t.Fatalf("write stderr: %v", err)
+		}
+		if err := os.WriteFile(promptPath, []byte(strings.Repeat("prompt", 90)), 0o644); err != nil {
+			t.Fatalf("write prompt: %v", err)
+		}
+
+		start := base.Add(time.Duration(i) * time.Minute)
+		status := storage.StatusCompleted
+		if i == 35 {
+			status = storage.StatusRunning
+		}
+		info := &storage.RunInfo{
+			RunID:      runID,
+			ProjectID:  "proj",
+			TaskID:     "task-a",
+			Status:     status,
+			StartTime:  start,
+			StdoutPath: stdoutPath,
+			StderrPath: stderrPath,
+			OutputPath: outputPath,
+			PromptPath: promptPath,
+		}
+		if status != storage.StatusRunning {
+			info.EndTime = start.Add(45 * time.Second)
+		}
+		if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+			t.Fatalf("write run-info: %v", err)
+		}
+	}
+
+	summaryReq := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks", nil)
+	summaryRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(summaryRec, summaryReq)
+	if summaryRec.Code != http.StatusOK {
+		t.Fatalf("summary status=%d body=%s", summaryRec.Code, summaryRec.Body.String())
+	}
+
+	detailReq := httptest.NewRequest(http.MethodGet, "/api/projects/proj/tasks/task-a", nil)
+	detailRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(detailRec, detailReq)
+	if detailRec.Code != http.StatusOK {
+		t.Fatalf("detail status=%d body=%s", detailRec.Code, detailRec.Body.String())
+	}
+
+	summaryBody := summaryRec.Body.Bytes()
+	detailBody := detailRec.Body.Bytes()
+	summaryBytes := len(summaryBody)
+	detailBytes := len(detailBody)
+
+	if detailBytes <= 0 {
+		t.Fatalf("detail payload should not be empty")
+	}
+
+	reductionPct := (float64(detailBytes-summaryBytes) / float64(detailBytes)) * 100
+	t.Logf(
+		"api-perf tasksPayload summary_bytes=%d detail_bytes=%d reduction_pct=%.1f",
+		summaryBytes,
+		detailBytes,
+		reductionPct,
+	)
+
+	if summaryBytes >= detailBytes {
+		t.Fatalf("summary payload should be smaller than detail payload: summary=%d detail=%d", summaryBytes, detailBytes)
+	}
+	if !bytes.Contains(summaryBody, []byte(`"run_count"`)) {
+		t.Fatalf("summary response should include run_count field")
+	}
+	if bytes.Contains(summaryBody, []byte(`"runs"`)) {
+		t.Fatalf("summary response should not include full runs array")
+	}
+	if bytes.Contains(summaryBody, []byte(`"files"`)) {
+		t.Fatalf("summary response should not include run files list")
+	}
+	if !bytes.Contains(detailBody, []byte(`"runs"`)) {
+		t.Fatalf("detail response should include runs array")
+	}
+	if !bytes.Contains(detailBody, []byte(`"files"`)) {
+		t.Fatalf("detail response should include run files list")
 	}
 }
 
