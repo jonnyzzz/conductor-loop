@@ -268,3 +268,44 @@
 - [x] `task-20260223-144530-test-treepanel-terminal-only-visible`: add regression test coverage that verifies terminal-only projects still show task rows.
 - [x] `task-20260223-144540-test-treepanel-collapsed-selection-stability`: add regression test coverage ensuring collapsed-section task selection remains stable (no row jump/reorder on selection).
 - [x] `task-20260223-144550-test-treepanel-collapsed-label-hover-id`: add regression test coverage for collapsed task label `...` prefix and full-ID hover title.
+
+## Conversation Bottleneck Review (2026-02-23 15:52 local)
+
+### P0 — Critical Reliability / Orchestration
+
+- [ ] `task-20260223-155200-monitor-process-cap-limit`: fix monitor/session process proliferation that hits unified exec limits (`60+` warnings) by enforcing single monitor ownership, PID lockfile, and auto-cleanup of stale monitor processes.
+- [ ] `task-20260223-155210-monitor-stop-respawn-race`: prevent immediate task respawn after manual `run-agent stop` when background monitor loops are active (explicit suppression window + reasoned restart policy).
+- [ ] `task-20260223-155220-blocked-dependency-deadlock-recovery`: resolve blocked DAG chains with no active runs (example: `task-20260222-102120-workflow-runner-cli*` blocked by unresolved `task-20260222-102110-job-batch-cli*`) via dependency diagnostics + auto-escalation workflow.
+- [ ] `task-20260223-155230-run-status-finish-criteria`: add explicit "all jobs finished" semantics that distinguish `running/queued` vs `blocked/failed`, and expose it in CLI/UI summary output to avoid operator ambiguity.
+- [ ] `task-20260223-155240-runinfo-missing-noise-hardening`: harden status/list/stop paths against missing `run-info.yaml` artifacts (seen in storage error logs) with recovery and reduced noisy error output.
+- [ ] `task-20260223-155250-webserver-uptime-autorecover`: investigate and fix `webserver is no longer up` incidents with watchdog restart strategy, health probes, and failure reason logging.
+
+### P1 — Product Correctness / UX / Performance
+
+- [ ] `task-20260222-214200-ui-latency-regression-investigation`: keep as top-priority UX perf issue; complete implementation and validation.
+- [ ] `task-20260223-071900-ui-agent-output-regression-tdd-claude-codex-review`: agent output/log rendering regression remains open; fix with TDD and cross-agent review.
+- [ ] `task-20260223-155300-messagebus-empty-regression-investigation`: investigate intermittent empty Message Bus behavior and ensure deterministic hydration/fallback under SSE degradation.
+- [ ] `task-20260223-155310-live-logs-regression-guardrails`: lock live-log layout/visibility behavior with regression tests to prevent repeated placement/visibility regressions.
+- [ ] `task-20260223-155320-tree-hierarchy-regression-guardrails`: extend tree hierarchy regression coverage (root/task/run + threaded subtasks + collapsed groups) to prevent recurring regressions.
+- [ ] `task-20260223-155330-ui-new-task-submit-durability-regression-guard`: ensure New Task form data never disappears on submit/reload/error paths; persist drafts and audit submit lifecycle.
+- [ ] `task-20260223-155340-ui-refresh-churn-cpu-budget`: define and enforce refresh/SSE CPU budgets in tests/benchmarks (server + web UI), including message and task detail refresh paths.
+
+### P1 — Security / Release / Delivery
+
+- [ ] `task-20260223-071800-security-audit-followup-action-plan`: keep open until all audited findings are fixed and verified.
+- [ ] `task-20260223-155350-repo-history-token-leak-audit`: run full repository + git-history token leak scan (all repos in scope), document findings, and add pre-commit/pre-push safeguards.
+- [ ] `task-20260223-155360-first-release-readiness-gate`: finalize release readiness gate (CI green, startup scripts, install/update paths, integration tests across agents) before first public release cut.
+
+### P2 — Workflow / Tooling / Docs
+
+- [ ] `task-20260223-071700-agent-diversification-claude-gemini`: keep open; enforce meaningful non-codex share across orchestration tasks.
+- [ ] `task-20260223-155370-run-artifacts-git-hygiene`: prevent generated `runs/run_*` artifact clutter from polluting git status across repos (ignore strategy + doc policy).
+- [ ] `task-20260223-155380-manual-shell-to-cli-gap-closure`: continue replacing repeated manual bash monitoring/status/recovery workflows with first-class `run-agent`/`conductor` commands.
+- [ ] `task-20260223-155390-task-iteration-autopilot-policy`: formalize autonomous monitor policy (check cadence, stale thresholds, resume limits, escalation rules) to reduce repeated manual "check status and tasks" loops.
+
+### Addressed Regressions (Conversation Traceability)
+
+- [x] `task-20260223-144500-ui-tree-visible-when-terminal-only`: fixed.
+- [x] `task-20260223-144510-ui-collapsed-selection-no-jump`: fixed.
+- [x] `task-20260223-144520-ui-collapsed-task-label-ellipsis-hover-id`: fixed.
+- [x] `task-20260223-072800-cli-monitor-loop-simplification`: completed baseline monitor command replacement for ad-hoc shell loops.
