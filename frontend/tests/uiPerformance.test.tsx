@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BusMessage, FlatRunItem, TaskSummary } from '../src/types'
-import { runsFlatRefetchIntervalFor, scopedRunsForTree, stabilizeFlatRuns } from '../src/hooks/useAPI'
+import { runFileRefetchIntervalFor, runsFlatRefetchIntervalFor, scopedRunsForTree, stabilizeFlatRuns } from '../src/hooks/useAPI'
 import { LOG_REFRESH_DELAY_MS, STATUS_REFRESH_DELAY_MS } from '../src/hooks/useLiveRunRefresh'
 import { upsertMessageBatch, upsertMessageByID } from '../src/utils/messageStore'
 import {
@@ -664,6 +664,49 @@ describe('ui performance regressions', () => {
 
     expect(optimizedCadenceMs).toBeLessThan(previousRegressionCadenceMs)
     expect(optimizedPerMinute).toBeLessThan(legacyPerMinute)
+  })
+
+  it('caps idle refresh staleness window when SSE is degraded', () => {
+    const idleRuns: FlatRunItem[] = [
+      {
+        id: 'run-idle',
+        task_id: 'task-idle',
+        agent: 'codex',
+        status: 'completed',
+        exit_code: 0,
+        start_time: '2026-02-22T21:00:00Z',
+      },
+    ]
+    const previousIdleFallbackMs = 10000
+    const previousOpenIdleFallbackMs = 12000
+    const degradedIdleFallbackMs = runsFlatRefetchIntervalFor(idleRuns, 'reconnecting')
+    const openIdleFallbackMs = runsFlatRefetchIntervalFor(idleRuns, 'open')
+    const degradedReductionPct = ((previousIdleFallbackMs - degradedIdleFallbackMs) / previousIdleFallbackMs) * 100
+    const openReductionPct = ((previousOpenIdleFallbackMs - openIdleFallbackMs) / previousOpenIdleFallbackMs) * 100
+
+    // eslint-disable-next-line no-console
+    console.info(
+      `ui-perf runsFlatIdleFallback degraded_ms=${degradedIdleFallbackMs} open_ms=${openIdleFallbackMs} degraded_reduction_pct=${degradedReductionPct.toFixed(1)} open_reduction_pct=${openReductionPct.toFixed(1)}`
+    )
+
+    expect(degradedIdleFallbackMs).toBeLessThan(previousIdleFallbackMs)
+    expect(openIdleFallbackMs).toBeLessThan(previousOpenIdleFallbackMs)
+  })
+
+  it('adds active-run file fallback polling when stream events pause', () => {
+    const previousNoFallbackPolling = false
+    const activeRunFallbackMs = runFileRefetchIntervalFor('running')
+    const queuedRunFallbackMs = runFileRefetchIntervalFor('queued')
+
+    // eslint-disable-next-line no-console
+    console.info(
+      `ui-perf runFileFallback active_ms=${activeRunFallbackMs} queued_ms=${queuedRunFallbackMs}`
+    )
+
+    expect(previousNoFallbackPolling).toBe(false)
+    expect(activeRunFallbackMs).toBe(2500)
+    expect(queuedRunFallbackMs).toBe(2500)
+    expect(runFileRefetchIntervalFor('completed')).toBe(false)
   })
 
   it('stabilizes unchanged runs-flat payloads to avoid no-op tree rebuilds', () => {

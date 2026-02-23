@@ -72,7 +72,8 @@ export function App() {
     detailsSectionActive ? effectiveTaskId : undefined,
     detailsSectionActive ? effectiveRunId : undefined,
     detailsSectionActive ? effectiveRunFileName : undefined,
-    RUN_FILE_TAIL_LINES
+    RUN_FILE_TAIL_LINES,
+    detailsSectionActive ? effectiveRun?.status : undefined
   )
   const stopRunMutation = useStopRun(effectiveProjectId, effectiveTaskId)
   const resumeTaskMutation = useResumeTask(effectiveProjectId)

@@ -84,8 +84,9 @@ func parseSelectedTaskLimitQuery(raw string) (int, *apiError) {
 
 // RunFile describes a file available for a run.
 type RunFile struct {
-	Name  string `json:"name"`  // logical name for ?name=X
-	Label string `json:"label"` // display label
+	Name  string `json:"name"`           // logical name for ?name=X
+	Label string `json:"label"`          // display label
+	Size  int64  `json:"size,omitempty"` // file size in bytes
 }
 
 // projectRun is the run summary shape the project API returns.
@@ -617,6 +618,7 @@ func seedSelectedTaskParentAnchorRunInfos(
 			continue
 		}
 
+		var bestFromAncestry *storage.RunInfo
 		var bestAtOrBeforeReference *storage.RunInfo
 		var fallbackLatest *storage.RunInfo
 		for _, candidate := range candidates {
@@ -626,12 +628,21 @@ func seedSelectedTaskParentAnchorRunInfos(
 			if fallbackLatest == nil || runInfoLater(candidate, fallbackLatest) {
 				fallbackLatest = candidate
 			}
+			if _, inSelectedAncestry := visitedRuns[candidate.RunID]; inSelectedAncestry {
+				if bestFromAncestry == nil || runInfoLater(candidate, bestFromAncestry) {
+					bestFromAncestry = candidate
+				}
+			}
 			if runInfoActivityTime(candidate).After(referenceTime) {
 				continue
 			}
 			if bestAtOrBeforeReference == nil || runInfoLater(candidate, bestAtOrBeforeReference) {
 				bestAtOrBeforeReference = candidate
 			}
+		}
+		if bestFromAncestry != nil {
+			includeRunIDs[bestFromAncestry.RunID] = struct{}{}
+			continue
 		}
 		if bestAtOrBeforeReference == nil {
 			bestAtOrBeforeReference = fallbackLatest
@@ -1163,6 +1174,21 @@ func (s *Server) handleProjectTasks(w http.ResponseWriter, r *http.Request) *api
 			"depends_on":    t.DependsOn,
 			"blocked_by":    t.BlockedBy,
 			"thread_parent": t.ThreadParent,
+			"done":          t.Done,
+		}
+		if len(t.Runs) > 0 {
+			lastRun := t.Runs[len(t.Runs)-1]
+			item["last_run_status"] = lastRun.Status
+			item["last_run_exit_code"] = lastRun.ExitCode
+			var outputSize int64
+			for _, f := range lastRun.Files {
+				if f.Name == "stdout" || f.Name == "output.md" {
+					if f.Size > outputSize {
+						outputSize = f.Size
+					}
+				}
+			}
+			item["last_run_output_size"] = outputSize
 		}
 		if t.QueuePosition > 0 {
 			item["queue_position"] = t.QueuePosition
@@ -2106,23 +2132,23 @@ func isTaskDirectory(taskDir string) bool {
 func buildRunFiles(info *storage.RunInfo) []RunFile {
 	var files []RunFile
 	if info.OutputPath != "" {
-		if _, err := os.Stat(info.OutputPath); err == nil {
-			files = append(files, RunFile{Name: "output.md", Label: "output"})
+		if fi, err := os.Stat(info.OutputPath); err == nil {
+			files = append(files, RunFile{Name: "output.md", Label: "output", Size: fi.Size()})
 		}
 	}
 	if info.StdoutPath != "" {
-		if _, err := os.Stat(info.StdoutPath); err == nil {
-			files = append(files, RunFile{Name: "stdout", Label: "stdout"})
+		if fi, err := os.Stat(info.StdoutPath); err == nil {
+			files = append(files, RunFile{Name: "stdout", Label: "stdout", Size: fi.Size()})
 		}
 	}
 	if info.StderrPath != "" {
-		if _, err := os.Stat(info.StderrPath); err == nil {
-			files = append(files, RunFile{Name: "stderr", Label: "stderr"})
+		if fi, err := os.Stat(info.StderrPath); err == nil {
+			files = append(files, RunFile{Name: "stderr", Label: "stderr", Size: fi.Size()})
 		}
 	}
 	if info.PromptPath != "" {
-		if _, err := os.Stat(info.PromptPath); err == nil {
-			files = append(files, RunFile{Name: "prompt", Label: "prompt"})
+		if fi, err := os.Stat(info.PromptPath); err == nil {
+			files = append(files, RunFile{Name: "prompt", Label: "prompt", Size: fi.Size()})
 		}
 	}
 	return files

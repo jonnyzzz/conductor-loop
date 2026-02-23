@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { FlatRunItem, ProjectStats } from '../src/types'
 import {
   mergeFlatRunsForTree,
+  runFileRefetchIntervalFor,
   runsFlatRefetchIntervalFor,
   runsFlatScopedQueryKey,
   scopedRunsForTree,
@@ -40,7 +41,7 @@ describe('runsFlatRefetchIntervalFor', () => {
         start_time: '2026-02-22T21:00:00Z',
       },
     ]
-    expect(runsFlatRefetchIntervalFor(idleRuns)).toBe(10000)
+    expect(runsFlatRefetchIntervalFor(idleRuns)).toBe(2500)
   })
 
   it('uses stream-synchronized cadence when SSE is healthy', () => {
@@ -67,7 +68,7 @@ describe('runsFlatRefetchIntervalFor', () => {
 
     expect(runsFlatRefetchIntervalFor(undefined, 'open')).toBe(1000)
     expect(runsFlatRefetchIntervalFor(activeRuns, 'open')).toBe(810)
-    expect(runsFlatRefetchIntervalFor(idleRuns, 'open')).toBe(12000)
+    expect(runsFlatRefetchIntervalFor(idleRuns, 'open')).toBe(3000)
   })
 
   it('keeps fast fallback polling when SSE is degraded', () => {
@@ -82,6 +83,20 @@ describe('runsFlatRefetchIntervalFor', () => {
       },
     ]
     expect(runsFlatRefetchIntervalFor(activeRuns, 'reconnecting')).toBe(800)
+  })
+
+  it('keeps idle fallback polling bounded when SSE is degraded', () => {
+    const idleRuns: FlatRunItem[] = [
+      {
+        id: 'run-idle',
+        task_id: 'task-idle',
+        agent: 'codex',
+        status: 'completed',
+        exit_code: 0,
+        start_time: '2026-02-22T21:00:00Z',
+      },
+    ]
+    expect(runsFlatRefetchIntervalFor(idleRuns, 'reconnecting')).toBe(2500)
   })
 
   it('keys runs-flat query by selected task context to refetch immediately on selection change', () => {
@@ -525,5 +540,18 @@ describe('runsFlatRefetchIntervalFor', () => {
       completed_runs: 11,
     }
     expect(stabilizeProjectStats(previous, incoming)).toBe(incoming)
+  })
+})
+
+describe('runFileRefetchIntervalFor', () => {
+  it('enables fallback polling for active runs', () => {
+    expect(runFileRefetchIntervalFor('running')).toBe(2500)
+    expect(runFileRefetchIntervalFor('queued')).toBe(2500)
+  })
+
+  it('disables fallback polling for terminal runs', () => {
+    expect(runFileRefetchIntervalFor('completed')).toBe(false)
+    expect(runFileRefetchIntervalFor('failed')).toBe(false)
+    expect(runFileRefetchIntervalFor(undefined)).toBe(false)
   })
 })

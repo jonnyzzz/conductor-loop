@@ -20,11 +20,12 @@ import { mergeMessagesByID } from '../utils/messageStore'
 const APIClientContext = createContext<APIClient | null>(null)
 const RUNS_FLAT_EMPTY_REFETCH_MS = 1500
 const RUNS_FLAT_ACTIVE_REFETCH_MS = 800
-const RUNS_FLAT_IDLE_REFETCH_MS = 10000
+const RUNS_FLAT_IDLE_REFETCH_MS = 2500
 const RUNS_FLAT_STREAM_SYNC_EMPTY_REFETCH_MS = 1000
 const RUNS_FLAT_STREAM_SYNC_ACTIVE_REFETCH_MS = 810
-const RUNS_FLAT_STREAM_SYNC_IDLE_REFETCH_MS = 12000
+const RUNS_FLAT_STREAM_SYNC_IDLE_REFETCH_MS = 3000
 const RUNS_FLAT_DEFAULT_LIMIT_KEY_PART = 0
+const RUN_FILE_ACTIVE_REFETCH_MS = 2500
 
 function flatRunItemsEqual(previous: FlatRunItem, incoming: FlatRunItem): boolean {
   return previous.id === incoming.id &&
@@ -410,13 +411,28 @@ export function useTaskFile(projectId?: string, taskId?: string, name?: string) 
   })
 }
 
-export function useRunFile(projectId?: string, taskId?: string, runId?: string, name?: string, tail?: number) {
+export function runFileRefetchIntervalFor(runStatus?: string): number | false {
+  if (runStatus === 'running' || runStatus === 'queued') {
+    return RUN_FILE_ACTIVE_REFETCH_MS
+  }
+  return false
+}
+
+export function useRunFile(
+  projectId?: string,
+  taskId?: string,
+  runId?: string,
+  name?: string,
+  tail?: number,
+  runStatus?: string
+) {
   const api = useAPIClient()
   return useQuery<FileContent>({
     queryKey: ['run-file', projectId, taskId, runId, name, tail],
     queryFn: () => api.getRunFile(projectId ?? '', taskId ?? '', runId ?? '', name ?? '', tail),
     enabled: Boolean(projectId && taskId && runId && name),
     staleTime: 1000,
+    refetchInterval: runFileRefetchIntervalFor(runStatus),
   })
 }
 

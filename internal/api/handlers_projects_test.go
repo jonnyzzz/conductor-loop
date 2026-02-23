@@ -1188,6 +1188,112 @@ func TestProjectRunsFlatSelectedTaskLimitUsesBranchAnchorWhenNewerAnchorIsUnrela
 	}
 }
 
+func TestProjectRunsFlatSelectedTaskLimitPrefersAncestryAnchorOverUnrelatedPriorAnchor(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	start := time.Date(2026, time.February, 22, 19, 50, 0, 0, time.UTC)
+	makeProjectRunWithLinks(
+		t,
+		root,
+		"project",
+		"task-root-a",
+		"run-root-a",
+		"",
+		"",
+		storage.StatusCompleted,
+		start,
+	)
+	makeProjectRunWithLinks(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-linked-a",
+		"run-root-a",
+		"",
+		storage.StatusCompleted,
+		start.Add(1*time.Minute),
+	)
+	makeProjectRunWithLinks(
+		t,
+		root,
+		"project",
+		"task-root-b",
+		"run-root-b",
+		"",
+		"",
+		storage.StatusCompleted,
+		start.Add(2*time.Minute),
+	)
+	// Unrelated cross-task anchor for task-child that is newer than the selected
+	// branch anchor, but still older than the selected branch latest run.
+	makeProjectRunWithLinks(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-linked-b",
+		"run-root-b",
+		"",
+		storage.StatusCompleted,
+		start.Add(3*time.Minute),
+	)
+	makeProjectRunWithLinks(
+		t,
+		root,
+		"project",
+		"task-child",
+		"run-child-selected",
+		"",
+		"run-child-linked-a",
+		storage.StatusCompleted,
+		start.Add(4*time.Minute),
+	)
+	makeProjectRunWithLinks(
+		t,
+		root,
+		"project",
+		"task-grandchild",
+		"run-grandchild-selected",
+		"run-child-selected",
+		"",
+		storage.StatusFailed,
+		start.Add(5*time.Minute),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/project/runs/flat?active_only=1&selected_task_id=task-grandchild&selected_task_limit=1",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			ID string `json:"id"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var got []string
+	for _, run := range resp.Runs {
+		got = append(got, run.ID)
+	}
+	if strings.Join(got, ",") != "run-root-a,run-child-linked-a,run-child-selected,run-grandchild-selected" {
+		t.Fatalf("unexpected selected-task ancestry-anchor runs: %v", got)
+	}
+}
+
 func TestProjectRunsFlatRejectsInvalidSelectedTaskLimit(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
