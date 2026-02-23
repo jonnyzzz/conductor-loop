@@ -41,10 +41,36 @@ type AgentConfig struct {
 
 // DefaultConfig defines defaults used by the runner.
 type DefaultConfig struct {
-	Agent                  string `yaml:"agent"`
-	Timeout                int    `yaml:"timeout"`
-	MaxConcurrentRuns      int    `yaml:"max_concurrent_runs"`
-	MaxConcurrentRootTasks int    `yaml:"max_concurrent_root_tasks"`
+	Agent                  string               `yaml:"agent"`
+	Timeout                int                  `yaml:"timeout"`
+	MaxConcurrentRuns      int                  `yaml:"max_concurrent_runs"`
+	MaxConcurrentRootTasks int                  `yaml:"max_concurrent_root_tasks"`
+	Diversification        *DiversificationConfig `yaml:"diversification,omitempty"`
+}
+
+// DiversificationConfig controls how agent selection distributes work across
+// multiple configured agents instead of always using a single one.
+type DiversificationConfig struct {
+	// Enabled activates the diversification policy. When false the default
+	// agent selection logic is used unchanged.
+	Enabled bool `yaml:"enabled"`
+
+	// Strategy determines how the next agent is chosen.
+	// "round-robin" (default): cycle through Agents in order.
+	// "weighted":              select proportionally by weight (requires Weights).
+	Strategy string `yaml:"strategy,omitempty"`
+
+	// Agents is an ordered list of named agents (keys from Config.Agents) to
+	// distribute work across. If empty all configured agents are used.
+	Agents []string `yaml:"agents,omitempty"`
+
+	// Weights assigns a relative weight to each agent in Agents when strategy
+	// is "weighted". Must have the same length as Agents when provided.
+	Weights []int `yaml:"weights,omitempty"`
+
+	// FallbackOnFailure retries the job with the next agent in the list when
+	// the selected agent fails.
+	FallbackOnFailure bool `yaml:"fallback_on_failure,omitempty"`
 }
 
 // StorageConfig defines storage-related settings.
@@ -238,6 +264,33 @@ func parseHCLConfig(path string, data []byte) (*Config, error) {
 		}
 		if n, ok := m["max_concurrent_root_tasks"].(int); ok {
 			cfg.Defaults.MaxConcurrentRootTasks = n
+		}
+		if dm := hclFirstBlock(m["diversification"]); dm != nil {
+			d := &DiversificationConfig{}
+			if b, ok := dm["enabled"].(bool); ok {
+				d.Enabled = b
+			}
+			if s, ok := dm["strategy"].(string); ok {
+				d.Strategy = s
+			}
+			if b, ok := dm["fallback_on_failure"].(bool); ok {
+				d.FallbackOnFailure = b
+			}
+			if list, ok := dm["agents"].([]interface{}); ok {
+				for _, item := range list {
+					if s, ok := item.(string); ok {
+						d.Agents = append(d.Agents, s)
+					}
+				}
+			}
+			if list, ok := dm["weights"].([]interface{}); ok {
+				for _, item := range list {
+					if n, ok := item.(int); ok {
+						d.Weights = append(d.Weights, n)
+					}
+				}
+			}
+			cfg.Defaults.Diversification = d
 		}
 	}
 

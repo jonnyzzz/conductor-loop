@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -77,6 +78,48 @@ func ValidateConfig(cfg *Config) error {
 		}
 	}
 
+	if cfg.Defaults.Diversification != nil {
+		if err := validateDiversificationConfig(cfg.Defaults.Diversification, cfg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+var validDiversificationStrategies = map[string]struct{}{
+	"round-robin": {},
+	"weighted":    {},
+}
+
+func validateDiversificationConfig(d *DiversificationConfig, cfg *Config) error {
+	if d == nil {
+		return nil
+	}
+	if strategy := strings.TrimSpace(d.Strategy); strategy != "" {
+		if _, ok := validDiversificationStrategies[strategy]; !ok {
+			return fmt.Errorf("defaults.diversification.strategy %q is invalid; valid values: round-robin, weighted", strategy)
+		}
+	}
+	for i, name := range d.Agents {
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("defaults.diversification.agents[%d] is empty", i)
+		}
+		if _, ok := cfg.Agents[name]; !ok {
+			return fmt.Errorf("defaults.diversification.agents[%d] %q not found in agents map", i, name)
+		}
+	}
+	if len(d.Weights) > 0 {
+		if len(d.Weights) != len(d.Agents) {
+			return fmt.Errorf("defaults.diversification.weights length (%d) must match agents length (%d)",
+				len(d.Weights), len(d.Agents))
+		}
+		for i, w := range d.Weights {
+			if w <= 0 {
+				return fmt.Errorf("defaults.diversification.weights[%d] must be positive, got %d", i, w)
+			}
+		}
+	}
 	return nil
 }
 

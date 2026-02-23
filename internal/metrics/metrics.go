@@ -20,14 +20,52 @@ type Registry struct {
 
 	mu          sync.Mutex
 	apiRequests map[string]*atomic.Int64 // key: "METHOD:status_code"
+
+	// per-agent counters — populated by the runner on each job execution.
+	agentRuns      map[string]*atomic.Int64 // key: agent_type
+	agentFallbacks map[string]*atomic.Int64 // key: "from_type:to_type"
 }
 
 // New creates a new Registry with the current time as the start time.
 func New() *Registry {
 	return &Registry{
-		startTime:   time.Now(),
-		apiRequests: make(map[string]*atomic.Int64),
+		startTime:      time.Now(),
+		apiRequests:    make(map[string]*atomic.Int64),
+		agentRuns:      make(map[string]*atomic.Int64),
+		agentFallbacks: make(map[string]*atomic.Int64),
 	}
+}
+
+// IncAgentRuns increments the per-agent run counter for the given agent type.
+func (r *Registry) IncAgentRuns(agentType string) {
+	if r == nil || agentType == "" {
+		return
+	}
+	r.mu.Lock()
+	ctr, ok := r.agentRuns[agentType]
+	if !ok {
+		ctr = &atomic.Int64{}
+		r.agentRuns[agentType] = ctr
+	}
+	r.mu.Unlock()
+	ctr.Add(1)
+}
+
+// IncAgentFallbacks increments the counter for a diversification fallback from
+// one agent type to another.
+func (r *Registry) IncAgentFallbacks(fromType, toType string) {
+	if r == nil || fromType == "" || toType == "" {
+		return
+	}
+	key := fromType + ":" + toType
+	r.mu.Lock()
+	ctr, ok := r.agentFallbacks[key]
+	if !ok {
+		ctr = &atomic.Int64{}
+		r.agentFallbacks[key] = ctr
+	}
+	r.mu.Unlock()
+	ctr.Add(1)
 }
 
 // IncActiveRuns increments the active runs gauge.
@@ -157,6 +195,52 @@ func (r *Registry) Render() string {
 		}
 		method, status := parts[0], parts[1]
 		fmt.Fprintf(&sb, "conductor_api_requests_total{method=%q,status=%q} %d\n", method, status, ctr.Load())
+	}
+
+	// Per-agent run counters.
+	r.mu.Lock()
+	agentRunKeys := make([]string, 0, len(r.agentRuns))
+	for k := range r.agentRuns {
+		agentRunKeys = append(agentRunKeys, k)
+	}
+	r.mu.Unlock()
+
+	if len(agentRunKeys) > 0 {
+		fmt.Fprintf(&sb, "\n")
+		fmt.Fprintf(&sb, "# HELP conductor_agent_runs_total Total agent job executions by agent type\n")
+		fmt.Fprintf(&sb, "# TYPE conductor_agent_runs_total counter\n")
+		sortStrings(agentRunKeys)
+		for _, key := range agentRunKeys {
+			r.mu.Lock()
+			ctr := r.agentRuns[key]
+			r.mu.Unlock()
+			fmt.Fprintf(&sb, "conductor_agent_runs_total{agent_type=%q} %d\n", key, ctr.Load())
+		}
+	}
+
+	// Diversification fallback counters.
+	r.mu.Lock()
+	fallbackKeys := make([]string, 0, len(r.agentFallbacks))
+	for k := range r.agentFallbacks {
+		fallbackKeys = append(fallbackKeys, k)
+	}
+	r.mu.Unlock()
+
+	if len(fallbackKeys) > 0 {
+		fmt.Fprintf(&sb, "\n")
+		fmt.Fprintf(&sb, "# HELP conductor_agent_fallbacks_total Total diversification fallbacks from one agent to another\n")
+		fmt.Fprintf(&sb, "# TYPE conductor_agent_fallbacks_total counter\n")
+		sortStrings(fallbackKeys)
+		for _, key := range fallbackKeys {
+			r.mu.Lock()
+			ctr := r.agentFallbacks[key]
+			r.mu.Unlock()
+			parts := strings.SplitN(key, ":", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			fmt.Fprintf(&sb, "conductor_agent_fallbacks_total{from_type=%q,to_type=%q} %d\n", parts[0], parts[1], ctr.Load())
+		}
 	}
 
 	return sb.String()

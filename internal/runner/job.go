@@ -15,6 +15,7 @@ import (
 	"github.com/jonnyzzz/conductor-loop/internal/agent/gemini"
 	"github.com/jonnyzzz/conductor-loop/internal/agent/perplexity"
 	"github.com/jonnyzzz/conductor-loop/internal/agent/xai"
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
@@ -37,12 +38,94 @@ type JobOptions struct {
 	PreallocatedRunDir string        // optional: pre-created run directory; skip createRunDir if set
 	Timeout            time.Duration // idle output timeout for CLI agents; 0 means no limit
 	ConductorURL       string        // e.g. "http://127.0.0.1:14355"; if empty, derived from config
+
+	// preselectedAgent bypasses the selectAgent() call inside runJob when set.
+	// Used internally by the diversification fallback path.
+	preselectedAgent *agentSelection
 }
 
 // RunJob starts a single agent run and waits for completion.
+// When the loaded config has diversification enabled and FallbackOnFailure is
+// true, a single retry with the next policy agent is attempted on failure.
 func RunJob(projectID, taskID string, opts JobOptions) error {
-	_, err := runJob(projectID, taskID, opts)
-	return err
+	cfg, err := loadConfig(opts.ConfigPath)
+	if err != nil {
+		return err
+	}
+
+	policy, policyErr := NewDiversificationPolicy(
+		diversificationCfgFrom(cfg),
+		cfg,
+	)
+	if policyErr != nil {
+		return fmt.Errorf("diversification policy: %w", policyErr)
+	}
+
+	// Apply policy to select the initial agent (only when no explicit agent is
+	// given by the caller — explicit agents bypass the policy for first selection).
+	initial, selErr := applyPolicySelection(policy, cfg, opts.Agent)
+	if selErr != nil {
+		return selErr
+	}
+	if initial != nil {
+		opts.preselectedAgent = initial
+	}
+
+	_, runErr := runJob(projectID, taskID, opts)
+	if runErr == nil {
+		return nil
+	}
+
+	// Fallback: try next agent in policy when enabled.
+	if policy == nil || !policy.cfg.FallbackOnFailure || initial == nil {
+		return runErr
+	}
+
+	fallback, fbErr := policy.FallbackAgent(initial.Name)
+	if fbErr != nil {
+		// No fallback available; surface the original error.
+		return runErr
+	}
+
+	obslog.Log(log.Default(), "WARN", "runner", "diversification_fallback_triggered",
+		obslog.F("project_id", projectID),
+		obslog.F("task_id", taskID),
+		obslog.F("failed_agent", initial.Name),
+		obslog.F("fallback_agent", fallback.Name),
+		obslog.F("original_error", runErr),
+	)
+
+	// Override the preallocated run dir so the fallback gets a fresh one.
+	fbOpts := opts
+	fbOpts.PreallocatedRunDir = ""
+	fbOpts.preselectedAgent = &fallback
+
+	_, runErr = runJob(projectID, taskID, fbOpts)
+	return runErr
+}
+
+// diversificationCfgFrom returns the DiversificationConfig from the given
+// Config, or nil when cfg is nil.
+func diversificationCfgFrom(cfg *config.Config) *config.DiversificationConfig {
+	if cfg == nil {
+		return nil
+	}
+	return cfg.Defaults.Diversification
+}
+
+// applyPolicySelection uses the policy (when non-nil) to pick the next agent.
+// When policy is nil or preferred is non-empty it falls back to standard
+// selectAgent logic and returns nil (no override needed).
+func applyPolicySelection(policy *DiversificationPolicy, cfg *config.Config, preferred string) (*agentSelection, error) {
+	if policy == nil || preferred != "" {
+		// No policy or explicit agent: let runJob resolve normally.
+		return nil, nil
+	}
+	sel, err := policy.SelectAgent("")
+	if err != nil {
+		return nil, fmt.Errorf("diversification select: %w", err)
+	}
+	return &sel, nil
 }
 
 func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error) {
@@ -99,9 +182,16 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		return nil, err
 	}
 
-	selection, err := selectAgent(cfg, opts.Agent)
-	if err != nil {
-		return nil, err
+	// Honour a pre-selected agent from the diversification policy; otherwise
+	// fall through to the standard agent selection logic.
+	var selection agentSelection
+	if opts.preselectedAgent != nil {
+		selection = *opts.preselectedAgent
+	} else {
+		selection, err = selectAgent(cfg, opts.Agent)
+		if err != nil {
+			return nil, err
+		}
 	}
 	agentType := strings.ToLower(strings.TrimSpace(selection.Type))
 	if agentType == "" {

@@ -162,3 +162,65 @@ func TestRecordWaitingRunNilSafe(t *testing.T) {
 	r.RecordWaitingRun(1)
 	r.RecordWaitingRun(-1)
 }
+
+// --- Agent-level metrics ---
+
+func TestIncAgentRuns(t *testing.T) {
+	r := New()
+	r.IncAgentRuns("claude")
+	r.IncAgentRuns("claude")
+	r.IncAgentRuns("gemini")
+
+	out := r.Render()
+	if !strings.Contains(out, `conductor_agent_runs_total{agent_type="claude"} 2`) {
+		t.Fatalf("expected claude=2 in output:\n%s", out)
+	}
+	if !strings.Contains(out, `conductor_agent_runs_total{agent_type="gemini"} 1`) {
+		t.Fatalf("expected gemini=1 in output:\n%s", out)
+	}
+}
+
+func TestIncAgentRuns_NilSafe(t *testing.T) {
+	var r *Registry
+	r.IncAgentRuns("claude") // must not panic
+}
+
+func TestIncAgentRuns_EmptyType_Ignored(t *testing.T) {
+	r := New()
+	r.IncAgentRuns("")
+	out := r.Render()
+	if strings.Contains(out, "agent_runs_total") {
+		t.Fatalf("empty agent type should not appear in output:\n%s", out)
+	}
+}
+
+func TestIncAgentFallbacks(t *testing.T) {
+	r := New()
+	r.IncAgentFallbacks("claude", "gemini")
+	r.IncAgentFallbacks("claude", "gemini")
+	r.IncAgentFallbacks("gemini", "claude")
+
+	out := r.Render()
+	if !strings.Contains(out, `conductor_agent_fallbacks_total{from_type="claude",to_type="gemini"} 2`) {
+		t.Fatalf("expected claude->gemini=2 in output:\n%s", out)
+	}
+	if !strings.Contains(out, `conductor_agent_fallbacks_total{from_type="gemini",to_type="claude"} 1`) {
+		t.Fatalf("expected gemini->claude=1 in output:\n%s", out)
+	}
+}
+
+func TestIncAgentFallbacks_NilSafe(t *testing.T) {
+	var r *Registry
+	r.IncAgentFallbacks("claude", "gemini") // must not panic
+}
+
+func TestAgentRunsNotRenderedWhenEmpty(t *testing.T) {
+	r := New()
+	out := r.Render()
+	if strings.Contains(out, "agent_runs_total") {
+		t.Fatalf("agent_runs_total should not appear when no runs recorded:\n%s", out)
+	}
+	if strings.Contains(out, "agent_fallbacks_total") {
+		t.Fatalf("agent_fallbacks_total should not appear when no fallbacks recorded:\n%s", out)
+	}
+}

@@ -574,3 +574,107 @@ func TestResolveStoragePathsNilConfig(t *testing.T) {
 		t.Fatalf("resolveStoragePaths nil: %v", err)
 	}
 }
+
+// --- DiversificationConfig validation ---
+
+func makeMinimalConfig(agentNames ...string) *Config {
+	agents := make(map[string]AgentConfig, len(agentNames))
+	for _, name := range agentNames {
+		agents[name] = AgentConfig{Type: name}
+	}
+	return &Config{
+		Agents: agents,
+		Defaults: DefaultConfig{
+			Timeout: 60,
+		},
+	}
+}
+
+func TestValidateDiversificationConfig_Valid(t *testing.T) {
+	cfg := makeMinimalConfig("claude", "gemini")
+	d := &DiversificationConfig{
+		Enabled:  true,
+		Strategy: "round-robin",
+		Agents:   []string{"claude", "gemini"},
+	}
+	if err := validateDiversificationConfig(d, cfg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateDiversificationConfig_ValidWeighted(t *testing.T) {
+	cfg := makeMinimalConfig("claude", "gemini")
+	d := &DiversificationConfig{
+		Enabled:  true,
+		Strategy: "weighted",
+		Agents:   []string{"claude", "gemini"},
+		Weights:  []int{3, 1},
+	}
+	if err := validateDiversificationConfig(d, cfg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateDiversificationConfig_InvalidStrategy(t *testing.T) {
+	cfg := makeMinimalConfig("claude")
+	d := &DiversificationConfig{
+		Enabled:  true,
+		Strategy: "banana",
+	}
+	if err := validateDiversificationConfig(d, cfg); err == nil {
+		t.Fatal("expected error for invalid strategy")
+	}
+}
+
+func TestValidateDiversificationConfig_UnknownAgent(t *testing.T) {
+	cfg := makeMinimalConfig("claude")
+	d := &DiversificationConfig{
+		Enabled: true,
+		Agents:  []string{"notexist"},
+	}
+	if err := validateDiversificationConfig(d, cfg); err == nil {
+		t.Fatal("expected error for unknown agent name")
+	}
+}
+
+func TestValidateDiversificationConfig_WeightsLengthMismatch(t *testing.T) {
+	cfg := makeMinimalConfig("claude", "gemini")
+	d := &DiversificationConfig{
+		Enabled: true,
+		Agents:  []string{"claude", "gemini"},
+		Weights: []int{1}, // wrong length
+	}
+	if err := validateDiversificationConfig(d, cfg); err == nil {
+		t.Fatal("expected error for weights length mismatch")
+	}
+}
+
+func TestValidateDiversificationConfig_ZeroWeight(t *testing.T) {
+	cfg := makeMinimalConfig("claude", "gemini")
+	d := &DiversificationConfig{
+		Enabled: true,
+		Agents:  []string{"claude", "gemini"},
+		Weights: []int{1, 0},
+	}
+	if err := validateDiversificationConfig(d, cfg); err == nil {
+		t.Fatal("expected error for zero weight")
+	}
+}
+
+func TestValidateDiversificationConfig_EmptyAgentName(t *testing.T) {
+	cfg := makeMinimalConfig("claude")
+	d := &DiversificationConfig{
+		Enabled: true,
+		Agents:  []string{"claude", ""},
+	}
+	if err := validateDiversificationConfig(d, cfg); err == nil {
+		t.Fatal("expected error for empty agent name in list")
+	}
+}
+
+func TestValidateDiversificationConfig_NilIsNoOp(t *testing.T) {
+	cfg := makeMinimalConfig("claude")
+	if err := validateDiversificationConfig(nil, cfg); err != nil {
+		t.Fatalf("unexpected error for nil: %v", err)
+	}
+}
