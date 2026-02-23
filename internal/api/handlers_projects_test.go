@@ -2937,6 +2937,110 @@ func TestProjectTaskRunsPagination_IncludesRunFileSizes(t *testing.T) {
 	}
 }
 
+func TestProjectTaskRunsPagination_IncludeFilesFalseSkipsRunFileSizes(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	runDir := filepath.Join(root, "proj", "task-a", "runs", "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir run: %v", err)
+	}
+	outputPath := filepath.Join(runDir, "output.md")
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+	if err := os.WriteFile(outputPath, []byte("output-bytes"), 0o644); err != nil {
+		t.Fatalf("write output: %v", err)
+	}
+	if err := os.WriteFile(stdoutPath, []byte("stdout"), 0o644); err != nil {
+		t.Fatalf("write stdout: %v", err)
+	}
+
+	startTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	info := &storage.RunInfo{
+		RunID:      "run-1",
+		ProjectID:  "proj",
+		TaskID:     "task-a",
+		Status:     storage.StatusCompleted,
+		StartTime:  startTime,
+		EndTime:    startTime.Add(time.Minute),
+		OutputPath: outputPath,
+		StdoutPath: stdoutPath,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/proj/tasks/task-a/runs?include_files=0",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte(`"files"`)) {
+		t.Fatalf("expected files to be omitted when include_files=0")
+	}
+}
+
+func TestProjectTaskDetail_IncludeFilesFalseSkipsRunFileSizes(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	runDir := filepath.Join(root, "proj", "task-a", "runs", "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir run: %v", err)
+	}
+	outputPath := filepath.Join(runDir, "output.md")
+	stdoutPath := filepath.Join(runDir, "agent-stdout.txt")
+	if err := os.WriteFile(outputPath, []byte("output-bytes"), 0o644); err != nil {
+		t.Fatalf("write output: %v", err)
+	}
+	if err := os.WriteFile(stdoutPath, []byte("stdout"), 0o644); err != nil {
+		t.Fatalf("write stdout: %v", err)
+	}
+
+	startTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	info := &storage.RunInfo{
+		RunID:      "run-1",
+		ProjectID:  "proj",
+		TaskID:     "task-a",
+		Status:     storage.StatusCompleted,
+		StartTime:  startTime,
+		EndTime:    startTime.Add(time.Minute),
+		OutputPath: outputPath,
+		StdoutPath: stdoutPath,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/projects/proj/tasks/task-a?include_files=0",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.Bytes()
+	if !bytes.Contains(body, []byte(`"runs"`)) {
+		t.Fatalf("expected runs in task detail response")
+	}
+	if bytes.Contains(body, []byte(`"files"`)) {
+		t.Fatalf("expected files to be omitted when include_files=0")
+	}
+}
+
 func TestProjectTasksPagination_Default(t *testing.T) {
 	root := t.TempDir()
 	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -275,4 +276,134 @@ func BenchmarkProjectTasksEndpointNoCache(b *testing.B) {
 			b.Fatalf("request status=%d body=%s", rec.Code, rec.Body.String())
 		}
 	}
+}
+
+func benchmarkProjectTaskDetailEndpoint(b *testing.B, includeRunFiles bool) {
+	server, projectID := setupBenchmarkProjectTasksServer(b, 4, 20, 80, time.Hour)
+	taskID := "task-000-007"
+
+	path := fmt.Sprintf("/api/projects/%s/tasks/%s", projectID, taskID)
+	if !includeRunFiles {
+		path += "?include_files=0"
+	}
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		b.Fatalf("warm request status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	respBytes := float64(rec.Body.Len())
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rec := httptest.NewRecorder()
+		server.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			b.Fatalf("request status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		respBytes = float64(rec.Body.Len())
+	}
+	b.ReportMetric(respBytes, "resp_bytes/op")
+}
+
+func BenchmarkProjectTaskDetailEndpointWithFiles(b *testing.B) {
+	benchmarkProjectTaskDetailEndpoint(b, true)
+}
+
+func BenchmarkProjectTaskDetailEndpointWithoutFiles(b *testing.B) {
+	benchmarkProjectTaskDetailEndpoint(b, false)
+}
+
+func benchmarkProjectTaskRunsEndpoint(b *testing.B, includeRunFiles bool) {
+	server, projectID := setupBenchmarkProjectTasksServer(b, 4, 20, 80, time.Hour)
+	taskID := "task-000-007"
+
+	path := fmt.Sprintf("/api/projects/%s/tasks/%s/runs?limit=500", projectID, taskID)
+	if !includeRunFiles {
+		path += "&include_files=0"
+	}
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		b.Fatalf("warm request status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	respBytes := float64(rec.Body.Len())
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rec := httptest.NewRecorder()
+		server.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			b.Fatalf("request status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		respBytes = float64(rec.Body.Len())
+	}
+	b.ReportMetric(respBytes, "resp_bytes/op")
+}
+
+func BenchmarkProjectTaskRunsEndpointWithFiles(b *testing.B) {
+	benchmarkProjectTaskRunsEndpoint(b, true)
+}
+
+func BenchmarkProjectTaskRunsEndpointWithoutFiles(b *testing.B) {
+	benchmarkProjectTaskRunsEndpoint(b, false)
+}
+
+func benchmarkProjectTaskDetailBuildPath(
+	b *testing.B,
+	includeRunFiles bool,
+	useLegacyAllTasks bool,
+) {
+	root, runs := setupBenchmarkTaskRuns(b, 120, 40)
+	const (
+		projectID = "proj-bench"
+		taskID    = "task-0071"
+	)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if useLegacyAllTasks {
+			tasks := buildTasksWithQueue(root, projectID, runs, nil, includeRunFiles)
+			found := false
+			for _, task := range tasks {
+				if task.ID == taskID {
+					runtime.KeepAlive(task)
+					found = true
+					break
+				}
+			}
+			if !found {
+				b.Fatalf("task %s not found", taskID)
+			}
+			continue
+		}
+
+		task, ok := buildTaskWithQueue(root, projectID, taskID, runs, nil, includeRunFiles)
+		if !ok {
+			b.Fatalf("task %s not found", taskID)
+		}
+		runtime.KeepAlive(task)
+	}
+}
+
+func BenchmarkProjectTaskDetailBuildLegacyWithFiles(b *testing.B) {
+	benchmarkProjectTaskDetailBuildPath(b, true, true)
+}
+
+func BenchmarkProjectTaskDetailBuildDirectWithFiles(b *testing.B) {
+	benchmarkProjectTaskDetailBuildPath(b, true, false)
+}
+
+func BenchmarkProjectTaskDetailBuildLegacyWithoutFiles(b *testing.B) {
+	benchmarkProjectTaskDetailBuildPath(b, false, true)
+}
+
+func BenchmarkProjectTaskDetailBuildDirectWithoutFiles(b *testing.B) {
+	benchmarkProjectTaskDetailBuildPath(b, false, false)
 }

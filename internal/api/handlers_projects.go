@@ -61,6 +61,19 @@ func parseActiveOnlyQuery(raw string) bool {
 	}
 }
 
+func parseIncludeFilesQuery(raw string, defaultValue bool) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "":
+		return defaultValue
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return defaultValue
+	}
+}
+
 func parseSelectedTaskLimitQuery(raw string) (int, *apiError) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -1222,6 +1235,7 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 	if err != nil {
 		return apiErrorInternal("scan runs", err)
 	}
+	includeRunFiles := parseIncludeFilesQuery(r.URL.Query().Get("include_files"), true)
 
 	// task-scoped file endpoint: GET /api/projects/{p}/tasks/{t}/file?name=TASK.md
 	if len(parts) == 4 && parts[3] == "file" {
@@ -1248,7 +1262,7 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 			if r.Method != http.MethodGet {
 				return apiErrorMethodNotAllowed()
 			}
-			return s.handleProjectTaskRunsList(w, r, projectID, taskID, runs)
+			return s.handleProjectTaskRunsList(w, r, projectID, taskID, runs, includeRunFiles)
 		}
 
 		// Task-level log stream: GET /api/projects/{p}/tasks/{t}/runs/stream
@@ -1321,13 +1335,11 @@ func (s *Server) handleProjectTask(w http.ResponseWriter, r *http.Request) *apiE
 	if r.Method != http.MethodGet {
 		return apiErrorMethodNotAllowed()
 	}
-	tasks := buildTasksWithQueue(s.rootDir, projectID, runs, s.taskQueueSnapshot(), true)
-	for _, t := range tasks {
-		if t.ID == taskID {
-			return writeJSON(w, http.StatusOK, t)
-		}
+	task, ok := buildTaskWithQueue(s.rootDir, projectID, taskID, runs, s.taskQueueSnapshot(), includeRunFiles)
+	if !ok {
+		return apiErrorNotFound("task not found")
 	}
-	return apiErrorNotFound("task not found")
+	return writeJSON(w, http.StatusOK, task)
 }
 
 // handleStopRun handles POST /api/projects/{p}/tasks/{t}/runs/{r}/stop.
@@ -1634,11 +1646,18 @@ func (s *Server) handleProjectDelete(w http.ResponseWriter, r *http.Request, pro
 }
 
 // handleProjectTaskRunsList serves GET /api/projects/{p}/tasks/{t}/runs (paginated run list).
-func (s *Server) handleProjectTaskRunsList(w http.ResponseWriter, r *http.Request, projectID, taskID string, allRuns []*storage.RunInfo) *apiError {
+func (s *Server) handleProjectTaskRunsList(
+	w http.ResponseWriter,
+	r *http.Request,
+	projectID,
+	taskID string,
+	allRuns []*storage.RunInfo,
+	includeRunFiles bool,
+) *apiError {
 	var taskRuns []projectRun
 	for _, run := range allRuns {
 		if run.ProjectID == projectID && run.TaskID == taskID {
-			taskRuns = append(taskRuns, runInfoToProjectRun(run, true))
+			taskRuns = append(taskRuns, runInfoToProjectRun(run, includeRunFiles))
 		}
 	}
 	if len(taskRuns) == 0 {
@@ -1967,101 +1986,135 @@ func buildTasksWithQueue(
 
 	tasks := make([]projectTask, 0, len(taskMap))
 	for taskID, taskRuns := range taskMap {
-		sort.Slice(taskRuns, func(i, j int) bool {
-			return taskRuns[i].StartTime.Before(taskRuns[j].StartTime)
-		})
-
-		taskDir, hasTaskDir := findProjectTaskDir(rootDir, projectID, taskID)
-		var lastActivity time.Time
-		status := "-"
-		running := false
-		for _, run := range taskRuns {
-			t := run.StartTime
-			if run.EndTime != nil && run.EndTime.After(t) {
-				t = *run.EndTime
-			}
-			if t.After(lastActivity) {
-				lastActivity = t
-			}
-			if run.Status == "running" {
-				running = true
-				status = "running"
-			}
-		}
-		if len(taskRuns) > 0 && !running {
-			status = taskRuns[len(taskRuns)-1].Status
-		}
-
-		createdAt := time.Time{}
-		if len(taskRuns) > 0 {
-			createdAt = taskRuns[0].StartTime
-		}
-
-		state := "idle"
-		if running {
-			state = "running"
-		}
-
-		done := false
-		dependsOn := []string(nil)
-		blockedBy := []string(nil)
-		threadParent := (*ThreadParentReference)(nil)
-		if hasTaskDir {
-			if cfgDepends, err := taskdeps.ReadDependsOn(taskDir); err == nil {
-				dependsOn = cfgDepends
-			}
-			if parentRef, err := readTaskThreadLink(taskDir); err == nil {
-				threadParent = parentRef
-			}
-			if _, err := os.Stat(filepath.Join(taskDir, "DONE")); err == nil {
-				done = true
-			}
-			if createdAt.IsZero() {
-				if info, err := os.Stat(filepath.Join(taskDir, "TASK.md")); err == nil {
-					createdAt = info.ModTime().UTC()
-				}
-			}
-			if lastActivity.IsZero() {
-				if info, err := os.Stat(filepath.Join(taskDir, "TASK.md")); err == nil {
-					lastActivity = info.ModTime().UTC()
-				}
-			}
-		}
-		if done && len(taskRuns) == 0 {
-			status = "done"
-		}
-		if len(taskRuns) == 0 && !done && len(dependsOn) > 0 {
-			if unresolved, err := taskdeps.BlockedBy(rootDir, projectID, dependsOn); err == nil && len(unresolved) > 0 {
-				blockedBy = unresolved
-				status = "blocked"
-				state = "blocked"
-			}
-		}
-		queuePosition := 0
-		if !done && !running {
-			if queued, ok := queue[taskQueueKey{ProjectID: projectID, TaskID: taskID}]; ok && queued.Queued {
-				status = "queued"
-				state = "queued"
-				queuePosition = queued.QueuePosition
-			}
-		}
-
-		tasks = append(tasks, projectTask{
-			ID:            taskID,
-			ProjectID:     projectID,
-			Status:        status,
-			QueuePosition: queuePosition,
-			LastActivity:  lastActivity,
-			CreatedAt:     createdAt,
-			Done:          done,
-			State:         state,
-			DependsOn:     dependsOn,
-			BlockedBy:     blockedBy,
-			ThreadParent:  threadParent,
-			Runs:          taskRuns,
-		})
+		tasks = append(tasks, buildTaskFromRuns(rootDir, projectID, taskID, taskRuns, queue))
 	}
 	return tasks
+}
+
+// buildTaskWithQueue builds a single task payload for the selected project/task.
+// It avoids rebuilding every project task when serving task detail refreshes.
+func buildTaskWithQueue(
+	rootDir,
+	projectID,
+	taskID string,
+	runs []*storage.RunInfo,
+	queue map[taskQueueKey]taskQueueState,
+	includeRunFiles bool,
+) (projectTask, bool) {
+	taskRuns := make([]projectRun, 0, 16)
+	for _, run := range runs {
+		if run.ProjectID == projectID && run.TaskID == taskID {
+			taskRuns = append(taskRuns, runInfoToProjectRun(run, includeRunFiles))
+		}
+	}
+	if len(taskRuns) == 0 {
+		if _, hasTaskDir := findProjectTaskDir(rootDir, projectID, taskID); !hasTaskDir {
+			return projectTask{}, false
+		}
+	}
+	return buildTaskFromRuns(rootDir, projectID, taskID, taskRuns, queue), true
+}
+
+func buildTaskFromRuns(
+	rootDir,
+	projectID,
+	taskID string,
+	taskRuns []projectRun,
+	queue map[taskQueueKey]taskQueueState,
+) projectTask {
+	sort.Slice(taskRuns, func(i, j int) bool {
+		return taskRuns[i].StartTime.Before(taskRuns[j].StartTime)
+	})
+
+	taskDir, hasTaskDir := findProjectTaskDir(rootDir, projectID, taskID)
+	var lastActivity time.Time
+	status := "-"
+	running := false
+	for _, run := range taskRuns {
+		t := run.StartTime
+		if run.EndTime != nil && run.EndTime.After(t) {
+			t = *run.EndTime
+		}
+		if t.After(lastActivity) {
+			lastActivity = t
+		}
+		if run.Status == "running" {
+			running = true
+			status = "running"
+		}
+	}
+	if len(taskRuns) > 0 && !running {
+		status = taskRuns[len(taskRuns)-1].Status
+	}
+
+	createdAt := time.Time{}
+	if len(taskRuns) > 0 {
+		createdAt = taskRuns[0].StartTime
+	}
+
+	state := "idle"
+	if running {
+		state = "running"
+	}
+
+	done := false
+	dependsOn := []string(nil)
+	blockedBy := []string(nil)
+	threadParent := (*ThreadParentReference)(nil)
+	if hasTaskDir {
+		if cfgDepends, err := taskdeps.ReadDependsOn(taskDir); err == nil {
+			dependsOn = cfgDepends
+		}
+		if parentRef, err := readTaskThreadLink(taskDir); err == nil {
+			threadParent = parentRef
+		}
+		if _, err := os.Stat(filepath.Join(taskDir, "DONE")); err == nil {
+			done = true
+		}
+		if createdAt.IsZero() {
+			if info, err := os.Stat(filepath.Join(taskDir, "TASK.md")); err == nil {
+				createdAt = info.ModTime().UTC()
+			}
+		}
+		if lastActivity.IsZero() {
+			if info, err := os.Stat(filepath.Join(taskDir, "TASK.md")); err == nil {
+				lastActivity = info.ModTime().UTC()
+			}
+		}
+	}
+	if done && len(taskRuns) == 0 {
+		status = "done"
+	}
+	if len(taskRuns) == 0 && !done && len(dependsOn) > 0 {
+		if unresolved, err := taskdeps.BlockedBy(rootDir, projectID, dependsOn); err == nil && len(unresolved) > 0 {
+			blockedBy = unresolved
+			status = "blocked"
+			state = "blocked"
+		}
+	}
+	queuePosition := 0
+	if !done && !running {
+		if queued, ok := queue[taskQueueKey{ProjectID: projectID, TaskID: taskID}]; ok && queued.Queued {
+			status = "queued"
+			state = "queued"
+			queuePosition = queued.QueuePosition
+		}
+	}
+
+	return projectTask{
+		ID:            taskID,
+		ProjectID:     projectID,
+		Status:        status,
+		QueuePosition: queuePosition,
+		LastActivity:  lastActivity,
+		CreatedAt:     createdAt,
+		Done:          done,
+		State:         state,
+		DependsOn:     dependsOn,
+		BlockedBy:     blockedBy,
+		ThreadParent:  threadParent,
+		Runs:          taskRuns,
+	}
 }
 
 // filterTasksByStatus filters tasks by the given status string (case-insensitive).

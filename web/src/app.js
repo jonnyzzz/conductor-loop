@@ -9,6 +9,8 @@ const API_BASE = window.location.protocol === 'file:'
   : '';
 
 const REFRESH_MS = 5000;
+const SSE_REFRESH_DEBOUNCE_MS = 250;
+const MAX_STREAM_LINES = 1200;
 const UI_REQUEST_HEADERS = { 'X-Conductor-Client': 'web-ui' };
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -24,12 +26,15 @@ const state = {
 };
 
 let refreshTimer     = null;
-let taskRefreshTimer = null;  // setTimeout-based timer for task/run list
 let sseSource        = null;
 let tabSseSource     = null;
 let tabSseRunId      = null;
 let tabSseTab        = null;
 let projSseSource    = null;
+let sseRefreshTimer  = null;
+let refreshInFlight  = false;
+let refreshQueued    = false;
+let selectedRunLastStatus = null;
 
 // ── API ──────────────────────────────────────────────────────────────────────
 
@@ -90,11 +95,11 @@ function renderProjectList() {
 
 async function selectProject(id) {
   if (state.selectedProject === id) return;
-  clearTimeout(taskRefreshTimer);
   state.selectedProject = id;
   state.selectedTask    = null;
   state.selectedRun     = null;
   state.taskRuns        = [];
+  selectedRunLastStatus = null;
   renderProjectList();
   hideRunDetail();
   connectProjectSSE(id);
@@ -129,10 +134,8 @@ function connectProjectSSE(projectId) {
     try {
       const m = JSON.parse(event.data);
       const cls  = msgTypeClass(m.type);
-      const text = `[${h(shortTime(m.timestamp))}] [${h(m.type)}] ${h(m.content || '')}`;
-      const line = cls ? `<span class="${cls}">${text}</span>` : text;
-      msgArea.innerHTML += (msgArea.innerHTML ? '\n' : '') + line;
-      msgArea.scrollTop = msgArea.scrollHeight;
+      const text = `[${shortTime(m.timestamp)}] [${m.type || ''}] ${m.content || ''}`;
+      appendMessageLine(msgArea, cls, text);
     } catch { /* ignore parse errors */ }
   });
 
@@ -147,7 +150,6 @@ function connectProjectSSE(projectId) {
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
 async function loadTasks() {
-  clearTimeout(taskRefreshTimer);
   if (!state.selectedProject) {
     state.tasks = [];
     renderMainPanel();
@@ -163,25 +165,24 @@ async function loadTasks() {
   if (state.selectedTask) {
     try {
       const task = await apiFetch(
-        `/api/projects/${enc(state.selectedProject)}/tasks/${enc(state.selectedTask)}`
+        `/api/projects/${enc(state.selectedProject)}/tasks/${enc(state.selectedTask)}?include_files=0`
       );
       state.taskRuns = task.runs || [];
     } catch { /* keep */ }
   }
   renderMainPanel();
-  // Schedule next refresh (only active when a project is selected)
-  taskRefreshTimer = setTimeout(loadTasks, REFRESH_MS);
 }
 
 async function selectTask(id) {
   state.selectedTask = id;
   state.selectedRun  = null;
   state.taskRuns     = [];
+  selectedRunLastStatus = null;
   hideRunDetail();
   renderMainPanel();
   try {
     const task = await apiFetch(
-      `/api/projects/${enc(state.selectedProject)}/tasks/${enc(id)}`
+      `/api/projects/${enc(state.selectedProject)}/tasks/${enc(id)}?include_files=0`
     );
     state.taskRuns = task.runs || [];
   } catch {
@@ -257,6 +258,8 @@ function renderRunsSection() {
 
 async function selectRun(id) {
   state.selectedRun = id;
+  const run = state.taskRuns.find(r => r.id === id);
+  selectedRunLastStatus = run ? run.status : null;
   renderMainPanel(); // highlight selected run
   showRunDetail();
   await loadRunMeta();
@@ -339,6 +342,7 @@ async function loadTabContent() {
 
   if (tab === 'messages') {
     el.innerHTML = '';
+    el._lineCount = 0;
     const sseUrl = `${API_BASE}/api/projects/${enc(state.selectedProject)}/tasks/${enc(state.selectedTask)}/messages/stream`;
     const source = new EventSource(sseUrl);
     tabSseSource = source;
@@ -349,10 +353,8 @@ async function loadTabContent() {
       try {
         const m = JSON.parse(event.data);
         const cls  = msgTypeClass(m.type);
-        const text = `[${h(shortTime(m.timestamp))}] [${h(m.type)}] ${h(m.content || '')}`;
-        const line = cls ? `<span class="${cls}">${text}</span>` : text;
-        el.innerHTML += (el.innerHTML ? '\n' : '') + line;
-        el.scrollTop = el.scrollHeight;
+        const text = `[${shortTime(m.timestamp)}] [${m.type || ''}] ${m.content || ''}`;
+        appendMessageLine(el, cls, text);
       } catch { /* ignore parse errors */ }
     });
 
@@ -469,6 +471,7 @@ function hideRunDetail() {
 
 function closeRun() {
   state.selectedRun = null;
+  selectedRunLastStatus = null;
   hideRunDetail();
   renderMainPanel();
 }
@@ -554,46 +557,73 @@ function showToast(msg, isError = false) {
 function connectSSE() {
   if (sseSource) sseSource.close();
   sseSource = new EventSource(API_BASE + '/api/v1/runs/stream/all');
-  sseSource.onmessage = () => fullRefresh();
+  sseSource.onmessage = () => {
+    if (sseRefreshTimer) return;
+    sseRefreshTimer = setTimeout(() => {
+      sseRefreshTimer = null;
+      fullRefresh();
+    }, SSE_REFRESH_DEBOUNCE_MS);
+  };
   // onerror: browser auto-reconnects EventSource
 }
 
 // ── Full refresh ──────────────────────────────────────────────────────────────
 
 async function fullRefresh() {
-  await refreshStatusBar();
-
-  // Refresh project list
+  if (refreshInFlight) {
+    refreshQueued = true;
+    return;
+  }
+  refreshInFlight = true;
   try {
-    const data = await apiFetch('/api/projects');
-    state.projects = data.projects || [];
-  } catch { /* keep */ }
-  renderProjectList();
+    await refreshStatusBar();
 
-  // Refresh task list
-  if (state.selectedProject) {
+    // Refresh project list
     try {
-      const data = await apiFetch(`/api/projects/${enc(state.selectedProject)}/tasks`);
-      state.tasks = data.tasks || [];
+      const data = await apiFetch('/api/projects');
+      state.projects = data.projects || [];
     } catch { /* keep */ }
-  }
+    renderProjectList();
 
-  // Refresh runs for selected task
-  if (state.selectedProject && state.selectedTask) {
-    try {
-      const task = await apiFetch(
-        `/api/projects/${enc(state.selectedProject)}/tasks/${enc(state.selectedTask)}`
-      );
-      state.taskRuns = task.runs || [];
-    } catch { /* keep */ }
-  }
+    // Refresh task list
+    if (state.selectedProject) {
+      try {
+        const data = await apiFetch(`/api/projects/${enc(state.selectedProject)}/tasks`);
+        state.tasks = data.tasks || [];
+      } catch { /* keep */ }
+    }
 
-  renderMainPanel();
+    // Refresh runs for selected task
+    if (state.selectedProject && state.selectedTask) {
+      try {
+        const task = await apiFetch(
+          `/api/projects/${enc(state.selectedProject)}/tasks/${enc(state.selectedTask)}?include_files=0`
+        );
+        state.taskRuns = task.runs || [];
+      } catch { /* keep */ }
+    }
 
-  // Refresh run detail if visible
-  if (state.selectedRun) {
-    await loadRunMeta();
-    await loadTabContent();
+    renderMainPanel();
+
+    // Refresh run detail if visible
+    if (state.selectedRun) {
+      const selectedRun = state.taskRuns.find(r => r.id === state.selectedRun);
+      const selectedStatus = selectedRun ? selectedRun.status : null;
+      const statusChanged = selectedStatus !== selectedRunLastStatus;
+      if (selectedStatus === 'running' || statusChanged) {
+        await loadRunMeta();
+        await loadTabContent();
+      }
+      selectedRunLastStatus = selectedStatus;
+    } else {
+      selectedRunLastStatus = null;
+    }
+  } finally {
+    refreshInFlight = false;
+    if (refreshQueued) {
+      refreshQueued = false;
+      setTimeout(() => fullRefresh(), 0);
+    }
   }
 }
 
@@ -660,6 +690,30 @@ function msgTypeClass(type) {
     case 'QUESTION':     return 'msg-user';
     default:             return '';
   }
+}
+
+function appendMessageLine(el, cls, text) {
+  if (!el) return;
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  span.textContent = text;
+  el.appendChild(span);
+  el.appendChild(document.createTextNode('\n'));
+
+  if (typeof el._lineCount !== 'number') {
+    el._lineCount = 0;
+  }
+  el._lineCount += 1;
+
+  while (el._lineCount > MAX_STREAM_LINES && el.firstChild) {
+    el.removeChild(el.firstChild);
+    if (el.firstChild) {
+      el.removeChild(el.firstChild);
+    }
+    el._lineCount -= 1;
+  }
+
+  el.scrollTop = el.scrollHeight;
 }
 
 function stClass(status) {
