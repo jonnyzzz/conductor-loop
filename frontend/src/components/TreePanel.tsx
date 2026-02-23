@@ -109,13 +109,9 @@ function hasActiveSubtree(node: TreeNode): boolean {
 }
 
 function shouldCollapseTerminalTaskNode(
-  node: TreeNode,
-  selectionPathNodeIDs: ReadonlySet<string>
+  node: TreeNode
 ): boolean {
   if (node.type !== 'task' || !isTerminalTaskStatus(node.status)) {
-    return false
-  }
-  if (selectionPathNodeIDs.has(node.id)) {
     return false
   }
   return !hasActiveSubtree(node)
@@ -166,6 +162,7 @@ interface TreeNodeProps {
     collapsed: boolean
     onToggle: () => void
   }
+  taskLabelPrefix?: string
 }
 
 function TreeNodeRow({
@@ -181,6 +178,7 @@ function TreeNodeRow({
   onCreateTask,
   defaultExpanded = true,
   terminalTaskCollapse,
+  taskLabelPrefix = '',
 }: TreeNodeProps) {
   const [expanded, setExpanded] = useState(
     defaultExpanded || node.status === 'running'
@@ -200,7 +198,7 @@ function TreeNodeRow({
   const visibleTaskChildren: TreeNode[] = []
   const collapsedTerminalTaskChildren: TreeNode[] = []
   for (const child of taskChildren) {
-    if (shouldCollapseTerminalTaskNode(child, selectionPathNodeIDs)) {
+    if (shouldCollapseTerminalTaskNode(child)) {
       collapsedTerminalTaskChildren.push(child)
     } else {
       visibleTaskChildren.push(child)
@@ -259,6 +257,9 @@ function TreeNodeRow({
   }
 
   const hasProjectAction = Boolean(node.type === 'project' && node.projectId && onCreateTask)
+  const taskLabel = node.type === 'task'
+    ? (taskLabelPrefix && node.label !== node.id ? `${taskLabelPrefix}${node.label}` : node.label)
+    : ''
   const runLabel = node.id.length > 14 ? `${node.id.slice(0, 14)}…` : node.id
   const latestDuration =
     node.type === 'task'
@@ -302,8 +303,11 @@ function TreeNodeRow({
               <span className={clsx('tree-status-dot', statusClass(node.status))}>
                 {statusDot(node.status)}
               </span>
-              <span className={clsx('tree-label', node.status === 'running' && 'tree-label-active')}>
-                {node.label}
+              <span
+                className={clsx('tree-label', node.status === 'running' && 'tree-label-active')}
+                title={node.id}
+              >
+                {taskLabel}
               </span>
               <span className="tree-row-right">
                 {node.restartCount != null && node.restartCount > 0 && (
@@ -436,6 +440,7 @@ function TreeNodeRow({
                   onCreateTask={onCreateTask}
                   defaultExpanded={child.type === 'project' || child.status === 'running'}
                   terminalTaskCollapse={undefined}
+                  taskLabelPrefix="..."
                 />
               ))}
             </div>
@@ -522,6 +527,21 @@ export function TreePanel({
     }
     return buildSelectionPathNodeIDs(tree, selectedTaskId, selectedRunId)
   }, [selectedRunId, selectedTaskId, tree])
+  const defaultTerminalTasksCollapsed = useMemo(() => {
+    if (!tree || tree.type !== 'project') {
+      return true
+    }
+    const rootTaskChildren = tree.children.filter((child) => child.type === 'task')
+    if (rootTaskChildren.length === 0) {
+      return true
+    }
+    const collapsibleTerminalCount = rootTaskChildren.filter((child) => shouldCollapseTerminalTaskNode(child)).length
+    if (collapsibleTerminalCount === 0) {
+      return true
+    }
+    // If every task is terminal/collapsible, expand them by default so tree content is visible.
+    return collapsibleTerminalCount < rootTaskChildren.length
+  }, [tree])
 
   const projects = projectsQuery.data ?? []
   const selectedProject = useMemo(
@@ -529,7 +549,9 @@ export function TreePanel({
     [projects, projectId]
   )
   const derivedTaskId = useMemo(() => buildTaskId(taskIdPrefix, taskIdSuffix), [taskIdPrefix, taskIdSuffix])
-  const terminalTasksCollapsed = projectId ? (terminalTaskCollapseByProject[projectId] ?? true) : true
+  const terminalTasksCollapsed = projectId
+    ? (terminalTaskCollapseByProject[projectId] ?? defaultTerminalTasksCollapsed)
+    : true
 
   const toggleTerminalTasksCollapsed = () => {
     if (!projectId) {

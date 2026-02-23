@@ -844,6 +844,65 @@ describe('TreePanel', () => {
     expect(screen.queryByText('broken-flow')).not.toBeInTheDocument()
   })
 
+  it('keeps terminal tasks visible when all project tasks are completed or failed', () => {
+    mockProjects = [
+      {
+        id: 'conductor-loop',
+        task_count: 2,
+        last_activity: '2026-02-22T17:20:00Z',
+      },
+    ]
+    mockTasks = [
+      {
+        id: 'task-20260222-170100-done-flow',
+        status: 'completed',
+        last_activity: '2026-02-22T17:10:00Z',
+      },
+      {
+        id: 'task-20260222-170200-broken-flow',
+        status: 'failed',
+        last_activity: '2026-02-22T17:20:00Z',
+      },
+    ]
+    mockRuns = [
+      {
+        id: 'run-completed',
+        task_id: 'task-20260222-170100-done-flow',
+        agent: 'claude',
+        status: 'completed',
+        exit_code: 0,
+        start_time: '2026-02-22T17:05:00Z',
+        end_time: '2026-02-22T17:10:00Z',
+      },
+      {
+        id: 'run-failed',
+        task_id: 'task-20260222-170200-broken-flow',
+        agent: 'gemini',
+        status: 'failed',
+        exit_code: 1,
+        start_time: '2026-02-22T17:15:00Z',
+        end_time: '2026-02-22T17:20:00Z',
+      },
+    ]
+
+    render(
+      <TreePanel
+        projectId="conductor-loop"
+        selectedProjectId="conductor-loop"
+        selectedTaskId={undefined}
+        selectedRunId={undefined}
+        onSelectProject={() => undefined}
+        onSelectTask={() => undefined}
+        onSelectRun={() => undefined}
+      />
+    )
+
+    const summaryToggle = screen.getByTestId('tree-terminal-summary-toggle')
+    expect(summaryToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('...done-flow')).toBeInTheDocument()
+    expect(screen.getByText('...broken-flow')).toBeInTheDocument()
+  })
+
   it('toggles terminal task visibility and keeps state across live task updates', async () => {
     const user = userEvent.setup()
     mockProjects = [
@@ -916,8 +975,8 @@ describe('TreePanel', () => {
 
     await user.click(summaryToggle)
     expect(summaryToggle).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByText('done-flow')).toBeInTheDocument()
-    expect(screen.getByText('broken-flow')).toBeInTheDocument()
+    expect(screen.getByText('...done-flow')).toBeInTheDocument()
+    expect(screen.getByText('...broken-flow')).toBeInTheDocument()
 
     mockTasks = [
       ...mockTasks,
@@ -955,7 +1014,7 @@ describe('TreePanel', () => {
     const summaryAfterUpdate = screen.getByTestId('tree-terminal-summary-toggle')
     expect(summaryAfterUpdate).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('... and 3 more tasks (2 completed, 1 failed)')).toBeInTheDocument()
-    expect(screen.getByText('later-done')).toBeInTheDocument()
+    expect(screen.getByText('...later-done')).toBeInTheDocument()
 
     summaryAfterUpdate.focus()
     await user.keyboard('{Enter}')
@@ -963,6 +1022,101 @@ describe('TreePanel', () => {
     expect(screen.queryByText('done-flow')).not.toBeInTheDocument()
     expect(screen.queryByText('broken-flow')).not.toBeInTheDocument()
     expect(screen.queryByText('later-done')).not.toBeInTheDocument()
+  })
+
+  it('keeps selected collapsed task under summary section and shows full ID on hover', async () => {
+    const user = userEvent.setup()
+    const onSelectTask = vi.fn()
+    mockProjects = [
+      {
+        id: 'conductor-loop',
+        task_count: 3,
+        last_activity: '2026-02-22T17:20:00Z',
+      },
+    ]
+    mockTasks = [
+      {
+        id: 'task-20260222-170000-active-flow',
+        status: 'running',
+        last_activity: '2026-02-22T17:02:00Z',
+      },
+      {
+        id: 'task-20260222-170100-done-flow',
+        status: 'completed',
+        last_activity: '2026-02-22T17:10:00Z',
+      },
+      {
+        id: 'task-20260222-170200-broken-flow',
+        status: 'failed',
+        last_activity: '2026-02-22T17:20:00Z',
+      },
+    ]
+    mockRuns = [
+      {
+        id: 'run-active',
+        task_id: 'task-20260222-170000-active-flow',
+        agent: 'codex',
+        status: 'running',
+        exit_code: -1,
+        start_time: '2026-02-22T17:00:00Z',
+      },
+      {
+        id: 'run-completed',
+        task_id: 'task-20260222-170100-done-flow',
+        agent: 'claude',
+        status: 'completed',
+        exit_code: 0,
+        start_time: '2026-02-22T17:05:00Z',
+        end_time: '2026-02-22T17:10:00Z',
+      },
+      {
+        id: 'run-failed',
+        task_id: 'task-20260222-170200-broken-flow',
+        agent: 'gemini',
+        status: 'failed',
+        exit_code: 1,
+        start_time: '2026-02-22T17:15:00Z',
+        end_time: '2026-02-22T17:20:00Z',
+      },
+    ]
+
+    const view = render(
+      <TreePanel
+        projectId="conductor-loop"
+        selectedProjectId="conductor-loop"
+        selectedTaskId={undefined}
+        selectedRunId={undefined}
+        onSelectProject={() => undefined}
+        onSelectTask={onSelectTask}
+        onSelectRun={() => undefined}
+      />
+    )
+
+    const summaryToggle = screen.getByTestId('tree-terminal-summary-toggle')
+    await user.click(summaryToggle)
+    const collapsedDoneLabel = screen.getByText('...done-flow')
+    expect(collapsedDoneLabel).toHaveAttribute('title', 'task-20260222-170100-done-flow')
+
+    await user.click(collapsedDoneLabel.closest('button')!)
+    expect(onSelectTask).toHaveBeenCalledWith('conductor-loop', 'task-20260222-170100-done-flow')
+
+    view.rerender(
+      <TreePanel
+        projectId="conductor-loop"
+        selectedProjectId="conductor-loop"
+        selectedTaskId="task-20260222-170100-done-flow"
+        selectedRunId={undefined}
+        onSelectProject={() => undefined}
+        onSelectTask={onSelectTask}
+        onSelectRun={() => undefined}
+      />
+    )
+
+    const summaryAfterSelect = screen.getByTestId('tree-terminal-summary-toggle')
+    const activeTaskRow = screen.getByText('active-flow').closest('button')!
+    const collapsedTaskRow = screen.getByText('...done-flow').closest('button')!
+    expect((activeTaskRow.compareDocumentPosition(summaryAfterSelect) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true)
+    expect((summaryAfterSelect.compareDocumentPosition(collapsedTaskRow) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true)
   })
 
   it('shows success feedback and focuses the created task', async () => {

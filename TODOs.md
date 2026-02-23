@@ -255,3 +255,16 @@
 ## New Task Intake (2026-02-23 07:28 local)
 
 - [x] `task-20260223-072800-cli-monitor-loop-simplification`: replace ad-hoc bash monitor loop with first-class CLI workflow (start missing TODO tasks, resume failed unfinished tasks, stale-running recovery, and completed-with-output auto-finalize), with tests and docs so operators can run one concise command.
+
+## New Task Intake (2026-02-23 10:34 local)
+
+- [ ] `task-20260223-103400-serve-cpu-hotspot-sse-stream-all`: investigate and fix high CPU usage in `run-agent serve` under live Web UI usage; confirmed hotspot is SSE streaming (`/api/v1/runs/stream/all` plus message streams) with aggressive 100ms polling and full bus-file reparse (`ReadMessages`) causing thread growth and sustained CPU spikes. Deliver fixes + regression/perf tests and document safe SSE defaults.
+
+## New Task Intake (2026-02-23 14:45 local)
+
+- [x] `task-20260223-144500-ui-tree-visible-when-terminal-only`: fix UX bug where no task tree appears when a project has only completed/failed tasks; keep terminal-task section visible by default in that case.
+- [x] `task-20260223-144510-ui-collapsed-selection-no-jump`: fix UX bug where selecting a task under the `... and N more tasks` section moves/jumps the row into another section.
+- [x] `task-20260223-144520-ui-collapsed-task-label-ellipsis-hover-id`: render collapsed-summary task labels with `...` prefix and expose full task ID on hover tooltip.
+- [x] `task-20260223-144530-test-treepanel-terminal-only-visible`: add regression test coverage that verifies terminal-only projects still show task rows.
+- [x] `task-20260223-144540-test-treepanel-collapsed-selection-stability`: add regression test coverage ensuring collapsed-section task selection remains stable (no row jump/reorder on selection).
+- [x] `task-20260223-144550-test-treepanel-collapsed-label-hover-id`: add regression test coverage for collapsed task label `...` prefix and full-ID hover title.
