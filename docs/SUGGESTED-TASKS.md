@@ -5,6 +5,8 @@ Consolidated from all agent runs, swarm documentation, ideas, issues, and TODOs 
 
 Only **open / not-yet-completed** items are listed. Completed work is omitted.
 
+Last updated: 2026-02-23 (review-suggested-tasks scan).
+
 ---
 
 ## P0 -- Critical Reliability / Orchestration
@@ -21,8 +23,8 @@ Only **open / not-yet-completed** items are listed. Completed work is omitted.
 
 ### Blocked dependency deadlock recovery
 - **ID**: `task-20260223-155220-blocked-dependency-deadlock-recovery`
-- **Description**: Resolve blocked DAG chains with no active runs. Dependency diagnostics and auto-escalation workflow for stuck task chains.
-- **Source**: conductor-loop TODOs.md
+- **Description**: Resolve blocked DAG chains with no active runs. `task-20260222-102110-job-batch-cli` and `task-20260222-102120-workflow-runner-cli` both exist with no runs and no DONE marker — blocked. Dependency diagnostics and auto-escalation workflow for stuck task chains.
+- **Source**: conductor-loop TODOs.md; confirmed via filesystem scan 2026-02-23
 
 ### Run status finish criteria
 - **ID**: `task-20260223-155230-run-status-finish-criteria`
@@ -41,6 +43,7 @@ Only **open / not-yet-completed** items are listed. Completed work is omitted.
 
 ### SSE stream CPU hotspot
 - **ID**: `task-20260223-103400-serve-cpu-hotspot-sse-stream-all`
+- **Status**: Task directory exists; no runs started yet.
 - **Description**: Fix high CPU in `run-agent serve` under live Web UI. Confirmed hotspot is SSE streaming with aggressive 100ms polling and full bus-file reparse. Deliver fixes + regression/perf tests.
 - **Source**: conductor-loop TODOs.md
 
@@ -50,12 +53,8 @@ Only **open / not-yet-completed** items are listed. Completed work is omitted.
 
 ### UI latency regression
 - **ID**: `task-20260222-214200-ui-latency-regression-investigation`
+- **Status**: Task directory exists with active runs; not DONE.
 - **Description**: Web UI updates take multiple seconds to appear. Root-cause and fix with measurable responsiveness improvements.
-- **Source**: conductor-loop TODOs.md
-
-### Agent output rendering regression
-- **ID**: `task-20260223-071900-ui-agent-output-regression-tdd-claude-codex-review`
-- **Description**: Agent output/logs no longer visible in Web UI. Fix with TDD, require implementation by `claude` with review by `codex`.
 - **Source**: conductor-loop TODOs.md
 
 ### Message bus empty regression
@@ -87,11 +86,6 @@ Only **open / not-yet-completed** items are listed. Completed work is omitted.
 
 ## P1 -- Security / Release / Delivery
 
-### Security audit follow-up
-- **ID**: `task-20260223-071800-security-audit-followup-action-plan`
-- **Description**: Review current security audit outputs, prioritize confirmed findings, implement fixes, validate remediations with tests.
-- **Source**: conductor-loop TODOs.md
-
 ### Repository token leak audit
 - **ID**: `task-20260223-155350-repo-history-token-leak-audit`
 - **Description**: Full repository + git-history token leak scan across all repos. Document findings. Add pre-commit/pre-push safeguards.
@@ -105,11 +99,6 @@ Only **open / not-yet-completed** items are listed. Completed work is omitted.
 ---
 
 ## P2 -- Workflow / Tooling / Docs
-
-### Agent diversification
-- **ID**: `task-20260223-071700-agent-diversification-claude-gemini`
-- **Description**: Route meaningful share of tasks to `claude` and `gemini` (not only `codex`). Update scheduler/runner policy.
-- **Source**: conductor-loop TODOs.md
 
 ### Run artifacts git hygiene
 - **ID**: `task-20260223-155370-run-artifacts-git-hygiene`
@@ -234,6 +223,57 @@ These are not tasks but recurring operational problems worth tracking:
 | Claude CLI hangs | Claude CLI via `run-agent.sh` did not return on trivial prompts |
 | Perplexity MCP 401 | Perplexity API unauthorized in several review prompts |
 | Gemini lacks git history | Gemini agents cannot access git history (no shell command tool) |
+
+---
+
+## Newly Discovered (2026-02-23)
+
+Items surfaced by this scan that were not previously in SUGGESTED-TASKS.md.
+
+### Gemini CLI output-format fallback
+- **Description**: `FACTS-agents-ui.md` identifies a TODO: add CLI fallback for Gemini versions that reject `--output-format stream-json`. Currently the runner passes this flag unconditionally; older Gemini CLI builds fail silently or error out, causing lost agent output.
+- **Source**: `docs/facts/FACTS-agents-ui.md` validation round 2
+
+### xAI backend completion
+- **Description**: `docs/facts/FACTS-agents-ui.md` notes the xAI backend is deferred/placeholder. Plan: use OpenCode agent targeting xAI models; default to `grok-4`. Currently only enabled when XAI_API_KEY provided. Coding-agent mode and model selection policy TBD.
+- **Source**: `docs/facts/FACTS-agents-ui.md` validation round 2
+
+### User docs stale config/requirement details
+- **Description**: `docs/facts/FACTS-user-docs.md` Round 2 validation found stale entries in user docs: config path examples still reference `~/.conductor/config.yaml` (not current), Go minimum version shown as `1.21+` (not current `1.24`), and per-agent `timeout` field documented but not implemented. Update user-facing docs to match current binary behavior.
+- **Source**: `docs/facts/FACTS-user-docs.md` validation round 2
+
+### Binary default port mismatch
+- **Description**: Built `./bin/conductor` help reports default server port as `8080` while checked-in `cmd/conductor/*` source defaults to `14355`. Investigate and reconcile the binary vs. source discrepancy; document the canonical default clearly in CLI help and docs.
+- **Source**: `docs/facts/FACTS-user-docs.md` validation round 2
+
+### job-batch-cli and workflow-runner-cli unstarted
+- **ID (batch)**: `task-20260222-102110-job-batch-cli`
+- **ID (workflow)**: `task-20260222-102120-workflow-runner-cli`
+- **Description**: Both task directories exist with no run history and no DONE marker. TODOs.md marks them `[x]` but no implementation evidence exists. `workflow-runner-cli` is blocked by `job-batch-cli` per FACTS. These need to be either executed or explicitly cancelled/superseded by the `task-20260223-155220-blocked-dependency-deadlock-recovery` P0 resolution.
+- **Source**: Filesystem scan 2026-02-23; `docs/facts/FACTS-issues-decisions.md`
+
+---
+
+## Recently Completed (Reference)
+
+Tasks removed from this list since the last revision — confirmed DONE via filesystem scan:
+
+| Task ID | What was done |
+|---------|---------------|
+| `task-20260223-071900-ui-agent-output-regression-tdd-claude-codex-review` | Agent output/logs rendering fixed (TDD); two regressions in `useRunFile` and `useLiveRunRefresh` identified and resolved |
+| `task-20260223-071800-security-audit-followup-action-plan` | All 5 open findings remediated in commit `ab5ea6e`: GHA SHA pins, Docker base version, CI permissions scoped, linter pinned, inline token docs removed |
+| `task-20260223-071700-agent-diversification-claude-gemini` | Diversification policy config implemented (`DiversificationConfig` with round-robin/weighted strategies, fallback-on-failure) |
+| `task-20260223-072800-cli-monitor-loop-simplification` | First-class CLI monitor loop replacing ad-hoc shell loops |
+| `task-20260222-214100-ui-task-tree-nesting-regression-research` | Task tree nesting regression investigated and fixed |
+| `task-20260222-181500-security-review-multi-agent-rlm` | Multi-agent security review completed via RLM methodology |
+| `task-20260222-174700-fix-api-root-escape` | API root path traversal escape fixed |
+| `task-20260222-174701-add-api-traversal-regression-tests` | API traversal regression tests added |
+| `task-20260222-174702-add-installer-integrity-verification` | Installer integrity verification implemented |
+| `task-20260222-173000-task-complete-fact-propagation-agent` | Task FACT propagation to project bus implemented |
+| `task-20260222-102100-goal-decompose-cli` | `conductor goal decompose` skeleton implemented |
+| `task-20260222-102130-output-synthesize-cli` | `run-agent output synthesize` implemented (via r3 revision) |
+| `task-20260222-102140-review-quorum-cli` | `run-agent review quorum` implemented (via r3 revision) |
+| `task-20260222-102150-iteration-loop-cli` | `run-agent iterate` implemented (via r3 revision) |
 
 ---
 
