@@ -19,8 +19,7 @@ Conductor Loop looks for configuration in this order:
 agents:
   codex:
     type: codex
-    token: sk-xxxxx                           # Direct token (not recommended)
-    token_file: /secrets/codex.token          # Token from file (recommended)
+    token_file: /secrets/codex.token          # Token from file (recommended; never use inline token)
     timeout: 300                              # Agent timeout in seconds
 
   claude:

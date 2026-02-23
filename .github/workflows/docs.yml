@@ -8,14 +8,14 @@ jobs:
   hugo-docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Build docs via Docker
         run: |
           DOCKER_UID="$(id -u)" DOCKER_GID="$(id -g)" ./scripts/docs.sh build
       - name: Verify generated docs artifacts and links
         run: ./scripts/docs.sh verify
       - name: Upload docs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: docs-site
           path: website/public

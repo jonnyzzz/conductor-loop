@@ -7,7 +7,7 @@ RUN go mod download
 COPY . .
 RUN go build -o /run-agent ./cmd/run-agent
 
-FROM alpine:latest
+FROM alpine:3.21
 
 # Install runtime dependencies
 RUN apk add --no-cache bash curl jq
