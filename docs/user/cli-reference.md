@@ -899,6 +899,44 @@ All tasks completed.
 
 ---
 
+#### `conductor monitor`
+
+Monitor tasks defined in a markdown list (e.g., `TODOs.md`), automatically starting missing tasks and resuming failed ones.
+
+```bash
+conductor monitor --project PROJECT [--todos PATH] [--agent AGENT] [--interval DURATION] [--stale-threshold DURATION] [--rate-limit DURATION] [--server URL]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server` | string | "http://localhost:14355" | Conductor server URL |
+| `--project` | string | "" | Project ID (required) |
+| `--todos` | string | "TODOs.md" | Path to the markdown file defining tasks |
+| `--agent` | string | "claude" | Agent to use for new tasks |
+| `--interval` | duration | 10s | Monitoring loop interval |
+| `--stale-threshold` | duration | 5m | Restart tasks with no output activity for this duration |
+| `--rate-limit` | duration | 1m | Minimum interval between resumes for a single task |
+
+**Behavior:**
+- **Start missing tasks:** Reads unchecked items (`- [ ] task-ID: description`) from the TODOs file. If a task ID doesn't exist on the server, it creates and starts it using the description as the prompt (default agent: `claude`, or as specified by `--agent`).
+- **Auto-finalize:** If a task in the TODOs file is unchecked but its latest run completed successfully with non-empty output, the command marks it as DONE in the system (stops runs and writes DONE file) and updates the TODOs file to mark it as checked (`- [x]`).
+- **Resume failed tasks:** If a task is `failed`, `error`, or `stopped` (and not checked in TODOs), it attempts to resume it. Resumes are rate-limited to avoid tight failure loops.
+- **Recover stale tasks:** If a task is `running` but has had no activity (output/logs) for longer than `--stale-threshold`, it is stopped and resumed.
+
+**Example:**
+```bash
+# Monitor tasks in TODOs.md for 'my-project'
+conductor monitor --project my-project
+
+# Use a different file and faster interval
+conductor monitor --project my-project --todos ./planning/PHASE_1.md --interval 5s
+
+# Adjust stale detection for slow-output tasks
+conductor monitor --project my-project --stale-threshold 15m
+```
+
+---
+
 #### `conductor version`
 
 Print version information.
@@ -1901,6 +1939,59 @@ JSON output with activity (`--activity --json`) adds a stable `activity` object 
     }
   ]
 }
+```
+
+---
+
+#### `run-agent monitor`
+
+Monitor unchecked task IDs in a TODOs.md file and automatically manage their lifecycle: start missing tasks, resume failed runs, recover stale running tasks, and finalize completed ones.
+
+```bash
+run-agent monitor --project PROJECT [flags]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--project` | string | "" | Project ID (required) |
+| `--root` | string | "./runs" | Run-agent root directory (or `RUNS_DIR` env) |
+| `--todo` | string | "TODOs.md" | Path to the TODOs.md file |
+| `--agent` | string | "" | Agent type for starting/resuming tasks (e.g. `claude`) |
+| `--config` | string | "" | Config file path (auto-discovered if not set) |
+| `--cwd` | string | "" | Working directory for agent jobs |
+| `--interval` | duration | 30s | Polling interval for daemon mode |
+| `--stale-after` | duration | 20m | Mark a running task stale when output is silent for this duration |
+| `--rate-limit` | duration | 2s | Minimum delay between successive start/resume actions |
+| `--dry-run` | bool | false | Report planned actions without executing them |
+| `--once` | bool | false | Run a single monitoring pass and exit (default: daemon mode) |
+
+**Actions per task:**
+
+| Action | Condition | Effect |
+|--------|-----------|--------|
+| `start` | Task has no runs yet | Creates task directory and TASK.md if needed, then launches a new job |
+| `resume` | Latest run failed, or run shows `running` but process is dead | Launches a new job |
+| `recover` | Running task with PID alive but output silent beyond `--stale-after` | Stops the task (SIGKILL), then launches a new job |
+| `finalize` | Completed run with non-empty `output.md` | Creates the `DONE` marker and checks off the item in the TODOs file |
+| `skip` | Task is DONE, actively running, or blocked | No action taken |
+
+**TODOs.md format:** Any unchecked markdown list item (`- [ ] ...`) containing a valid task ID in the standard format (`task-YYYYMMDD-HHMMSS-slug`) is tracked. Checked items (`- [x] ...`) and lines without task IDs are ignored.
+
+**Examples:**
+```bash
+# Dry-run: see what actions would be taken for project tasks
+run-agent monitor --project my-project --dry-run --once
+
+# Single pass to start/resume tasks (e.g., in a cron job)
+run-agent monitor --project my-project --agent claude --root ./runs --once
+
+# Daemon mode: poll every 2 minutes, detect stale tasks after 15 minutes
+run-agent monitor --project my-project --agent claude \
+  --interval 2m --stale-after 15m
+
+# Use a custom TODOs file with a faster stale threshold
+run-agent monitor --project my-project --agent claude \
+  --todo ./planning/sprint1.md --stale-after 10m --rate-limit 5s
 ```
 
 ---
