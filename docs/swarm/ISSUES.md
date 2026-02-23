@@ -22,3 +22,4 @@
 ## Backlog
 
 - [Post-MVP] xAI backend integration: Configure OpenCode to use xAI models. Provide a run-agent adapter that passes model/provider flags to OpenCode based on config.hcl. (Source: subsystem-agent-backend-xai-QUESTIONS.md)
+- [Planned] Devrig release/update simplification: implement a deterministic "always latest" updater path using GitHub Releases as source of truth and `run-agent.jonnyzzz.com` as controlled download endpoint, while preserving signature/hash verification. Task spec: `tasks/TASK-20260221-devrig-release-update-simplification.md`.
