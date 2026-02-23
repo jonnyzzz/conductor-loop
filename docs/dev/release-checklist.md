@@ -4,7 +4,7 @@ This checklist is for maintainers preparing release candidates and final release
 
 ## Shell Installer Validation (Required)
 
-`install.sh` must be validated against concrete release artifacts before publishing.
+Both `install.sh` (Unix) and `run-agent.cmd` (Windows) must be validated against concrete release artifacts before publishing.
 
 ### Current Assumptions (Audited)
 
@@ -22,7 +22,11 @@ This checklist is for maintainers preparing release candidates and final release
 Use release candidate artifacts in `dist/` and run:
 
 ```bash
+# Unix (install.sh)
 bash scripts/smoke-install-release.sh --dist-dir dist --install-script install.sh
+
+# Windows (run-agent.cmd) - Manual verification required or use a Windows VM
+# Ensure run-agent.cmd can download/update the binary from the staging/dist location.
 ```
 
 If `dist/run-agent-<os>-<arch>` is missing, the smoke script now auto-builds it

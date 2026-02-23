@@ -1,99 +1,103 @@
-# Monitoring & Control UI Subsystem
+# Monitoring UI Subsystem
 
 ## Overview
-A TypeScript + React web UI for observing and controlling the agent swarm. It is served by the run-agent Go binary (`run-agent serve`; embedded static assets) and uses the same backend to read the filesystem layout and message bus streams. The UI can target one backend host at a time (localhost by default), with optional host profiles for future multi-host support.
+The monitoring UI is implemented in `frontend/` and served by the backend API server.
+It provides project/task/run navigation, message bus interaction, live logs, and task start/resume controls.
 
-## Goals
-- Visualize project -> task -> run hierarchies from the disk layout.
-- Display message bus activity in near real-time and allow posting USER/ANSWER messages.
-- Show agent output and prompt artifacts per run.
-- Provide a guided "Start New Task" flow with draft persistence in local storage.
-- Support selecting a backend host (single active host; no cross-host aggregation).
+Primary implementation:
+- `frontend/src/main.tsx`
+- `frontend/src/App.tsx`
+- `frontend/src/components/*`
+- `frontend/src/hooks/*`
 
-## Non-Goals
-- Remote multi-user access or authentication (localhost only for MVP).
-- Editing task or run files directly in the UI.
-- Full IDE features.
-- Cross-project full-text search across messages and outputs.
-- Aggregating data from multiple hosts into a single tree (choose one host at a time).
+## Stack
+- React 18 (`react`, `react-dom`)
+- JetBrains Ring UI (`@jetbrains/ring-ui-built`)
+- Vite build/dev pipeline
+- TypeScript
+- React Query (`@tanstack/react-query`)
+- SSE via browser `EventSource`
 
-## UX Requirements
-- Use JetBrains Ring UI as the base UX framework.
-- Use JetBrains Mono for all text.
-- Default layout uses a two-row split.
-- Top row columns: tree view (~1/3 width), message bus view (~1/5 width), detail panel fills the remaining width.
-- Bottom row: combined output viewer across full width with per-agent color coding.
-- Responsive layout for small screens (stacked panels).
+Styling:
+- Ring UI styles + custom CSS in `frontend/src/index.css`
+- JetBrains Mono font configured via CSS variables
 
-## Screens / Views
-### 1) Dashboard (Projects)
-- Root nodes are projects.
-- Each project expands to project message bus, facts, and tasks.
-- Projects ordered by last activity (most recent first), with alphabetical tiebreakers.
-- Shows the active backend host label in the header.
+## Runtime Integration
+- Backend serves UI assets from `frontend/dist` when present.
+- Fallback is embedded assets from `web/`.
+- Default backend host/port is `0.0.0.0:14355` (UI navigates via `/ui/`).
 
-### 2) Task View
-- Shows TASK_STATE.md (read-only).
-- Shows task-level message bus (threaded view plus compose box).
-- Lists runs sorted by time.
-- Shows FACT files (read-only).
-- Provides a "Start Again" action for restarting the task (Ralph loop).
+## Main UI Structure
+`App.tsx` uses a 2-column layout:
+1. Left: tree/navigation panel.
+2. Right: task-centric panel with tabs:
+- `Task details`
+- `Message bus`
+- `Live logs`
 
-### 3) Run Detail
-- Default view shows output.md; raw stdout/stderr are available via toggle.
-- Prompt, stdout, stderr, and metadata are accessible from the same view.
-- Link to parent run.
-- Show restart chain via previous_run_id (Ralph loop history).
-- Raw stdout/stderr are merged chronologically with per-run color coding.
+Responsive behavior collapses to a single column for narrower viewports.
 
-### 4) Start New Task
-- Select existing project or type a new one.
-- If new project, prompt for source code folder (presets from config; expand `~` and env vars).
-- Create task id or pick existing.
-- If task id already exists: prompt to attach/restart (default) or create new with timestamp suffix.
-- Prompt editor with autosave; drafts are stored in local storage keyed by host + project + task.
-- On submit, create project/task directories, write TASK.md, and invoke `run-agent task` via backend API (no shell scripts).
+## Implemented Capabilities
 
-## Data Sources
-- Filesystem layout under `~/run-agent` (see Storage subsystem).
-- Message bus streams from run-agent backend (SSE preferred; WS optional).
+### Project/Task/Run Tree
+- Displays projects, tasks, and runs with status markers.
+- Supports selecting project/task/run context.
+- Supports creating projects and starting tasks from dialog flows (`TreePanel`).
+- Uses project flat-run graph endpoint for efficient tree refresh.
 
-## Backend API Expectations (MVP)
-- `run-agent serve` exposes REST/JSON endpoints for listing projects, tasks, and runs.
-- `run-agent serve` exposes message bus endpoints (POST + SSE stream).
-- `run-agent serve` exposes a task-start endpoint that mirrors `run-agent task`.
-- File read endpoints: backend controls allowed paths (no client-specified paths; prevents traversal attacks).
-- Log streaming: single SSE endpoint streams all relevant files line-by-line with clear header messages for each file/run; includes new runs automatically.
-- API contract: REST/JSON + SSE; integration tests verify TypeScript can consume the API; consider OpenAPI spec generation for automated type sync.
+### Task Details and Run Artifacts
+- Shows task summary/state, run metadata, restart hints.
+- Supports run stop action and task resume action.
+- Reads task file (`TASK.md`) and run files (`output.md`, `stdout`, `stderr`, `prompt`) through backend endpoints.
+- Uses polling + SSE stream for active run file views.
 
-## Message Bus UI
-- Show most recent entries as header-only; click to expand.
-- Threaded view using parents[] links.
-- Post USER/ANSWER entries via the backend (UI does not write files directly).
-- Render message bodies and prompts as plain text in MVP (no Markdown rendering).
-- Render attachment_path as a link/button to load the file via backend.
+### Message Bus View
+- Streams bus events via SSE.
+- Falls back to periodic REST refresh when stream is not healthy.
+- Supports project-scope and task-scope message views.
+- Supports posting new messages to project/task buses.
+- Supports message filtering and threaded answer/task workflows.
 
-## Output & Logs
-- Live streaming via SSE (WebSocket optional); 2s polling fallback.
-- Single SSE endpoint streams all files line-by-line with header messages for each file and run; no per-run filtering (client-side filtering only).
-- Default tail size: last 1MB or 5k lines; "Load more" fetches older chunks.
-- stdout/stderr merged chronologically with stream tags and color coding; quick filter toggle to isolate stderr.
-- output.md is the default render target; raw logs are secondary.
+### Live Logs View
+- Consumes task run log SSE stream.
+- Supports stream filters (`all`, `stdout`, `stderr`), run-id filter, search, export.
+- Shows stream health/reconnect state from SSE hook.
 
-## Status & Indicators
-- Semaphore-style status badges for each run.
-- Stuck detection uses N = stuck threshold from runner config (default 15m); warn after N/2 minutes of silence and mark/kick after N minutes.
-- Status is derived by the backend from run metadata + message bus events (2s refresh); UI displays the computed state.
+## API Surface Used by UI
+Primary endpoints currently consumed:
+- `GET /api/v1/version`
+- `GET /api/projects`
+- `POST /api/projects`
+- `GET /api/projects/home-dirs`
+- `GET /api/projects/{project_id}`
+- `GET /api/projects/{project_id}/tasks`
+- `GET /api/projects/{project_id}/tasks/{task_id}`
+- `POST /api/v1/tasks`
+- `POST /api/projects/{project_id}/tasks/{task_id}/resume`
+- `POST /api/projects/{project_id}/tasks/{task_id}/runs/{run_id}/stop`
+- `GET /api/projects/{project_id}/tasks/{task_id}/file`
+- `GET /api/projects/{project_id}/tasks/{task_id}/runs/{run_id}/file`
+- `GET /api/projects/{project_id}/tasks/{task_id}/runs/{run_id}/stream`
+- `GET /api/projects/{project_id}/runs/flat`
+- `GET /api/projects/{project_id}/stats`
+- `GET|POST /api/projects/{project_id}/messages`
+- `GET /api/projects/{project_id}/messages/stream`
+- `GET|POST /api/projects/{project_id}/tasks/{task_id}/messages`
+- `GET /api/projects/{project_id}/tasks/{task_id}/messages/stream`
+- `GET /api/projects/{project_id}/tasks/{task_id}/runs/stream`
 
-## Error States
-- Missing project or task folders: show warning and refresh option.
-- Permission errors: show blocking banner.
-- Backend host unreachable: show connection banner and allow host switch.
+## Streaming Model
+- SSE is the primary live-update mechanism.
+- `useSSE` tracks states: `disabled`, `connecting`, `open`, `reconnecting`, `error`.
+- WebSocket hook exists as placeholder only (`useWebSocket`), not primary transport.
 
-## Performance
-- Prefer filesystem watchers; fall back to polling.
-- Avoid re-reading entire logs on each refresh (tail only).
+## Current Non-Goals / Limits
+- No multi-host aggregation in one view.
+- No direct filesystem writes from browser.
+- No Markdown rendering pipeline for messages by default (plain text/structured display in components).
+- No browser-side destructive delete actions (backend blocks UI-origin destructive operations).
 
-## Notes
-- UI is read-only for run controls in MVP; stop/kill actions can be added later.
-- Web UI assumes a single backend host at a time (localhost by default).
+## Drift Corrections Applied
+- UI stack is `React + Ring UI + Vite` (not webpack-based).
+- Canonical backend default port is `14355` (not `8080`).
+- Message bus interactions use `/messages` endpoints.

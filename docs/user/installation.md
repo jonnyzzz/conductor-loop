@@ -1,542 +1,208 @@
 # Installation Guide
 
-This guide covers installing Conductor Loop on macOS, Linux, and Windows.
+This guide is aligned with current facts, `install.sh`, and live CLI help output.
 
 ## Prerequisites
 
-Before installing Conductor Loop, ensure you have:
+- Go `1.24.0` or newer (required for source builds; see `go.mod`)
+- Git (for source checkout)
+- One configured agent token (for real task execution)
 
-- **Go 1.21+**: [Download Go](https://go.dev/dl/) (required for source builds)
-- **Git**: Any recent version
-- **Docker** (optional): For containerized deployment
-- **API Tokens**: For your chosen AI agents (Claude, Codex, Gemini, etc.)
+Optional:
 
-### Verify Prerequisites
+- `curl` or `wget` (installer download)
+- Docker (container deployment)
 
-```bash
-# Check Go version
-go version  # Should be 1.21 or higher
+## Option 1: Install `run-agent` from Latest Release (Recommended)
 
-# Check Git
-git --version
-
-# Check Docker (optional)
-docker --version
-docker-compose --version
-```
-
-## Installation Methods
-
-### Option 1: Install/Update `run-agent` from Latest Release
+From repo root:
 
 ```bash
-curl -fsSL https://run-agent.jonnyzzz.com/install.sh | bash
+./install.sh
 ```
 
-The installer:
-- Detects your OS/arch (Linux/macOS)
-- Downloads from `https://run-agent.jonnyzzz.com/releases/latest/download` first
-- Falls back to GitHub release assets if mirror download fails
-- Preserves explicit `/releases/download/<tag>` pinned bases
-- Verifies `<asset>.sha256` checksums before install/update
-- Installs to `/usr/local/bin/run-agent` by default
+`install.sh` defaults:
 
-Optional overrides:
+- mirror base: `https://run-agent.jonnyzzz.com/releases/latest/download`
+- fallback base: `https://github.com/jonnyzzz/conductor-loop/releases/latest/download`
+- install dir: `/usr/local/bin`
+
+Supported overrides:
+
+- `RUN_AGENT_DOWNLOAD_BASE`
+- `RUN_AGENT_FALLBACK_DOWNLOAD_BASE`
+- `RUN_AGENT_INSTALL_DIR`
+
+Example:
 
 ```bash
-RUN_AGENT_INSTALL_DIR="$HOME/.local/bin" \
-RUN_AGENT_DOWNLOAD_BASE="https://run-agent.jonnyzzz.com/releases/latest/download" \
-RUN_AGENT_FALLBACK_DOWNLOAD_BASE="https://github.com/jonnyzzz/conductor-loop/releases/latest/download" \
-curl -fsSL https://run-agent.jonnyzzz.com/install.sh | bash
+RUN_AGENT_INSTALL_DIR="$HOME/.local/bin" ./install.sh
 ```
 
-#### Maintainer Release Validation
+Integrity:
 
-For release candidates, validate installer behavior against concrete artifacts before publishing:
+- Installer downloads `<asset>` and `<asset>.sha256`
+- Verifies SHA-256 before installation
 
-```bash
-bash scripts/smoke-install-release.sh --dist-dir dist --install-script install.sh
-```
-
-If the platform asset is missing from `dist/`, the smoke script auto-builds it
-from `./cmd/run-agent`. Pass `--no-build` to enforce prebuilt-only validation.
-
-This smoke check verifies:
-- install from latest mirror URL
-- update when latest asset changes
-- fallback to secondary download base
-- URL normalization for `/releases`, `/releases/download`, and `/releases/latest/download`
-- pinned `/releases/download/<tag>` bases remain pinned
-- checksum mismatch fails before replacing the installed binary
-
-### Option 2: Build from Source
-
-#### 1. Clone the Repository
+## Option 2: Build from Source
 
 ```bash
 git clone https://github.com/jonnyzzz/conductor-loop.git
 cd conductor-loop
+
+go build -o ./bin/run-agent ./cmd/run-agent
+go build -o ./bin/conductor ./cmd/conductor
 ```
 
-#### 2. Build the Binaries
+Verify:
 
 ```bash
-# Build the main conductor server
-go build -o conductor ./cmd/conductor
-
-# Build the run-agent binary
-go build -o run-agent ./cmd/run-agent
-
-# Verify the build
-./conductor version
-./run-agent --version
+./bin/run-agent --version
+./bin/conductor --version
 ```
 
-#### 3. Install System-Wide (Optional)
+## Windows Launcher (`run-agent.cmd`)
+
+`run-agent.cmd` resolves the runtime binary in this order:
+
+1. `RUN_AGENT_BIN`
+2. sibling binary (`run-agent` or `run-agent.exe`)
+3. `dist/run-agent-<os>-<arch>` (or Windows `dist\run-agent-windows-<arch>.exe`)
+4. PATH lookup (`run-agent`, unless `RUN_AGENT_CMD_DISABLE_PATH=1`)
+
+## Initial Configuration
+
+Create config directory:
 
 ```bash
-# macOS/Linux
-sudo mv conductor /usr/local/bin/
-sudo mv run-agent /usr/local/bin/
-
-# Or add to PATH
-export PATH=$PATH:$(pwd)
+mkdir -p ~/.config/conductor
+mkdir -p ~/.config/conductor/tokens
 ```
 
-#### 4. Set Up Configuration
+Create token file(s):
 
 ```bash
-# Create configuration directory
-mkdir -p ~/.conductor
-
-# Create a basic config file
-cat > ~/.conductor/config.yaml <<EOF
-agents:
-  codex:
-    type: codex
-    token_file: ~/.conductor/tokens/codex.token
-    timeout: 300
-  claude:
-    type: claude
-    token_file: ~/.conductor/tokens/claude.token
-    timeout: 300
-
-defaults:
-  agent: codex
-  timeout: 300
-
-api:
-  host: 0.0.0.0
-  port: 14355
-  cors_origins:
-    - http://localhost:3000
-
-storage:
-  runs_dir: ~/.conductor/runs
-EOF
-
-# Create tokens directory
-mkdir -p ~/.conductor/tokens
-
-# Add your API tokens (replace with your actual tokens)
-echo "your-codex-token-here" > ~/.conductor/tokens/codex.token
-echo "your-claude-token-here" > ~/.conductor/tokens/claude.token
-chmod 600 ~/.conductor/tokens/*.token
+echo "<your-token>" > ~/.config/conductor/tokens/codex.token
+chmod 600 ~/.config/conductor/tokens/codex.token
 ```
 
-#### 5. Start with Startup Wrappers (Recommended)
-
-```bash
-# Full server (task execution enabled)
-./scripts/start-conductor.sh --config ~/.conductor/config.yaml --root ~/.conductor/runs
-
-# Monitor-only mode (read-only API/UI)
-./scripts/start-run-agent-monitor.sh --config ~/.conductor/config.yaml --root ~/.conductor/runs
-
-# Background mode with PID/log files
-./scripts/start-conductor.sh --background --config ~/.conductor/config.yaml --root ~/.conductor/runs
-
-# Smoke-check startup wrappers
-go test ./test/integration -run StartupScript -count=1
-```
-
-### Option 3: Docker Deployment
-
-#### Using Docker Compose
-
-```bash
-# Clone the repository
-git clone https://github.com/jonnyzzz/conductor-loop.git
-cd conductor-loop
-
-# Create secrets directory
-mkdir -p secrets
-echo "your-codex-token" > secrets/codex.token
-echo "your-claude-token" > secrets/claude.token
-chmod 600 secrets/*.token
-
-# Start with docker-compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop the services
-docker-compose down
-```
-
-The docker-compose setup includes:
-- Conductor server on port 14355
-- Frontend on port 3000
-- Persistent storage volumes
-
-#### Manual Docker Build
-
-```bash
-# Build the Docker image
-docker build -t conductor-loop:latest .
-
-# Run the container
-docker run -d \
-  -p 14355:14355 \
-  -v $(pwd)/config.yaml:/app/config.yaml \
-  -v $(pwd)/secrets:/secrets \
-  -v $(pwd)/runs:/data/runs \
-  --name conductor \
-  conductor-loop:latest
-```
-
-### Option 4: Download Pre-built Binaries Manually
-
-Release binaries are available on the GitHub releases page:
-
-- https://github.com/jonnyzzz/conductor-loop/releases
-
-## Platform-Specific Notes
-
-### macOS
-
-#### Apple Silicon (M1/M2/M3)
-
-Go cross-compilation works natively on Apple Silicon:
-
-```bash
-# Build for ARM64 (native)
-go build -o conductor ./cmd/conductor
-
-# Build for x86_64 (Rosetta)
-GOARCH=amd64 go build -o conductor ./cmd/conductor
-```
-
-#### Permissions
-
-macOS may block unsigned binaries. If you see a security warning:
-
-```bash
-# Remove quarantine attribute
-xattr -d com.apple.quarantine conductor
-xattr -d com.apple.quarantine run-agent
-```
-
-Or: System Preferences → Security & Privacy → Allow anyway
-
-### Linux
-
-#### Common Distributions
-
-Works on all major distributions:
-- Ubuntu 20.04+
-- Debian 11+
-- Fedora 35+
-- CentOS 8+
-- Arch Linux
-
-#### Systemd Service (Optional)
-
-Create a systemd service for automatic startup:
-
-```bash
-sudo tee /etc/systemd/system/conductor.service > /dev/null <<EOF
-[Unit]
-Description=Conductor Loop Orchestration Server
-After=network.target
-
-[Service]
-Type=simple
-User=conductor
-WorkingDirectory=/opt/conductor
-ExecStart=/usr/local/bin/conductor --config /etc/conductor/config.yaml --root /opt/conductor
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Enable and start
-sudo systemctl enable conductor
-sudo systemctl start conductor
-sudo systemctl status conductor
-```
-
-### Windows
-
-#### Windows Launcher (`run-agent.cmd`)
-
-Release assets include a single-file `run-agent.cmd` launcher (no external `.ps1` sidecar).
-It resolves the executable in this order:
-
-1. `RUN_AGENT_BIN` environment variable (explicit override)
-2. `run-agent.exe` next to `run-agent.cmd`
-3. `dist\\run-agent-windows-<arch>.exe` next to `run-agent.cmd`
-4. `run-agent.exe` / `run-agent` from `PATH` (unless `RUN_AGENT_CMD_DISABLE_PATH=1`)
-
-Typical startup flow:
-
-```powershell
-# Download release assets into one folder:
-# - run-agent.cmd
-# - run-agent-windows-amd64.exe (or arm64 variant)
-
-.\run-agent.cmd --version
-.\run-agent.cmd serve --root C:\conductor-data
-```
-
-Explicit binary override:
-
-```powershell
-$env:RUN_AGENT_BIN = "C:\tools\run-agent.exe"
-.\run-agent.cmd status --root C:\conductor-data
-```
-
-#### Build on Windows
-
-```powershell
-# Using PowerShell
-go build -o conductor.exe .\cmd\conductor
-go build -o run-agent.exe .\cmd\run-agent
-
-# Run
-.\conductor.exe --version
-```
-
-#### Windows Paths
-
-Use Windows-style paths in config.yaml:
+Create `~/.config/conductor/config.yaml`:
 
 ```yaml
 agents:
   codex:
-    token_file: C:\Users\YourName\.conductor\tokens\codex.token
+    type: codex
+    token_file: ~/.config/conductor/tokens/codex.token
+
+defaults:
+  agent: codex
+  timeout: 300
+  max_concurrent_runs: 4
+  max_concurrent_root_tasks: 2
+
+api:
+  host: 0.0.0.0
+  port: 14355
 
 storage:
-  runs_dir: C:\Users\YourName\.conductor\runs
+  runs_dir: ./runs
 ```
 
-#### Running as a Windows Service (Optional)
+Important:
 
-Use [NSSM](https://nssm.cc/) to run as a service:
+- `~/.conductor/config.yaml` is stale; use `~/.config/conductor/config.yaml`.
+- Per-agent `timeout` is not part of the runtime schema.
 
-```powershell
-# Install NSSM
-choco install nssm
-
-# Create service
-nssm install Conductor "C:\Path\To\conductor.exe"
-nssm set Conductor AppParameters "--config C:\Path\To\config.yaml"
-nssm start Conductor
-```
-
-## Verifying Installation
-
-### Check Binary Versions
+## Validate Installation
 
 ```bash
-conductor version
-run-agent --version
+run-agent --help
+run-agent validate --config ~/.config/conductor/config.yaml
+run-agent validate --config ~/.config/conductor/config.yaml --check-tokens
 ```
 
-```powershell
-.\run-agent.cmd --version
-```
+## Start the Server
 
-### Optional: Enable Wrapped Shell Aliases (Safe Opt-In)
-
-If you want `claude`, `codex`, and `gemini` terminal calls to be tracked automatically as
-Conductor tasks/runs, install shell aliases explicitly:
+### `run-agent serve` (default port `14355`)
 
 ```bash
-run-agent shell-setup install
+run-agent serve --config ~/.config/conductor/config.yaml --root ./runs
 ```
 
-This only edits your shell init file when you run it. It writes a managed block so it can be
-removed cleanly later:
+### `conductor` current binary (default port `8080`)
 
 ```bash
-run-agent shell-setup uninstall
+./bin/conductor --config ~/.config/conductor/config.yaml --root ./runs
 ```
 
-### Test the Server
+Port note:
+
+- `run-agent serve` default: `14355`
+- current `./bin/conductor` default: `8080`
+
+If you want explicit consistency, pass `--port` explicitly.
+
+## Smoke Test
+
+Start one task (Ralph loop):
 
 ```bash
-# Start the server (foreground)
-./scripts/start-conductor.sh --config ~/.conductor/config.yaml --root ~/.conductor/runs
-
-# Start monitor-only mode in background
-./scripts/start-run-agent-monitor.sh \
-  --config ~/.conductor/config.yaml \
-  --root ~/.conductor/runs \
-  --background
-
-# In another terminal, test the health endpoint
-curl http://localhost:14355/api/v1/health
-
-# Expected output:
-# {"status":"ok","version":"dev"}
+run-agent task \
+  --project demo \
+  --task task-20260223-000000-hello \
+  --agent codex \
+  --prompt "Write a short hello-world output" \
+  --config ~/.config/conductor/config.yaml \
+  --root ./runs
 ```
 
-Common overrides:
+Inspect status/output:
 
 ```bash
-# Change host/port for either script
-CONDUCTOR_HOST=0.0.0.0 CONDUCTOR_PORT=15455 ./scripts/start-conductor.sh
-RUN_AGENT_MONITOR_HOST=0.0.0.0 RUN_AGENT_MONITOR_PORT=15456 ./scripts/start-run-agent-monitor.sh
+run-agent status --project demo --root ./runs
+run-agent output --project demo --task task-20260223-000000-hello --root ./runs
 ```
 
-### Run a Test Task
+## Troubleshooting
+
+### Go version too old
 
 ```bash
-# Create a test task via the API
-curl -X POST http://localhost:14355/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent": "codex",
-    "prompt": "Print hello world",
-    "working_dir": "/tmp"
-  }'
-
-# Check the runs
-curl http://localhost:14355/api/v1/runs
-```
-
-## Upgrading
-
-### From Source
-
-```bash
-cd conductor-loop
-git pull origin main
-go build -o conductor ./cmd/conductor
-go build -o run-agent ./cmd/run-agent
-```
-
-### Docker
-
-```bash
-# Pull latest image
-docker-compose pull
-
-# Restart services
-docker-compose up -d
-```
-
-## Uninstalling
-
-### Remove Binaries
-
-```bash
-# If installed system-wide
-sudo rm /usr/local/bin/conductor
-sudo rm /usr/local/bin/run-agent
-
-# Or just delete the cloned repository
-rm -rf ~/conductor-loop
-```
-
-### Remove Configuration and Data
-
-```bash
-# Remove config and runs
-rm -rf ~/.conductor
-
-# Docker: remove volumes
-docker-compose down -v
-```
-
-## Troubleshooting Installation Issues
-
-### Go Version Too Old
-
-```bash
-# Check version
 go version
-
-# Upgrade Go
-# macOS: brew upgrade go
-# Linux: download from go.dev
-# Windows: download from go.dev
 ```
 
-### Build Errors
+Use Go `1.24.0+`.
+
+### Port already in use
+
+Check ports:
 
 ```bash
-# Clean and rebuild
-go clean -cache
-go mod tidy
-go build -o conductor ./cmd/conductor
-```
-
-### Port Already in Use
-
-```bash
-# Find process using port 14355
-# macOS/Linux:
 lsof -i :14355
-kill -9 <PID>
-
-# Windows:
-netstat -ano | findstr :14355
-taskkill /PID <PID> /F
-
-# Or change port in config.yaml
-api:
-  port: 8081
+lsof -i :8080
 ```
 
-### Permission Denied (Linux)
+Then either stop the conflicting process or start with a different `--port`.
 
-```bash
-# Make binaries executable
-chmod +x conductor run-agent
+### Config not found
 
-# Fix token file permissions
-chmod 600 ~/.conductor/tokens/*.token
-```
+Check discovery locations:
 
-### Docker Build Fails
+- `./config.yaml`
+- `./config.yml`
+- `./config.hcl`
+- `~/.config/conductor/config.yaml`
+- `~/.config/conductor/config.yml`
+- `~/.config/conductor/config.hcl`
 
-```bash
-# Clear Docker cache
-docker system prune -a
+### Invalid config field errors
 
-# Rebuild without cache
-docker-compose build --no-cache
-```
+Common cause: old docs/examples using `agents.<name>.timeout`.
+
+Remove per-agent timeout and keep timeout under `defaults.timeout`.
 
 ## Next Steps
 
-- [Quick Start Guide](quick-start.md) - Run your first task
-- [Configuration Reference](configuration.md) - Configure agents and settings
-- [CLI Reference](cli-reference.md) - Learn all commands
-
-## Getting Help
-
-If you encounter issues:
-
-1. Check [Troubleshooting Guide](troubleshooting.md)
-2. Search [GitHub Issues](https://github.com/jonnyzzz/conductor-loop/issues)
-3. Open a new issue with:
-   - Operating system and version
-   - Go version (`go version`)
-   - Error messages
-   - Steps to reproduce
+- [Quick Start](quick-start.md)
+- [Configuration](configuration.md)
+- [CLI Reference](cli-reference.md)

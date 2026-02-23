@@ -2,7 +2,7 @@
 
 Date: 2026-02-21
 Owner: coordinator/backlog planning
-Status: proposed
+Status: Partially Implemented (v1)
 
 ## Audit Scope
 
@@ -27,7 +27,9 @@ Current CLI coverage is good for single-command operations (`job submit`, `watch
 
 ---
 
-## FR-001: Goal Decomposition Command
+## FR-001: Goal Decomposition Command (Implemented)
+
+**Status: DONE (v1)** - Implemented as `conductor goal decompose`.
 
 ### Problem statement
 
@@ -120,7 +122,9 @@ conductor job submit-batch --project my-project --spec ./workflow/goal-20260221.
 
 ---
 
-## FR-003: Stage Workflow Runner (THE_PROMPT_v5)
+## FR-003: Stage Workflow Runner (Implemented)
+
+**Status: DONE (v1)** - Implemented as `run-agent workflow run` / `conductor workflow run`.
 
 ### Problem statement
 
@@ -165,7 +169,9 @@ conductor workflow run --project my-project --task task-20260221-goal --template
 
 ---
 
-## FR-004: Child Output Synthesis Command
+## FR-004: Child Output Synthesis Command (Not Yet Implemented)
+
+**Status: NOT YET IMPLEMENTED** - `run-agent output synthesize` does not exist. Use manual pattern below.
 
 ### Problem statement
 
@@ -211,7 +217,9 @@ conductor task synthesize --project my-project --task task-20260221-goal --strat
 
 ---
 
-## FR-005: Review Quorum Command
+## FR-005: Review Quorum Command (Not Yet Implemented)
+
+**Status: NOT YET IMPLEMENTED** - `run-agent review quorum` does not exist. Use manual pattern below.
 
 ### Problem statement
 
@@ -259,7 +267,9 @@ run-agent review quorum --project my-project --task task-20260221-goal --quorum 
 
 ---
 
-## FR-006: Iteration Loop Command (Planning + Review)
+## FR-006: Iteration Loop Command (Planning + Review) (Not Yet Implemented)
+
+**Status: NOT YET IMPLEMENTED** - `run-agent iterate` does not exist (`unknown command "iterate"`). Use manual loop pattern below.
 
 ### Problem statement
 

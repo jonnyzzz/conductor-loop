@@ -1,5 +1,7 @@
 # Safe Self-Update While Tasks Are Running
 
+**Note:** This document describes the *server* self-update mechanism (API-driven) used when the conductor binary is running as a long-lived service. For client-side updates (CLI usage), the Unified Bootstrap scripts (`install.sh` and `run-agent.cmd`) handle version resolution, verification, and updates before launching the binary.
+
 This document defines the server self-update behavior implemented by:
 
 - `POST /api/v1/admin/self-update`

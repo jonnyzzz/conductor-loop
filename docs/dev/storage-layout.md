@@ -48,33 +48,34 @@ The storage layer manages persistent run metadata using a file-based storage sys
 ### Complete Directory Tree
 
 ```
-{storage_root}/                           # Default: ~/run-agent
-├── config.hcl                            # Global configuration (not in storage layer)
+{storage_root}/                           # Configured via --root, CONDUCTOR_ROOT env, or storage.runs_dir
+├── config.yaml  (or config.hcl)          # Global configuration (YAML checked first)
 │
 ├── {project_id}/                         # Project root directory
-│   ├── PROJECT-MESSAGE-BUS.md            # Project-level message bus
+│   ├── PROJECT-MESSAGE-BUS.md            # Project-level message bus (append-only)
 │   ├── home-folders.md                   # Project folder configuration
 │   ├── FACT-{timestamp}-{name}.md        # Project-level facts
 │   │
-│   └── {task_id}/                        # Task directory
+│   └── {task_id}/                        # Task directory (pattern: task-YYYYMMDD-HHMMSS-slug)
+│       ├── TASK.md                       # Task prompt
 │       ├── TASK_STATE.md                 # Current task state (updated by root agent)
 │       ├── DONE                          # Completion marker (empty file)
-│       ├── messagebus.yaml               # Task-level message bus
+│       ├── TASK-MESSAGE-BUS.md           # Task-level message bus (append-only)
 │       ├── TASK-FACTS-{timestamp}.md     # Task-level facts
 │       ├── ATTACH-{timestamp}-{name}.ext # Task attachments
 │       │
 │       └── runs/                         # All runs for this task
 │           ├── {run_id_1}/               # Individual run directory
 │           │   ├── run-info.yaml         # Run metadata (YAML)
-│           │   ├── stdout                # Agent stdout
-│           │   ├── stderr                # Agent stderr
+│           │   ├── agent-stdout.txt      # Agent stdout
+│           │   ├── agent-stderr.txt      # Agent stderr
 │           │   ├── output.md             # Final output (structured)
-│           │   └── messagebus.yaml       # Run-level message bus
+│           │   └── prompt.md             # Prompt used for this run
 │           │
 │           ├── {run_id_2}/               # Second run (restart or child)
 │           │   ├── run-info.yaml
-│           │   ├── stdout
-│           │   ├── stderr
+│           │   ├── agent-stdout.txt
+│           │   ├── agent-stderr.txt
 │           │   └── ...
 │           │
 │           └── {run_id_N}/               # Nth run
@@ -92,28 +93,30 @@ The storage layer manages persistent run metadata using a file-based storage sys
 │   ├── PROJECT-MESSAGE-BUS.md
 │   ├── home-folders.md
 │   │
-│   └── task-001/
+│   └── task-20260205-103000-example/
+│       ├── TASK.md
 │       ├── TASK_STATE.md
 │       ├── DONE
-│       ├── messagebus.yaml
+│       ├── TASK-MESSAGE-BUS.md
 │       │
 │       └── runs/
-│           ├── 20260205-103045123-12345/
+│           ├── 20260205-1030450000-12345-0/
 │           │   ├── run-info.yaml
-│           │   ├── stdout
-│           │   ├── stderr
+│           │   ├── agent-stdout.txt
+│           │   ├── agent-stderr.txt
+│           │   ├── prompt.md
 │           │   └── output.md
 │           │
-│           └── 20260205-103145456-12345/
+│           └── 20260205-1031451234-12345-1/
 │               ├── run-info.yaml
-│               ├── stdout
-│               ├── stderr
+│               ├── agent-stdout.txt
+│               ├── agent-stderr.txt
 │               └── output.md
 │
 └── another-project/
-    └── task-002/
+    └── task-20260205-104000-fix/
         └── runs/
-            └── 20260205-104512789-67890/
+            └── 20260205-1045127890-67890-0/
                 └── ...
 ```
 
@@ -154,7 +157,7 @@ The run-info.yaml file contains all metadata about a single agent execution.
 version: 1
 
 # Unique identifiers
-run_id: 20260205-103045123-12345
+run_id: 20260205-1030451234-12345-0
 project_id: my-project
 task_id: task-001
 
@@ -199,7 +202,7 @@ error_summary: ""                         # Human-readable error summary on fail
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `version` | int | No | Schema version (currently 1) for future evolution |
-| `run_id` | string | Yes | Unique run identifier (format: `YYYYMMDD-HHMMSSmmm-PID`) |
+| `run_id` | string | Yes | Unique run identifier (format: `YYYYMMDD-HHMMSSMMMM-PID-SEQ`) |
 | `project_id` | string | Yes | Project identifier (Java identifier rules) |
 | `task_id` | string | Yes | Task identifier within project |
 
@@ -272,7 +275,7 @@ const (
 ### Example: Running Task
 
 ```yaml
-run_id: 20260205-103045123-12345
+run_id: 20260205-1030451234-12345-0
 project_id: my-project
 task_id: task-001
 agent: claude
@@ -290,7 +293,7 @@ stderr_path: stderr
 ### Example: Completed Task
 
 ```yaml
-run_id: 20260205-103045123-12345
+run_id: 20260205-1030451234-12345-0
 project_id: my-project
 task_id: task-001
 agent: codex
@@ -310,7 +313,7 @@ commandline: codex --prompt "Implement feature X"
 ### Example: Failed Task
 
 ```yaml
-run_id: 20260205-103045123-12345
+run_id: 20260205-1030451234-12345-0
 project_id: my-project
 task_id: task-001
 agent: gemini
@@ -327,8 +330,8 @@ stderr_path: stderr
 ### Example: Child Run
 
 ```yaml
-run_id: 20260205-104512789-67890
-parent_run_id: 20260205-103045123-12345  # Parent run ID
+run_id: 20260205-1045127890-67890-0
+parent_run_id: 20260205-1030451234-12345-0  # Parent run ID
 project_id: my-project
 task_id: task-001
 agent: claude
@@ -344,7 +347,7 @@ cwd: /path/to/projects/my-project
 
 ```yaml
 # First run (failed)
-run_id: 20260205-103045123-12345
+run_id: 20260205-1030451234-12345-0
 project_id: my-project
 task_id: task-001
 agent: claude
@@ -354,8 +357,8 @@ start_time: 2026-02-05T10:30:45.123Z
 end_time: 2026-02-05T10:31:00.000Z
 
 # Second run (restart)
-run_id: 20260205-103105456-12345
-previous_run_id: 20260205-103045123-12345  # Links to previous run
+run_id: 20260205-1031054567-12345-1
+previous_run_id: 20260205-1030451234-12345-0  # Links to previous run
 project_id: my-project
 task_id: task-001
 agent: claude
@@ -558,15 +561,15 @@ parent_run_id: ""
 previous_run_id: ""
 
 # Child run (spawned by parent)
-parent_run_id: 20260205-103045123-12345
+parent_run_id: 20260205-1030451234-12345-0
 previous_run_id: ""
 
 # Restarted run (Ralph loop)
 parent_run_id: ""
-previous_run_id: 20260205-103045123-12345
+previous_run_id: 20260205-1030451234-12345-0
 
 # Child run that was restarted
-parent_run_id: 20260205-103045123-12345
+parent_run_id: 20260205-1030451234-12345-0
 previous_run_id: 20260205-104512789-67890
 ```
 
@@ -864,131 +867,64 @@ RunID is a unique identifier for each agent execution, designed for lexical sort
 ### Format Specification
 
 ```
-{YYYYMMDD-HHMMSSmmm}-{PID}
+{YYYYMMDD-HHMMSSMMMM}-{PID}-{SEQ}
 ```
 
 **Components:**
 - `YYYYMMDD`: Year, month, day (UTC)
 - `HHMMSS`: Hour, minute, second (UTC)
-- `mmm`: Milliseconds (000-999)
-- `PID`: Process ID of conductor-loop
+- `MMMM`: Sub-second digits (4 digits, tenths of milliseconds)
+- `PID`: Process ID of the run-agent process
+- `SEQ`: Process-local atomic counter (starts at 0, increments per run)
 
-**Example:** `20260205-103045123-12345`
+**Example:** `20260205-1030451234-12345-0`
 
 ### Implementation
 
-**Reference:** `internal/storage/storage.go:186-190`
+**Reference:** `internal/runner/orchestrator.go`
 
 ```go
-func (s *FileStorage) newRunID() string {
-    now := s.now().UTC()
-    stamp := now.Format("20060102-150405000")  // Go time format
-    return fmt.Sprintf("%s-%d", stamp, s.pid())
+func newRunID(now time.Time, pid int) string {
+    stamp := now.UTC().Format("20060102-1504050000")  // 4-digit sub-second
+    // + atomic seq counter appended
 }
 ```
 
-**Time Format Breakdown:**
-```
-Go Format:     20060102-150405000
-Meaning:       YYYYMMDD-HHMMSSmmm
-Example:       20260205-103045123
-               │││││││││││││││││└─ Milliseconds (0-999)
-               │││││││││││││││└─── Second tens
-               │││││││││││││└───── Second units
-               ││││││││││└──────── Minute tens
-               │││││││││└────────── Minute units
-               ││││││││└─────────── Hour tens
-               │││││││└──────────── Hour units
-               ││││││└───────────── Day tens
-               │││││└────────────── Day units
-               ││││└─────────────── Month tens
-               │││└──────────────── Month units
-               ││└───────────────── Year thousands
-               │└────────────────── Year hundreds
-               └─────────────────── Year tens
-```
+**Go time format:** `20060102-1504050000` produces `YYYYMMDD-HHMMSSMMMM` (4 fractional-second digits).
+
+**Collision protection:** A process-local atomic counter (`SEQ`) ensures same-millisecond runs within the same process get unique IDs. Fix introduced in commit `28b6ca1`.
 
 ### Properties
 
 **1. Lexical Sorting:**
 ```
-20260205-103045123-12345  < 20260205-103045124-12345
-20260205-103045123-12345  < 20260205-103046000-12345
-20260205-103045123-12345  < 20260205-104045123-12345
+20260205-1030451234-12345-0  < 20260205-1030451235-12345-1
+20260205-1030451234-12345-0  < 20260205-1030460000-12345-0
 ```
 
-Sorted order = chronological order (within same process).
-
 **2. Global Uniqueness:**
-
-Within same process:
-- Timestamp uniqueness: millisecond precision (1000 IDs/second max)
-- If two runs start in same millisecond, RunID collision possible (unlikely)
-
-Across processes:
-- PID uniqueness: different processes → different PIDs → different RunIDs
-- No collision possible
+- PID separates different processes at the same timestamp
+- SEQ counter separates same-process same-timestamp runs (collision fix)
 
 **3. Human Readability:**
 ```
-20260205-103045123-12345
-│       │         │
-│       │         └─ Process ID: 12345
-│       └─ Time: 10:30:45.123 UTC
+20260205-1030451234-12345-0
+│       │           │     │
+│       │           │     └─ Sequence counter: 0
+│       │           └─ Process ID: 12345
+│       └─ Time: 10:30:45.1234 UTC (4 sub-second digits)
 └─ Date: 2026-02-05
 ```
 
-**4. Length:**
+**4. Length:** 27–35 characters (varies with PID length and counter size)
+
+### Config File Precedence
+
+When auto-detecting configuration:
 ```
-YYYYMMDD-HHMMSSmmm-PID
-12345678 9012345678 90123
-        │          │
-        └─ 18 chars for timestamp
-                   └─ Variable (5-10 chars for PID)
-
-Total: 24-29 characters
+config.yaml > config.yml > config.hcl
 ```
-
-### Collision Scenarios
-
-**Same Process, Same Millisecond:**
-```go
-// Unlikely but possible
-run1 := storage.CreateRun("p", "t", "agent")  // 10:30:45.123
-run2 := storage.CreateRun("p", "t", "agent")  // 10:30:45.123 (same ms)
-// run1.RunID == run2.RunID (COLLISION!)
-```
-
-**Mitigation:**
-- Millisecond precision makes collisions rare
-- Sequential run creation usually spans multiple milliseconds
-- No explicit collision detection (deemed acceptable risk)
-
-**Different Processes:**
-```go
-// Process 1 (PID 12345)
-run1 := storage.CreateRun(...)  // 10:30:45.123-12345
-
-// Process 2 (PID 67890)
-run2 := storage.CreateRun(...)  // 10:30:45.123-67890
-
-// No collision: different PIDs
-```
-
-### Comparison with UUIDs
-
-**RunID Advantages:**
-- Shorter (24-29 chars vs 36 chars for UUID)
-- Lexically sortable (chronological order)
-- Human-readable timestamp
-- No random number generation needed
-
-**UUID Advantages:**
-- Guaranteed global uniqueness (128-bit random)
-- No collision possibility
-- Standard format
-
-**Design Choice:** RunID chosen for simplicity and human readability.
+YAML formats are checked first. Both YAML and HCL are fully supported.
 
 ### Testing
 
@@ -1186,7 +1122,7 @@ conductor-loop task start my-project task-001
 ---
 created_at: 2026-02-05T10:30:45Z
 scope: task
-run_id: 20260205-103045123-12345
+run_id: 20260205-1030451234-12345-0
 title: Implementation Decision
 ---
 
@@ -2035,6 +1971,6 @@ This field enables the frontend to show per-status badges without a separate API
 
 ---
 
-**Last Updated:** 2026-02-21
-**Version:** 1.0.0
+**Last Updated:** 2026-02-23 (facts-validated)
+**Version:** 1.1.0
 **Package:** `internal/storage/`

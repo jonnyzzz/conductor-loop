@@ -1,139 +1,80 @@
 # Runner & Orchestration - Questions
 
-## Open Questions (From Codex Review Round 2)
+## Open Questions
+
+None. All previously open questions have been resolved.
+
+---
+
+## Resolved Questions
 
 ### Q1: Config Credential Schema - Which Approach?
 **Issue**: Backend specs reference `openai_api_key`, `anthropic_api_key`, etc. as "config keys", but config schema uses per-agent `token` + `env_var` fields.
 
-**Config Schema** (subsystem-runner-orchestration-config-schema.md:92-108):
-```hcl
-agent "codex" {
-  token = "@~/.config/openai/token"  <-- PROPSED: use dedicated field for token_file instead of @ inside.
-  env_var = "OPENAI_API_KEY"  <--- ANSWER remove that, it's implementation detail we can easily hardcode.
-}
-```
-
-**Backend Specs** (e.g., subsystem-agent-backend-codex.md:30):
-```
-- Config key: `openai_api_key` (in `config.hcl`)
-```
-
-**Question**: Should backend specs be updated to reference the config schema's `token` + `env_var` approach? If yes, how should we phrase it in backend specs?
-
-**Proposed Fix**: Update all backend specs from:
-```
-- Config key: `openai_api_key` (in `config.hcl`)
-```
-To:
-```
-- Config: Token set in agent "codex" block with `token` field and `env_var = "OPENAI_API_KEY"`
-- See subsystem-runner-orchestration-config-schema.md for full schema
-```
-
-**Answer**: The env var for each agent is always a constant, we do not need it in the config schema.
-The only parameters we include for each of the agents are -- token -- a token value. We need to allow to provide `token_file` instead of the token.
-In the case of Token File, it must read the file, trim the contents and use that as the token value.
-
-See comments in the code.
+**Answer**: The env var for each agent is always a constant, hardcoded in runner. Only parameters needed per agent in config are: `token` (inline) or `token_file` (file path). Token file contents are read, trimmed, and used as the token value. The `env_var` config field is removed from schema. See subsystem-runner-orchestration-config-schema.md for full schema.
 
 ---
 
 ### Q2: Codex cli_flags Example Incomplete
-**Issue**: Config schema example for Codex (line 96) shows:
-```hcl
-cli_flags = ["exec", "--dangerously-bypass-approvals-and-sandbox", "-C"]
-```
-But actual invocation in run-agent.sh:42 is:
-```bash
-codex exec --dangerously-bypass-approvals-and-sandbox -C "$CWD" -
-```
-Missing: the CWD argument value and the `-` stdin marker.
+**Issue**: Config schema example showed incomplete cli_flags for Codex invocation (missing CWD argument and stdin marker).
 
-**Question**: Should cli_flags include placeholders like `"<cwd>"` and `"-"`, or should these be handled specially by the runner?
-
-**Proposed Fix**: Either:
-1. Document that `-C` requires CWD injection by runner, `-` for stdin is automatic
-2. Or show complete example: `cli_flags = ["exec", "--dangerously-bypass-approvals-and-sandbox", "-C", "<cwd>", "-"]`
-
-**Answer**: We just start agents in the given working directory, with all permisions (aka with no restictions). 
-Our run-agent tool should make sure it sets the working directory correctly, so we do not need to use -C or something like that. 
-At this point, out goal or all agents to start them in unrestricted mode, so we hardcode all set settings in our tool, 
-and there is no need to provide any additional CLI flags in the tool configuration. It makes sense to wrap the agent process
-invocation in a shell script, which is started with the correct working directory.
+**Answer**: Runner starts agents in the correct working directory. No `cli_flags` configuration is needed. All CLI flags and working directory setup are hardcoded in the runner tool. Agents run in unrestricted mode.
 
 ---
 
-## New Questions (2026-02-05)
-
 ### Q3: Config Format and Default Location
-**Issue**: The runner spec now targets HCL at ~/run-agent/config.hcl, but the current implementation loads YAML via internal/config and only when --config is provided.
+**Issue**: The runner spec targeted HCL at `~/run-agent/config.hcl`, but the implementation loads YAML and only when `--config` is provided.
 
-**Question**: Should HCL be the single source of truth, with YAML deprecated? If yes, should run-agent default to ~/run-agent/config.hcl when --config is omitted?
-
-**Answer**: HCL is the single source of truth
+**Answer**: Both YAML and HCL are supported. YAML is primary (checked first). Default search order: `./config.yaml` → `./config.yml` → `./config.hcl` → `$HOME/.config/conductor/config.yaml` → `$HOME/.config/conductor/config.yml` → `$HOME/.config/conductor/config.hcl`.
 
 ---
 
 ### Q4: run-agent CLI Surface Area
-**Issue**: The spec includes run-agent serve, bus, and stop. cmd/run-agent currently exposes only task and job.
+**Issue**: The spec included `run-agent serve`, `bus`, and `stop`, but `cmd/run-agent` only exposed `task` and `job`.
 
-**Question**: Should serve, bus, and stop be implemented now, or should the docs mark them as planned only?
-
-**Answer**: yes, see the -ui- topics for details.
+**Answer**: `run-agent serve`, `bus`, and `stop` are all implemented.
 
 ---
 
 ### Q5: Agent Selection Strategy
-**Issue**: The spec calls for round-robin or weighted selection and an I'm lucky random mode with cooldown on failures. The current code picks the configured default or the first agent alphabetically.
+**Issue**: Spec called for round-robin or weighted selection and "I'm lucky" random mode with cooldown on failures. The code picked the configured default or first agent alphabetically.
 
-**Question**: Which selection algorithm should be considered authoritative, and how should cooldown or degradation be modeled?
-
-**Answer**: let the parent agent make the decision. The balancing idea should be loggeed for the future.
+**Answer**: The parent agent (not runner) decides which sub-agent to select. The diversification policy (round-robin/weighted with fallback-on-failure) is implemented in the runner's `DiversificationConfig`. The balancing/round-robin idea was logged for future use only originally; now implemented.
 
 ---
 
 ### Q6: Delegation Depth Limit
-**Issue**: The spec sets a default delegation depth limit of 16, but there is no enforcement or tracking in the runner.
+**Issue**: The spec set a default delegation depth limit of 16, but there was no enforcement or tracking.
 
-**Question**: Where should depth be tracked (env var, run-info, or prompt), and what should run-agent do when the limit is exceeded?
-
-**Answer**: Not implemented now, log for the future use.
+**Answer**: Delegation depth limit enforcement is not implemented in this release. Logged for future use.
 
 ---
 
 ### Q7: Restart Prompt Prefix
-**Issue**: The spec requires prefixing restarts with "Continue working on the following:", but the current runner does not modify prompts on restart.
+**Issue**: The spec required prefixing restarts with "Continue working on the following:", but the runner did not modify prompts on restart.
 
-**Question**: Should the runner add this prefix, and should it also include previous output or TASK_STATE.md context?
-
-**Answer**: Yes, prepend on restart.
+**Answer**: Yes, prepend "Continue working on the following:" on restart attempts > 0. The preamble is always included, even on restarts.
 
 ---
 
 ### Q8: Environment Safety for Runner-Owned Variables
-**Issue**: The spec reserves JRUN_* variables and disallows overrides, but the current runner merges caller-provided environment values after setting JRUN_*.
+**Issue**: The spec reserves JRUN_* variables and disallows overrides, but the runner merged caller-provided environment values after setting JRUN_*.
 
-**Question**: Should the runner drop or overwrite reserved keys from caller-provided environment maps and inherited env?
-
-**Answer**: No, the runner should set the JRUN_* variables correctly to the started agent process, agent process will start run-agent binary again for sub-agents, that is why the variables should be maintainer carefully. Make sure to assert and validate consistency.
+**Answer**: The runner sets JRUN_* variables correctly in the started agent process. Agent process will start `run-agent` again for sub-agents. Variables must be maintained carefully. Assert and validate consistency.
 
 ---
 
 ### Q9: Start/Stop Event Detail
-**Issue**: Ideas call for a dedicated start/stop log and richer metadata, while the current implementation posts RUN_START/RUN_STOP messages with minimal body content.
+**Issue**: Ideas called for a dedicated start/stop log and richer metadata, while the implementation posted RUN_START/RUN_STOP messages with minimal content.
 
-**Question**: Should start/stop events include pid, prompt path, and output path in the message bus, and should a dedicated event log file be added?
-
-**Answer**: Each run has it's run_id folder, let's include the exit code, and the folder path + known output files if any
+**Answer**: Each run has its `run_id` folder. Start/stop events include exit code, folder path, and known output files (if any). No dedicated event log file — events live in TASK-MESSAGE-BUS.md.
 
 ---
 
 ### Q10: Task Folder Naming and Creation
-**Issue**: The storage spec expects task-<timestamp>-<slug> folders and TASK.md to exist, but run-agent task uses raw task IDs and does not create TASK.md.
+**Issue**: The storage spec expected `task-<timestamp>-<slug>` folders and TASK.md to exist, but `run-agent task` used raw task IDs and did not create TASK.md.
 
-**Question**: Should run-agent generate task IDs and write TASK.md when starting a task, or keep the current behavior and require pre-created task directories?
-
-**Answer**: Yes, run-agent should take care about consistency of the folders, so it assigns TASK_ID and create all necessary files and folders, according to the specs. The task_id folder (or run_id folder) is the main folder to store all inputs and outputs for the started agent process 
+**Answer**: Yes, `run-agent` takes care of consistency of the folders. It assigns TASK_ID and creates all necessary files and folders according to the specs. The task_id format is enforced by the CLI; invalid formats fail immediately with exit code 1.
 
 ---
 

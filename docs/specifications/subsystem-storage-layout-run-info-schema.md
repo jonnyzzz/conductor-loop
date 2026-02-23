@@ -36,12 +36,12 @@ All fields below are required for run-agent-emitted run-info.yaml files. Readers
 #### Identity Fields
 
 ```yaml
-run_id: "20260204-1830425699-12345"
+run_id: "20260204-1830425699-12345-1"
 project_id: "swarm"
 task_id: "20260131-205800-planning"
 ```
 
-- `run_id` (string): Unique run identifier in format `YYYYMMDD-HHMMSSffff-PID` (Go layout `20060102-1504050000`)
+- `run_id` (string): Unique run identifier in format `YYYYMMDD-HHMMSSffff-PID-SEQ` (Go layout `20060102-1504050000`, plus process ID and process-local atomic sequence counter). Example: `20260223-2048580000-66788-1`.
 - `project_id` (string): Project identifier (recommended Java Identifier rules; no length limit)
 - `task_id` (string): Task identifier (folder name; recommended `task-<timestamp>-<slug>` pattern)
 
@@ -59,12 +59,14 @@ previous_run_id: "20260204-1825004567-12330"
 
 ```yaml
 agent: "claude"
+process_ownership: "managed"
 pid: 12345
 pgid: 12345
 ```
 
-- `agent` (string): Agent type (codex, claude, gemini, perplexity, etc.)
-- `pid` (integer): Process ID of the agent
+- `agent` (string): Agent type (codex, claude, gemini, perplexity, xai, etc.)
+- `process_ownership` (string, optional): `"managed"` (default, runner controls lifecycle) or `"external"` (REST agents running in-process)
+- `pid` (integer): Process ID of the agent (runner process PID for REST agents)
 - `pgid` (integer): Process group ID (for signal management)
 
 #### Status Field
@@ -84,8 +86,8 @@ exit_code: 0
 ```
 
 - `start_time` (string): ISO-8601 UTC timestamp when run started
-- `end_time` (string): ISO-8601 UTC timestamp when run ended; omitted while running
-- `exit_code` (integer): Process exit code; -1 while running, non-zero for failure; omitted when 0 (success)
+- `end_time` (string): ISO-8601 UTC timestamp when run ended; zero value while running (field is always present)
+- `exit_code` (integer): Process exit code; -1 while running, 0 on success, non-zero for failure (field is always present)
 
 #### Path Fields
 
@@ -131,6 +133,16 @@ commandline: "claude -p --input-format text --output-format text --tools default
 
 May be omitted if the command contains sensitive information or is too long.
 
+#### Agent Version and Error Summary
+
+```yaml
+agent_version: "claude-code/2.1.50"
+error_summary: "exit code 1: permission denied"
+```
+
+- `agent_version` (string, optional): Detected CLI version string from `<agent-cli> --version`; omitted for REST agents or if detection fails
+- `error_summary` (string, optional): Human-readable error description on failure; present when `status = "failed"`
+
 ## Field Constraints
 
 ### Required Field Behavior
@@ -139,8 +151,8 @@ May be omitted if the command contains sensitive information or is too long.
 - Empty string "" or omission is valid for:
   - `parent_run_id` (root runs)
   - `previous_run_id` (first run in chain)
-  - `end_time` (while running)
-- `exit_code` may be omitted when 0 (success)
+- `end_time` is always present; zero value while running
+- `exit_code` is always present; -1 while running, 0 on success
 - All other required fields must have non-empty values
 
 ### Timing Invariants
@@ -187,7 +199,7 @@ Do NOT increment version for:
 ```
 MUST validate:
 - version = 1 (if present)
-- run_id matches YYYYMMDD-HHMMSSffff-PID format
+- run_id matches YYYYMMDD-HHMMSSffff-PID-SEQ format
 - project_id is non-empty
 - task_id is non-empty
 - agent is non-empty and in supported list
@@ -214,26 +226,26 @@ MUST validate:
 
 ```yaml
 version: 1
-run_id: "20260204-1830425699-12345"
+run_id: "20260204-1830425699-12345-1"
 project_id: "swarm"
-task_id: "20260131-205800-planning"
+task_id: "task-20260131-205800-planning"
 parent_run_id: ""
 previous_run_id: ""
 agent: "claude"
+process_ownership: "managed"
 pid: 12345
 pgid: 12345
 start_time: "2026-02-04T18:30:42.569Z"
 end_time: "2026-02-04T18:35:12.789Z"
+exit_code: 0
 status: "completed"
 cwd: "/path/to/projects/swarm"
-prompt_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/prompt.md"
-output_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/output.md"
-stdout_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stdout.txt"
-stderr_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345/agent-stderr.txt"
-backend_provider: "anthropic"
-backend_model: "claude-sonnet-4-5"
-backend_endpoint: "https://api.anthropic.com/v1/messages"
+prompt_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345-1/prompt.md"
+output_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345-1/output.md"
+stdout_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345-1/agent-stdout.txt"
+stderr_path: "/path/to/run-agent/swarm/task-20260131-205800-planning/runs/20260204-1830425699-12345-1/agent-stderr.txt"
 commandline: "claude -p --input-format text --output-format text --tools default --permission-mode bypassPermissions < prompt.md"
+agent_version: "claude-code/2.1.50"
 ```
 
 ## Go Implementation Notes
@@ -242,35 +254,38 @@ commandline: "claude -p --input-format text --output-format text --tools default
 
 ```go
 type RunInfo struct {
-    Version         int       `yaml:"version,omitempty"`
-    RunID           string    `yaml:"run_id"`
-    ProjectID       string    `yaml:"project_id"`
-    TaskID          string    `yaml:"task_id"`
-    ParentRunID     string    `yaml:"parent_run_id,omitempty"`
-    PreviousRunID   string    `yaml:"previous_run_id,omitempty"`
-    Agent           string    `yaml:"agent"`
-    PID             int       `yaml:"pid"`
-    PGID            int       `yaml:"pgid"`
-    StartTime       time.Time `yaml:"start_time"`
-    EndTime         time.Time `yaml:"end_time,omitempty"`
-    ExitCode        int       `yaml:"exit_code,omitempty"`
-    Status          string    `yaml:"status"`
-    CWD             string    `yaml:"cwd,omitempty"`
-    PromptPath      string    `yaml:"prompt_path,omitempty"`
-    OutputPath      string    `yaml:"output_path,omitempty"`
-    StdoutPath      string    `yaml:"stdout_path,omitempty"`
-    StderrPath      string    `yaml:"stderr_path,omitempty"`
-    BackendProvider string    `yaml:"backend_provider,omitempty"`
-    BackendModel    string    `yaml:"backend_model,omitempty"`
-    BackendEndpoint string    `yaml:"backend_endpoint,omitempty"`
-    CommandLine     string    `yaml:"commandline,omitempty"`
+    Version          int       `yaml:"version"`
+    RunID            string    `yaml:"run_id"`
+    ParentRunID      string    `yaml:"parent_run_id,omitempty"`
+    PreviousRunID    string    `yaml:"previous_run_id,omitempty"`
+    ProjectID        string    `yaml:"project_id"`
+    TaskID           string    `yaml:"task_id"`
+    AgentType        string    `yaml:"agent"`
+    ProcessOwnership string    `yaml:"process_ownership,omitempty"` // managed (default) or external
+    PID              int       `yaml:"pid"`
+    PGID             int       `yaml:"pgid"`
+    StartTime        time.Time `yaml:"start_time"`
+    EndTime          time.Time `yaml:"end_time"`       // zero value while running; always present
+    ExitCode         int       `yaml:"exit_code"`      // -1 while running; always present
+    Status           string    `yaml:"status"`         // running, completed, failed
+    CWD              string    `yaml:"cwd,omitempty"`
+    PromptPath       string    `yaml:"prompt_path,omitempty"`
+    OutputPath       string    `yaml:"output_path,omitempty"`
+    StdoutPath       string    `yaml:"stdout_path,omitempty"`
+    StderrPath       string    `yaml:"stderr_path,omitempty"`
+    CommandLine      string    `yaml:"commandline,omitempty"`
+    ErrorSummary     string    `yaml:"error_summary,omitempty"`
+    AgentVersion     string    `yaml:"agent_version"`
 }
 ```
+
+Note: `backend_provider`, `backend_model`, and `backend_endpoint` fields were in earlier spec drafts but are not present in the current implementation struct. Use `agent` and `agent_version` for observability instead.
 
 ### Writing
 
 - Use `gopkg.in/yaml.v3` for encoding
-- Write to temp file, then atomic rename
+- `WriteRunInfo`: write to temp file → fsync → chmod 0644 → atomic rename (temp pattern: `run-info.*.yaml.tmp`)
+- `UpdateRunInfo`: read-modify-write under an exclusive lock file (`run-info.yaml.lock`) with 5s timeout
 - Validate all required fields before writing
 - Use `filepath.Clean` for all paths
 

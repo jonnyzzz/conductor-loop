@@ -30,13 +30,14 @@ Conductor Loop is an AI agent orchestration system that manages multi-agent work
 - **REST API + SSE**: Real-time task monitoring and control (optional)
 - **Web UI**: React 18 + TypeScript dashboard (primary); plain HTML/CSS/JS fallback
 
-**Single Binary:** `run-agent` is the official entry point for everything — task execution,
-job submission, local filesystem queries, and (optionally) the monitoring web server.
-The `conductor` binary is a deprecated alias that translates invocations to `run-agent`.
+**Two Binaries:** Both `run-agent` and `conductor` are active entry points.
+
+- **`run-agent`** — full orchestration CLI: task execution, job submission, filesystem queries, monitoring web server, and GC.
+- **`conductor`** — independent binary with its own Cobra command tree; starts the API server directly from its root command.
 
 **Key Statistics:**
-- Backend: ~12,000 lines of Go code
-- 64+ test files
+- Backend: ~31,000 lines of Go code (non-test); ~59,000 total including tests
+- 111 test files
 - Frontend (primary): React 18 + TypeScript (`frontend/`, requires `npm run build`)
 - Frontend (fallback): Vanilla JavaScript, no build step (`web/src/`)
 - Minimal dependencies (Cobra, YAML v3, pkg/errors)
@@ -47,10 +48,12 @@ The `conductor` binary is a deprecated alias that translates invocations to `run
 
 These are the non-negotiable architectural invariants of conductor-loop:
 
-### 1. `run-agent` Is the Official Binary
+### 1. Two Active Binaries
 
-Every capability is accessible through `run-agent`. There is no need to install or run
-any other binary. The deprecated `conductor` binary is a pass-through wrapper.
+`run-agent` and `conductor` are both active, independently-compiled binaries in `cmd/`.
+
+- `run-agent` — task execution, GC, bus, list, output, watch, serve
+- `conductor` — API server with its own Cobra tree; does not pass through to `run-agent`
 
 ```bash
 run-agent serve               # start optional monitoring server
@@ -58,6 +61,7 @@ run-agent job ...             # submit a job directly (filesystem-only)
 run-agent server job submit   # submit a job via running server API
 run-agent list                # list tasks (filesystem-only, no server)
 run-agent server status       # query a running server
+conductor --config cfg.yaml   # start conductor API server directly
 ```
 
 ### 2. Each `run-agent` Process Is Fully Independent
@@ -106,7 +110,7 @@ Runner → (spawn) → Agent process
 | Run metadata | `<root>/<project>/<task>/runs/<run_id>/run-info.yaml` |
 | Agent output | `<root>/<project>/<task>/runs/<run_id>/agent-stdout.txt` |
 | Final output | `<root>/<project>/<task>/runs/<run_id>/output.md` |
-| Message bus | `<root>/<project>/<task>/TASK-MESSAGE-BUS.md` |
+| Task message bus | `<root>/<project>/<task>/TASK-MESSAGE-BUS.md` |
 | Completion signal | `<root>/<project>/<task>/DONE` |
 | Task prompt | `<root>/<project>/<task>/TASK.md` |
 
@@ -234,7 +238,7 @@ type Config struct {
 **Architecture:**
 - O_APPEND for atomic writes
 - flock for exclusive write lock
-- OS page cache (no fsync) for high throughput
+- fsync is optional (`WithFsync`); **disabled by default** for high throughput (~37,000 msg/sec)
 - Lockless reads for performance
 
 ### 4. Agent Protocol (`internal/agent/`)
@@ -427,7 +431,7 @@ See [Subsystem Deep-Dives](subsystems.md) for detailed documentation on each.
 5. MessageBus.AppendMessage("task_started")
    - ExclusiveLock()
    - Append message with O_APPEND
-   - fsync()
+   - fsync() [optional; disabled by default]
    - Unlock()
    │
    ▼
@@ -514,17 +518,18 @@ See [Subsystem Deep-Dives](subsystems.md) for detailed documentation on each.
 ```
 {storage_root}/
 ├── {project_id}/
+│   ├── PROJECT-MESSAGE-BUS.md      # Project-level message bus
 │   ├── {task_id}/
-│   │   ├── TASK.md                 # Task prompt and metadata
-│   │   ├── DONE                    # Completion marker
-│   │   ├── messagebus.yaml         # Task message bus
+│   │   ├── TASK.md                 # Task prompt
+│   │   ├── DONE                    # Completion marker (empty file)
+│   │   ├── TASK-MESSAGE-BUS.md     # Task message bus (append-only)
 │   │   └── runs/
 │   │       ├── {run_id}/
 │   │       │   ├── run-info.yaml   # Run metadata (YAML)
-│   │       │   ├── stdout          # Agent stdout
-│   │       │   ├── stderr          # Agent stderr
+│   │       │   ├── agent-stdout.txt  # Agent stdout
+│   │       │   ├── agent-stderr.txt  # Agent stderr
 │   │       │   ├── output.md       # Final output
-│   │       │   └── messagebus.yaml # Run message bus
+│   │       │   └── prompt.md       # Prompt used for this run
 │   │       └── {run_id_2}/
 │   │           └── ...
 │   └── {task_id_2}/
@@ -620,7 +625,7 @@ Example: MSG-20060102-150405-000000001-PID00123-0042
 2. ExclusiveLock(file, timeout=10s)
 3. Serialize message to YAML
 4. Write to file (O_APPEND ensures atomic append)
-5. fsync() - Force disk write
+5. fsync() [optional; disabled by default — enable via WithFsync(true)]
 6. Unlock()
 7. Close file
 ```
@@ -698,11 +703,10 @@ The Ralph Loop manages the lifecycle of root agent processes with automatic rest
 │     │      - Capture exit code               │             │
 │     │                                        │             │
 │     │   c. Check exit conditions:            │             │
-│     │      - Success (exit=0) → STOP         │             │
-│     │      - Fatal error → STOP              │             │
 │     │      - DONE file exists → STOP         │             │
-│     │      - Wait-without-restart → STOP     │             │
-│     │      - Otherwise → RESTART             │             │
+│     │      - Max restarts exceeded → STOP    │             │
+│     │      - Context canceled → STOP         │             │
+│     │      - Otherwise → RESTART (inc. exit=0) │          │
 │     │                                        │             │
 │     │   d. Delay before restart (1s)         │             │
 │     │                                        │             │
@@ -720,16 +724,17 @@ The Ralph Loop manages the lifecycle of root agent processes with automatic rest
 ### Exit Conditions
 
 **Stop (no restart):**
-1. Exit code 0 (success)
+1. DONE file detected in task directory (checked before AND after each run)
 2. Max restarts exceeded
-3. DONE file detected in task directory
-4. Wait-without-restart signal received
-5. Fatal error from agent
+3. Context canceled (SIGTERM / user stop)
+
+> **Important:** A zero exit code by itself does NOT stop the loop. If DONE is absent
+> and the restart budget remains, the loop continues to the next attempt regardless of
+> exit code. The agent must create the `DONE` file to signal completion.
 
 **Restart:**
-1. Non-zero exit code (< max restarts)
+1. Any exit code (zero or non-zero) when no DONE file present (< max restarts)
 2. Agent crash or timeout
-3. No DONE file present
 
 ### Process Group Management
 
@@ -965,5 +970,5 @@ For more detailed information, see:
 
 ---
 
-**Last Updated:** 2026-02-21
-**Version:** 2.0.0 (run-agent unification)
+**Last Updated:** 2026-02-23
+**Version:** 2.1.0 (facts-validated)

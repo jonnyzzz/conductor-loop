@@ -1,159 +1,204 @@
 # Message Bus Tooling Subsystem
 
 ## Overview
-Provides message bus tooling (CLI + REST) for writing to and reading from project/task message buses. The message bus is file-based and implemented in the run-agent binary. Agents must communicate only through the message bus tooling; direct file writes are disallowed.
+This subsystem defines how messages are written, read, and streamed through file-backed message buses.
+Authoritative implementation lives in:
+- `internal/messagebus/*`
+- `cmd/run-agent/bus.go`
+- `internal/api/handlers.go`
+- `internal/api/handlers_projects_messages.go`
+- `internal/api/sse.go`
 
-## Goals
-- Provide a consistent append-only message format.
-- Support polling and streaming for root agents and the monitoring UI.
-- Support message relationships, issue/dependency tracking, run lifecycle events, and attachments.
-- Keep project and task message buses strictly separated.
+## Bus Files and Scope
+Canonical locations:
+- Project bus: `<root>/<project>/PROJECT-MESSAGE-BUS.md`
+- Task bus: `<root>/<project>/<task>/TASK-MESSAGE-BUS.md`
 
-## Non-Goals
-- Enforcing full issue-tracking workflows.
-- Providing strict global FIFO ordering across concurrent writers.
-- Supporting multi-host authentication in MVP.
+Auto-discovery search order per directory:
+1. `TASK-MESSAGE-BUS.md`
+2. `PROJECT-MESSAGE-BUS.md`
+3. `MESSAGE-BUS.md`
 
-## Responsibilities
-- Define message format and required header fields.
-- Define message types and lifecycle event payloads.
-- Define CLI/REST behavior for posting, reading, polling, and streaming.
-- Define threading, dependencies, and ordering rules.
+## Message Schema Reference
+The message schema is defined in:
+- `docs/specifications/subsystem-message-bus-object-model.md`
 
-## Storage & Routing
-- Project bus path: `~/run-agent/<project>/PROJECT-MESSAGE-BUS.md`.
-- Task bus path: `~/run-agent/<project>/<task>/TASK-MESSAGE-BUS.md`.
-- Task-scoped messages and run lifecycle events MUST go to the task bus.
-- Cross-task facts and stable knowledge SHOULD go to the project bus.
-- UI aggregates both buses at read time; no mirroring is required.
-
-## Message Format
-Append-only YAML front matter with a free-text body.
-
-Example:
-```
----
-msg_id: MSG-20260205-123456-123456789-PID01234-0001
-ts: 2026-02-05T12:34:56Z
-type: ISSUE
-project_id: conductor-loop
-task_id: task-20260205-docs
-run_id: run_20260205-123456-12345
-issue_id: ISSUE-1
-parents:
-  - msg_id: MSG-20260205-120000-000000001-PID01234-0001
-    kind: depends_on
-attachments:
-  - path: attachments/logs/run-stdout.txt
-    kind: log
-    label: agent stdout
-links:
-  - kind: output
-    path: /path/to/run-agent/conductor-loop/task-20260205-docs/runs/run_20260205-123456-12345/output.md
-meta:
-  agent_type: codex
----
-Need update unit tests before release.
-```
-
-Notes:
-- Each entry starts with `---` and the header ends with `---`.
-- The body is free text. Avoid a line that contains only `---` because it terminates the entry.
-
-### Required Header Fields
-- `msg_id`
-- `ts`
-- `type`
-- `project_id`
-
-### Optional Header Fields
-- `task_id`
-- `run_id`
-- `parents`
-- `issue_id`
-- `attachment_path` (legacy single attachment)
-- `attachments` (preferred multi-attachment list)
-- `links`
-- `meta`
-
-### attachments[] Schema
-| Field | Description |
-| --- | --- |
-| `attachments[].path` | Path relative to the task folder. |
-| `attachments[].kind` | Free-form label (log, artifact, screenshot, etc.). |
-| `attachments[].label` | Human-friendly label. |
-| `attachments[].mime` | Optional MIME type. |
-| `attachments[].size_bytes` | Optional size in bytes. |
-| `attachments[].sha256` | Optional checksum. |
-
-### links[] Schema
-| Field | Description |
-| --- | --- |
-| `links[].kind` | Free-form label (output, run-info, fact, decision, etc.). |
-| `links[].path` | Absolute path to the referenced artifact. |
-| `links[].run_id` | Optional run ID the link belongs to. |
-| `links[].task_id` | Optional task ID the link belongs to. |
-
-### meta
-`meta` is a free-form map for structured payloads (run lifecycle metadata, issue status, etc.).
+Important current constraints:
+- No canonical `attachments` or `attachment_path` fields in core `Message` struct.
+- `links` entries use `url/label/kind`.
 
 ## Message Types
-Canonical types:
-- FACT, QUESTION, ANSWER, USER
-- INFO, WARNING, ERROR, OBSERVATION
-- ISSUE
-- START, STOP, CRASH
-- RUN_START, RUN_STOP (legacy aliases until unified)
+Core message bus does not enforce a fixed type allowlist.
+Only non-empty `type` is required.
 
-## Issue & Dependency Semantics
-- `ISSUE` messages represent issue records. If `issue_id` is omitted, `msg_id` is the issue identifier.
-- Use `parents[]` with relationship kinds to express dependencies and links.
-- Recommended dependency kinds: `depends_on`, `blocks`, `blocked_by`, `supersedes`, `duplicates`, `relates_to`, `child_of`, `answers`.
-- See subsystem-message-bus-object-model.md for the relationship schema.
+Runner lifecycle events use these constants:
+- `RUN_START`
+- `RUN_STOP`
+- `RUN_CRASH`
 
-## Run Lifecycle Events
-- Runner emits lifecycle events to the task bus.
-- `run_id` is required.
-- `meta` SHOULD include: `agent_type`, `pid`, `pgid`, `run_dir`, `cwd`, `prompt_path`, `output_path`, `stdout_path`, `stderr_path`, `parent_run_id`, `previous_run_id`, `command_line`, `exit_code`, `status`, `duration_ms`.
-- Body remains a short human-readable summary.
+## Message Bus Library Semantics
 
-## Tooling Interfaces
+### Write Path
+`AppendMessage` behavior:
+- Opens file with `O_WRONLY|O_APPEND|O_CREATE`.
+- Acquires exclusive lock (`LockExclusive`).
+- Generates `msg_id`, normalizes UTC timestamp, applies ISSUE alias logic.
+- Appends entry atomically with separator newline between entries.
 
-### Go Package (Internal)
-- `internal/messagebus` provides `AppendMessage`, `ReadMessages`, `PollForNew`.
+Defaults:
+- Lock timeout: `10s`
+- Poll interval: `200ms`
+- Max retries on lock timeout: `3`
+- Retry backoff base: `100ms` (exponential)
+- `fsync`: disabled by default
 
-### REST API (Current)
-- `GET /api/v1/messages` with query `project_id` (required), `task_id` (optional), `after` (optional msg_id).
-- Response is a list of messages with full headers and body.
-- If `after` is unknown, the API returns 404.
-- `GET /api/v1/messages/stream` (SSE) with `project_id` and optional `task_id`.
-- Clients can send `Last-Event-ID` header with the last seen msg_id.
-- SSE events: `message` with payload `{msg_id, content, timestamp}`, `heartbeat` every 30s.
-- The server currently does not set SSE `id` fields; clients should track msg_id from the payload.
+Options:
+- `WithLockTimeout`
+- `WithPollInterval`
+- `WithMaxRetries`
+- `WithRetryBackoff`
+- `WithFsync(true|false)`
+- `WithAutoRotate(maxBytes)`
 
-### REST API (Planned)
-- `POST /api/v1/messages` (or `/api/v1/bus`) with fields: `project_id`, `task_id`, `type`, `message`, `parents`, `issue_id`, `attachments`, `links`, `meta`.
+Rotation:
+- When enabled and threshold reached, bus is renamed to `<path>.<UTC timestamp>.archived` (best effort), then a fresh file is opened.
 
-### CLI (Planned)
-- `run-agent bus post` (append a message entry).
-- `run-agent bus read` (read since msg_id).
-- `run-agent bus watch` (blocking stream / poll).
-- Agents rely on JRUN_* env vars; error messages must not instruct agents to set env vars.
+### Read Path
+Available operations:
+- `ReadMessages(sinceID)`
+- `ReadMessagesSinceLimited(sinceID, limit)`
+- `ReadLastN(n)`
+- `PollForNew(lastID)`
 
-## Ordering & Filtering
-- Ordering is based on header `ts`; ties are resolved by `msg_id`.
-- No strict FIFO across concurrent writers.
-- Clients track last seen msg_id; no cursor files are stored by tooling.
+Behavior:
+- Reads are lockless (`os.ReadFile`/stream parsing).
+- Unknown `sinceID` returns `ErrSinceIDNotFound`.
+- Legacy single-line format is parsed for backward compatibility.
 
-## Concurrency / Atomicity
-- Writes use `O_APPEND` with an exclusive file lock and `fsync` after append.
-- Lock timeout defaults to 10 seconds.
-- Readers tolerate truncated or malformed trailing entries by skipping invalid YAML headers.
+## CLI Contract (`run-agent bus`)
+Subcommands:
+- `run-agent bus post`
+- `run-agent bus read`
+- `run-agent bus discover`
 
-## Size Limits & Attachments
-- Soft limit: 64KB per message body.
-- Larger payloads should be stored as attachments and linked with `attachments` or `attachment_path`.
-- Attachment paths are relative to the task folder.
+There is no `run-agent bus watch` command; streaming is `read --follow`.
 
-## Compaction / Archival
-- No compaction/cleanup in MVP; files can grow (append-only).
+### `bus post`
+Path resolution order:
+1. `--bus`
+2. `MESSAGE_BUS` env var
+3. `--project` / `--task` path resolution
+4. Upward auto-discovery
+
+Context resolution for message fields (`project_id/task_id/run_id`):
+1. Explicit flags
+2. Inference from resolved bus path, `RUN_FOLDER`, `TASK_FOLDER`
+3. `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`
+
+Defaults:
+- `--type` default: `INFO`
+- Body from `--body` or piped stdin
+
+### `bus read`
+Path resolution order:
+1. `--project` / `--task` path resolution
+2. `--bus`
+3. `MESSAGE_BUS` env var
+4. Upward auto-discovery
+
+Rules:
+- `--bus` and `--project` together are invalid.
+- Default tail is `--tail 20`.
+- `--tail <= 0` reads full bus.
+- `--follow` polls every `500ms`.
+- On `ErrSinceIDNotFound` during follow, cursor resets to full replay.
+
+### `bus discover`
+- Searches upward from `--from` (or CWD).
+- Returns first bus file found using discovery order above.
+
+## REST API Contract
+
+### `/api/v1/messages`
+- `GET /api/v1/messages?project_id=<id>&task_id=<id?>&after=<msg_id?>`
+- `POST /api/v1/messages`
+
+POST request:
+```json
+{
+  "project_id": "conductor-loop",
+  "task_id": "task-...",
+  "run_id": "20260223-...",
+  "type": "USER",
+  "body": "message text"
+}
+```
+
+POST response (`201`):
+```json
+{
+  "msg_id": "MSG-...",
+  "timestamp": "2026-02-23T19:17:10Z"
+}
+```
+
+Defaults:
+- If `type` is omitted, API defaults to `USER`.
+
+### `/api/v1/messages/stream`
+- `GET /api/v1/messages/stream?project_id=<id>&task_id=<id?>`
+- Uses `Last-Event-ID` as cursor (`msg_id`).
+
+SSE events:
+- `event: message`
+- `event: heartbeat`
+
+`message` payload:
+```json
+{
+  "msg_id": "MSG-...",
+  "timestamp": "2026-02-23T19:17:10.184887Z",
+  "type": "FACT",
+  "project_id": "conductor-loop",
+  "task_id": "task-...",
+  "run_id": "20260223-...",
+  "issue_id": "MSG-...",
+  "parents": ["MSG-..."],
+  "meta": {"source": "runner"},
+  "body": "..."
+}
+```
+
+The SSE `id` field is set to `msg_id`.
+
+### Project-centric message endpoints
+- `GET|POST /api/projects/{project_id}/messages`
+- `GET /api/projects/{project_id}/messages/stream`
+- `GET|POST /api/projects/{project_id}/tasks/{task_id}/messages`
+- `GET /api/projects/{project_id}/tasks/{task_id}/messages/stream`
+
+Project/task list query params:
+- `since` (msg_id cursor)
+- `limit` (capped at `5000`)
+
+POST payload for project/task endpoints:
+```json
+{
+  "type": "USER",
+  "body": "message text"
+}
+```
+
+If `type` is omitted, default is `USER`.
+
+## Ordering and Reliability
+- Write order is append order under exclusive lock.
+- No strict global ordering guarantees across different bus files.
+- Clients should track `msg_id` cursors.
+- SSE heartbeats are emitted periodically (default `30s` via SSE config).
+
+## Outdated Assumptions Removed
+- `bus watch` subcommand.
+- Canonical `attachments` fields in bus schema.
+- SSE payload limited to `{msg_id, content, timestamp}`.
+- Missing SSE `id` field.

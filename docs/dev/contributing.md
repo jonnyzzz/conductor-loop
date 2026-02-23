@@ -105,7 +105,7 @@ Join our [GitHub Discussions](https://github.com/jonnyzzz/conductor-loop/discuss
 
 Before you begin, ensure you have the following installed:
 
-- **Go**: Version 1.21 or higher ([installation guide](https://go.dev/doc/install))
+- **Go**: Version 1.24 or higher ([installation guide](https://go.dev/doc/install))
 - **Git**: Version 2.30 or higher
 - **Make**: For running build tasks
 - **Docker**: Version 20.10+ (optional, for Docker tests)

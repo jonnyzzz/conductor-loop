@@ -2,6 +2,10 @@
 
 Conductor Loop documentation website is built with Hugo in Docker only.
 
+## Requirements
+
+- **Docker**: The build process runs entirely inside a Docker container. No local Hugo installation is required.
+
 ## Why Docker-Only
 
 - Contributors and CI use the same Hugo image/version.

@@ -50,7 +50,7 @@ To add support for a new agent type, you need to:
 2. Add configuration support in `internal/config/`
 3. Register the agent type in the agent factory
 
-See the [Developer Guide](../dev/getting-started.md) for details.
+See the [Developer Guide](../dev/adding-agents.md) for details.
 
 ### Can I run multiple tasks in parallel?
 
@@ -220,25 +220,36 @@ The parent waits for all children to complete before continuing. If a child fail
 
 ### Where should I put my config file?
 
-Recommended locations:
-- **Development**: `./config.yaml` (project root)
-- **Production**: `/etc/conductor/config.yaml`
-- **User**: `~/.conductor/config.yaml`
+Recommended locations (searched in order):
+- `./config.yaml` (current directory)
+- `$HOME/.config/conductor/config.yaml`
 
 Specify with `--config` flag or `CONDUCTOR_CONFIG` environment variable.
 
 ### How do I store API tokens securely?
 
-**Best Practice: Use token files**
+**Best Practice: Use Environment Variables**
+
+Conductor Loop supports per-agent token environment variables that override configuration files:
+
+```bash
+export CONDUCTOR_AGENT_CODEX_TOKEN="sk-..."
+export CONDUCTOR_AGENT_CLAUDE_TOKEN="sk-ant-..."
+export CONDUCTOR_AGENT_GEMINI_TOKEN="AIza..."
+export CONDUCTOR_AGENT_PERPLEXITY_TOKEN="pplx-..."
+export CONDUCTOR_AGENT_XAI_TOKEN="xai-..."
+```
+
+**Alternative: Use token files**
 
 ```yaml
 agents:
   codex:
-    token_file: ~/.conductor/tokens/codex.token  # ✓ Good
+    token_file: ~/.config/conductor/tokens/codex.token
 ```
 
 ```bash
-chmod 600 ~/.conductor/tokens/codex.token
+chmod 600 ~/.config/conductor/tokens/codex.token
 ```
 
 **Avoid: Direct tokens in config**
@@ -248,19 +259,14 @@ agents:
     token: sk-xxxxx  # ✗ Bad - exposed in config
 ```
 
-**Production: Use secret management**
-- Kubernetes Secrets
-- Docker Secrets
-- HashiCorp Vault
-- AWS Secrets Manager
-- Environment variables
-
 ### Can I use environment variables for configuration?
 
 Partially. Currently supported:
 - `CONDUCTOR_CONFIG` - Path to config file
 - `CONDUCTOR_ROOT` - Root directory
 - `CONDUCTOR_DISABLE_TASK_START` - Disable task execution
+- `CONDUCTOR_API_KEY` - Enable API auth and set key
+- `CONDUCTOR_AGENT_<NAME>_TOKEN` - Per-agent tokens
 
 For full environment variable support, consider using a config templating tool or writing a wrapper script.
 
@@ -292,9 +298,9 @@ defaults:
 
 ### Does the API require authentication?
 
-Currently, no. The API is open and suitable for trusted environments.
+Currently, no, unless you enable it. The API is open by default and suitable for trusted environments.
 
-For production, run behind a reverse proxy with authentication (nginx, Caddy, etc.) or use network isolation (VPN, firewall).
+To enable auth, set `api.auth_enabled: true` in config or set `CONDUCTOR_API_KEY` env var.
 
 ### What's the API rate limit?
 

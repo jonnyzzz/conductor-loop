@@ -62,13 +62,19 @@ conductor-loop/
 │   │   ├── orchestrator_test.go
 │   │   ├── ralph.go
 │   │   └── ralph_test.go
-│   └── api/
-│       ├── handlers.go
-│       ├── handlers_test.go
-│       ├── handlers_projects.go
-│       ├── handlers_projects_test.go  # 38 tests; includes path-resolution helper tests
-│       ├── sse.go
-│       └── sse_test.go
+│   ├── api/
+│   │   ├── handlers.go
+│   │   ├── handlers_test.go
+│   │   ├── handlers_projects.go
+│   │   ├── handlers_projects_test.go  # 38 tests; includes path-resolution helper tests
+│   │   ├── sse.go
+│   │   └── sse_test.go
+│   ├── goaldecompose/
+│   ├── metrics/
+│   ├── obslog/
+│   ├── runstate/
+│   ├── taskdeps/
+│   └── webhook/
 ├── cmd/
 │   └── run-agent/
 │       ├── list.go
@@ -706,12 +712,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.24.0'
 
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out ./...
@@ -726,24 +732,24 @@ jobs:
           fi
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: ./coverage.out
 
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.24.0'
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v4
         with:
-          version: latest
+          version: v1.63.4
 ```
 
 ### Pre-Commit Hook
@@ -877,5 +883,5 @@ describe('TaskList', () => {
 
 ---
 
-**Last Updated:** 2026-02-21
-**Version:** 1.0.0
+**Last Updated:** 2026-02-23
+**Version:** 1.0.1

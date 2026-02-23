@@ -1,435 +1,452 @@
 # Frontend-Backend API Contract Subsystem
 
 ## Overview
-Defines the REST/JSON + SSE API contract between the React monitoring UI (frontend) and the Go run-agent serve backend. This API provides read access to project/task/run data, message bus streaming and posting, and task creation capabilities.
+This document defines the current API contract exposed by the Go backend (`internal/api`).
+Source of truth:
+- `internal/api/routes.go`
+- `internal/api/handlers.go`
+- `internal/api/handlers_projects.go`
+- `internal/api/handlers_projects_messages.go`
+- `internal/api/sse.go`
 
-## Goals
-- Provide a stable API for the monitoring UI.
-- Enable TypeScript type safety through integration tests.
-- Support efficient streaming of logs and message bus updates.
-- Enable task creation and message posting from the UI.
-- Support selecting a backend host (single active host at a time).
+## Transport and Defaults
+- Protocol: HTTP JSON + SSE (`text/event-stream`).
+- Server default host: `0.0.0.0`.
+- Server default port: `14355`.
+- If default port is not explicitly pinned, server may probe up to `14355..14454`.
+- UI is served from the same backend under `/` and `/ui/`.
 
-## Non-Goals
-- Remote multi-user access (localhost only in MVP).
-- Write operations beyond task creation and message posting.
-- Authentication/authorization in MVP.
-- Global search across all projects/tasks.
-- Cross-host aggregation (user picks one host at a time).
+## Top-Level Routes
 
-## Technology Stack
-- Protocol: REST (HTTP/1.1 or HTTP/2) + Server-Sent Events (SSE).
-- Format: JSON for REST; text/event-stream for SSE.
-- Base path: `/api/v1`.
-- Host: localhost only for MVP, optional remote host for future.
-- Port: configurable (default 14355).
+### Core (`/api/v1` + metrics)
+| Path | Methods | Notes |
+| --- | --- | --- |
+| `/metrics` | GET | Prometheus format. |
+| `/api/v1/health` | GET | `{"status":"ok"}`. |
+| `/api/v1/version` | GET | `{"version":"<server version>"}`. |
+| `/api/v1/status` | GET | Runtime status summary. |
+| `/api/v1/admin/self-update` | GET, POST | Self-update status/request. |
+| `/api/v1/runs/stream/all` | GET | SSE fan-in for all runs. |
+| `/api/v1/tasks` | GET, POST | Task list/create. |
+| `/api/v1/tasks/{task_id}` | GET, DELETE | Task fetch/cancel. |
+| `/api/v1/runs` | GET | Flat run list. |
+| `/api/v1/runs/{run_id}` | GET | Run summary JSON. |
+| `/api/v1/runs/{run_id}/info` | GET | Raw `run-info.yaml`. |
+| `/api/v1/runs/{run_id}/stop` | POST | Stop run. |
+| `/api/v1/runs/{run_id}/stream` | GET | SSE for one run logs/status. |
+| `/api/v1/messages` | GET, POST | Message list/post by query/body scope. |
+| `/api/v1/messages/stream` | GET | SSE message stream. |
 
-## Host Selection
-- UI can store multiple backend base URLs (local storage or config).
-- UI uses `GET /api/v1/health` and `GET /api/v1/version` to validate a host.
-- UI shows the active host label in the header.
+### Project-centric (`/api/projects`)
+| Path | Methods | Notes |
+| --- | --- | --- |
+| `/api/projects` | GET, POST | Project list/create. |
+| `/api/projects/home-dirs` | GET | Recently used source dirs. |
+| `/api/projects/{project_id}` | GET, DELETE | Project detail/delete. |
+| `/api/projects/{project_id}/stats` | GET | Project aggregate stats. |
+| `/api/projects/{project_id}/runs/flat` | GET | Flattened run graph view. |
+| `/api/projects/{project_id}/tasks` | GET | Task list for project. |
+| `/api/projects/{project_id}/tasks/{task_id}` | GET, DELETE | Task detail/delete. |
+| `/api/projects/{project_id}/tasks/{task_id}/resume` | POST | Remove `DONE` marker. |
+| `/api/projects/{project_id}/tasks/{task_id}/file` | GET | Task file endpoint (`TASK.md` only). |
+| `/api/projects/{project_id}/tasks/{task_id}/runs` | GET | Paginated runs for task. |
+| `/api/projects/{project_id}/tasks/{task_id}/runs/stream` | GET | SSE fan-in for all task runs. |
+| `/api/projects/{project_id}/tasks/{task_id}/runs/{run_id}` | GET, DELETE | Run detail/delete. |
+| `/api/projects/{project_id}/tasks/{task_id}/runs/{run_id}/stop` | POST | Stop run. |
+| `/api/projects/{project_id}/tasks/{task_id}/runs/{run_id}/file` | GET | Run file content endpoint. |
+| `/api/projects/{project_id}/tasks/{task_id}/runs/{run_id}/stream` | GET | SSE file-tail stream. |
+| `/api/projects/{project_id}/messages` | GET, POST | Project bus list/post. |
+| `/api/projects/{project_id}/messages/stream` | GET | Project bus SSE. |
+| `/api/projects/{project_id}/tasks/{task_id}/messages` | GET, POST | Task bus list/post. |
+| `/api/projects/{project_id}/tasks/{task_id}/messages/stream` | GET | Task bus SSE. |
+| `/api/projects/{project_id}/gc` | POST | Garbage collection for old runs. |
 
-## API Endpoints
+## Request and Response Contracts
 
-### Health & Version
-
-#### GET /api/v1/health
-
-**Response**:
+### `GET /api/v1/status`
+Response shape:
 ```json
 {
-  "status": "ok"
+  "active_runs_count": 1,
+  "uptime_seconds": 123.45,
+  "configured_agents": ["claude", "codex"],
+  "version": "dev",
+  "running_tasks": [
+    {
+      "project_id": "conductor-loop",
+      "task_id": "task-...",
+      "run_id": "20260223-...",
+      "agent": "codex",
+      "started": "2026-02-23T20:00:00Z"
+    }
+  ]
 }
 ```
 
-#### GET /api/v1/version
-
-**Response**:
+### `POST /api/v1/tasks`
+Request shape:
 ```json
 {
-  "version": "v1"
+  "project_id": "conductor-loop",
+  "task_id": "task-...",
+  "agent_type": "codex",
+  "prompt": "...",
+  "config": {"KEY": "VALUE"},
+  "project_root": "/abs/path",
+  "attach_mode": "create",
+  "depends_on": ["task-..."],
+  "thread_parent": {
+    "project_id": "...",
+    "task_id": "...",
+    "run_id": "...",
+    "message_id": "..."
+  },
+  "thread_message_type": "USER_REQUEST"
+}
+```
+Response (`201`):
+```json
+{
+  "project_id": "conductor-loop",
+  "task_id": "task-...",
+  "run_id": "20260223-...",
+  "status": "started",
+  "queue_position": 0,
+  "depends_on": ["task-..."]
 }
 ```
 
-### Project Management
+### `GET /api/v1/tasks`
+Response:
+```json
+{
+  "tasks": [
+    {
+      "project_id": "conductor-loop",
+      "task_id": "task-...",
+      "status": "running",
+      "queue_position": 0,
+      "last_activity": "2026-02-23T20:00:00Z",
+      "depends_on": [],
+      "blocked_by": []
+    }
+  ]
+}
+```
 
-#### GET /api/v1/projects
+### `GET /api/v1/tasks/{task_id}`
+Supports optional `project_id` query filter.
+Response includes embedded runs (`run_id/project_id/task_id/status/...`).
 
-List all projects.
+### `DELETE /api/v1/tasks/{task_id}`
+Marks task done and attempts to stop active runs.
+Response (`202`):
+```json
+{"stopped_runs": 1}
+```
 
-**Response**:
+### `GET /api/v1/runs`
+Response:
+```json
+{
+  "runs": [
+    {
+      "run_id": "20260223-...",
+      "project_id": "conductor-loop",
+      "task_id": "task-...",
+      "status": "completed",
+      "process_ownership": "managed",
+      "start_time": "2026-02-23T20:00:00Z",
+      "end_time": "2026-02-23T20:01:00Z",
+      "exit_code": 0,
+      "agent_version": "...",
+      "error_summary": ""
+    }
+  ]
+}
+```
+
+### `GET /api/v1/runs/{run_id}`
+Returns the same `RunResponse` shape as list items.
+
+### `GET /api/v1/runs/{run_id}/info`
+- Content-Type: `application/x-yaml`.
+- Body: raw `run-info.yaml`.
+
+### `POST /api/v1/runs/{run_id}/stop`
+Response (`202`):
+```json
+{"status":"stopping"}
+```
+
+### `GET /api/v1/messages`
+Query:
+- `project_id` (required)
+- `task_id` (optional)
+- `after` (optional msg_id cursor)
+
+Response:
+```json
+{
+  "messages": [
+    {
+      "msg_id": "MSG-...",
+      "timestamp": "2026-02-23T20:00:00Z",
+      "type": "FACT",
+      "project_id": "conductor-loop",
+      "task_id": "task-...",
+      "run_id": "20260223-...",
+      "issue_id": "MSG-...",
+      "parents": [{"msg_id": "MSG-...", "kind": "depends_on"}],
+      "links": [{"url": "https://example.invalid", "label": "ref", "kind": "reference"}],
+      "meta": {"source": "runner"},
+      "body": "..."
+    }
+  ]
+}
+```
+
+### `POST /api/v1/messages`
+Request:
+```json
+{
+  "project_id": "conductor-loop",
+  "task_id": "task-...",
+  "run_id": "20260223-...",
+  "type": "USER",
+  "body": "..."
+}
+```
+Response (`201`):
+```json
+{"msg_id":"MSG-...","timestamp":"2026-02-23T20:00:00Z"}
+```
+If `type` is omitted, default is `USER`.
+
+### Project/task message list and post endpoints
+- `GET /api/projects/{project_id}/messages`
+- `GET /api/projects/{project_id}/tasks/{task_id}/messages`
+- `POST /api/projects/{project_id}/messages`
+- `POST /api/projects/{project_id}/tasks/{task_id}/messages`
+
+List query:
+- `since` (msg_id)
+- `limit` (max `5000`)
+
+POST body:
+```json
+{"type":"USER","body":"..."}
+```
+Response (`201`) matches `PostMessageResponse` (`msg_id`, `timestamp`).
+
+### Project and task metadata endpoints
+`GET /api/projects`:
 ```json
 {
   "projects": [
     {
-      "id": "swarm",
-      "last_activity": "2026-02-04T17:31:55Z",
-      "task_count": 3
+      "id": "conductor-loop",
+      "last_activity": "2026-02-23T20:00:00Z",
+      "task_count": 3,
+      "project_root": "/abs/path"
     }
   ]
 }
 ```
 
-#### GET /api/v1/projects/:project_id
+`POST /api/projects` request:
+```json
+{"project_id":"conductor-loop","project_root":"/abs/path"}
+```
+Response (`201`) is one `projectSummary` object.
 
-Get project details.
-
-**Response**:
+`GET /api/projects/{project_id}` response:
 ```json
 {
-  "id": "swarm",
-  "last_activity": "2026-02-04T17:31:55Z",
-  "home_folders": {
-    "project_root": "/path/to/projects/swarm",
-    "source_folders": ["/path/to/projects/swarm/src"],
-    "additional_folders": []
-  },
-  "tasks": [
+  "id": "conductor-loop",
+  "last_activity": "2026-02-23T20:00:00Z",
+  "task_count": 3,
+  "project_root": "/abs/path"
+}
+```
+
+`GET /api/projects/{project_id}/tasks` returns paginated envelope:
+```json
+{
+  "items": [
     {
-      "id": "20260131-205800-planning",
+      "id": "task-...",
+      "project_id": "conductor-loop",
       "status": "running",
-      "last_activity": "2026-02-04T17:31:55Z"
+      "last_activity": "2026-02-23T20:00:00Z",
+      "run_count": 4,
+      "run_counts": {"running": 1, "completed": 3},
+      "depends_on": [],
+      "blocked_by": [],
+      "thread_parent": null,
+      "done": false,
+      "last_run_status": "running",
+      "last_run_exit_code": 0,
+      "last_run_output_size": 1234,
+      "queue_position": 0
     }
-  ]
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0,
+  "has_more": false
 }
 ```
 
-### Task Management
+`GET /api/projects/{project_id}/tasks/{task_id}` returns `projectTask` shape with `runs` array of `projectRun` entries.
 
-#### GET /api/v1/projects/:project_id/tasks
+`GET /api/projects/{project_id}/tasks/{task_id}/runs` returns paginated `projectRun` items.
 
-List all tasks for a project.
+`GET /api/projects/{project_id}/tasks/{task_id}/runs/{run_id}` returns one `projectRun`.
 
-**Response**:
+### File access endpoints
+Task file:
+- `GET /api/projects/{project_id}/tasks/{task_id}/file?name=TASK.md`
+- Only `TASK.md` is supported.
+
+Run file:
+- `GET /api/projects/{project_id}/tasks/{task_id}/runs/{run_id}/file?name=stdout|stderr|prompt|output.md`
+- Default `name=stdout` when omitted.
+
+File response shape:
 ```json
 {
-  "tasks": [
-    {
-      "id": "20260131-205800-planning",
-      "name": "planning",
-      "status": "running",
-      "last_activity": "2026-02-04T17:31:55Z",
-      "run_count": 15
-    }
-  ]
-}
-```
-
-#### GET /api/v1/projects/:project_id/tasks/:task_id
-
-Get task details.
-
-**Response**:
-```json
-{
-  "id": "20260131-205800-planning",
-  "name": "planning",
-  "project_id": "swarm",
-  "status": "running",
-  "last_activity": "2026-02-04T17:31:55Z",
-  "created_at": "2026-01-31T20:58:00Z",
-  "done": false,
-  "state": "Reviewing subsystem specifications...",
-  "runs": [
-    {
-      "id": "20260204-173042-12345",
-      "agent": "claude",
-      "status": "completed",
-      "exit_code": 0,
-      "start_time": "2026-02-04T17:30:42Z",
-      "end_time": "2026-02-04T17:31:55Z"
-    }
-  ]
-}
-```
-
-#### POST /api/v1/projects/:project_id/tasks
-
-Create a new task or restart an existing task.
-
-**Request**:
-```json
-{
-  "task_id": "20260204-180000-newfeature",
-  "prompt": "Add feature X to the system...",
-  "agent_type": "codex",
-  "project_root": "/path/to/projects/myproject",
-  "attach_mode": "restart",
-  "config": {
-    "JRUN_PARENT_ID": "20260204-170000-11111"
-  }
-}
-```
-
-**Response**:
-```json
-{
-  "task_id": "20260204-180000-newfeature",
-  "status": "started",
-  "run_id": "20260204-180005-12400"
-}
-```
-
-### Run Management
-
-#### GET /api/v1/projects/:project_id/tasks/:task_id/runs/:run_id
-
-Get run metadata.
-
-**Response**:
-```json
-{
-  "version": 1,
-  "run_id": "20260204-173042-12345",
-  "project_id": "swarm",
-  "task_id": "20260131-205800-planning",
-  "parent_run_id": "",
-  "previous_run_id": "20260204-172000-12340",
-  "agent": "claude",
-  "pid": 12345,
-  "pgid": 12345,
-  "start_time": "2026-02-04T17:30:42.569Z",
-  "end_time": "2026-02-04T17:31:55.789Z",
-  "exit_code": 0,
-  "cwd": "/path/to/projects/swarm",
-  "backend_provider": "anthropic",
-  "backend_model": "claude-sonnet-4-5"
-}
-```
-
-### File Access
-
-#### GET /api/v1/projects/:project_id/tasks/:task_id/file
-
-Read task-level files (TASK.md, TASK_STATE.md).
-
-Query parameters:
-- `name`: file name (e.g., `TASK.md`, `TASK_STATE.md`).
-
-**Response**:
-```json
-{
-  "name": "TASK_STATE.md",
-  "content": "Reviewing subsystem specifications...",
-  "modified": "2026-02-04T17:31:55Z"
-}
-```
-
-#### GET /api/v1/projects/:project_id/tasks/:task_id/runs/:run_id/file
-
-Read run-level files (prompt.md, output.md, agent-stdout.txt, agent-stderr.txt).
-
-Query parameters:
-- `name`: file name (e.g., `output.md`, `agent-stdout.txt`).
-- `tail`: optional number of lines to tail (default: all).
-
-**Response**:
-```json
-{
-  "name": "output.md",
+  "name": "stdout",
   "content": "...",
-  "modified": "2026-02-04T17:31:55Z",
-  "size_bytes": 12345
+  "modified": "2026-02-23T20:00:00Z",
+  "size_bytes": 1234
 }
 ```
 
-Security: backend validates that `name` is one of the allowed files and prevents path traversal.
+### Destructive project/task/run endpoints
+- `DELETE /api/projects/{project_id}` (supports `?force=true`)
+- `DELETE /api/projects/{project_id}/tasks/{task_id}`
+- `DELETE /api/projects/{project_id}/tasks/{task_id}/runs/{run_id}`
+- `POST /api/projects/{project_id}/gc?older_than=168h&dry_run=true|false&keep_failed=true|false`
 
-### Message Bus
+`GET /api/projects/{project_id}/stats` and `GET /api/projects/home-dirs` provide aggregate stats and home-dir hints.
 
-#### GET /api/v1/projects/:project_id/bus
+`GET /api/projects/{project_id}/runs/flat` supports:
+- `active_only`
+- `selected_task_id`
+- `selected_task_limit` (clamped)
 
-Read the project message bus.
-
-Query parameters:
-- `after`: optional message id to start after.
-
-#### GET /api/v1/projects/:project_id/tasks/:task_id/bus
-
-Read the task message bus.
-
-Query parameters:
-- `after`: optional message id to start after.
-
-#### POST /api/v1/projects/:project_id/bus
-
-Post a message to the project message bus.
-
-**Request**:
+### Self-update endpoint
+`GET /api/v1/admin/self-update` response shape:
 ```json
 {
-  "type": "USER",
-  "body": "Please clarify the requirements...",
-  "parents": ["MSG-20260204-173000-1"]
+  "state": "idle|deferred|applying|failed",
+  "binary_path": "/path/to/candidate",
+  "requested_at": "...",
+  "started_at": "...",
+  "finished_at": "...",
+  "active_runs_at_request": 0,
+  "active_runs_now": 0,
+  "active_runs_error": "",
+  "last_error": "",
+  "last_note": ""
 }
 ```
 
-**Response**:
+`POST /api/v1/admin/self-update` request:
 ```json
-{
-  "msg_id": "MSG-20260204-173100-2"
-}
+{"binary_path":"/abs/path/to/new/binary"}
 ```
+Successful request returns `202` with the same status object.
 
-#### POST /api/v1/projects/:project_id/tasks/:task_id/bus
+## SSE Contracts
 
-Post a message to the task message bus (same payload as project bus).
+### Message bus SSE
+Endpoints:
+- `/api/v1/messages/stream`
+- `/api/projects/{project_id}/messages/stream`
+- `/api/projects/{project_id}/tasks/{task_id}/messages/stream`
 
-#### GET /api/v1/projects/:project_id/bus/stream
+Events:
+- `message` with `id: <msg_id>` and payload fields:
+  - `msg_id`, `timestamp`, `type`, `project_id`, `task_id`, `run_id`, `issue_id`, `parents` (msg_id list), `meta`, `body`
+- `heartbeat` with `{}`
 
-Stream project message bus via SSE.
+Resumption:
+- Use `Last-Event-ID: <msg_id>`.
 
-Query parameters:
-- `after`: optional message id to start after.
+### Run log SSE (`StreamManager`)
+Endpoints:
+- `/api/v1/runs/{run_id}/stream`
+- `/api/v1/runs/stream/all`
+- `/api/projects/{project_id}/tasks/{task_id}/runs/stream`
 
-SSE events:
-```
-event: message
-data: {"msg_id": "MSG-20260204-173100-2", "ts": "2026-02-04T17:31:00Z", "type": "USER", "project_id": "swarm", "body": "..."}
-```
+Events:
+- `log` payload:
+  - `run_id`, optional `project_id`, optional `task_id`, `stream`, `line`, `timestamp`
+- `status` payload:
+  - `run_id`, optional `project_id`, optional `task_id`, `status`, `exit_code`
+- `heartbeat` payload `{}`
 
-#### GET /api/v1/projects/:project_id/tasks/:task_id/bus/stream
+Cursor:
+- SSE ID for `log` events uses `s=<stdout>;e=<stderr>`.
+- Clients may pass this value in `Last-Event-ID`.
 
-Stream task message bus via SSE (same payload as project bus stream).
+### Run file-tail SSE
+Endpoint:
+- `/api/projects/{project_id}/tasks/{task_id}/runs/{run_id}/stream?name=stdout|stderr|prompt|output.md`
 
-### Log Streaming
+Behavior:
+- Emits raw `data:` lines as file grows.
+- Emits `event: done` once run is finished and file tail is exhausted.
+- Emits `event: error` on read failures.
 
-#### GET /api/v1/runs/stream/all
-
-Stream stdout/stderr for all runs via SSE.
-
-#### GET /api/v1/runs/:run_id/stream
-
-Stream stdout/stderr for a single run via SSE.
-
-SSE events:
-```
-event: log
-data: {"run_id": "20260204-173042-12345", "stream": "stdout", "line": "Starting agent...", "timestamp": "2026-02-04T17:30:43Z"}
-
-event: status
-data: {"run_id": "20260204-173042-12345", "status": "completed", "exit_code": 0}
-
-event: heartbeat
-data: {}
-```
-
-SSE cursor behavior:
-- Clients may send `Last-Event-ID` with a cursor value to resume.
-- Cursor format is `s=<stdout_lines>;e=<stderr_lines>` (single integer applies to both).
-
-## Error Handling
-
-### Standard Error Response
-
+## Errors and Status Codes
+General error envelope for wrapped handlers:
 ```json
 {
   "error": {
-    "code": "NOT_FOUND",
-    "message": "Project 'foo' not found",
+    "code": "BAD_REQUEST|NOT_FOUND|CONFLICT|METHOD_NOT_ALLOWED|FORBIDDEN|INTERNAL",
+    "message": "...",
     "details": {}
   }
 }
 ```
 
-### HTTP Status Codes
+Common statuses:
+- `200 OK`
+- `201 Created`
+- `202 Accepted`
+- `204 No Content`
+- `400 Bad Request`
+- `401 Unauthorized`
+- `403 Forbidden`
+- `404 Not Found`
+- `405 Method Not Allowed`
+- `409 Conflict`
+- `429 Too Many Requests` (per-run SSE max clients)
+- `500 Internal Server Error`
 
-- `200 OK`: success.
-- `201 Created`: task created.
-- `202 Accepted`: async stop accepted.
-- `400 Bad Request`: invalid request parameters.
-- `401 Unauthorized`: missing/invalid auth (if enabled).
-- `404 Not Found`: resource not found.
-- `405 Method Not Allowed`: wrong HTTP method.
-- `409 Conflict`: ambiguous identifiers or already-finished runs.
-- `500 Internal Server Error`: backend error.
-
-## TypeScript Type Generation
-
-### Integration Tests
-
-Create Node.js or browser-based integration tests that:
-1. Start a test instance of run-agent serve.
-2. Make API requests using fetch or axios.
-3. Validate response structure against TypeScript interfaces.
-4. Fail if types don't match.
-
-### Type Definition Example
-
-```typescript
-interface Project {
-  id: string;
-  last_activity: string;
-  task_count: number;
-}
-
-interface ProjectsResponse {
-  projects: Project[];
-}
-
-interface RunInfo {
-  version: number;
-  run_id: string;
-  project_id: string;
-  task_id: string;
-  parent_run_id: string;
-  previous_run_id: string;
-  agent: string;
-  pid: number;
-  pgid: number;
-  start_time: string;
-  end_time: string;
-  exit_code: number;
-  cwd: string;
-  backend_provider?: string;
-  backend_model?: string;
-  backend_endpoint?: string;
-  commandline?: string;
-}
+Auth middleware unauthorized response (special case):
+```json
+{"error":"unauthorized","message":"valid API key required"}
 ```
 
-### OpenAPI Consideration
+## Security and Validation
+- Identifier validation rejects separators and `..` (including URL-decoded forms).
+- File and bus paths are confined to configured root via `requirePathWithinRoot`.
+- Browser/UI-origin destructive operations are rejected with `403` (`rejectUIDestructiveAction`).
+- API key auth supports:
+  - `Authorization: Bearer <key>`
+  - `X-API-Key: <key>`
+- Auth-exempt paths:
+  - `/api/v1/health`
+  - `/api/v1/version`
+  - `/metrics`
+  - `/ui/*`
 
-Future: generate an OpenAPI 3.0 specification and use openapi-generator (or similar) to auto-generate TypeScript types.
-
-## Performance Considerations
-
-### Caching
-
-- File content responses: no caching (files may change).
-- Metadata responses: short-lived cache (2s) for repeated requests.
-
-### Streaming
-
-- SSE connections kept alive with periodic ping (every 30s).
-- Reconnection supported via `Last-Event-ID`.
-
-### Rate Limiting
-
-- No rate limiting in MVP (localhost only).
-
-## CORS
-
-- Disabled by default (localhost only; same-origin).
-- Enable CORS if remote access is added post-MVP.
-
-## Security
-
-### Path Traversal Prevention
-
-- Backend validates file names against allowed list.
-- No user-specified file paths accepted.
-- All file access rooted at `~/run-agent`.
-
-### Input Validation
-
-- All JSON payloads validated against schemas.
-- String length limits: message body 64KB (same as message bus).
-- Reject invalid UTF-8.
-
-## Related Files
-
-- subsystem-monitoring-ui.md (frontend consumer)
-- subsystem-message-bus-tools.md (message bus format)
-- subsystem-storage-layout.md (data sources)
-- subsystem-runner-orchestration.md (run-agent serve implementation)
+## Drift Corrections Applied
+- Canonical default port is `14355` (not `8080`).
+- Project routes are under `/api/projects` (not `/api/v1/projects`).
+- Message bus endpoints use `/messages`, not `/bus`.
+- Message stream includes full payload and SSE `id`.

@@ -23,7 +23,7 @@ Common issues and solutions for Conductor Loop.
 
 **Symptom:**
 ```
-go: directive requires go 1.21 or later
+go: directive requires go 1.24 or later
 ```
 
 **Solution:**
@@ -36,9 +36,9 @@ go version
 brew upgrade go
 
 # Linux:
-wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz
 
 # Windows:
 # Download installer from https://go.dev/dl/
@@ -346,6 +346,9 @@ cat /path/to/token
 2. Verify token format:
    - Codex: starts with `sk-`
    - Claude: starts with `sk-ant-`
+   - Gemini: starts with `AIza`
+   - Perplexity: starts with `pplx-`
+   - xAI: starts with `xai-`
    - Check provider documentation
 
 3. Test token directly:

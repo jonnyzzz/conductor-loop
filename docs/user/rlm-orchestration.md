@@ -88,6 +88,7 @@ run-agent bus post --type PROGRESS --body "EXECUTE: spawning 3 parallel sub-agen
 # Subsystem A — runner
 run-agent job \
   --project "$JRUN_PROJECT_ID" \
+  --task    "$JRUN_TASK_ID-sub1" \
   --root    "$CONDUCTOR_ROOT" \
   --agent   claude \
   --parent-run-id "$JRUN_ID" \
@@ -97,6 +98,7 @@ run-agent job \
 # Subsystem B — storage
 run-agent job \
   --project "$JRUN_PROJECT_ID" \
+  --task    "$JRUN_TASK_ID-sub2" \
   --root    "$CONDUCTOR_ROOT" \
   --agent   claude \
   --parent-run-id "$JRUN_ID" \
@@ -106,6 +108,7 @@ run-agent job \
 # Subsystem C — API
 run-agent job \
   --project "$JRUN_PROJECT_ID" \
+  --task    "$JRUN_TASK_ID-sub3" \
   --root    "$CONDUCTOR_ROOT" \
   --agent   claude \
   --parent-run-id "$JRUN_ID" \
@@ -121,6 +124,7 @@ Use `--prompt-file` for complex instructions that do not fit inline:
 ```bash
 run-agent job \
   --project "$JRUN_PROJECT_ID" \
+  --task    "$JRUN_TASK_ID-sub-prompt" \
   --root    "$CONDUCTOR_ROOT" \
   --agent   claude \
   --parent-run-id "$JRUN_ID" \
@@ -154,7 +158,7 @@ After `wait` returns, read each sub-agent's output and merge findings.
 # Read the output of a specific sub-task
 ./bin/run-agent output \
   --project "$JRUN_PROJECT_ID" \
-  --task    "<sub-task-id>" \
+  --task    "$JRUN_TASK_ID-sub1" \
   --root    "$CONDUCTOR_ROOT"
 ```
 
@@ -222,8 +226,12 @@ $BUS_POST --type PROGRESS --body "EXECUTE: spawning parallel sub-agents"
 
 spawn() {
   local label="$1"; local prompt="$2"
+  # Generate unique sub-task ID
+  local subtask="${JRUN_TASK_ID:-task}-sub-$label"
+  
   run-agent job \
     --project       "$JRUN_PROJECT_ID" \
+    --task          "$subtask" \
     --root          "$CONDUCTOR_ROOT" \
     --agent         claude \
     --parent-run-id "$JRUN_ID" \
@@ -280,7 +288,7 @@ task-specific instructions at the bottom.  Always use **absolute paths** for any
 # Follow live output of a specific run
 ./bin/run-agent output \
   --project "$JRUN_PROJECT_ID" \
-  --task    "<sub-task-id>" \
+  --task    "$JRUN_TASK_ID-sub-runner" \
   --follow \
   --root    "$CONDUCTOR_ROOT"
 

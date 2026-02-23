@@ -131,7 +131,7 @@ On success:
 - The project home/work folder is persisted at:
   - `<root>/<project_id>/PROJECT-ROOT.txt`
 
-`<root>` is the conductor API storage root (`--root`, default `~/run-agent`). The saved folder is used as the default `Project Home Directory` when creating new tasks in that project.
+`<root>` is the conductor API storage root, set via `--root`, `CONDUCTOR_ROOT` env, or `storage.runs_dir` in config (no hardcoded default). The saved folder is used as the default `Project Home Directory` when creating new tasks in that project.
 
 ### Stop Agent Button
 

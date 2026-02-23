@@ -1,22 +1,29 @@
-# config.hcl Schema Specification
+# Config Schema Specification
 
 ## Overview
 
-This document defines the schema for `config.hcl`, the global configuration file for the run-agent system. The file is located at `~/run-agent/config.hcl`.
+This document defines the schema for the conductor-loop configuration file. Both YAML and HCL formats are supported; YAML is the primary format.
 
 ## Goals
 
-- Provide a stable, versioned schema for run-agent configuration
-- Support token management (inline or @file references)
+- Provide a stable, versioned schema for run-agent/conductor configuration
+- Support token management (inline or file references)
 - Enable configuration validation with clear error messages
 - Support schema extraction and default config generation
 - Enable future per-project/per-task configuration overrides
 
 ## File Format
 
-- Format: HCL (HashiCorp Configuration Language) version 2
+- Formats: YAML (primary) or HCL (HashiCorp Configuration Language, v1)
 - Encoding: UTF-8 without BOM
-- Location: `~/run-agent/config.hcl` (global only in MVP)
+- Default search order (first found wins):
+  1. `./config.yaml`
+  2. `./config.yml`
+  3. `./config.hcl`
+  4. `$HOME/.config/conductor/config.yaml`
+  5. `$HOME/.config/conductor/config.yml`
+  6. `$HOME/.config/conductor/config.hcl`
+- Pass `--config <path>` to override the default search.
 
 ## Configuration Commands
 
@@ -34,7 +41,7 @@ Displays the embedded schema definition in human-readable format.
 run-agent config init
 ```
 
-Creates `~/run-agent/config.hcl` with defaults and comments if it doesn't exist, or updates it with new fields while preserving existing values.
+Creates a default `config.yaml` with defaults and comments if it doesn't exist.
 
 ### Validate Config
 
@@ -42,156 +49,88 @@ Creates `~/run-agent/config.hcl` with defaults and comments if it doesn't exist,
 run-agent config validate
 ```
 
-Validates the current config.hcl and reports errors. Automatically run on `run-agent` startup.
+Validates the current config file and reports errors. Automatically run on startup.
 
-## Schema Structure
+## Schema Structure (YAML)
 
-### Top-Level Blocks
+```yaml
+# Agent backend configurations (at least one required)
+agents:
+  claude:
+    type: claude
+    token: "sk-ant-..."          # inline token
+    # OR:
+    token_file: "~/.config/claude/token"
+  codex:
+    type: codex
+    token_file: "~/.config/openai/token"
+  gemini:
+    type: gemini
+    token_file: "~/.config/gemini/token"
+  perplexity:
+    type: perplexity
+    token_file: "~/.config/perplexity/token"
+    base_url: "https://api.perplexity.ai/chat/completions"
+    model: "sonar-reasoning"
+  xai:
+    type: xai
+    token_file: "~/.config/xai/token"
+    base_url: "https://api.x.ai/v1"
+    model: "grok-2"
 
-```hcl
-# Global settings
-projects_root = "~/run-agent"
-deploy_ssh_key = "~/.ssh/run-agent-deploy"
+# Runner defaults
+defaults:
+  agent: claude                  # default agent name (key from agents map)
+  timeout: 0                     # per-run timeout in seconds (0 = no limit)
+  max_concurrent_runs: 0         # max parallel runs (0 = unlimited)
+  max_concurrent_root_tasks: 0   # max parallel root tasks (0 = unlimited)
+  diversification:
+    enabled: false
+    strategy: round-robin        # round-robin or weighted
+    agents: [claude, codex]      # agent names to distribute across
+    weights: [3, 2]              # weights for weighted strategy
+    fallback_on_failure: false   # retry with next agent on failure
 
-# Ralph loop settings
-ralph {
-  max_restarts = 100
-  time_budget_hours = 24
-}
+# API server settings
+api:
+  host: "0.0.0.0"
+  port: 8080
+  sse:
+    poll_interval_ms: 500
+    discovery_interval_ms: 2000
 
-# Agent selection settings
-agent_selection {
-  strategy = "round-robin"  # or "random" or "weighted"
-  weights {
-    claude = 3
-    codex = 2
-    gemini = 2
-    perplexity = 1
-  }
-}
+# Storage settings
+storage:
+  runs_dir: ""                   # override default runs directory
+  extra_roots: []                # additional roots to scan
 
-# Idle/stuck detection settings
-monitoring {
-  idle_threshold_seconds = 300   # 5 minutes
-  stuck_threshold_seconds = 900  # 15 minutes
-}
-
-# Delegation settings
-delegation {
-  max_depth = 16
-}
-
-# Agent backend configurations
-agent "claude" {
-  token = "sk-ant-..."  # Inline token value
-  # OR use token_file for file-based token:
-  # token_file = "~/.config/claude/token"
-}
-
-agent "codex" {
-  token_file = "~/.config/openai/token"  # File-based token
-}
-
-agent "gemini" {
-  token = "..."  # Inline token
-}
-
-agent "perplexity" {
-  token_file = "~/.config/perplexity/token"
-  # REST-specific (optional):
-  api_endpoint = "https://api.perplexity.ai/chat/completions"
-  model = "sonar-reasoning"
-}
+# Webhook notifications (optional)
+webhook:
+  url: "https://example.com/webhook"
+  events: []                     # empty = all events; or specify ["run_stop"]
+  secret: ""                     # HMAC-SHA256 signing secret (optional)
+  timeout: "10s"
 ```
 
 ## Field Definitions
 
-### Global Settings
+### agents (map, required)
 
-#### projects_root (string, optional)
+A map of named agent configurations. At least one agent must be defined. Keys are agent names used to reference agents in `defaults.agent` and diversification config.
 
-Default: `"~/run-agent"`
+#### type (string, required)
 
-Override the root directory for all project data. Tilde `~` is expanded to user home.
+Agent backend type. Supported values: `claude`, `codex`, `gemini`, `perplexity`, `xai`.
 
-#### deploy_ssh_key (string, optional)
+CLI agents: `claude`, `codex`, `gemini`. REST agents: `perplexity`, `xai`.
 
-Path to SSH private key for git push operations if storage is backed by a git repository.
+#### token (string, optional — one of token/token_file required)
 
-### ralph Block (required)
+Inline API token or credential value. Mutually exclusive with `token_file`.
 
-#### max_restarts (integer, optional)
-
-Default: `100`
-
-Maximum number of Ralph restart iterations before giving up.
-
-#### time_budget_hours (integer, optional)
-
-Default: `24`
-
-Maximum hours to allow for Ralph loop before giving up.
-
-### agent_selection Block (required)
-
-#### strategy (string, required)
-
-Valid values:
-- `"round-robin"` - Cycle through available agents in order
-- `"random"` - Random selection with uniform weights
-- `"weighted"` - Random selection with configured weights
-
-#### weights Block (optional)
-
-Required if strategy = "weighted". Integer weights for each agent type.
-
-### monitoring Block (required)
-
-#### idle_threshold_seconds (integer, optional)
-
-Default: `300` (5 minutes)
-
-Time without stdout/stderr activity before marking agent as idle. Agent is idle only if all children are also idle.
-
-#### stuck_threshold_seconds (integer, optional)
-
-Default: `900` (15 minutes)
-
-Time without stdout/stderr activity before marking agent as stuck and terminating it.
-
-### delegation Block (required)
-
-#### max_depth (integer, optional)
-
-Default: `16`
-
-Maximum depth of agent delegation hierarchy. Attempts to spawn agents beyond this depth will fail.
-
-### agent Blocks (at least one required)
-
-Each agent block defines configuration for a specific agent type.
-
-#### Block Label (string, required)
-
-The agent type identifier (e.g., "claude", "codex", "gemini", "perplexity").
-
-#### token (string, optional - one of token/token_file required)
-
-Inline API token or credential value (e.g., `"sk-ant-api03-..."`). Value used directly.
-
-Use this for:
-- Inline secrets (not recommended for production)
-- Environment variable expansion (if supported by HCL parser)
-
-Mutually exclusive with `token_file`.
-
-#### token_file (string, optional - one of token/token_file required)
+#### token_file (string, optional — one of token/token_file required)
 
 Path to file containing API token. Tilde `~` expanded to user home. File contents read and trimmed at config load time.
-
-Use this for:
-- Secure token storage (recommended)
-- File-based secrets management
 
 File must:
 - Be readable by user running run-agent
@@ -202,25 +141,78 @@ Missing files cause configuration errors.
 
 Mutually exclusive with `token`.
 
+#### base_url (string, optional)
+
+API endpoint URL. Required for REST agents (perplexity, xai). Ignored for CLI agents.
+
+#### model (string, optional)
+
+Default model to use for this agent. May be overridden at runtime.
+
 **Environment Variable Injection**:
 The runner automatically injects tokens as environment variables using hardcoded mappings:
 - `claude` → `ANTHROPIC_API_KEY`
 - `codex` → `OPENAI_API_KEY`
 - `gemini` → `GEMINI_API_KEY`
 - `perplexity` → `PERPLEXITY_API_KEY`
+- `xai` → `XAI_API_KEY`
 
-**CLI Invocation**:
-The runner hardcodes all CLI flags and working directory setup. No configuration needed. All agents run in unrestricted mode with proper working directory set by the runner.
+Per-agent token env override key: `CONDUCTOR_AGENT_<AGENT_NAME>_TOKEN` (uppercase agent name, e.g. `CONDUCTOR_AGENT_CLAUDE_TOKEN`).
 
-#### REST-Based Agents (Perplexity, future xAI)
+### defaults (object, optional)
 
-##### api_endpoint (string, required for REST)
+Runner-wide defaults.
 
-API endpoint URL for REST-based invocation.
+#### agent (string, optional)
 
-##### model (string, optional)
+Name of the default agent (key from `agents` map) to use when not specified by caller.
 
-Default model to use for this agent. May be overridden at runtime.
+#### timeout (integer, optional)
+
+Per-run timeout in seconds. `0` means no limit.
+
+#### max_concurrent_runs (integer, optional)
+
+Maximum number of concurrent agent runs across all tasks. `0` means unlimited. Uses a package-level semaphore.
+
+#### max_concurrent_root_tasks (integer, optional)
+
+Maximum concurrent root tasks. Implemented in the API server via a persistent planner state file `.conductor/root-task-planner.yaml`.
+
+#### diversification (object, optional)
+
+Agent diversification policy.
+
+- `enabled` (bool): activates diversification; when false, default agent selection is used.
+- `strategy` (string): `"round-robin"` (default) or `"weighted"`.
+- `agents` (list): ordered list of agent names to distribute across; empty = all configured agents.
+- `weights` (list of int): relative weights for `weighted` strategy; must match `agents` length.
+- `fallback_on_failure` (bool): if true, retry with next agent when selected agent fails.
+
+### api (object, optional)
+
+API server configuration.
+
+- `host` (string): bind address (default `"0.0.0.0"`)
+- `port` (int): port (default `8080`; tries up to 100 consecutive ports if busy)
+- `sse.poll_interval_ms` (int): SSE polling interval in milliseconds
+- `sse.discovery_interval_ms` (int): SSE new-run discovery interval in milliseconds
+
+API authentication: set `CONDUCTOR_API_KEY` env var to enable bearer token auth (`Authorization: Bearer <key>` or `X-API-Key` header). Exempt paths: `/api/v1/health`, `/api/v1/version`, `/metrics`, `/ui/`.
+
+### storage (object, optional)
+
+- `runs_dir` (string): override the default runs root directory
+- `extra_roots` (list of string): additional directories to scan for run data
+
+### webhook (object, optional)
+
+Optional webhook notification on run completion.
+
+- `url` (string, required): HTTP/HTTPS endpoint to POST to
+- `events` (list, optional): event types to trigger on; empty = all events (e.g., `["run_stop"]`)
+- `secret` (string, optional): HMAC-SHA256 signing secret; signature sent in `X-Conductor-Signature` header
+- `timeout` (string, optional): HTTP timeout (default `"10s"`)
 
 ## Token File Format
 
@@ -233,23 +225,17 @@ Token files referenced via `token_file` field:
 
 ## Validation Rules
 
-### At Config Load
-
 ```
 MUST validate:
-- File exists and is readable
-- Valid HCL syntax
-- All required blocks present (ralph, agent_selection, monitoring, delegation)
-- At least one agent block defined
-- Each agent block has exactly one of: token or token_file (mutually exclusive)
-- All token_file references resolve successfully (files exist and readable)
-- strategy is one of: round-robin, random, weighted
-- If strategy=weighted, weights block is present
-- max_restarts > 0
-- time_budget_hours > 0
-- idle_threshold_seconds > 0
-- stuck_threshold_seconds > idle_threshold_seconds
-- max_depth > 0 and <= 100
+- At least one agent defined in agents map
+- Each agent has exactly one of: token or token_file (mutually exclusive)
+- All token_file references resolve (files exist and readable) — skipped by LoadConfigForServer
+- type is one of the supported values (claude, codex, gemini, perplexity, xai)
+- If diversification.enabled, strategy is one of: round-robin, weighted
+- If strategy=weighted, weights list matches agents list length
+- max_concurrent_runs >= 0
+- max_concurrent_root_tasks >= 0
+- timeout >= 0
 ```
 
 ### Error Messages
@@ -258,82 +244,44 @@ Validation errors must be clear and actionable:
 
 ```
 Bad: "Invalid config"
-Good: "config.hcl: agent.claude.token: file not found: ~/.config/claude/token"
+Good: "config.yaml: agents.claude.token_file: file not found: ~/.config/claude/token"
 
 Bad: "Parse error"
-Good: "config.hcl:15: invalid HCL syntax: unexpected token '{'"
+Good: "config.yaml:15: invalid YAML syntax: mapping key already defined"
 
 Bad: "Missing field"
-Good: "config.hcl: missing required block 'ralph'"
+Good: "config.yaml: no agents defined; at least one agent is required"
 ```
 
-## Default Configuration Template
+## HCL Format
 
-The `run-agent config init` command generates:
+The same logical schema can be expressed in HCL (used when the file has `.hcl` extension):
 
 ```hcl
-# run-agent configuration
-# Generated by: run-agent config init
-# Documentation: https://github.com/your-org/run-agent/docs/config.md
-
-# Global settings
-# projects_root = "~/run-agent"  # Uncomment to override default
-# deploy_ssh_key = "~/.ssh/run-agent-deploy"  # Uncomment if using git-backed storage
-
-# Ralph loop configuration
-ralph {
-  max_restarts = 100            # Maximum restart iterations
-  time_budget_hours = 24        # Maximum hours for task completion
+agents {
+  claude {
+    type       = "claude"
+    token_file = "~/.config/claude/token"
+  }
+  codex {
+    type       = "codex"
+    token_file = "~/.config/openai/token"
+  }
 }
 
-# Agent selection strategy
-agent_selection {
-  strategy = "round-robin"      # Options: round-robin, random, weighted
-
-  # Uncomment for weighted strategy:
-  # weights {
-  #   claude = 3
-  #   codex = 2
-  #   gemini = 2
-  #   perplexity = 1
-  # }
+defaults {
+  agent   = "claude"
+  timeout = 0
 }
 
-# Monitoring thresholds
-monitoring {
-  idle_threshold_seconds = 300   # 5 minutes (idle = no activity, all children idle)
-  stuck_threshold_seconds = 900  # 15 minutes (stuck = terminate and restart)
+api {
+  host = "0.0.0.0"
+  port = 8080
 }
 
-# Delegation limits
-delegation {
-  max_depth = 16                 # Maximum agent hierarchy depth
+storage {
+  runs_dir = ""
 }
-
-# Agent backend configurations
-# Configure at least one agent below
-# Use either 'token' (inline) or 'token_file' (file path), not both
-
-# agent "claude" {
-#   token = "sk-ant-..."              # Inline token (not recommended)
-#   # OR use token_file:
-#   # token_file = "~/.config/claude/token"
-# }
-
-# agent "codex" {
-#   token_file = "~/.config/openai/token"  # File-based (recommended)
-# }
-
-# agent "gemini" {
-#   token_file = "~/.config/gemini/token"
-# }
-
-# agent "perplexity" {
-#   token_file = "~/.config/perplexity/token"
-#   # Optional REST-specific settings:
-#   # api_endpoint = "https://api.perplexity.ai/chat/completions"
-#   # model = "sonar-reasoning"
-# }
 ```
 
 ## Go Implementation Notes
@@ -342,103 +290,51 @@ delegation {
 
 ```go
 type Config struct {
-    ProjectsRoot    string          `hcl:"projects_root,optional"`
-    DeploySSHKey    string          `hcl:"deploy_ssh_key,optional"`
-    Ralph           RalphConfig     `hcl:"ralph,block"`
-    AgentSelection  SelectionConfig `hcl:"agent_selection,block"`
-    Monitoring      MonitoringConfig `hcl:"monitoring,block"`
-    Delegation      DelegationConfig `hcl:"delegation,block"`
-    Agents          []AgentConfig   `hcl:"agent,block"`
-}
-
-type RalphConfig struct {
-    MaxRestarts      int `hcl:"max_restarts,optional"`
-    TimeBudgetHours  int `hcl:"time_budget_hours,optional"`
-}
-
-type SelectionConfig struct {
-    Strategy string             `hcl:"strategy"`
-    Weights  map[string]int     `hcl:"weights,optional"`
-}
-
-type MonitoringConfig struct {
-    IdleThresholdSeconds  int `hcl:"idle_threshold_seconds,optional"`
-    StuckThresholdSeconds int `hcl:"stuck_threshold_seconds,optional"`
-}
-
-type DelegationConfig struct {
-    MaxDepth int `hcl:"max_depth,optional"`
+    Agents   map[string]AgentConfig `yaml:"agents"`
+    Defaults DefaultConfig          `yaml:"defaults"`
+    API      APIConfig              `yaml:"api"`
+    Storage  StorageConfig          `yaml:"storage"`
+    Webhook  *WebhookConfig         `yaml:"webhook,omitempty"`
 }
 
 type AgentConfig struct {
-    Type        string   `hcl:"type,label"`
-    Token       string   `hcl:"token,optional"`       // Inline token value
-    TokenFile   string   `hcl:"token_file,optional"`  // Path to token file
-    APIEndpoint string   `hcl:"api_endpoint,optional"` // REST agents only
-    Model       string   `hcl:"model,optional"`        // REST agents only
+    Type      string `yaml:"type"`            // claude, codex, gemini, perplexity, xai
+    Token     string `yaml:"token,omitempty"`
+    TokenFile string `yaml:"token_file,omitempty"`
+    BaseURL   string `yaml:"base_url,omitempty"`
+    Model     string `yaml:"model,omitempty"`
 }
 
-// GetEnvVarName returns the hardcoded environment variable name for this agent type
-func (a *AgentConfig) GetEnvVarName() string {
-    switch a.Type {
-    case "claude":
-        return "ANTHROPIC_API_KEY"
-    case "codex":
-        return "OPENAI_API_KEY"
-    case "gemini":
-        return "GEMINI_API_KEY"
-    case "perplexity":
-        return "PERPLEXITY_API_KEY"
-    default:
-        return ""
-    }
+type DefaultConfig struct {
+    Agent                  string                 `yaml:"agent"`
+    Timeout                int                    `yaml:"timeout"`
+    MaxConcurrentRuns      int                    `yaml:"max_concurrent_runs"`
+    MaxConcurrentRootTasks int                    `yaml:"max_concurrent_root_tasks"`
+    Diversification        *DiversificationConfig `yaml:"diversification,omitempty"`
+}
+
+type DiversificationConfig struct {
+    Enabled           bool     `yaml:"enabled"`
+    Strategy          string   `yaml:"strategy,omitempty"`   // round-robin, weighted
+    Agents            []string `yaml:"agents,omitempty"`
+    Weights           []int    `yaml:"weights,omitempty"`
+    FallbackOnFailure bool     `yaml:"fallback_on_failure,omitempty"`
+}
+
+type StorageConfig struct {
+    RunsDir    string   `yaml:"runs_dir"`
+    ExtraRoots []string `yaml:"extra_roots,omitempty"`
 }
 ```
 
 ### Loading Process
 
-1. Read `~/run-agent/config.hcl`
-2. Parse HCL using `github.com/hashicorp/hcl/v2`
-3. Decode into Config struct using `gohcl.DecodeBody`
-4. Apply defaults for optional fields
-5. Validate required blocks and fields
-6. Validate agent configs (exactly one of token/token_file)
-7. Resolve token_file references (expand ~, read file, trim whitespace)
-8. Validate token file existence and readability
-9. Build agent registry from agent blocks
-
-### Token Resolution
-
-```go
-func (a *AgentConfig) ResolveToken() (string, error) {
-    // Validate mutually exclusive fields
-    if a.Token != "" && a.TokenFile != "" {
-        return "", fmt.Errorf("agent %s: cannot specify both token and token_file", a.Type)
-    }
-    if a.Token == "" && a.TokenFile == "" {
-        return "", fmt.Errorf("agent %s: must specify either token or token_file", a.Type)
-    }
-
-    // Inline token
-    if a.Token != "" {
-        return a.Token, nil
-    }
-
-    // File-based token
-    path := expandTilde(a.TokenFile) // expand ~/...
-
-    content, err := os.ReadFile(path)
-    if err != nil {
-        return "", fmt.Errorf("failed to read token file %s: %w", path, err)
-    }
-
-    return strings.TrimSpace(string(content)), nil
-}
-```
-
-### Validation
-
-Use `github.com/hashicorp/hcl-lang/validator` for structural validation, plus custom business logic validation.
+1. Locate config file: use `--config` flag path, or search default locations
+2. Parse YAML (or HCL for `.hcl` extension) into Config struct
+3. Apply defaults for optional fields
+4. Validate required fields and token references (`LoadConfig`); skip token validation for server-only mode (`LoadConfigForServer`)
+5. Resolve token_file references (expand `~`, read file, trim whitespace)
+6. Build agent registry from agents map
 
 ## Future Extensions
 
@@ -446,16 +342,10 @@ Use `github.com/hashicorp/hcl-lang/validator` for structural validation, plus cu
 
 Precedence: CLI > env vars > task config > project config > global config
 
-Project config location: `~/run-agent/<project>/PROJECT-CONFIG.hcl`
-Task config location: `~/run-agent/<project>/task-<id>/TASK-CONFIG.hcl`
-
-Override rules:
-- Scalar values: override completely
-- Lists: replace (not merge)
-- Maps: merge (later values override earlier)
+Project config location: `<root>/<project>/PROJECT-CONFIG.yaml`
+Task config location: `<root>/<project>/<task>/TASK-CONFIG.yaml`
 
 ## Related Files
 
 - subsystem-runner-orchestration.md (parent specification)
 - subsystem-agent-backend-*.md (agent-specific configuration details)
-- RESEARCH-FINDINGS.md (HCL library selection and best practices)

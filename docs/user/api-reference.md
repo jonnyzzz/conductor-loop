@@ -27,6 +27,7 @@ There are two API surfaces:
    - `GET /api/projects/{projectId}/tasks/{taskId}/messages` — list task-level message bus messages; `POST` appends a new message
    - `GET /api/projects/{projectId}/tasks/{taskId}/messages/stream` — SSE stream of task-level message bus
    - `POST /api/projects/{projectId}/tasks/{taskId}/resume` — remove the task's `DONE` file so the Ralph Loop can restart it (200 OK on success; 404 if task not found; 400 if no DONE file)
+   - `GET /api/projects/{projectId}/runs/flat` — list all runs in a project as a flat list (supports tree visualization)
 
 ## Base URL
 
@@ -50,7 +51,7 @@ Web UI form submissions are durably appended to a JSONL audit file:
 <root>/_audit/form-submissions.jsonl
 ```
 
-`<root>` is the API server root directory (`--root`, default `~/run-agent`).
+`<root>` is the API server root directory, set via `--root`, `CONDUCTOR_ROOT` env, or `storage.runs_dir` in config (no hardcoded default).
 
 Logged endpoints:
 
@@ -773,7 +774,7 @@ This creates:
 - project directory: `<root>/<project_id>/`
 - project root marker file: `<root>/<project_id>/PROJECT-ROOT.txt`
 
-`<root>` is the conductor API root (`--root`, default `~/run-agent`).
+`<root>` is the conductor API root, set via `--root`, `CONDUCTOR_ROOT` env, or `storage.runs_dir` in config (no hardcoded default).
 
 **Request Body:**
 

@@ -64,22 +64,24 @@ The Ralph Loop is the restart manager for root agent processes. It automatically
 │     ┌────────────────────────────────────────┐             │
 │     │ loop:                                  │             │
 │     │                                        │             │
-│     │   a. Check for DONE file (pre-run)     │             │
-│     │      - If exists → STOP (success)      │             │
+│     │   a. Check context canceled → STOP     │             │
 │     │                                        │             │
-│     │   b. Check max restarts                │             │
+│     │   b. Check for DONE file (pre-run)     │             │
+│     │      - If exists → wait children, STOP │             │
+│     │                                        │             │
+│     │   c. Check max restarts                │             │
 │     │      - If restartCount >= max → FAIL   │             │
 │     │                                        │             │
-│     │   c. Run agent process (attempt N)     │             │
-│     │      - Logs failure as WARNING         │             │
-│     │      - Continues regardless of exit    │             │
+│     │   d. Run agent process (attempt N)     │             │
+│     │      - Any exit code: logged, loop     │             │
+│     │        continues regardless            │             │
 │     │                                        │             │
-│     │   d. Increment restartCount            │             │
+│     │   e. Increment restartCount            │             │
 │     │                                        │             │
-│     │   e. Check for DONE file (post-run)    │             │
-│     │      - If exists → STOP (success)      │             │
+│     │   f. Check for DONE file (post-run)    │             │
+│     │      - If exists → wait children, STOP │             │
 │     │                                        │             │
-│     │   f. Delay before restart              │             │
+│     │   g. Delay before restart              │             │
 │     │      - sleep(restartDelay)             │             │
 │     │                                        │             │
 │     └────────────────────────────────────────┘             │
@@ -90,7 +92,10 @@ The Ralph Loop is the restart manager for root agent processes. It automatically
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Note:** The loop stops via: exit code 0 (success), DONE file detection, max restarts exceeded, or context cancellation. See the [Exit Conditions](#exit-conditions) section for the complete list of stop conditions.
+**Critical:** The loop stops **only** on: DONE file present, max restarts exceeded, or
+context cancellation. A zero exit code does NOT stop the loop — the agent must create
+the `DONE` file to signal task completion. See the [Exit Conditions](#exit-conditions)
+section for the complete list.
 
 ### Pseudocode
 
@@ -101,28 +106,33 @@ def ralph_loop():
     restart_delay = 1  # second
 
     while True:
-        # 1. Check DONE file BEFORE running agent
+        # 1. Check context cancellation
+        if context_canceled():
+            return CANCELED
+
+        # 2. Check DONE file BEFORE running agent
         if done_file_exists():
             wait_for_children()
             return SUCCESS
 
-        # 2. Check max restarts
+        # 3. Check max restarts
         if restart_count >= max_restarts:
             log("Max restarts exceeded, stopping")
             return FAILURE
 
-        # 3. Run agent (failure is logged but not fatal)
+        # 4. Run agent — any exit code is logged but loop always continues
         err = run_agent_process(attempt=restart_count)
         if err:
             log(f"WARNING: agent failed on restart #{restart_count}: {err}")
+        # NOTE: exit code 0 (err=None) does NOT stop the loop here!
         restart_count += 1
 
-        # 4. Check DONE file AFTER agent exits
+        # 5. Check DONE file AFTER agent exits
         if done_file_exists():
             wait_for_children()
             return SUCCESS
 
-        # 5. Restart delay
+        # 6. Restart delay (always — even after successful exit code)
         sleep(restart_delay)
 ```
 
@@ -247,26 +257,30 @@ touch /path/to/task-folder/DONE
 
 **Implementation:**
 ```go
-func (rl *RalphLoop) checkDoneFile() bool {
-    taskDir := filepath.Dir(filepath.Dir(rl.runDir))
-    donePath := filepath.Join(taskDir, "DONE")
-    _, err := os.Stat(donePath)
-    return err == nil  // File exists
+func (rl *RalphLoop) doneExists() (bool, error) {
+    path := filepath.Join(rl.runDir, "DONE")  // rl.runDir is the task directory
+    info, err := os.Stat(path)
+    if err == nil {
+        if info.IsDir() {
+            return false, errors.New("DONE is a directory")
+        }
+        return true, nil
+    }
+    if os.IsNotExist(err) {
+        return false, nil
+    }
+    return false, errors.Wrap(err, "stat DONE")
 }
 ```
 
 ### Behavior
 
 **If DONE file exists:**
-1. Ralph loop stops immediately
+1. Ralph loop waits for any active child runs to complete (up to `waitTimeout`)
 2. No restart attempted
-3. Run status: `success` (if exit code 0) or `stopped`
-4. Message logged: "DONE file detected"
-5. After successful loop exit, runner triggers completion fact propagation:
-   - Collect task FACT signals and run outcome summary
-   - Post synthesized `FACT` to `PROJECT-MESSAGE-BUS.md`
-   - Include source task/run IDs, timestamps, and source artifact paths
-   - Use `TASK-COMPLETE-FACT-PROPAGATION.yaml` for idempotency
+3. Loop returns nil (success)
+4. Message logged: "task completed (DONE marker present, no active children)"
+5. Completion fact propagated to `PROJECT-MESSAGE-BUS.md` (best-effort)
 
 **If DONE file does not exist:**
 1. Ralph loop continues normal exit code handling
@@ -280,95 +294,52 @@ func (rl *RalphLoop) checkDoneFile() bool {
 
 Ralph loop stops and does NOT restart in these cases:
 
-#### 1. Success (Exit Code 0)
+> **Important:** Exit code 0 by itself is NOT a stop condition. The loop always
+> continues to the next attempt unless DONE is present, restarts are exhausted,
+> or the context is canceled.
+
+#### 1. DONE File Detected
+
+Checked **before** the first run and **after** every run. Path: `<task_dir>/DONE`.
 
 ```go
-if exitCode == 0 {
-    log("Agent succeeded with exit code 0")
-    return nil  // Success
+done, err := rl.doneExists()  // filepath.Join(rl.runDir, "DONE")
+if done {
+    return rl.handleDone(ctx)  // wait for children, return nil
 }
 ```
 
 **Behavior:**
-- Run status: `success`
+- Waits for active child runs (up to `waitTimeout` = 300s)
 - No restart
-- Return nil error
+- Return nil (success)
+- Completion fact propagated to `PROJECT-MESSAGE-BUS.md` (best-effort)
 
-#### 2. DONE File Detected
+#### 2. Max Restarts Exceeded
 
 ```go
-if rl.checkDoneFile() {
-    log("DONE file detected, stopping")
-    return nil  // Treat as success
-}
-```
-
-**Behavior:**
-- Run status: `success` or `stopped`
-- No restart
-- Return nil error
-- Follow-up completion propagation worker runs (best-effort, non-fatal on failure)
-
-#### 3. Max Restarts Exceeded
-
-```go
-if restartCount >= rl.maxRestarts {
-    log("Max restarts exceeded")
+if restarts >= rl.maxRestarts {
+    // posts ERROR to task message bus
     return errors.New("max restarts exceeded")
 }
 ```
 
 **Behavior:**
-- Run status: `failed`
+- Posts an ERROR message to the task message bus
 - No restart
 - Return error
 
-#### 4. Fatal Error
+#### 3. Context Canceled
 
 ```go
-if isFatalError(err) {
-    log("Fatal error detected")
+if err := ctx.Err(); err != nil {
     return err
 }
 ```
 
-**Examples of Fatal Errors:**
-- Agent executable not found
-- Permission denied
-- Invalid configuration
-
 **Behavior:**
-- Run status: `failed`
 - No restart
-- Return error
-
-#### 5. Context Canceled
-
-```go
-if ctx.Err() != nil {
-    log("Context canceled")
-    return ctx.Err()
-}
-```
-
-**Behavior:**
-- Run status: `stopped`
-- No restart
-- Return context.Canceled
-
-#### 6. Wait-Without-Restart Signal
-
-```go
-if waitWithoutRestart {
-    log("Wait-without-restart signal received")
-    return nil
-}
-```
-
-**Behavior:**
-- Run status: `stopped`
-- No restart
-- Return nil
+- Return context.Canceled or context.DeadlineExceeded
 
 ---
 
@@ -378,10 +349,11 @@ if waitWithoutRestart {
 
 Ralph loop restarts the agent in these cases:
 
-1. **Non-Zero Exit Code:** Agent failed with non-zero exit
+1. **Any Exit Code (zero or non-zero):** The loop always restarts unless a stop condition is met
 2. **Within Restart Limit:** restartCount < maxRestarts
-3. **No DONE File:** DONE file does not exist
-4. **Not Fatal Error:** Error is transient/recoverable
+3. **No DONE File:** DONE file does not exist (checked pre- and post-run)
+
+> The loop does NOT stop on exit code 0. The agent must write `DONE` to stop the loop.
 
 ### Restart Flow
 
@@ -655,51 +627,51 @@ func (rl *RalphLoop) Run(ctx context.Context) error
 **Implementation Outline:**
 
 ```go
+// Actual implementation (internal/runner/ralph.go)
 func (rl *RalphLoop) Run(ctx context.Context) error {
-    restartCount := 0
-
-    for restartCount < rl.maxRestarts {
-        // Check context cancellation
-        if ctx.Err() != nil {
-            return ctx.Err()
-        }
-
-        // Run agent
-        err := rl.runRoot(ctx, restartCount)
-
-        // Check DONE file
-        if rl.checkDoneFile() {
-            rl.logMessage("DONE file detected, stopping")
-            return nil
-        }
-
-        // Success exit code
-        if err == nil {
-            rl.logMessage("Agent succeeded")
-            return nil
-        }
-
-        // Fatal error
-        if isFatalError(err) {
-            rl.logMessage("Fatal error: %v", err)
+    restarts := 0
+    for {
+        // 1. Check context cancellation
+        if err := ctx.Err(); err != nil {
             return err
         }
 
-        // Restart
-        rl.logMessage("Agent failed, restarting (%d/%d)", restartCount+1, rl.maxRestarts)
-
-        // Delay before restart
-        select {
-        case <-time.After(rl.restartDelay):
-        case <-ctx.Done():
-            return ctx.Err()
+        // 2. Check DONE file BEFORE running
+        done, err := rl.doneExists()
+        if err != nil {
+            return err
+        }
+        if done {
+            return rl.handleDone(ctx)  // wait for children
         }
 
-        restartCount++
-    }
+        // 3. Check max restarts
+        if restarts >= rl.maxRestarts {
+            // posts ERROR to message bus
+            return errors.New("max restarts exceeded")
+        }
 
-    // Max restarts exceeded
-    return errors.New("max restarts exceeded")
+        // 4. Run agent — any exit code, loop always continues
+        if err := rl.runRoot(ctx, restarts); err != nil {
+            // logs WARNING but does NOT stop the loop
+        }
+        restarts++
+
+        // 5. Check DONE file AFTER running
+        done, err = rl.doneExists()
+        if err != nil {
+            return err
+        }
+        if done {
+            return rl.handleDone(ctx)  // wait for children
+        }
+
+        // 6. Sleep before restart (even if exit code was 0)
+        if err := sleepWithContext(ctx, rl.restartDelay); err != nil {
+            return err
+        }
+        // loop back to step 1
+    }
 }
 ```
 
@@ -837,5 +809,5 @@ defer func() {
 
 ---
 
-**Last Updated:** 2026-02-05
-**Version:** 1.0.0
+**Last Updated:** 2026-02-23 (facts-validated)
+**Version:** 1.1.0

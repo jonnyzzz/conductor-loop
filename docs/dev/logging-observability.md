@@ -1,123 +1,113 @@
 # Logging and Observability Strategy
 
-This document defines the production logging strategy for conductor-loop and where operators can inspect runtime events.
+This document describes the current logging and observability surfaces used by conductor-loop.
 
-## Goals
+## Logging Stack
 
-- Capture high-signal lifecycle and control-plane events.
-- Keep logs searchable with consistent structured fields.
-- Preserve sensitive data safety with redaction.
-- Avoid noisy per-line debug output from hot paths.
+The codebase uses standard library `log.Logger` plus `internal/obslog`.
+
+- No `slog`, `zerolog`, `zap`, or `logrus` integration in production paths.
+- Structured logs are emitted through `obslog.Log(...)`.
 
 ## Structured Log Format
 
-Runtime logs use structured `key=value` records (logfmt style) with a common envelope:
+`internal/obslog/obslog.go` writes logfmt-like records with common keys:
 
-- `ts` (RFC3339Nano UTC)
+- `ts` (UTC RFC3339Nano)
 - `level` (`DEBUG|INFO|WARN|ERROR`)
-- `subsystem` (for example `api`, `runner`, `messagebus`, `storage`, `startup`)
-- `event` (stable event identifier)
+- `subsystem`
+- `event`
 
-Additional fields are added by event, with a strong preference for:
+Additional event fields are emitted as normalized key/value pairs.
 
-- `project_id`
-- `task_id`
-- `run_id`
-- `request_id`
-- `correlation_id`
+## Redaction and Sanitization
 
-## Redaction Policy
+`obslog` applies centralized sanitization before output:
 
-All structured logs pass through centralized sanitization in `internal/obslog`:
+- key-based redaction for sensitive keys (`token`, `api_key`, `authorization`, `secret`, `password`, etc.)
+- bearer-token masking
+- secret pattern masking (token-like strings / JWT-like payloads)
+- value truncation for oversized fields
 
-- Key-based redaction for sensitive keys (`token`, `api_key`, `authorization`, `secret`, `password`, etc.).
-- Pattern-based redaction for bearer tokens, common API token formats, and JWT-like payloads.
-- Truncation of oversized field values.
+This is the primary guardrail against secret leakage in structured logs.
 
-Rules:
+## Main Logging Surfaces
 
-- Never log message bus body payloads.
-- Never log raw prompts, raw API keys, or secret-bearing headers.
-- Prefer IDs, statuses, counts, and durations over content.
+### Startup and server
 
-## Coverage by Subsystem
+- `cmd/run-agent/serve.go` emits startup/shutdown lifecycle logs.
+- `internal/api/server.go` logs server listen/shutdown events.
 
-### Startup / Shutdown (`cmd/conductor`, `cmd/run-agent serve`)
+### Runner orchestration
 
-- Config discovery/load success and failure.
-- Auth safety fallback when API key is missing.
-- Server start, stop, signal handling, shutdown failures.
+`internal/runner/*` logs:
 
-### API Request Handling (`internal/api`)
+- run directory allocation and run-slot lifecycle
+- token/version validation warnings
+- timeout/failure/completion summaries
+- run event post failures
 
-- Per-request completion log with request/correlation ID and resolved project/task/run IDs when available.
-- Structured request error logs.
-- UI/API control actions (create task, stop run, resume/delete task, delete project, project GC, message posts).
-- Form submission audit trail in `_audit/form-submissions.jsonl` with payload sanitization.
+### Message bus internals
 
-### Runner Orchestration (`internal/runner`)
+`internal/messagebus/messagebus.go` logs:
 
-- Task run start/end, dependency wait failures.
-- Ralph loop attempt failures/completions and child-wait failures.
-- Run directory allocation, semaphore slot acquire/release, timeout/failure/completion summaries.
-- Run start/stop/crash bus-event posting outcomes.
+- lock timeout retries and retry recovery
+- append failures / exhausted retries
+- auto-rotation and rotation recovery failures
 
-### Message Bus (`internal/messagebus`)
+### API request plane
 
-- Lock-timeout retries and retry recovery.
-- Exhausted retries and append failures.
-- Auto-rotation events and rotation reopen/lock failures.
+`internal/api/middleware.go` and handlers log:
 
-### Storage / Locking (`internal/storage`)
+- request completion and request errors
+- key control-plane actions (task/runs/message posting)
+- audit-safe contextual metadata (`project_id`, `task_id`, `run_id`, `request_id`)
 
-- Run-info read/write/marshal/unmarshal failures.
-- Run-info lock acquisition failures.
-- Slow lock waits for run-info updates.
+## Non-Log Observability Artifacts
 
-## Operator Inspection Points
+### Message bus event stream
 
-### Process Logs
+Task and project buses are operational event streams:
 
-Inspect stdout/stderr for server/runner processes:
+- `<root>/<project>/<task>/TASK-MESSAGE-BUS.md`
+- `<root>/<project>/PROJECT-MESSAGE-BUS.md`
 
-- `run-agent serve ...`
-- `conductor ...`
-- `run-agent task ...`
-- `run-agent job ...`
+Runner lifecycle events:
 
-Recommended grep:
+- `RUN_START`
+- `RUN_STOP`
+- `RUN_CRASH`
 
-```bash
-rg "subsystem=(api|runner|messagebus|storage|startup)" /path/to/process.log
-rg "event=(run_execution_failed|run_timeout|project_deleted|append_exhausted_retries)" /path/to/process.log
-```
+### Per-run metadata and outputs
 
-### Task and Project Message Buses
+Each run directory includes:
 
-- Task bus: `<root>/<project_id>/<task_id>/TASK-MESSAGE-BUS.md`
-- Project bus: `<root>/<project_id>/PROJECT-MESSAGE-BUS.md`
-
-Use for domain-level run/task facts and orchestration events.
-
-### API Audit Trail
-
-- `_audit/form-submissions.jsonl` under the configured runs root.
-
-Use for user-triggered API action reconstruction with sanitized payloads.
-
-### Run Artifacts
-
-Per-run directory:
-
-- `run-info.yaml`
+- `run-info.yaml` (status, PID/PGID, timestamps, paths, exit code)
 - `agent-stdout.txt`
 - `agent-stderr.txt`
 - `output.md`
 
-Use to correlate structured control-plane events with agent output.
+`output.md` is guaranteed by fallback creation from stdout when missing.
+
+### API audit trail
+
+`internal/api` writes sanitized form-submission audit entries under `_audit/form-submissions.jsonl` in runs root.
+
+## Practical Inspection Workflow
+
+1. Inspect process logs (`run-agent serve`, runner invocations) for structured events.
+2. Check task/project message bus files for lifecycle and coordination messages.
+3. Read `run-info.yaml` for canonical run status and exit metadata.
+4. Correlate with `agent-stdout.txt`, `agent-stderr.txt`, and `output.md`.
 
 ## Event Naming Guidance
 
-- Use verbs in past tense for completed events (`task_run_completed`, `project_deleted`).
-- Use `_failed` suffix for errors (`run_event_post_failed`).
-- Keep event names stable to preserve query dashboards and alerts.
+For new events:
+
+- keep names stable and machine-friendly
+- use `_failed` suffix for failures
+- prefer short, specific event names over free-form prose
+
+---
+
+Last updated: 2026-02-23

@@ -1,7 +1,7 @@
 # Agent Backend: Codex
 
 ## Overview
-Defines how the Go `run-agent` binary invokes the Codex CLI for a single agent run.
+Defines how the Go `run-agent` binary invokes the Codex (OpenAI) CLI for a single agent run.
 
 ## Goals
 - Provide a stable invocation contract for Codex-based runs.
@@ -9,36 +9,50 @@ Defines how the Go `run-agent` binary invokes the Codex CLI for a single agent r
 
 ## Non-Goals
 - Defining prompt content (handled by Runner & Orchestration).
-- Managing Codex account setup or billing.
+- Managing Codex/OpenAI account setup or billing.
 
 ## Invocation (CLI)
 - Command (used by run-agent):
-  - `codex exec --dangerously-bypass-approvals-and-sandbox -C <cwd> - < <prompt.md>`
-- Prompt input is provided via stdin from the run folder prompt file.
-- Working directory is set by run-agent based on task/sub-agent context.
+  ```bash
+  codex exec \
+    --dangerously-bypass-approvals-and-sandbox \
+    --json \
+    -C <working_dir> \
+    - \
+    < <prompt.md>
+  ```
+- `exec`: The command to execute.
+- `--dangerously-bypass-approvals-and-sandbox`: Disables interactive confirmation and sandboxing (required for autonomous operation).
+- `--json`: **CRITICAL**. Forces output in NDJSON (newline-delimited JSON) format. This allows for deterministic parsing of events.
+- `-C <working_dir>`: Sets the working directory.
+- `-`: Reads the prompt from stdin.
 
 ## I/O Contract
-- stdout: final response (captured to agent-stdout.txt; runner creates output.md from this if missing).
-- stderr: progress/logs (captured to agent-stderr.txt).
-- exit code: 0 success, non-zero failure.
-- Streaming behavior: CLI output assumed to stream progressively (standard CLI behavior, similar to verified Gemini behavior).
+- **Input**: Prompt text is piped to the process `stdin`.
+- **Output (stdout)**: NDJSON stream (captured to `agent-stdout.txt`).
+- **Output (stderr)**: Logs and debug information (captured to `agent-stderr.txt`).
+- **Output Processing**:
+    - The runner captures stdout.
+    - A stream parser (`WriteOutputMDFromStream`) reads the JSON events to extract the final response into `output.md`.
 
 ## Environment / Config
 - Requires Codex CLI available on PATH.
-- Tokens/credentials configured in `config.hcl`:
-  ```hcl
-  agent "codex" {
-    token = "sk-..."                       # Inline token
-    # OR: token = "@/path/to/token.txt"    # @file reference (preferred)
-    # OR: token_file = "~/.config/openai/token"  # File-based field (alternative)
-  }
+- Tokens/credentials configured in `config.yaml`:
+  ```yaml
+  agents:
+    - type: codex
+      token: "sk-..."                       # Inline token
+      # OR:
+      token_file: "~/.config/openai/token"  # File path
   ```
 - Runner automatically injects token as `OPENAI_API_KEY` environment variable (hardcoded mapping).
-- Runner sets working directory and handles all CLI flags automatically (hardcoded for unrestricted mode).
+- Runner sets working directory and handles all CLI flags automatically.
 - No sandboxing; full tool access enabled by runner.
-- Model/reasoning settings use CLI defaults (not overridden by runner).
-- When config is loaded, run-agent validates agent types and rejects unknown backends.
 
-## Related Files
-- subsystem-runner-orchestration.md
-- subsystem-env-contract.md
+## Version Requirements
+- The runner detects the version but specific minimums are generally handled by the `minVersions` map in `internal/runner/validate.go`.
+
+## Implementation Status
+- **Status**: Active.
+- **Go Package**: `internal/agent/codex`.
+- **Type String**: `"codex"`.

@@ -1,522 +1,152 @@
 # Quick Start Guide
 
-Get up and running with Conductor Loop in 5 minutes. This tutorial assumes you've already [installed](installation.md) the binaries.
+This quick start uses current `run-agent` behavior and schema.
 
-## Prerequisites
-
-- Conductor Loop installed (see [Installation Guide](installation.md))
-- An API token for at least one agent (Claude, Codex, Gemini, etc.)
-- Basic terminal/command-line knowledge
-
-## Step 1: Set Up Configuration
-
-Create a minimal configuration file:
+## 1. Prepare Config and Token
 
 ```bash
-# Create config directory
-mkdir -p ~/.conductor/tokens
+mkdir -p ~/.config/conductor/tokens
 
-# Create config.yaml
-cat > config.yaml <<EOF
+echo "<your-token>" > ~/.config/conductor/tokens/codex.token
+chmod 600 ~/.config/conductor/tokens/codex.token
+```
+
+Create `~/.config/conductor/config.yaml`:
+
+```yaml
 agents:
   codex:
     type: codex
-    token_file: ~/.conductor/tokens/codex.token
-    timeout: 300
+    token_file: ~/.config/conductor/tokens/codex.token
 
 defaults:
   agent: codex
   timeout: 300
+  max_concurrent_runs: 4
+  max_concurrent_root_tasks: 2
 
 api:
   host: 0.0.0.0
   port: 14355
-  cors_origins:
-    - http://localhost:3000
 
 storage:
   runs_dir: ./runs
-EOF
-
-# Add your API token
-echo "your-codex-token-here" > ~/.conductor/tokens/codex.token
-chmod 600 ~/.conductor/tokens/codex.token
 ```
 
-## Step 2: Start the Server
+Notes:
 
-Start the Conductor server:
+- Use `~/.config/conductor/config.yaml` (not `~/.conductor/config.yaml`).
+- Per-agent `timeout` is not implemented in runtime config.
+
+## 2. Validate
 
 ```bash
-# Preferred wrapper (task execution enabled)
-./scripts/start-conductor.sh --config config.yaml --root ./runs
-
-# Optional monitor-only mode (no task execution, safe for dashboards)
-./scripts/start-run-agent-monitor.sh --config config.yaml --root ./runs
-
-# If you are not in a source checkout with scripts/, use the binary directly:
-conductor --config config.yaml --root ./runs
-
-# Background mode (writes PID/log files):
-./scripts/start-conductor.sh --background --config config.yaml --root ./runs
-
-# You should see:
-# conductor 2026/02/05 10:00:00 Starting Conductor Loop server
-# conductor 2026/02/05 10:00:00 API listening on http://0.0.0.0:14355/
-# conductor 2026/02/05 10:00:00 Web UI available at http://localhost:14355/ui/
-# conductor 2026/02/05 10:00:00 Root directory: <project-root>
+run-agent validate --config ~/.config/conductor/config.yaml --check-tokens
 ```
 
-If you start in foreground, leave this terminal running and open a new terminal for the next steps.
-
-## Step 3: Test the Server
-
-Verify the server is running:
-
-```bash
-# Check health
-curl http://localhost:14355/api/v1/health
-
-# Response:
-# {"status":"ok","version":"dev"}
-
-# Check version
-curl http://localhost:14355/api/v1/version
-
-# Response:
-# {"version":"dev"}
-```
-
-## Supported Working Scenarios
-
-Conductor Loop supports one task lifecycle with two operator workflows.
-
-### Scenario 1: Console Cloud-Agent Workflow (CLI-first)
-
-Use this when you work from a terminal and the cloud agent controls task execution through `conductor`/`run-agent`.
-
-Expected flow: submit task -> stream logs -> exchange message bus updates -> wait for completion -> resume/retry if needed.
-
-```bash
-# Submit a task (explicit task ID keeps follow-up commands simple)
-conductor job submit \
-  --project my-project \
-  --task task-20260205-095500-cloud-agent \
-  --agent codex \
-  --prompt-file ./prompts/cloud-agent-task.md \
-  --follow
-
-# Watch the same task until it reaches a terminal state
-conductor watch --project my-project --task task-20260205-095500-cloud-agent --timeout 30m
-
-# Read and post task lifecycle messages
-conductor bus read --project my-project --task task-20260205-095500-cloud-agent --follow
-conductor bus post --project my-project --task task-20260205-095500-cloud-agent \
-  --type FACT --body "validation passed"
-
-# If the task exhausted restarts, clear DONE and re-submit
-conductor task resume task-20260205-095500-cloud-agent --project my-project
-```
-
-If your agent has direct file-system access to runs, the equivalent local bus commands are `run-agent bus read/post --root ./runs`.
-
-### Scenario 2: Web UI Workflow (browser-first)
-
-Use this when you want the same task lifecycle through interactive navigation.
-
-Expected flow: open UI -> choose project -> create task -> monitor tabs -> post updates -> stop/resume when needed.
-
-1. Open `http://localhost:14355/ui/`.
-2. In **Tree**, select a project (or click **+ New Project**).
-3. Click **+ New Task**, set `Agent` + `Prompt`, then click **Create Task**.
-4. Track execution in **Task details**, **Message bus**, and **Live logs**.
-5. Use **Stop agent** for a running run, or **Resume task** after a `DONE` state.
-
-### When to Use Which
-
-| Workflow | Choose it when |
-|----------|----------------|
-| Console cloud-agent workflow | You need scriptable/repeatable terminal automation or remote/headless operation |
-| Web UI workflow | You want visual monitoring and fast manual task lifecycle control |
-
-## Step 4: Run Your First Task
-
-### Simple "Hello World" Task
-
-Create a task that prints "Hello World":
-
-```bash
-curl -X POST http://localhost:14355/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project_id": "my-project",
-    "task_id": "task-20260205-100000-hello-world",
-    "agent_type": "codex",
-    "prompt": "Write a Python script that prints Hello World",
-    "project_root": "/tmp"
-  }'
-
-# Response:
-# {
-#   "project_id": "my-project",
-#   "task_id": "task-20260205-100000-hello-world",
-#   "status": "created"
-# }
-```
-
-Use the `task_id` from the response to monitor the task.
-
-### Check Task Status
-
-```bash
-curl "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world"
-
-# Response includes the list of runs with their statuses.
-```
-
-Status values:
-- `created`: Task created, not started yet
-- `running`: Task is executing
-- `success`: Task completed successfully
-- `failed`: Task failed
-- `restarted`: Task was restarted by Ralph Loop
-
-### Check Running Task Runs (Latest Per Task)
-
-Use `run-agent status` to scan each task's latest run and show only active (`status: running`) runs:
-
-```bash
-run-agent status --root <run-agent-root> --project my-project --status running
-```
-
-For automation-friendly output, add `--concise`:
-
-```bash
-run-agent status --root <run-agent-root> --project my-project --status running --concise
-```
-
-When no rows match, the command prints an explicit no-match message (instead of silent empty output).
-
-### View Task Logs
-
-Stream the live logs for all runs of a task (SSE):
-
-```bash
-curl -N "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world/runs/stream"
-
-# Output (Server-Sent Events):
-# data: Starting task...
-# data: Agent: codex
-# data: Executing prompt...
-# ...
-```
-
-Or stream a specific run file:
-
-```bash
-RUN_ID="20260205-1000000000-12345"
-curl -N "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world/runs/$RUN_ID/stream?name=output.md"
-```
-
-## Step 5: List All Tasks
-
-See all tasks in a project:
-
-```bash
-curl http://localhost:14355/api/projects/my-project/tasks
-```
-
-## Step 6: Use the Web UI
-
-Open the web UI in your browser:
-
-```bash
-# Open in browser (macOS)
-open http://localhost:14355/ui/
-
-# Linux
-xdg-open http://localhost:14355/ui/
-
-# Or just navigate to: http://localhost:14355/ui/
-```
-
-The web UI provides:
-- **Task List**: View all running and completed tasks
-- **Run Details**: Click a run to see detailed logs
-- **Live Streaming**: Logs update in real-time
-- **Message Bus**: View cross-task communication
-- **Run Tree**: Visualize parent-child task relationships
-
-Screenshot: [The web UI shows a list of runs with status indicators, timestamps, and navigation to detailed log views]
-
-## Step 7: Try Different Agents
-
-### Using Claude Agent
-
-First, add Claude configuration:
-
-```yaml
-# Add to config.yaml agents section
-agents:
-  claude:
-    type: claude
-    token_file: ~/.conductor/tokens/claude.token
-    timeout: 300
-```
-
-Add your Claude token:
-
-```bash
-echo "your-claude-token" > ~/.conductor/tokens/claude.token
-chmod 600 ~/.conductor/tokens/claude.token
-```
-
-Restart the server and run a task:
-
-```bash
-curl -X POST http://localhost:14355/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project_id": "my-project",
-    "task_id": "task-20260205-110000-ralph-explain",
-    "agent_type": "claude",
-    "prompt": "Explain what the Ralph Loop is in one paragraph",
-    "project_root": "/tmp"
-  }'
-```
-
-### Supported Agents
-
-- **codex**: OpenAI Codex
-- **claude**: Anthropic Claude
-- **gemini**: Google Gemini
-- **perplexity**: Perplexity AI
-- **xai**: xAI (Grok)
-
-See [Configuration](configuration.md) for agent-specific setup.
-
-## Step 8: Parent-Child Tasks
-
-Conductor Loop supports hierarchical tasks where a parent task can spawn child tasks.
-
-The agent can create child tasks by writing to the message bus:
-
-```bash
-curl -X POST http://localhost:14355/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project_id": "my-project",
-    "task_id": "task-20260205-120000-build-project",
-    "agent_type": "codex",
-    "prompt": "Create a Python project with multiple files, using child tasks for each file",
-    "project_root": "/tmp/myproject"
-  }'
-```
-
-When an agent writes a task request to the message bus, the Ralph Loop automatically:
-1. Detects the child task request
-2. Spawns a new run-agent process
-3. Monitors the child task
-4. Restarts the parent if the child fails
-
-View the task tree in the Web UI to see parent-child relationships.
-
-## Step 9: Understanding the Ralph Loop
-
-The **Ralph Loop** is Conductor Loop's automatic restart mechanism. When you run a task (not a job), the Ralph Loop:
-
-1. Executes the agent
-2. Monitors for child tasks
-3. Waits for all children to complete
-4. Restarts on failure (up to max_restarts)
-5. Exits with the final status
-
-Example with explicit restart settings via `run-agent task --max-restarts 3`:
+## 3. Run Your First Task (CLI-only)
 
 ```bash
 run-agent task \
   --project my-project \
-  --task task-20260205-130000-flaky-test \
-  --root ./runs \
-  --config config.yaml \
+  --task task-20260223-100000-hello-world \
   --agent codex \
-  --prompt "Run a flaky test that might fail" \
-  --max-restarts 3
+  --prompt "Write a short hello-world response in markdown" \
+  --config ~/.config/conductor/config.yaml \
+  --root ./runs
 ```
 
-If the task fails, it will restart up to 3 times before giving up.
-
-## Step 10: Work with the Message Bus
-
-The bus has two scopes:
-- **Task scope**: `TASK-MESSAGE-BUS.md` for one task
-- **Project scope**: `PROJECT-MESSAGE-BUS.md` for cross-task coordination
-
-For local runs, use `run-agent bus` (direct file access):
+Watch and inspect:
 
 ```bash
-# Follow task-scoped messages while a task is running
+run-agent watch --project my-project --task task-20260223-100000-hello-world --root ./runs
+run-agent status --project my-project --root ./runs
+run-agent output --project my-project --task task-20260223-100000-hello-world --root ./runs
+```
+
+## 4. Message Bus Basics
+
+Read task messages:
+
+```bash
 run-agent bus read \
   --project my-project \
-  --task task-20260205-100000-hello-world \
+  --task task-20260223-100000-hello-world \
   --root ./runs \
-  --follow
+  --tail 20
+```
 
-# Read recent project-scoped messages
-run-agent bus read --project my-project --root ./runs --tail 50
+Post a progress message:
 
-# Post a task-scoped progress update
+```bash
 run-agent bus post \
   --project my-project \
-  --task task-20260205-100000-hello-world \
+  --task task-20260223-100000-hello-world \
   --root ./runs \
   --type PROGRESS \
-  --body "started auth module refactor"
-
-# Post a project-scoped decision
-run-agent bus post \
-  --project my-project \
-  --root ./runs \
-  --type DECISION \
-  --body "standardizing on OAuth2"
+  --body "manual checkpoint reached"
 ```
 
-### Read/Post/Follow Patterns (`run-agent bus`)
+## 5. Optional: Start HTTP Server
 
-Use these three patterns in day-to-day task operations:
+`run-agent serve` (default port `14355`):
 
 ```bash
-# 1) Read recent context before touching a task
-run-agent bus read \
-  --project my-project \
-  --task task-20260205-100000-hello-world \
-  --root ./runs \
-  --tail 30
-
-# 2) Follow live events while the task is executing
-run-agent bus read \
-  --project my-project \
-  --task task-20260205-100000-hello-world \
-  --root ./runs \
-  --follow
-
-# 3) Post explicit lifecycle updates
-run-agent bus post \
-  --project my-project \
-  --task task-20260205-100000-hello-world \
-  --root ./runs \
-  --type PROGRESS \
-  --body "starting integration test batch"
-
-run-agent bus post \
-  --project my-project \
-  --task task-20260205-100000-hello-world \
-  --root ./runs \
-  --type FACT \
-  --body "integration tests passed: 48/48"
+run-agent serve --config ~/.config/conductor/config.yaml --root ./runs
 ```
 
-You can also read and post through the server API:
+Then use API-client commands:
 
 ```bash
-# Read all project-level messages
-curl "http://localhost:14355/api/v1/messages?project_id=my-project"
-
-# Stream task-level messages
-curl -N "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world/messages/stream"
-
-# Post to task-level message bus
-curl -X POST \
-  "http://localhost:14355/api/projects/my-project/tasks/task-20260205-100000-hello-world/messages" \
-  -H "Content-Type: application/json" \
-  -d '{"type": "PROGRESS", "body": "starting test run"}'
+run-agent server status
+run-agent server task list --project my-project
+run-agent server bus read --project my-project --task task-20260223-100000-hello-world --tail 10
 ```
 
-### Recommended Message Types
+## 6. Optional: `conductor` Binary
 
-- `PROGRESS`: start/end of major steps
-- `FACT`: concrete outcomes (tests passed, files changed, run IDs)
-- `DECISION`: chosen approach and short rationale
-- `ERROR`: blocker and attempted remediation
-- `QUESTION`: explicit request for input
-- `INFO`: neutral status updates
+Current checked-in `./bin/conductor` defaults to port `8080` and uses server URL `http://localhost:8080` for subcommands.
 
-`RUN_START`, `RUN_STOP`, and `RUN_CRASH` are emitted by the runner automatically.
-
-### Typical Local Orchestration Workflow
-
-1. Start a root task (`run-agent task` or `conductor job submit`).
-2. Follow task messages with `run-agent bus read --project ... --task ... --follow`.
-3. Post `PROGRESS` before major steps and `FACT` after concrete outcomes.
-4. Post `DECISION` for strategy changes and `ERROR` for blockers.
-5. Use project-scoped messages to communicate cross-task coordination points.
-
-The Web UI Message Bus panels read and write these same task/project bus files via API. If UI compose is unavailable or feed context looks stale after switching scope/task, use `run-agent bus read/post` as the source of truth.
-
-## Common Use Cases
-
-### Use Case 1: Code Generation
+Start it explicitly:
 
 ```bash
-curl -X POST http://localhost:14355/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project_id": "my-project",
-    "task_id": "task-20260205-140000-code-gen",
-    "agent_type": "codex",
-    "prompt": "Create a REST API server in Go with /health and /users endpoints",
-    "project_root": "/tmp/myapi"
-  }'
+./bin/conductor --config ~/.config/conductor/config.yaml --root ./runs --port 8080
 ```
 
-### Use Case 2: Code Review
+Then:
 
 ```bash
-curl -X POST http://localhost:14355/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project_id": "my-project",
-    "task_id": "task-20260205-141500-code-review",
-    "agent_type": "claude",
-    "prompt": "Review the code in ./src and provide feedback on best practices",
-    "project_root": "/path/to/project"
-  }'
+./bin/conductor status
+./bin/conductor task list --project my-project
+./bin/conductor watch --project my-project --task task-20260223-100000-hello-world
 ```
 
-### Use Case 3: Multi-Step Workflow
+## 7. Common Follow-ups
+
+Resume an exhausted task:
 
 ```bash
-curl -X POST http://localhost:14355/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project_id": "my-project",
-    "task_id": "task-20260205-143000-workflow",
-    "agent_type": "codex",
-    "prompt": "1. Clone github.com/example/repo 2. Run tests 3. Generate coverage report 4. Create a summary",
-    "project_root": "/tmp/workflow"
-  }'
+run-agent resume --project my-project --task task-20260223-100000-hello-world --root ./runs
 ```
+
+Stop a running task:
+
+```bash
+run-agent stop --project my-project --task task-20260223-100000-hello-world --root ./runs
+```
+
+Clean old runs:
+
+```bash
+run-agent gc --root ./runs --older-than 168h --dry-run
+```
+
+## Known CLI Edge Case
+
+`run-agent watch --help` describes `--task` as optional, but the current implementation requires at least one `--task`.
 
 ## Next Steps
 
-Now that you've completed the quick start, explore:
-
-- **[Configuration Guide](configuration.md)**: Learn all configuration options
-- **[CLI Reference](cli-reference.md)**: Master the command-line interface
-- **[API Reference](api-reference.md)**: Deep dive into the REST API
-- **[Web UI Guide](web-ui.md)**: Explore the web interface features
-- **[Troubleshooting](troubleshooting.md)**: Solve common issues
-
-## Tips & Best practices
-
-1. **Use meaningful working directories**: Each task should have its own directory
-2. **Set appropriate timeouts**: Complex tasks may need longer timeouts
-3. **Monitor the message bus**: Use it to understand task coordination
-4. **Check logs regularly**: Logs contain valuable debugging information
-5. **Use the Web UI**: It's easier than curl for monitoring tasks
-
-## Getting Help
-
-- Check the [FAQ](faq.md) for common questions
-- Read the [Troubleshooting Guide](troubleshooting.md)
-- Open an issue on [GitHub](https://github.com/jonnyzzz/conductor-loop/issues)
+- [Configuration](configuration.md)
+- [CLI Reference](cli-reference.md)
+- [API Reference](api-reference.md)

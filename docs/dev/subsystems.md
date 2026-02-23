@@ -464,7 +464,7 @@ Reference: `internal/messagebus/messagebus.go:40-46`
 
 ```go
 type MessageBus struct {
-    path         string              // Path to messagebus.yaml file
+    path         string              // Path to TASK-MESSAGE-BUS.md or PROJECT-MESSAGE-BUS.md
     now          func() time.Time    // Clock (injectable)
     lockTimeout  time.Duration       // Write lock timeout
     pollInterval time.Duration       // Poll interval
@@ -1136,18 +1136,14 @@ type RalphConfig struct {
 ```
 1. Initialize restart counter = 0
 2. Loop:
-   a. Spawn agent process
-   b. Wait for completion
-   c. Check exit conditions:
-      - Exit code 0 → STOP (success)
-      - DONE file exists → STOP
-      - Max restarts exceeded → STOP
-      - Wait-without-restart signal → STOP
-      - Fatal error → STOP
-      - Otherwise → RESTART
-   d. If restart: increment counter, delay, continue
-3. Cleanup: Kill process group if needed
-4. Update run status
+   a. Check DONE file (pre-run) → if exists: STOP (wait for children, complete)
+   b. Check max restarts exceeded → STOP (failure)
+   c. Run agent process (any exit code — failure is logged but loop continues)
+   d. Increment counter
+   e. Check DONE file (post-run) → if exists: STOP (wait for children, complete)
+   f. Sleep restartDelay, then loop back
+3. Loop only stops on: DONE file, max restarts exceeded, or context canceled.
+   A zero exit code does NOT stop the loop by itself.
 ```
 
 ### Process Management
@@ -1190,16 +1186,16 @@ syscall.Kill(-pgid, syscall.SIGTERM)
 ### Exit Conditions
 
 **Stop (No Restart):**
-1. **Success:** Exit code 0
-2. **DONE File:** `TASK_FOLDER/DONE` file exists
-3. **Max Restarts:** Exceeded `maxRestarts` limit
-4. **Wait-Without-Restart:** Special signal received
-5. **Fatal Error:** Unrecoverable error
+1. **DONE File:** `<task_dir>/DONE` file exists (checked before and after each run)
+2. **Max Restarts:** Exceeded `maxRestarts` limit (default: 100)
+3. **Context Canceled:** Stop signal or timeout
+
+> **Important:** A zero exit code does NOT stop the loop. If DONE is absent and the
+> restart budget remains, the loop always restarts—regardless of exit code. Agents
+> must create the `DONE` file to signal completion.
 
 **Restart:**
-1. Non-zero exit code (within restart limit)
-2. No DONE file present
-3. No fatal errors
+1. Any exit code (zero or non-zero) when DONE file is absent and below restart limit
 
 ### DONE File Detection
 
@@ -1984,5 +1980,5 @@ For more specialized documentation, see:
 
 ---
 
-**Last Updated:** 2026-02-21 (Session #31)
-**Version:** 1.0.0
+**Last Updated:** 2026-02-23 (facts-validated)
+**Version:** 1.1.0

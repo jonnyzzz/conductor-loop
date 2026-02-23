@@ -22,13 +22,13 @@ This guide walks you through setting up a development environment for contributi
 ### Required Tools
 
 **Go:**
-- Version: 1.21 or higher
+- Version: 1.24 or higher
 - Installation: https://go.dev/doc/install
 
 ```bash
 # Verify installation
 go version
-# Should output: go version go1.21.x ...
+# Should output: go version go1.24.x ...
 ```
 
 **Git:**
@@ -149,11 +149,11 @@ go build -o bin/ ./cmd/...
 ### Setup Configuration
 
 ```bash
-# Create config directory
-mkdir -p ~/.conductor
+# Create config directory (XDG Base Directory standard)
+mkdir -p ~/.config/conductor
 
 # Create configuration file
-cat > ~/.conductor/config.yaml <<EOF
+cat > ~/.config/conductor/config.yaml <<EOF
 agents:
   claude:
     type: claude
@@ -181,10 +181,10 @@ chmod 600 ~/.claude/token
 
 ```bash
 # Run from source
-go run ./cmd/conductor serve --config ~/.conductor/config.yaml
+go run ./cmd/conductor serve --config ~/.config/conductor/config.yaml
 
 # Or use built binary
-./bin/conductor serve --config ~/.conductor/config.yaml
+./bin/conductor serve --config ~/.config/conductor/config.yaml
 
 # Server should start on http://localhost:14355
 ```
@@ -194,7 +194,7 @@ go run ./cmd/conductor serve --config ~/.conductor/config.yaml
 ```bash
 # Using CLI
 ./bin/run-agent \
-  --config ~/.conductor/config.yaml \
+  --config ~/.config/conductor/config.yaml \
   --project my-project \
   --task task-20260220-140000-my-task \
   --agent claude \
@@ -260,7 +260,7 @@ fswatch -o internal/ cmd/ | xargs -n1 -I{} sh -c 'go build -o bin/conductor ./cm
 go install github.com/go-delve/delve/cmd/dlv@latest
 
 # Debug main executable
-dlv debug ./cmd/conductor -- serve --config ~/.conductor/config.yaml
+dlv debug ./cmd/conductor -- serve --config ~/.config/conductor/config.yaml
 
 # In delve prompt:
 (dlv) break main.main
@@ -284,7 +284,7 @@ Create `.vscode/launch.json`:
       "request": "launch",
       "mode": "debug",
       "program": "${workspaceFolder}/cmd/conductor",
-      "args": ["serve", "--config", "${env:HOME}/.conductor/config.yaml"],
+      "args": ["serve", "--config", "${env:HOME}/.config/conductor/config.yaml"],
       "env": {}
     }
   ]
@@ -378,7 +378,7 @@ console.debug('Debug:', value)
 Name: Run Conductor
 Kind: Go Build
 Package: ./cmd/conductor
-Program arguments: serve --config $HOME/.conductor/config.yaml
+Program arguments: serve --config $HOME/.config/conductor/config.yaml
 ```
 
 ### Vim/Neovim
@@ -414,7 +414,7 @@ docker images | grep conductor-loop
 ```bash
 # Run conductor server
 docker run -p 14355:14355 \
-  -v ~/.conductor:/root/.conductor \
+  -v ~/.config/conductor:/root/.config/conductor \
   -v ~/run-agent:/root/run-agent \
   conductor-loop:dev
 
@@ -434,10 +434,10 @@ services:
     ports:
       - "14355:14355"
     volumes:
-      - ~/.conductor:/root/.conductor
+      - ~/.config/conductor:/root/.config/conductor
       - ~/run-agent:/root/run-agent
     environment:
-      - CONDUCTOR_CONFIG=/root/.conductor/config.yaml
+      - CONDUCTOR_CONFIG=/root/.config/conductor/config.yaml
 ```
 
 **Run:**
@@ -505,7 +505,7 @@ chmod +x /path/to/agent-cli
 
 ```bash
 # Solution: Check config path
-ls -la ~/.conductor/config.yaml
+ls -la ~/.config/conductor/config.yaml
 
 # Or specify absolute path
 ./bin/conductor serve --config /absolute/path/to/config.yaml
@@ -514,13 +514,13 @@ ls -la ~/.conductor/config.yaml
 **Problem:** `agent token is empty`
 
 ```bash
-# Solution: Set token in config or environment
+# Solution: Set token_file in config or use environment variable
 export AGENT_CLAUDE_TOKEN="your-token"
 
 # Or set in config.yaml
 # agents:
 #   claude:
-#     token: "your-token"
+#     token_file: "~/.claude/token"
 ```
 
 ### Port Already in Use
@@ -532,7 +532,7 @@ export AGENT_CLAUDE_TOKEN="your-token"
 lsof -ti:14355 | xargs kill -9
 
 # Or use different port
-./bin/conductor serve --config ~/.conductor/config.yaml --port 8081
+./bin/conductor serve --config ~/.config/conductor/config.yaml --port 8081
 ```
 
 ### Test Failures
@@ -574,11 +574,11 @@ go build -o bin/ ./cmd/...
 
 # Create config directory
 echo "Creating config directory..."
-mkdir -p ~/.conductor
+mkdir -p ~/.config/conductor
 
 # Create sample config
 echo "Creating sample config..."
-cat > ~/.conductor/config.yaml <<EOF
+cat > ~/.config/conductor/config.yaml <<EOF
 agents:
   claude:
     type: claude
@@ -598,8 +598,8 @@ EOF
 
 echo "Setup complete!"
 echo "Next steps:"
-echo "1. Add your API tokens to ~/.conductor/config.yaml"
-echo "2. Run backend: ./bin/conductor serve --config ~/.conductor/config.yaml"
+echo "1. Add your API tokens to ~/.claude/token"
+echo "2. Run backend: ./bin/conductor serve --config ~/.config/conductor/config.yaml"
 echo "3. Open http://localhost:14355/ui/ in your browser"
 ```
 
@@ -618,7 +618,7 @@ chmod +x setup-dev.sh
 
 ```bash
 # Config file path
-export CONDUCTOR_CONFIG=~/.conductor/config.yaml
+export CONDUCTOR_CONFIG=~/.config/conductor/config.yaml
 
 # Storage root
 export CONDUCTOR_ROOT=~/run-agent
@@ -644,5 +644,5 @@ After setting up your development environment:
 
 ---
 
-**Last Updated:** 2026-02-05
-**Version:** 1.0.0
+**Last Updated:** 2026-02-23
+**Version:** 1.0.1
