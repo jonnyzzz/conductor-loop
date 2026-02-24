@@ -29,7 +29,7 @@ Each fact entry MUST follow this exact format:
 ### Configuration & conventions:
 - `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
 - `/Users/jonnyzzz/Work/conductor-loop/CLAUDE.md`
-- `/Users/jonnyzzz/Work/conductor-loop/Instructions.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/dev/instructions.md`
 
 ### Dev process:
 - `/Users/jonnyzzz/Work/conductor-loop/docs/dev/contributing.md`
@@ -43,7 +43,7 @@ Each fact entry MUST follow this exact format:
 ## Instructions
 
 1. For each file, get ALL revisions:
-   `cd /Users/jonnyzzz/Work/conductor-loop && git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/workflow/THE_PROMPT_v5.md docs/workflow/THE_PROMPT_v5_conductor.md docs/workflow/THE_PROMPT_v5_orchestrator.md AGENTS.md CLAUDE.md Instructions.md`
+   `cd /Users/jonnyzzz/Work/conductor-loop && git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/workflow/THE_PROMPT_v5.md docs/workflow/THE_PROMPT_v5_conductor.md docs/workflow/THE_PROMPT_v5_orchestrator.md AGENTS.md CLAUDE.md docs/dev/instructions.md`
 
 2. Read each revision to see how the methodology evolved
 

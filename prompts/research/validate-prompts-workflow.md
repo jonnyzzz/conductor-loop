@@ -53,8 +53,8 @@ done
 # Read CLAUDE.md
 cat CLAUDE.md
 
-# Read Instructions.md
-cat Instructions.md | head -60
+# Read instructions.md
+cat docs/dev/instructions.md | head -60
 
 # Check RLM orchestration docs
 cat docs/user/rlm-orchestration.md | head -60

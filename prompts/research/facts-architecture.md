@@ -23,7 +23,7 @@ For each file below, run `git log -- <file>` to get all commits, then read key r
 - `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PLAN_v5.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/dev/architecture-review.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/dev/dependency-analysis.md`
-- `/Users/jonnyzzz/Work/conductor-loop/IMPLEMENTATION-README.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/dev/implementation-status.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/decisions/CRITICAL-PROBLEMS-RESOLVED.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/decisions/problem-2-FINAL-DECISION.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/decisions/problem-4-DECISION.md`

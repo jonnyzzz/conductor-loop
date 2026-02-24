@@ -27,7 +27,7 @@ const (
 
 	defaultRLMSemanticsDocument = "artifacts/context/RLM.md"
 	rlmSemanticsDocumentEnvVar  = "CONDUCTOR_RLM_SEMANTICS_DOC"
-	thePromptSemanticsDocument  = "THE_PROMPT_v5.md"
+	thePromptSemanticsDocument  = "docs/workflow/THE_PROMPT_v5.md"
 )
 
 // BuildOptions controls deterministic workflow-spec generation from a goal.
@@ -105,7 +105,7 @@ var defaultBlueprint = []taskBlueprint{
 		slug:       "assess-context",
 		title:      "Assess context and constraints",
 		agent:      "claude",
-		rolePrompt: "THE_PROMPT_v5_research.md",
+		rolePrompt: "docs/workflow/THE_PROMPT_v5_research.md",
 		rlmStep:    "ASSESS",
 		stages:     []int{0, 1, 2},
 	},
@@ -113,7 +113,7 @@ var defaultBlueprint = []taskBlueprint{
 		slug:       "decompose-plan",
 		title:      "Decide strategy and decompose into executable tasks",
 		agent:      "codex",
-		rolePrompt: "THE_PROMPT_v5_orchestrator.md",
+		rolePrompt: "docs/workflow/THE_PROMPT_v5_orchestrator.md",
 		rlmStep:    "DECIDE_DECOMPOSE",
 		stages:     []int{3},
 		dependsOn:  []string{"assess-context"},
@@ -122,7 +122,7 @@ var defaultBlueprint = []taskBlueprint{
 		slug:       "implement-changes",
 		title:      "Implement code changes and update tests",
 		agent:      "codex",
-		rolePrompt: "THE_PROMPT_v5_implementation.md",
+		rolePrompt: "docs/workflow/THE_PROMPT_v5_implementation.md",
 		rlmStep:    "EXECUTE",
 		stages:     []int{5, 6},
 		dependsOn:  []string{"decompose-plan"},
@@ -131,7 +131,7 @@ var defaultBlueprint = []taskBlueprint{
 		slug:       "run-tests",
 		title:      "Run and validate focused test/build gates",
 		agent:      "codex",
-		rolePrompt: "THE_PROMPT_v5_test.md",
+		rolePrompt: "docs/workflow/THE_PROMPT_v5_test.md",
 		rlmStep:    "EXECUTE",
 		stages:     []int{4, 7},
 		dependsOn:  []string{"implement-changes"},
@@ -140,7 +140,7 @@ var defaultBlueprint = []taskBlueprint{
 		slug:       "review-claude",
 		title:      "Independent review pass (claude)",
 		agent:      "claude",
-		rolePrompt: "THE_PROMPT_v5_review.md",
+		rolePrompt: "docs/workflow/THE_PROMPT_v5_review.md",
 		rlmStep:    "EXECUTE",
 		stages:     []int{8, 9},
 		dependsOn:  []string{"implement-changes"},
@@ -149,7 +149,7 @@ var defaultBlueprint = []taskBlueprint{
 		slug:       "review-gemini",
 		title:      "Independent review pass (gemini)",
 		agent:      "gemini",
-		rolePrompt: "THE_PROMPT_v5_review.md",
+		rolePrompt: "docs/workflow/THE_PROMPT_v5_review.md",
 		rlmStep:    "EXECUTE",
 		stages:     []int{8, 9},
 		dependsOn:  []string{"implement-changes"},
@@ -158,7 +158,7 @@ var defaultBlueprint = []taskBlueprint{
 		slug:       "synthesize-results",
 		title:      "Synthesize implementation, test, and review outcomes",
 		agent:      "codex",
-		rolePrompt: "THE_PROMPT_v5_orchestrator.md",
+		rolePrompt: "docs/workflow/THE_PROMPT_v5_orchestrator.md",
 		rlmStep:    "SYNTHESIZE",
 		stages:     []int{10, 11},
 		dependsOn:  []string{"run-tests", "review-claude", "review-gemini"},
@@ -167,7 +167,7 @@ var defaultBlueprint = []taskBlueprint{
 		slug:       "verify-completeness",
 		title:      "Verify coverage, completeness, and publish summary",
 		agent:      "claude",
-		rolePrompt: "THE_PROMPT_v5_monitor.md",
+		rolePrompt: "docs/workflow/THE_PROMPT_v5_monitor.md",
 		rlmStep:    "VERIFY",
 		stages:     []int{12},
 		dependsOn:  []string{"synthesize-results"},

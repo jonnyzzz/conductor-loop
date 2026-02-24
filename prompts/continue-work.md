@@ -10,7 +10,7 @@ This is a Go-based multi-agent orchestration framework implementing the Ralph Lo
 
 1. <project-root>/docs/workflow/THE_PROMPT_v5.md — primary workflow and methodology
 2. <project-root>/AGENTS.md — agent conventions, code style, commit format, subsystem ownership
-3. <project-root>/Instructions.md — tool paths, build/test commands, repo structure
+3. <project-root>/docs/dev/instructions.md — tool paths, build/test commands, repo structure
 4. <project-root>/docs/workflow/THE_PLAN_v5.md — implementation plan with phases and task IDs
 5. <project-root>/ISSUES.md — 20 open issues (6 CRITICAL, 7 HIGH, 6 MEDIUM, 2 LOW)
 6. <project-root>/QUESTIONS.md — 9 open design questions from 2026-02-20 session

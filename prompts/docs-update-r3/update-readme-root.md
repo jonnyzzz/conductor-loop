@@ -7,7 +7,7 @@ You are a documentation update agent (Round 3). Facts take priority over all exi
 1. `/Users/jonnyzzz/Work/conductor-loop/README.md`
 2. `/Users/jonnyzzz/Work/conductor-loop/docs/dev/development.md`
 3. `/Users/jonnyzzz/Work/conductor-loop/docs/dev/architecture-review.md`
-4. `/Users/jonnyzzz/Work/conductor-loop/IMPLEMENTATION-README.md`
+4. `/Users/jonnyzzz/Work/conductor-loop/docs/dev/implementation-status.md`
 
 ## Facts sources (read ALL first)
 
@@ -45,7 +45,7 @@ grep -n "14355\|8080\|port" README.md | head -10
 - For README.md: ensure the quick-start example commands, port numbers, and feature list match current reality
 - For docs/dev/development.md: update Go version, build commands, port references
 - For docs/dev/architecture-review.md: check if the summary matches FACTS-architecture.md; update stale claims
-- For IMPLEMENTATION-README.md: update any stale implementation status markers
+- For docs/dev/implementation-status.md: update any stale implementation status markers
 - Keep existing structure — targeted corrections only, no full rewrites
 - Do not add sections that don't exist yet
 

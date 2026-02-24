@@ -38,8 +38,8 @@ cat CLAUDE.md | head -50
 # Check AGENTS.md subsystem registry
 ls internal/
 
-# Check Instructions.md (may reference old structure)
-head -30 Instructions.md 2>/dev/null
+# Check instructions.md (may reference old structure)
+head -30 docs/dev/instructions.md 2>/dev/null
 ```
 
 ## Rules

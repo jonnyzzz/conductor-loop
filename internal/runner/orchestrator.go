@@ -189,7 +189,7 @@ func buildPrompt(params PromptParams, prompt string) string {
 
 	// --- Reference docs ---
 	if params.RepoRoot != "" {
-		promptV5 := filepath.Join(params.RepoRoot, "THE_PROMPT_v5_conductor.md")
+		promptV5 := filepath.Join(params.RepoRoot, "docs", "workflow", "THE_PROMPT_v5_conductor.md")
 		if _, err := os.Stat(promptV5); err == nil {
 			fmt.Fprintf(&b, "\n## Methodology\nRead %s for the full orchestration methodology.\n", promptV5)
 		}

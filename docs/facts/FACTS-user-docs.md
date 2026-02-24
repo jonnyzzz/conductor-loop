@@ -198,3 +198,6 @@ Config Path: Runtime code uses `~/.config/conductor/` (Standard XDG-like path) a
 
 [2026-02-24 08:30:00] [tags: reconciliation, workflow, prompts]
 Workflow prompt files moved: `THE_PROMPT_v5*.md` and `THE_PLAN_v5.md` moved from root to `docs/workflow/`. CLI code references to root paths (e.g. `internal/runner/orchestrator.go` help text injection) are now stale and need update to use `docs/workflow/` prefix.
+
+[2026-02-24 09:00:00] [tags: reconciliation, workflow, prompts, xref-fix]
+Stale CLI code references fixed (iteration 4): `internal/runner/orchestrator.go` now looks for `THE_PROMPT_v5_conductor.md` in `docs/workflow/`. `internal/goaldecompose/spec.go` now uses `docs/workflow/THE_PROMPT_v5.md` for `thePromptSemanticsDocument` and `docs/workflow/THE_PROMPT_v5_<role>.md` for all `rolePrompt` blueprint values. `Instructions.md` moved to `docs/dev/instructions.md` (staged rename). Root-only .md files remaining: `README.md`, `AGENTS.md`, `CLAUDE.md`, `MESSAGE-BUS.md`, `output.md`.

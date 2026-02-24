@@ -11,10 +11,10 @@
 - Checked `run-agent.sh` existence and invocation contract.
 - Validated monitor command form with `uv run python <project-root>/monitor-agents.py --help` (works).
 - Cross-checked prompt statements against:
-  - `<project-root>/THE_PROMPT_v5.md`
-  - `<project-root>/ISSUES.md`
+  - `<project-root>/docs/workflow/THE_PROMPT_v5.md`
+  - `<project-root>/docs/dev/issues.md`
   - `<project-root>/AGENTS.md`
-  - `<project-root>/Instructions.md`
+  - `<project-root>/docs/dev/instructions.md`
   - `<project-root>/docs/dev/development.md`
 
 ## Section-by-Section Feedback
