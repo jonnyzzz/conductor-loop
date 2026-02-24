@@ -170,11 +170,19 @@ type monitorDecision struct {
 
 // decideMonitorAction determines what to do with a task based on its assessed state.
 func decideMonitorAction(state monitorTaskState, root, projectID string) monitorDecision {
+	return decideMonitorActionWithWindow(state, root, projectID, StopRequestedDefaultWindow)
+}
+
+// decideMonitorActionWithWindow is the testable variant that accepts an explicit
+// stop-suppression window duration.
+func decideMonitorActionWithWindow(state monitorTaskState, root, projectID string, stopWindow time.Duration) monitorDecision {
 	switch {
 	case state.Done:
 		return monitorDecision{monitorActionSkip, "already DONE"}
 
 	case state.Status == storage.StatusRunning && state.PIDAlive && state.IsStale:
+		// Stale tasks need recovery regardless of stop-request (the process is alive
+		// but unresponsive; recovering it is not a "restart" in the user-visible sense).
 		return monitorDecision{monitorActionRecover, "running but output inactive beyond stale threshold"}
 
 	case state.Status == storage.StatusRunning && state.PIDAlive:
@@ -182,6 +190,9 @@ func decideMonitorAction(state monitorTaskState, root, projectID string) monitor
 
 	case state.Status == storage.StatusRunning && !state.PIDAlive:
 		// Recorded as running but the process is gone.
+		if checkStopRequested(root, projectID, state.TaskID, stopWindow) {
+			return monitorDecision{monitorActionSkip, "skip restart: stop-requested within window"}
+		}
 		return monitorDecision{monitorActionResume, "marked running but process is dead"}
 
 	case state.Status == storage.StatusCompleted:
@@ -191,12 +202,21 @@ func decideMonitorAction(state monitorTaskState, root, projectID string) monitor
 		return monitorDecision{monitorActionSkip, "completed (output empty, not finalizing)"}
 
 	case state.Status == storage.StatusFailed:
+		if checkStopRequested(root, projectID, state.TaskID, stopWindow) {
+			return monitorDecision{monitorActionSkip, "skip restart: stop-requested within window"}
+		}
 		return monitorDecision{monitorActionResume, "latest run failed"}
 
 	case !state.Exists || !state.HasRuns:
+		if checkStopRequested(root, projectID, state.TaskID, stopWindow) {
+			return monitorDecision{monitorActionSkip, "skip restart: stop-requested within window"}
+		}
 		return monitorDecision{monitorActionStart, "task has no runs yet"}
 
 	default:
+		if checkStopRequested(root, projectID, state.TaskID, stopWindow) {
+			return monitorDecision{monitorActionSkip, "skip restart: stop-requested within window"}
+		}
 		return monitorDecision{monitorActionStart, fmt.Sprintf("unexpected status %q", state.Status)}
 	}
 }
@@ -408,6 +428,9 @@ func monitorLaunchJob(out io.Writer, opts monitorOpts, todo todoEntry, wg *sync.
 	// Remove DONE marker so the run can proceed.
 	doneFile := filepath.Join(opts.RootDir, opts.ProjectID, taskID, "DONE")
 	_ = os.Remove(doneFile)
+	// Remove any STOP-REQUESTED marker: the monitor has decided to (re)start
+	// this task, so the suppression window is no longer relevant.
+	_ = removeStopRequest(opts.RootDir, opts.ProjectID, taskID)
 
 	wg.Add(1)
 	go func() {

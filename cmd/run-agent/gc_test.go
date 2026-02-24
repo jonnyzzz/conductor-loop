@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -182,6 +183,48 @@ func TestGCSkipsMissingRunInfo(t *testing.T) {
 
 	if _, err := os.Stat(runDir); err != nil {
 		t.Errorf("expected run dir without run-info.yaml to still exist: %v", err)
+	}
+}
+
+// TestGCOrphanedRunDirWarning verifies that GC emits a warning to stderr for
+// run directories that have no run-info.yaml, and does not delete them.
+func TestGCOrphanedRunDirWarning(t *testing.T) {
+	root := t.TempDir()
+	runDir := filepath.Join(root, "proj", "task1", "runs", "run-orphan")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	// Capture stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	oldStderr := os.Stderr
+	os.Stderr = w
+
+	if err := runGC(root, "", 24*time.Hour, false, false, false, 0, false); err != nil {
+		w.Close()
+		os.Stderr = oldStderr
+		t.Fatalf("runGC: %v", err)
+	}
+
+	w.Close()
+	os.Stderr = oldStderr
+	stderrBytes, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read pipe: %v", err)
+	}
+	stderrOutput := string(stderrBytes)
+
+	if _, err := os.Stat(runDir); err != nil {
+		t.Errorf("expected orphaned run dir to still exist: %v", err)
+	}
+	if !strings.Contains(stderrOutput, "orphaned run dir") {
+		t.Errorf("expected warning about orphaned run dir in stderr, got: %q", stderrOutput)
+	}
+	if !strings.Contains(stderrOutput, "run-orphan") {
+		t.Errorf("expected run dir name in warning, got: %q", stderrOutput)
 	}
 }
 

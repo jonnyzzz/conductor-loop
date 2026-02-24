@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,12 +26,21 @@ func newStopCmd() *cobra.Command {
 		taskID    string
 		runID     string
 		force     bool
+		noRestart bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "stop",
 		Short: "Stop a running task",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Write STOP-REQUESTED marker before stopping so that monitor loops
+			// know not to immediately restart the task. Only possible when
+			// root+project+task are explicitly provided.
+			if root != "" && projectID != "" && taskID != "" {
+				if err := writeStopRequest(root, projectID, taskID, noRestart); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: failed to write stop-request marker: %v\n", err)
+				}
+			}
 			return runStop(runDir, root, projectID, taskID, runID, force)
 		},
 	}
@@ -41,6 +51,7 @@ func newStopCmd() *cobra.Command {
 	cmd.Flags().StringVar(&taskID, "task", "", "task id")
 	cmd.Flags().StringVar(&runID, "run", "", "run id (optional, defaults to latest running run)")
 	cmd.Flags().BoolVar(&force, "force", false, "send SIGKILL if process does not stop within timeout")
+	cmd.Flags().BoolVar(&noRestart, "no-restart", false, "permanently suppress automatic restart by monitor loops")
 
 	return cmd
 }
@@ -54,6 +65,11 @@ func runStop(runDir, root, projectID, taskID, runID string, force bool) error {
 	infoPath := filepath.Join(resolvedRunDir, "run-info.yaml")
 	info, err := storage.ReadRunInfo(infoPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			runName := filepath.Base(resolvedRunDir)
+			fmt.Fprintf(os.Stderr, "run-info.yaml missing for run %s; status is unknown — nothing to stop\n", runName)
+			return nil
+		}
 		return fmt.Errorf("read run-info from %s: %w", resolvedRunDir, err)
 	}
 
