@@ -43,7 +43,7 @@ Conductor Loop is an orchestration system for coordinating multiple AI agents (C
    - Copy and adapt THE_PROMPT_v5.md
    - Create role-specific prompt files
    - Write AGENTS.md for project conventions
-   - Create Instructions.md with tool paths
+   - Create docs/dev/instructions.md with tool paths
 
 3. **Tooling Setup** (Task ID: bootstrap-03)
    - Set up run-agent.sh script

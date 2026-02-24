@@ -37,7 +37,7 @@ conductor-loop/
 ├── docs/workflow/THE_PROMPT_v5.md  # Workflow document (moved)
 ├── docs/workflow/THE_PLAN_v5.md   # Implementation plan (moved)
 ├── AGENTS.md                   # Agent conventions (this file's companion)
-├── Instructions.md             # This file
+├── docs/dev/instructions.md    # This file (moved from root)
 ├── MESSAGE-BUS.md              # Project message bus
 ├── docs/dev/issues.md          # Known issues and blockers (moved from root)
 ├── go.mod                      # Go module definition

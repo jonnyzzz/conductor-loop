@@ -40,7 +40,7 @@
 ### Stage 0: Identify Tests
 1. **Read Context**
    - Read task prompt for test scope
-   - Read `<project-root>/Instructions.md` for test commands
+   - Read `<project-root>/docs/dev/instructions.md` for test commands
    - Read TASK_STATE.md for context
    - Check which files changed (if testing after implementation)
 
@@ -539,6 +539,6 @@ func TestConcurrent(t *testing.T) {
 
 - **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
-- **Tool Paths**: `<project-root>/Instructions.md`
+- **Tool Paths**: `<project-root>/docs/dev/instructions.md`
 - **Go Testing**: https://go.dev/doc/tutorial/add-a-test
 - **Go Test Command**: https://pkg.go.dev/cmd/go#hdr-Test_packages

@@ -36,7 +36,7 @@
 ### Stage 0: Initialize Monitoring
 1. **Read Configuration**
    - Read `<project-root>/AGENTS.md` for conventions
-   - Read `<project-root>/Instructions.md` for paths
+   - Read `<project-root>/docs/dev/instructions.md` for paths
    - Identify runs directory location
    - Check monitoring interval requirements
 
@@ -443,7 +443,7 @@ This role complements `monitor-agents.py`:
 
 - **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
-- **Tool Paths**: `<project-root>/Instructions.md`
+- **Tool Paths**: `<project-root>/docs/dev/instructions.md`
 - **Storage Layout**: `<project-root>/docs/specifications/subsystem-storage-layout.md`
 - **Python Monitor**: `<project-root>/monitor-agents.py`
 - **Watch Script**: `<project-root>/watch-agents.sh`

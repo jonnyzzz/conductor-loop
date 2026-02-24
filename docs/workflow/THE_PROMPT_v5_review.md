@@ -447,6 +447,6 @@ When multiple review agents are used:
 
 - **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
-- **Tool Paths**: `<project-root>/Instructions.md`
+- **Tool Paths**: `<project-root>/docs/dev/instructions.md`
 - **Go Code Review Comments**: https://go.dev/wiki/CodeReviewComments
 - **Effective Go**: https://go.dev/doc/effective_go

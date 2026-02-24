@@ -105,7 +105,7 @@ If the monitor has configurable defaults (poll interval, summary interval/lines)
 Each bullet below is a distinct agent stage. The root agent selects the agent type (Codex/Claude/Gemini) at random unless statistics strongly indicate a better choice. Any failure must be logged to <MESSAGE_BUS> (and <ISSUES_FILE> if blocking), and the flow restarts from the beginning (or from a root-selected stage if appropriate). Parallel execution is allowed where it does not violate dependencies.
 
 1. Stage 0: Cleanup
-   Look at related project files like MESSAGE-BUS.md, AGENTS.md, Instructions.md, FACTS.md, ISSUES.md. Summarize or append new entries; do not edit MESSAGE-BUS history. Ensure the project root can access the required orchestration files (THE_PROMPT_v5.md, role prompts, run-agent.sh, monitoring scripts). If the project is separate, copy them into the project root; if the project shares a centralized orchestration repo, reference the root files directly. Adapt paths and review the final documents.
+   Look at related project files like MESSAGE-BUS.md, AGENTS.md, docs/dev/instructions.md, FACTS.md, ISSUES.md. Summarize or append new entries; do not edit MESSAGE-BUS history. Ensure the project root can access the required orchestration files (THE_PROMPT_v5.md, role prompts, run-agent.sh, monitoring scripts). If the project is separate, copy them into the project root; if the project shares a centralized orchestration repo, reference the root files directly. Adapt paths and review the final documents.
 
 2. Stage 1: Read local docs
    Read AGENTS.md and all relevant .md files using absolute paths.
@@ -161,7 +161,7 @@ Each bullet below is a distinct agent stage. The root agent selects the agent ty
 
 ## Files and Artifacts
 - AGENTS.md (root and subsystem) governs conventions.
-- Instructions.md lists repo locations and tool paths.
+- docs/dev/instructions.md lists repo locations and tool paths.
 - <RUNS_DIR>/run_XXX/ contains prompt/log artifacts (prompt.md, agent-stdout.txt, agent-stderr.txt, cwd.txt; optional run.log).
 - MESSAGE-BUS.md is the main trace log; ISSUES.md is the blocker log.
 - FACTS.md (if used) records verified facts and decisions.
@@ -172,7 +172,7 @@ Each bullet below is a distinct agent stage. The root agent selects the agent ty
 New agents should begin with:
 1. docs/workflow/THE_PROMPT_v5.md (this file)
 2. AGENTS.md
-3. Instructions.md
+3. docs/dev/instructions.md
 4. docs/workflow/THE_PLAN_v5.md
 5. A project development guide if present (for example, DEVELOPMENT-GUIDE.md)
 
@@ -180,13 +180,13 @@ New agents should begin with:
 - IntelliJ MCP Steroid is the primary tool for code review, search, run configurations, and builds. Use it for analysis and file inspection when shell access is restricted.
 - Prefer IntelliJ MCP Steroid over raw CLI workflows whenever possible.
 - Use no-sandbox runs when workspace sandbox blocks git or file writes outside the repo, but prefer standard sandboxed runs for safety.
-- Use project-specific CLI tools for review/preflight metadata; record their paths in Instructions.md.
+- Use project-specific CLI tools for review/preflight metadata; record their paths in docs/dev/instructions.md.
 
 ## Standard Workflow
 If this template conflicts with the Required Development Flow, the Required Development Flow wins.
 
 ### Phase 0: Bootstrap
-1. Read AGENTS.md, Instructions.md, and the current plan (docs/workflow/THE_PLAN_v5.md).
+1. Read AGENTS.md, docs/dev/instructions.md, and the current plan (docs/workflow/THE_PLAN_v5.md).
 2. Create a new <RUNS_DIR>/run_XXX/ folder (via run-agent) and keep any extra orchestration notes there if needed.
 3. Log initial DECISIONs in MESSAGE-BUS.md.
 

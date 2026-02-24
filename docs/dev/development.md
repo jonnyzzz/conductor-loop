@@ -130,7 +130,7 @@ chmod 600 ~/.config/openai/token
    ```bash
    # Read project conventions
    cat AGENTS.md
-   cat Instructions.md
+   cat docs/dev/instructions.md
    cat docs/workflow/THE_PLAN_v5.md
    ```
 
@@ -617,7 +617,7 @@ go test -bench=. -benchmem ./pkg/messagebus/
 ### Documentation
 - [THE_PROMPT_v5.md](../../docs/workflow/THE_PROMPT_v5.md) - Workflow document
 - [AGENTS.md](../../AGENTS.md) - Agent conventions and ownership
-- [Instructions.md](../../Instructions.md) - Tool paths and commands
+- [instructions.md](instructions.md) - Tool paths and commands
 - [THE_PLAN_v5.md](../../docs/workflow/THE_PLAN_v5.md) - Implementation plan
 - [docs/specifications/](../../docs/specifications/) - Subsystem specifications
 - [docs/decisions/](../../docs/decisions/) - Architecture decisions

@@ -43,7 +43,7 @@
 1. **Read Context**
    - Read task prompt completely
    - Read `<project-root>/AGENTS.md` for conventions
-   - Read `<project-root>/Instructions.md` for tools
+   - Read `<project-root>/docs/dev/instructions.md` for tools
    - Read relevant specifications
    - Check TASK_STATE.md for context
 
@@ -457,7 +457,7 @@ go build ./...
 
 - **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
-- **Tool Paths**: `<project-root>/Instructions.md`
+- **Tool Paths**: `<project-root>/docs/dev/instructions.md`
 - **Implementation Plan**: `<project-root>/docs/workflow/THE_PLAN_v5.md`
 - **Go Style Guide**: https://go.dev/doc/effective_go
 - **Project Patterns**: Examine `pkg/` and `internal/` for examples

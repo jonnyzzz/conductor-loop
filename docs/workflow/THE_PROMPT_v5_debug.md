@@ -592,6 +592,6 @@ ok      github.com/jonnyzzz/conductor-loop/pkg/messagebus       0.456s
 
 - **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
-- **Tool Paths**: `<project-root>/Instructions.md`
+- **Tool Paths**: `<project-root>/docs/dev/instructions.md`
 - **Delve Debugger**: https://github.com/go-delve/delve
 - **Go Diagnostics**: https://go.dev/doc/diagnostics

@@ -38,7 +38,7 @@
 1. **Read Context**
    - Read task prompt carefully
    - Read `<project-root>/AGENTS.md` for conventions
-   - Read `<project-root>/Instructions.md` for structure
+   - Read `<project-root>/docs/dev/instructions.md` for structure
    - Read relevant specifications from `<project-root>/docs/specifications/`
    - Read TASK_STATE.md for current progress
 
@@ -345,7 +345,7 @@ grep -A 5 "FACT\|DECISION" TASK-MESSAGE-BUS.md | tail -20
 
 - **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
-- **Tool Paths**: `<project-root>/Instructions.md`
+- **Tool Paths**: `<project-root>/docs/dev/instructions.md`
 - **Implementation Plan**: `<project-root>/docs/workflow/THE_PLAN_v5.md`
 - **Specifications**: `<project-root>/docs/specifications/`
 - **Decisions**: `<project-root>/docs/decisions/`

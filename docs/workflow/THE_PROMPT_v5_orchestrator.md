@@ -35,7 +35,7 @@
 1. **Read Context**
    - Read `<project-root>/docs/workflow/THE_PROMPT_v5.md`
    - Read `<project-root>/AGENTS.md`
-   - Read `<project-root>/Instructions.md`
+   - Read `<project-root>/docs/dev/instructions.md`
    - Read `<project-root>/docs/workflow/THE_PLAN_v5.md`
    - Read TASK.md (task description)
    - Read TASK_STATE.md (current state)
@@ -291,7 +291,7 @@ grep -A 10 "msg_id:" TASK-MESSAGE-BUS.md | tail -n 20
 ### Efficiency
 - Read only new message bus content (track last msg_id)
 - Don't read full outputs unless needed (check exit code first)
-- Cache frequently-read docs (AGENTS.md, Instructions.md)
+- Cache frequently-read docs (AGENTS.md, docs/dev/instructions.md)
 
 ---
 
@@ -338,7 +338,7 @@ grep -A 10 "msg_id:" TASK-MESSAGE-BUS.md | tail -n 20
 
 - **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
-- **Tool Paths**: `<project-root>/Instructions.md`
+- **Tool Paths**: `<project-root>/docs/dev/instructions.md`
 - **Implementation Plan**: `<project-root>/docs/workflow/THE_PLAN_v5.md`
 - **Agent Protocol**: `<project-root>/docs/specifications/subsystem-agent-protocol.md`
 - **Storage Layout**: `<project-root>/docs/specifications/subsystem-storage-layout.md`
