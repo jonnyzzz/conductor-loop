@@ -19,35 +19,19 @@ This directory contains practical examples demonstrating real-world usage of Con
 | [multi-agent](./multi-agent/) | Compare multiple agents on same task | Running different agents, comparing outputs |
 | [parent-child](./parent-child/) | Task hierarchy with spawned children | run-agent task, parent-child relationships, run tree |
 
-### Advanced Patterns
-
-| Example | Description | Demonstrates |
-|---------|-------------|--------------|
-| [ralph-loop](./ralph-loop/) | Ralph Loop wait-without-restart pattern | DONE file usage, child process management |
-| [message-bus](./message-bus/) | Inter-agent communication | Message bus, concurrent writes, message ordering |
-
 ### Integration Examples
 
 | Example | Description | Demonstrates |
 |---------|-------------|--------------|
 | [rest-api](./rest-api/) | Using the REST API | All API endpoints with curl examples |
-| [web-ui-demo](./web-ui-demo/) | Web UI monitoring | Real-time log streaming, status updates |
 | [docker-deployment](./docker-deployment/) | Production Docker setup | Docker deployment, reverse proxy, health checks |
-| [ci-integration](./ci-integration/) | CI/CD integration | GitHub Actions, automated testing |
 
 ### Templates
 
 | Template | Description | Use Case |
 |----------|-------------|----------|
-| [custom-agent](./custom-agent/) | Custom agent backend template | Implementing your own agent |
 | [configs](./configs/) | Configuration templates | Various deployment scenarios |
 | [workflows](./workflows/) | Workflow templates | Common use case patterns |
-
-### Tutorials
-
-| Tutorial | Description | Level |
-|----------|-------------|-------|
-| [tutorial](./tutorial/) | Complete step-by-step guide | Beginner to intermediate |
 
 ## Documentation Guides
 

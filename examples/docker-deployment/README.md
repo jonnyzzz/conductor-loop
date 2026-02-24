@@ -612,7 +612,6 @@ After deploying with Docker:
 4. Set up log aggregation
 5. Create disaster recovery plan
 6. Review [Best Practices](../best-practices.md)
-7. Configure [CI Integration](../ci-integration/)
 
 ## Production Checklist
 
@@ -633,4 +632,3 @@ After deploying with Docker:
 
 - [config templates](../configs/config.docker.yaml) - Docker-specific config
 - [best-practices](../best-practices.md) - Production guidelines
-- [ci-integration](../ci-integration/) - Automated deployment

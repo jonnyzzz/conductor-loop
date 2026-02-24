@@ -10,7 +10,7 @@ In this project we approach it from the different angle, here is the agent swarm
 - we build the work as a chunk of recursive tasks
 - on each level an agent must decide if it can work on the task or it should delegate the smaller task down to the hierarchy
 - we have monitoring tool and see the actual delegation tree
-- for communication, we include the [message-bus](../message-bus-mcp) as the solution
+- for communication, we include the message-bus as the solution
 - we may include a dedicated polling service for the message bus post-MVP; in MVP the root agent polls
 - message bus helps to track the progress, together with the git history and other artifacts
 - agents seem to be quite clumsy with Git, and it means we need to offer Git Pro skills, so it can commit only selected files, without touching other files. Hope it can be done in the upper promts

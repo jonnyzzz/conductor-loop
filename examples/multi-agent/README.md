@@ -200,4 +200,3 @@ After running this example, try:
 
 - [hello-world](../hello-world/) - Single agent basics
 - [parent-child](../parent-child/) - Agent orchestration
-- [message-bus](../message-bus/) - Agent communication

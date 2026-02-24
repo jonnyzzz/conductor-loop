@@ -460,11 +460,8 @@ After mastering the REST API:
 1. Build a custom dashboard using the streaming endpoints
 2. Integrate with your existing tools and workflows
 3. Create automation scripts for common tasks
-4. Explore the [Web UI Demo](../web-ui-demo/) for a full-featured interface
-5. Study [CI Integration](../ci-integration/) for automated testing
+4. Deploy with [Docker](../docker-deployment/) for production-ready setup
 
 ## Related Examples
 
-- [web-ui-demo](../web-ui-demo/) - Full web interface
-- [ci-integration](../ci-integration/) - GitHub Actions integration
 - [docker-deployment](../docker-deployment/) - Production deployment

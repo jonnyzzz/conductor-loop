@@ -856,8 +856,6 @@ Before deploying to production:
 
 - [Configuration Templates](./configs/) - Pre-built configs for common scenarios
 - [Common Patterns](./patterns.md) - Reusable architectural patterns
-- [Tutorial](./tutorial/) - Step-by-step learning path
-- [Examples](./examples/) - Working code demonstrations
 - [Architecture Docs](../docs/specifications/) - Technical specifications
 
 ---

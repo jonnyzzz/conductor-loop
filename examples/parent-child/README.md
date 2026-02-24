@@ -270,10 +270,8 @@ After running this example, try:
 2. Implement error handling (what if child fails?)
 3. Create recursive hierarchies (children spawn grandchildren)
 4. Use message bus for child-to-parent status updates
-5. Explore [ralph-loop](../ralph-loop/) for deep dive on wait patterns
+5. Use message bus for cross-task communication patterns
 
 ## Related Examples
 
-- [ralph-loop](../ralph-loop/) - Wait-without-restart pattern
-- [message-bus](../message-bus/) - Inter-task communication
 - [multi-agent](../multi-agent/) - Multiple agents in parallel
