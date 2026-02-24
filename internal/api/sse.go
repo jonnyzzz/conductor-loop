@@ -284,10 +284,17 @@ func (s *Server) streamMessageBusPath(w http.ResponseWriter, r *http.Request, bu
 			messages, err := bus.ReadMessages(lastID)
 			if err != nil {
 				if stderrors.Is(err, messagebus.ErrSinceIDNotFound) {
+					// sinceID expired (rotation/GC): reset to beginning and re-read
+					// immediately so the panel is repopulated without waiting another tick.
 					lastID = ""
+					if msgs, rerr := bus.ReadMessages(""); rerr == nil {
+						messages = msgs
+					} else {
+						continue
+					}
+				} else {
 					continue
 				}
-				continue
 			}
 			for _, msg := range messages {
 				if msg == nil {

@@ -390,6 +390,8 @@ func (mb *MessageBus) tryAppend(data []byte) error {
 }
 
 // ReadMessages reads messages after sinceID. If sinceID is empty, returns all messages.
+// On parse failure, falls back to returning all partially-parseable messages from the
+// beginning of the file rather than returning an empty result (partial recovery).
 func (mb *MessageBus) ReadMessages(sinceID string) ([]*Message, error) {
 	if mb == nil {
 		return nil, errors.New("message bus is nil")
@@ -404,11 +406,30 @@ func (mb *MessageBus) ReadMessages(sinceID string) ([]*Message, error) {
 		}
 		return nil, errors.Wrap(err, "read message bus")
 	}
-	messages, err := parseMessages(data)
-	if err != nil {
-		return nil, err
+	messages, parseErr := parseMessages(data)
+	if parseErr != nil {
+		// Partial recovery: re-parse from scratch with best-effort, ignoring bad entries.
+		messages = parseMessagesPartial(data)
+		if len(messages) == 0 {
+			// Nothing parseable — return empty rather than error to avoid empty display.
+			return []*Message{}, nil
+		}
+		// With partial results, can't reliably do sinceID filtering; return all.
+		return messages, nil
 	}
 	return filterSince(messages, sinceID)
+}
+
+// parseMessagesPartial parses as many messages as possible from data, skipping
+// any entries that fail to parse. It never returns an error.
+func parseMessagesPartial(data []byte) []*Message {
+	messages := make([]*Message, 0)
+	_ = parseMessagesReader(bufio.NewReader(bytes.NewReader(data)), func(msg *Message) {
+		if msg != nil {
+			messages = append(messages, msg)
+		}
+	})
+	return messages
 }
 
 // ReadMessagesSinceLimited reads messages after sinceID and keeps only the latest limit entries.
