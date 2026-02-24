@@ -37,6 +37,11 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
 *   **Go:** `1.24.0` (Source: `go.mod`).
 *   **Legacy:** Docs mentioning `1.21+` are outdated.
 
+## Documentation Structure
+[2026-02-24 08:30:00] [tags: reconciliation, workflow, prompts]
+*   **Workflow Prompts:** `THE_PROMPT_v5*.md` and `THE_PLAN_v5.md` are located in `docs/workflow/`.
+*   **Legacy References:** CLI code may still reference root paths (drift).
+*   **User Docs:** `docs/dev/` contains developer guides; `docs/workflow/` contains orchestration prompts.
+
 [2026-02-24 08:30:00] [tags: reconciliation, status]
 *   **Confirmed:** `FACTS-architecture.md` (host binding), `FACTS-user-docs.md` (Go version, config path, iterate cmd), and `FACTS-runner-storage.md` (ID precision) have been updated to reflect these reconciled truths.
-
