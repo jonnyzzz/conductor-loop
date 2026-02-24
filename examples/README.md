@@ -42,7 +42,7 @@ This directory contains practical examples demonstrating real-world usage of Con
 
 All examples assume you have:
 - Conductor Loop installed and on your PATH
-- Go 1.21 or later (for custom examples)
+- Go 1.24.0 or later (for custom examples)
 - Docker (for docker-deployment example)
 - At least one agent configured (Claude, Codex, or Gemini recommended)
 

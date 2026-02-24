@@ -104,9 +104,9 @@
 - [x] `task-20260222-102100-goal-decompose-cli`: implement `conductor goal decompose` / `run-agent goal decompose` skeleton with deterministic workflow spec output (`--json`, `--out`).
 - [x] `task-20260222-102110-job-batch-cli`: implement `run-agent job batch` + `conductor job submit-batch` for fan-out/fan-in orchestration from spec files.
 - [x] `task-20260222-102120-workflow-runner-cli`: implement `run-agent workflow run` + `conductor workflow run` with stage state persistence/resume.
-- [x] `task-20260222-102130-output-synthesize-cli`: implement `run-agent output synthesize` + `conductor task synthesize` with merge/reduce/vote strategies and provenance (closed via canonical revision `task-20260222-102130-output-synthesize-cli-r3`; base/`-r2` superseded by follow-up `task-20260222-202620-followup-blocked-rlm-backlog-completion`).
-- [x] `task-20260222-102140-review-quorum-cli`: implement `run-agent review quorum` + `conductor review run` to enforce 2+ reviewer quorum and structured verdicts (closed via canonical revision `task-20260222-102140-review-quorum-cli-r3`; base/`-r2` superseded by follow-up `task-20260222-202620-followup-blocked-rlm-backlog-completion`).
-- [x] `task-20260222-102150-iteration-loop-cli`: implement `run-agent iterate` + `conductor iterate` for fixed planning/review iteration loops with auto bus logging (closed via canonical revision `task-20260222-102150-iteration-loop-cli-r3`; base/`-r2` superseded by follow-up `task-20260222-202620-followup-blocked-rlm-backlog-completion`).
+- [ ] `task-20260222-102130-output-synthesize-cli`: implement `run-agent output synthesize` + `conductor task synthesize` with merge/reduce/vote strategies and provenance (Status: NOT YET IMPLEMENTED; previously misreported as closed).
+- [ ] `task-20260222-102140-review-quorum-cli`: implement `run-agent review quorum` + `conductor review run` to enforce 2+ reviewer quorum and structured verdicts (Status: NOT YET IMPLEMENTED; previously misreported as closed).
+- [ ] `task-20260222-102150-iteration-loop-cli`: implement `run-agent iterate` + `conductor iterate` for fixed planning/review iteration loops with auto bus logging (Status: NOT YET IMPLEMENTED; previously misreported as closed).
 
 ## Release Finalization Bucket (2026-02-22 12:10 local)
 

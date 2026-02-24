@@ -67,5 +67,21 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
 *   **API Default:** `USER` (Source: `internal/api/handlers.go`)
 *   **Action:** Note the inconsistency; prefer explicit `--type` in automation.
 
+## Run Status Summary (2026-02-23)
+[2026-02-23 20:29:55] [tags: runs, summary]
+*   **Total Tasks Processed:** 125
+*   **Completed:** 100
+*   **Blocked:** 12
+*   **Open:** 13
+*   **Source:** `docs/facts/FACTS-runs-jonnyzzz.md`
+
+## Issue Count Summary (2026-02-23)
+[2026-02-23 19:19:41] [tags: issues, summary]
+*   **Total Issues:** 22 (ISSUE-000 to ISSUE-021)
+*   **Resolved:** 19
+*   **Partially Resolved:** 3 (ISSUE-002, ISSUE-003, ISSUE-009)
+*   **Open:** 0
+*   **Source:** `docs/facts/FACTS-issues-decisions.md`
+
 [2026-02-24 10:05:00] [tags: reconciliation, status]
 *   **Confirmed:** `FACTS-architecture.md` (host binding), `FACTS-user-docs.md` (Go version, config path, iterate cmd), and `FACTS-runner-storage.md` (ID precision and literal 0000 suffix) have been updated to reflect these reconciled truths.

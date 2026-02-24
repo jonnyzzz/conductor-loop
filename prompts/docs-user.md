@@ -22,7 +22,7 @@ Update the main README with:
 
 ### 2. docs/user/installation.md
 **Installation Guide**:
-- Prerequisites (Go 1.21+, Docker, Git)
+- Prerequisites (Go 1.24.0+, Docker, Git)
 - Installation from source
 - Installation via Docker
 - Binary releases (future)

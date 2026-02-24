@@ -11,6 +11,8 @@ Use these placeholders to avoid hardcoded paths:
 - <RUNS_DIR> - <PROJECT_ROOT>/runs
 - <MESSAGE_BUS> - <PROJECT_ROOT>/MESSAGE-BUS.md
 - <ISSUES_FILE> - <PROJECT_ROOT>/docs/dev/issues.md
+- <QUESTIONS_FILE> - <PROJECT_ROOT>/docs/dev/questions.md
+- <TODOS_FILE> - <PROJECT_ROOT>/docs/dev/todos.md
 
 ## Core Principles
 - Root agent orchestrates; sub-agents do codebase work in the target repo.
@@ -105,7 +107,7 @@ If the monitor has configurable defaults (poll interval, summary interval/lines)
 Each bullet below is a distinct agent stage. The root agent selects the agent type (Codex/Claude/Gemini) at random unless statistics strongly indicate a better choice. Any failure must be logged to <MESSAGE_BUS> (and <ISSUES_FILE> if blocking), and the flow restarts from the beginning (or from a root-selected stage if appropriate). Parallel execution is allowed where it does not violate dependencies.
 
 1. Stage 0: Cleanup
-   Look at related project files like MESSAGE-BUS.md, AGENTS.md, docs/dev/instructions.md, FACTS.md, ISSUES.md. Summarize or append new entries; do not edit MESSAGE-BUS history. Ensure the project root can access the required orchestration files (THE_PROMPT_v5.md, role prompts, run-agent.sh, monitoring scripts). If the project is separate, copy them into the project root; if the project shares a centralized orchestration repo, reference the root files directly. Adapt paths and review the final documents.
+   Look at related project files like MESSAGE-BUS.md, AGENTS.md, docs/dev/instructions.md, FACTS.md, docs/dev/issues.md, docs/dev/questions.md, and docs/dev/todos.md. Summarize or append new entries; do not edit MESSAGE-BUS history. Ensure the project root can access the required orchestration files (THE_PROMPT_v5.md, role prompts, run-agent.sh, monitoring scripts). If the project is separate, copy them into the project root; if the project shares a centralized orchestration repo, reference the root files directly. Adapt paths and review the final documents.
 
 2. Stage 1: Read local docs
    Read AGENTS.md and all relevant .md files using absolute paths.
@@ -163,7 +165,7 @@ Each bullet below is a distinct agent stage. The root agent selects the agent ty
 - AGENTS.md (root and subsystem) governs conventions.
 - docs/dev/instructions.md lists repo locations and tool paths.
 - <RUNS_DIR>/run_XXX/ contains prompt/log artifacts (prompt.md, agent-stdout.txt, agent-stderr.txt, cwd.txt; optional run.log).
-- MESSAGE-BUS.md is the main trace log; ISSUES.md is the blocker log.
+- MESSAGE-BUS.md is the main trace log; docs/dev/issues.md is the blocker log; docs/dev/questions.md and docs/dev/todos.md track open decisions and actionable backlog.
 - FACTS.md (if used) records verified facts and decisions.
 - docs/workflow/THE_PLAN_v5.md is the execution plan.
 - docs/workflow/THE_PROMPT_v5.md is the primary entry point for new agents.
@@ -192,7 +194,7 @@ If this template conflicts with the Required Development Flow, the Required Deve
 
 ### Phase 1: Spawn Agents (parallel)
 - Spawn implementation, research, and review agents as needed.
-- Assign tasks explicitly; require logging to MESSAGE-BUS.md and ISSUES.md.
+- Assign tasks explicitly; require logging to MESSAGE-BUS.md and docs/dev/issues.md.
 
 ### Phase 2: Implement Task-Specific Change
 1. Identify the change target(s) and scope.
@@ -211,7 +213,7 @@ If this template conflicts with the Required Development Flow, the Required Deve
 ### Phase 4: Completion
 - Verify IntelliJ MCP Steroid review done and compilation succeeded.
 - Confirm tests for changed components pass.
-- Update ISSUES.md (resolve or document known failures).
+- Update docs/dev/issues.md (resolve or document known failures).
 - Provide final summary to the user with links and commit hashes when available.
 
 ## Communication Protocol (Summary)
@@ -224,4 +226,4 @@ If this template conflicts with the Required Development Flow, the Required Deve
 ## Known Constraints
 - If the main repo is large or access is restricted, use sub-agents with the correct cwd.
 - If MCP automation is blocked by modal dialogs, fall back to IDE UI run (for example, a keyboard shortcut) and scrape results.
-- If build/test failures are known, log to ISSUES.md and request acknowledgment.
+- If build/test failures are known, log to docs/dev/issues.md and request acknowledgment.

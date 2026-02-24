@@ -2024,7 +2024,7 @@ Create Docker Compose setup and test full system in containers with persistence 
 ### 1. Dockerfile
 Create `Dockerfile`:
 ```dockerfile
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -2711,7 +2711,7 @@ Update the main README with:
 
 ### 2. docs/user/installation.md
 **Installation Guide**:
-- Prerequisites (Go 1.21+, Docker, Git)
+- Prerequisites (Go 1.24.0+, Docker, Git)
 - Installation from source
 - Installation via Docker
 - Binary releases (future)

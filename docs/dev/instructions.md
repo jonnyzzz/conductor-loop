@@ -51,7 +51,7 @@ conductor-loop/
 ## Tool Paths
 
 ### Go Toolchain
-- **go**: `/opt/homebrew/bin/go` (version 1.21+)
+- **go**: `/opt/homebrew/bin/go` (version 1.24.0+)
 - **gofmt**: `/opt/homebrew/bin/gofmt`
 - **golangci-lint**: Install via `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest`
 
@@ -275,7 +275,7 @@ Starts an HTTP server exposing the runs API and web UI. Task execution is disabl
 
 All flags:
 ```
---host string    HTTP server host (default "127.0.0.1")
+--host string    HTTP server host (default "0.0.0.0")
 --port int       HTTP server port (default 14355)
 --root string    run-agent root directory
 --config string  config file path
@@ -767,7 +767,7 @@ go tool pprof mem.prof
 ## Troubleshooting
 
 ### Build Fails
-1. Verify Go version: `go version` (should be 1.21+)
+1. Verify Go version: `go version` (should be 1.24.0+)
 2. Update dependencies: `go mod tidy`
 3. Clean and rebuild: `make clean && make build`
 

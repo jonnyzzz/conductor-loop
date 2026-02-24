@@ -64,7 +64,7 @@ No cleanup mechanism exists. A task with 100 restarts = 100 run directories. Dis
 
 - NEVER skip tests. Fix the code if tests fail.
 - Use absolute paths for all file references
-- Follow AGENTS.md code style (Go 1.21+, table-driven tests, lowercase error messages)
+- Follow AGENTS.md code style (Go 1.24.0+, table-driven tests, lowercase error messages)
 - Keep the implementation simple — no premature abstractions
 - The gc command is purely local (no REST API changes needed)
 

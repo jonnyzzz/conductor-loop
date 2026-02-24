@@ -269,7 +269,7 @@ go tool pprof mem.prof
 3. Occurs when message queue is empty
 
 ### Environment
-- Go version: 1.21.3
+- Go version: 1.24.0
 - OS: macOS 14.2
 - Platform: darwin/arm64
 
