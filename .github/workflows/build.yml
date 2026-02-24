@@ -39,7 +39,7 @@ jobs:
           if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
           ASSET="dist/run-agent-${GOOS}-${GOARCH}${EXT}"
           CGO_ENABLED=0 \
-            go build -trimpath -ldflags="-s -w" \
+            go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
             -o "$ASSET" ./cmd/run-agent
           sha256sum "$ASSET" > "${ASSET}.sha256"
       - name: Upload artifact

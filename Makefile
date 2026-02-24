@@ -5,7 +5,7 @@ DOCKER_IMAGE ?= conductor-loop:dev
 
 GIT_HASH := $(shell git rev-parse --short HEAD)
 BUILD_TIMESTAMP := $(shell date -u +%Y%m%d%H%M%S)
-VERSION := v0.54-$(GIT_HASH)-$(BUILD_TIMESTAMP)
+VERSION := v0.76.0-$(GIT_HASH)-$(BUILD_TIMESTAMP)
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
 COVERAGE_THRESHOLD ?= 60
