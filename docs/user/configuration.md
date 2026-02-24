@@ -66,44 +66,84 @@ Then environment overrides apply for host/port/auth (see Environment Overrides s
 
 ## Schema
 
-## Top-level sections
+Top-level sections (HCL block names / YAML keys):
 
-- `agents` (required)
+- `<agent-name>` / `agents` (required — at least one agent)
 - `defaults` (required)
 - `api` (optional; defaults are applied)
 - `storage` (optional but strongly recommended)
-- `webhook` (optional)
+- `webhook` (optional; YAML only)
 
-### `agents`
+> All field names are identical in both formats. HCL uses `key = value` inside
+> named blocks; YAML uses indented maps. The examples below lead with HCL since
+> that is the home config format.
 
-Map keyed by agent name:
+### Agent blocks
+
+```hcl
+# HCL — agent type inferred from block name; no "type" field required.
+claude {
+  token_file = "~/.anthropic"
+}
+
+codex {
+  token_file = "~/.openai"
+}
+
+gemini {
+  token_file = "~/.vertex"
+}
+
+perplexity {
+  token_file = "~/.perplexity"
+  model      = "sonar-pro"   # override deprecated default sonar-reasoning
+}
+```
 
 ```yaml
+# YAML equivalent (project-level config.yaml)
 agents:
+  claude:
+    type: claude           # required in YAML; inferred in HCL
+    token_file: ~/.anthropic
   codex:
     type: codex
-    token_file: ./secrets/codex.token
+    token_file: ~/.openai
+  perplexity:
+    type: perplexity
+    token_file: ~/.perplexity
+    model: sonar-pro
 ```
 
 Fields:
 
-- `type` (optional in HCL — inferred from block/agent name; required in YAML): one of `claude`, `codex`, `gemini`, `perplexity`, `xai`
-- `token` (optional): inline token
-- `token_file` (optional): token file path
-- `base_url` (optional)
-- `model` (optional)
+- `type` (optional in HCL — inferred from block name; required in YAML): one of `claude`, `codex`, `gemini`, `perplexity`, `xai`
+- `token` (optional): inline token string
+- `token_file` (optional): path to a file containing the token (`~` expanded)
+- `base_url` (optional): override the agent's default API endpoint
+- `model` (optional): override the agent's default model
 
 Notes:
 
 - `token` and `token_file` cannot both be set at once.
-- `token_file` supports `~` expansion and relative paths (relative to config file directory).
-- There is no per-agent `timeout` field in the runtime schema.
+- There is no per-agent `timeout` field — timeout lives in `defaults`.
 
 ### `defaults`
 
+```hcl
+# HCL
+defaults {
+  agent                  = "claude"
+  timeout                = 300        # required, must be > 0
+  max_concurrent_runs    = 4          # 0 = unlimited
+  max_concurrent_root_tasks = 2
+}
+```
+
 ```yaml
+# YAML
 defaults:
-  agent: codex
+  agent: claude
   timeout: 300
   max_concurrent_runs: 4
   max_concurrent_root_tasks: 2
@@ -116,11 +156,11 @@ defaults:
 
 Fields:
 
-- `agent` (string)
-- `timeout` (int, required, must be `> 0`)
+- `agent` (string): default agent name when `--agent` is not specified
+- `timeout` (int, **required**, must be `> 0`): idle output timeout in seconds
 - `max_concurrent_runs` (int; `0` means unlimited)
 - `max_concurrent_root_tasks` (int, must be `>= 0`)
-- `diversification` (optional object)
+- `diversification` (optional, YAML only for now)
 
 `diversification` fields:
 
@@ -132,7 +172,16 @@ Fields:
 
 ### `api`
 
+```hcl
+# HCL
+api {
+  host = "0.0.0.0"
+  port = 14355
+}
+```
+
 ```yaml
+# YAML (full example with all fields)
 api:
   host: 0.0.0.0
   port: 14355
@@ -166,7 +215,15 @@ Validation:
 
 ### `storage`
 
+```hcl
+# HCL
+storage {
+  runs_dir = "~/.run-agent/runs"
+}
+```
+
 ```yaml
+# YAML
 storage:
   runs_dir: ./runs
   extra_roots:
@@ -179,6 +236,8 @@ Fields:
 - `extra_roots` (`[]string`, optional)
 
 ### `webhook`
+
+YAML only (not yet supported in HCL).
 
 ```yaml
 webhook:
@@ -221,7 +280,42 @@ Server bind behavior:
 - If port is explicitly set (CLI flag/env override), bind must succeed on that exact port.
 - If port is not explicit, server attempts up to 100 consecutive ports (`basePort` to `basePort+99`).
 
-## Recommended Config (YAML)
+## Recommended Home Config (`~/.run-agent/conductor-loop.hcl`)
+
+```hcl
+# Agent type inferred from block name — no "type" field required.
+claude {
+  token_file = "~/.anthropic"
+}
+
+codex {
+  token_file = "~/.openai"
+}
+
+gemini {
+  token_file = "~/.vertex"
+}
+
+perplexity {
+  token_file = "~/.perplexity"
+  model      = "sonar-pro"
+}
+
+defaults {
+  agent                  = "claude"
+  timeout                = 300
+  max_concurrent_runs    = 4
+  max_concurrent_root_tasks = 2
+}
+
+storage {
+  runs_dir = "~/.run-agent/runs"
+}
+```
+
+## Recommended Project Config (`config.yaml`)
+
+For project-level config checked into a repo:
 
 ```yaml
 agents:
@@ -244,38 +338,6 @@ api:
 
 storage:
   runs_dir: ./runs
-```
-
-## Equivalent HCL Example (`~/.run-agent/conductor-loop.hcl`)
-
-HCL uses flat top-level blocks. Agent type is inferred from the block name so
-`type` is optional.
-
-```hcl
-# Agent blocks — type inferred from block name, no "type" field required.
-codex {
-  token_file = "~/.config/tokens/openai"
-}
-
-claude {
-  token_file = "~/.config/tokens/anthropic"
-}
-
-defaults {
-  agent                  = "codex"
-  timeout                = 300
-  max_concurrent_runs    = 4
-  max_concurrent_root_tasks = 2
-}
-
-api {
-  host = "0.0.0.0"
-  port = 14355
-}
-
-storage {
-  runs_dir = "~/.run-agent/runs"
-}
 ```
 
 ## Validation
