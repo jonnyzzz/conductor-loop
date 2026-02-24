@@ -56,6 +56,7 @@ func newOutputCmd() *cobra.Command {
 	cmd.Flags().StringVar(&file, "file", "output", "file to print: output (default), stdout, stderr, prompt")
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow output as it is written (for running jobs)")
 
+	cmd.AddCommand(newOutputSynthesizeCmd())
 	return cmd
 }
 
