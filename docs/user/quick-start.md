@@ -110,7 +110,7 @@ Current checked-in `./bin/conductor` defaults to port `8080` and uses server URL
 Start it explicitly:
 
 ```bash
-./bin/conductor --config ~/.config/conductor/config.yaml --root ./runs --port 8080
+./bin/conductor --config ~/.config/conductor/config.yaml --root ./runs --port 14355
 ```
 
 Then:

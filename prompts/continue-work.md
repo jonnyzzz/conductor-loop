@@ -12,8 +12,8 @@ This is a Go-based multi-agent orchestration framework implementing the Ralph Lo
 2. <project-root>/AGENTS.md — agent conventions, code style, commit format, subsystem ownership
 3. <project-root>/docs/dev/instructions.md — tool paths, build/test commands, repo structure
 4. <project-root>/docs/workflow/THE_PLAN_v5.md — implementation plan with phases and task IDs
-5. <project-root>/ISSUES.md — 20 open issues (6 CRITICAL, 7 HIGH, 6 MEDIUM, 2 LOW)
-6. <project-root>/QUESTIONS.md — 9 open design questions from 2026-02-20 session
+5. <project-root>/docs/dev/issues.md — 20 open issues (6 CRITICAL, 7 HIGH, 6 MEDIUM, 2 LOW)
+6. <project-root>/docs/dev/questions.md — 9 open design questions from 2026-02-20 session
 7. <project-root>/MESSAGE-BUS.md — project message bus with full history
 8. <project-root>/docs/dev/development.md — development guide and local setup
 9. <project-root>/README.md — project overview and architecture diagram
@@ -29,7 +29,7 @@ This is a Go-based multi-agent orchestration framework implementing the Ralph Lo
 - Dog-food test passed: run-agent-bin task executed, Ralph loop completed cleanly, REST API serves runs
 - Stage 6 (Documentation) partially complete: user docs done, examples done, dev docs reviewed and fixed
 - docs/dev/ inaccuracies fixed (fsync references, ralph loop algorithm, architecture)
-- Open: 20 issues in ISSUES.md, 9 design questions in QUESTIONS.md
+- Open: 20 issues in docs/dev/issues.md, 9 design questions in docs/dev/questions.md
 
 ## Your Goals
 
@@ -44,14 +44,14 @@ This is the single most important goal. We build our tool by using our tool. Eve
 4. Verify the REST API responds: `curl http://localhost:8080/api/v1/health`
 5. Run your FIRST real task through the built `./bin/run-agent task` command instead of the shell script
 6. If it works — switch ALL subsequent orchestration to use the built binary. Stop using `run-agent.sh` for everything you can route through `./bin/run-agent`.
-7. If it breaks — that is your highest priority fix. Log it to ISSUES.md as CRITICAL, fix it, rebuild, retry.
+7. If it breaks — that is your highest priority fix. Log it to docs/dev/issues.md as CRITICAL, fix it, rebuild, retry.
 
 **The feedback loop:** Every time you use conductor-loop to orchestrate work on conductor-loop, you discover real bugs and missing features. Fix them immediately, rebuild, and use the improved version for the next task. This virtuous cycle is the fastest path to a production-ready tool.
 
 **You must not fall back to `run-agent.sh` for tasks that `./bin/run-agent` can already handle.** Only use the shell script as fallback when the binary genuinely cannot do the job yet — and when that happens, file an issue and fix the gap.
 
 ### Priority 1: Resolve CRITICAL Issues (fix what blocks dog-fooding first)
-Address the 6 CRITICAL issues from <project-root>/ISSUES.md, prioritizing any that block dog-fooding:
+Address the 6 CRITICAL issues from <project-root>/docs/dev/issues.md, prioritizing any that block dog-fooding:
 - ISSUE-001: Runner config credential schema (token/token_file mutual exclusivity)
 - ISSUE-002: Windows file locking (mandatory locks break lockless reads)
 - ISSUE-004: CLI version compatibility (detect versions, fail fast)
@@ -59,7 +59,7 @@ Address the 6 CRITICAL issues from <project-root>/ISSUES.md, prioritizing any th
 - ISSUE-020: Message bus circular dependency (add integration test ordering)
 
 ### Priority 2: Answer Open Design Questions
-Review and resolve the 9 questions in <project-root>/QUESTIONS.md. For each question:
+Review and resolve the 9 questions in <project-root>/docs/dev/questions.md. For each question:
 - Start a dedicated research agent to investigate
 - Start a second agent of different type to cross-validate
 - Write your DECISION to MESSAGE-BUS.md
@@ -94,7 +94,7 @@ You work fully independently following <project-root>/docs/workflow/THE_PROMPT_v
    - `messageId: XXX, QUESTION: ...` — questions needing input
    - `messageId: XXX, ANSWER to messageId:YYY. ...` — answers to prior questions
    Monitor file-size changes to detect new entries; re-read only new bytes. Never block waiting for changes. Never remove information from this file.
-9. **You track blockers** in <project-root>/ISSUES.md
+9. **You track blockers** in <project-root>/docs/dev/issues.md
 10. **You use IntelliJ MCP Steroid** for code navigation, refactoring, build verification, test execution, and code inspection. Prefer IntelliJ MCP Steroid over raw CLI. Encourage all sub-agents to use it. It provides debugger access when needed.
 
 ## Self-Improving Process
@@ -135,8 +135,8 @@ Or use the conductor REST API: `curl http://localhost:8080/api/v1/runs`
 - [ ] IntelliJ MCP Steroid quality check — no new warnings, errors, or suggestions
 - [ ] All changes committed with proper format (see AGENTS.md commit conventions)
 - [ ] MESSAGE-BUS.md updated with session summary
-- [ ] ISSUES.md updated (resolved issues marked, new issues added)
-- [ ] QUESTIONS.md updated (answered questions documented)
+- [ ] docs/dev/issues.md updated (resolved issues marked, new issues added)
+- [ ] docs/dev/questions.md updated (answered questions documented)
 
 ## Development Flow per Change
 
@@ -162,7 +162,7 @@ Follow docs/workflow/THE_PROMPT_v5.md Required Development Flow — each stage i
 - Never modify MESSAGE-BUS.md history — append only
 - Follow commit format from AGENTS.md: `<type>(<scope>): <subject>`
 - You MUST NOT modify code directly. Always start sub-agents with CWD set to the target repository. Your role is ONLY TO ORCHESTRATE. Direct code access is forbidden for the root agent.
-- A failing test is better left failing than silently removed — if you cannot fix it, log it to ISSUES.md
+- A failing test is better left failing than silently removed — if you cannot fix it, log it to docs/dev/issues.md
 - Value newer human answers over older ones when resolving contradictions — use `git blame` to determine recency
 
 Begin by reading the required files, assessing current state, and starting your first batch of parallel agents.

@@ -30,8 +30,8 @@ cat /Users/jonnyzzz/Work/conductor-loop/docs/facts/FACTS-suggested-tasks.md
 cat /Users/jonnyzzz/Work/conductor-loop/docs/facts/FACTS-runs-conductor.md
 cat /Users/jonnyzzz/Work/conductor-loop/docs/facts/FACTS-issues-decisions.md
 cat /Users/jonnyzzz/Work/conductor-loop/docs/facts/FACTS-architecture.md
-cat /Users/jonnyzzz/Work/conductor-loop/TODOs.md
-cat /Users/jonnyzzz/Work/conductor-loop/ISSUES.md
+cat /Users/jonnyzzz/Work/conductor-loop/docs/dev/todos.md
+cat /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md
 
 # Architecture vision
 cat /Users/jonnyzzz/Work/conductor-loop/docs/facts/FACTS-swarm-ideas.md

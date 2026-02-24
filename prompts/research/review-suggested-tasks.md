@@ -1,7 +1,7 @@
 # Research Task: Review and Update SUGGESTED-TASKS.md
 
 You are a research agent. Your goal is to review the existing SUGGESTED-TASKS.md,
-cross-reference against all completed run-agent tasks, TODOs.md, ISSUES.md,
+cross-reference against all completed run-agent tasks, docs/dev/todos.md, docs/dev/issues.md,
 and the new FACTS-runs-*.md files to produce an updated, accurate task list.
 
 ## Output
@@ -118,12 +118,12 @@ for task in \
 done
 ```
 
-## Step 5: Read TODOs.md and ISSUES.md in full
+## Step 5: Read docs/dev/todos.md and docs/dev/issues.md in full
 
 ```bash
-cat /Users/jonnyzzz/Work/conductor-loop/TODOs.md
+cat /Users/jonnyzzz/Work/conductor-loop/docs/dev/todos.md
 echo "==="
-cat /Users/jonnyzzz/Work/conductor-loop/ISSUES.md | grep -E "^###|Status:|Severity:|ISSUE-" | head -60
+cat /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md | grep -E "^###|Status:|Severity:|ISSUE-" | head -60
 ```
 
 ## Step 6: Rewrite SUGGESTED-TASKS.md

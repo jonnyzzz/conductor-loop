@@ -91,11 +91,11 @@ ls /Users/jonnyzzz/Work/conductor-loop/runs/ 2>/dev/null | head -20
 ls /Users/jonnyzzz/Work/conductor-loop/runs/conductor-loop/ 2>/dev/null | tail -30
 ```
 
-## Step 6: Read TODOs.md, ISSUES.md, and MESSAGE-BUS.md for pending items
+## Step 6: Read docs/dev/todos.md, docs/dev/issues.md, and MESSAGE-BUS.md for pending items
 
 ```bash
-cat /Users/jonnyzzz/Work/conductor-loop/TODOs.md 2>/dev/null | head -100
-cat /Users/jonnyzzz/Work/conductor-loop/ISSUES.md 2>/dev/null | grep -E "Status:|OPEN|PENDING" | head -30
+cat /Users/jonnyzzz/Work/conductor-loop/docs/dev/todos.md 2>/dev/null | head -100
+cat /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md 2>/dev/null | grep -E "Status:|OPEN|PENDING" | head -30
 grep -E "TODO|PENDING|OPEN|REQUEST|QUESTION" /Users/jonnyzzz/Work/conductor-loop/MESSAGE-BUS.md 2>/dev/null | head -30
 ```
 

@@ -254,9 +254,9 @@ Items surfaced by this scan that were not previously in SUGGESTED-TASKS.md.
 - **Source**: `docs/facts/FACTS-agents-ui.md` validation round 2
 - **prompt-file**: `prompts/tasks/gemini-stream-json-fallback.md`
 
-### xAI backend completion
-- **Description**: `docs/facts/FACTS-agents-ui.md` notes the xAI backend is deferred/placeholder. Plan: use OpenCode agent targeting xAI models; default to `grok-4`. Currently only enabled when XAI_API_KEY provided. Coding-agent mode and model selection policy TBD.
-- **Source**: `docs/facts/FACTS-agents-ui.md` validation round 2
+### xAI backend coding-agent mode
+- **Description**: Basic xAI REST adapter is implemented (`internal/agent/xai`) and defaults to `grok-4`. Follow-up: implement specialized coding-agent mode (similar to Claude/Codex CLI tools) and formalize model selection policy.
+- **Source**: `docs/facts/FACTS-agents-ui.md` validation round 2 (updated 2026-02-24)
 
 ### User docs stale config/requirement details
 - **Description**: `docs/facts/FACTS-user-docs.md` Round 2 validation found stale entries in user docs: config path examples still reference `~/.conductor/config.yaml` (not current), Go minimum version shown as `1.21+` (not current `1.24`), and per-agent `timeout` field documented but not implemented. Update user-facing docs to match current binary behavior.
