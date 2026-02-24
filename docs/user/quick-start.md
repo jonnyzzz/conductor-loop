@@ -105,12 +105,12 @@ run-agent server bus read --project my-project --task task-20260223-100000-hello
 
 ## 6. Optional: `conductor` Binary
 
-Current checked-in `./bin/conductor` defaults to port `8080` and uses server URL `http://localhost:8080` for subcommands.
+The `conductor` binary defaults to port `14355` (same as `run-agent serve`).
 
-Start it explicitly:
+Start it:
 
 ```bash
-./bin/conductor --config ~/.config/conductor/config.yaml --root ./runs --port 14355
+./bin/conductor --config ~/.config/conductor/config.yaml --root ./runs
 ```
 
 Then:

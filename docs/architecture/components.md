@@ -234,7 +234,7 @@ Translate a generic `RunContext` into provider-specific CLI or HTTP execution be
 |---|---|---|
 | `ClaudeAgent` | Claude CLI backend (`claude`) | `internal/agent/claude/claude.go` |
 | `CodexAgent` | Codex CLI backend (`codex exec`) | `internal/agent/codex/codex.go` |
-| `GeminiAgent` | Gemini REST SSE backend | `internal/agent/gemini/gemini.go` |
+| `GeminiAgent` | Gemini REST adapter (unused by runner; runner uses CLI path via `executeCLI`) | `internal/agent/gemini/gemini.go` |
 | `PerplexityAgent` + `Options` | Perplexity REST/SSE backend with retries | `internal/agent/perplexity/perplexity.go` |
 | `xai.Agent` + `Config` | xAI REST/SSE backend (Grok) | `internal/agent/xai/xai.go` |
 ### Key Files

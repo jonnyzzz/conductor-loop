@@ -7,8 +7,8 @@ This file captures reconciliations of contradictory facts found across `docs/fac
 
 ## Port Configuration
 [2026-02-24 07:45:00] [tags: reconciliation, port]
-*   **Canonical Default:** `14355` (Source: `cmd/run-agent/serve.go`, `cmd/run-agent/server.go`)
-*   **Known Drift:** `bin/conductor --help` reports default `8080`. This is an artifact drift.
+*   **Canonical Default:** `14355` (Source: `cmd/run-agent/serve.go`, `cmd/run-agent/server.go`, `cmd/conductor/main.go`)
+*   **Resolution:** `bin/conductor` rebuilt 2026-02-24; now reports `14355` consistently. Binary-vs-source drift resolved.
 *   **Action:** Use `14355` as the standard documentation port.
 
 ## Host Binding

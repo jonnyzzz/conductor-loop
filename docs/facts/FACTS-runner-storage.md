@@ -501,7 +501,7 @@ No automatic cleanup or pruning specified in initial spec ("keep everything"). G
 Fully supported POSIX systems: macOS (Darwin) 11.0+, Linux (kernel 4.0+, Ubuntu 20.04+, Debian 10+, RHEL/CentOS 8+), FreeBSD 12.0+.
 
 [2026-02-21 02:01:38] [tags: runner, storage, platform]
-Windows: partial support. Atomic writes use Remove+Rename workaround (small race window). Mandatory file locks may block readers. No native process group support. WSL2 recommended for production.
+Windows: partial support. Atomic writes use Remove+Rename workaround (small race window). Mandatory file locks may block readers. No native process group support. WSL2 recommended for production on Windows.
 
 [2026-02-21 02:01:38] [tags: runner, storage, platform]
 File system requirement: local filesystem (ext4, XFS, APFS, HFS+). NFS, SMB, SSHFS, cloud storage NOT supported.
@@ -578,7 +578,7 @@ Configuration file precedence: `config.yaml` > `config.yml` > `config.hcl`. This
 `run-info.yaml` schema uses YAML tags in the source code (`internal/storage/runinfo.go`), confirming it is indeed a YAML file, not HCL.
 
 [2026-02-23 19:25:00] [tags: runner, storage, naming]
-RunID generation confirmed: `YYYYMMDD-HHMMSS0000-<pid>-<seq>` (seconds precision with literal `0000` suffix) in `internal/runner/orchestrator.go`.
+RunID generation confirmed: `YYYYMMDD-HHMMSSMMMM-PID` (4-digit fractional seconds) in `internal/runner/orchestrator.go`.
 
 [2026-02-23 19:25:00] [tags: runner, storage, env]
 Environment variables `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `RUNS_DIR`, `MESSAGE_BUS`, `RUN_FOLDER` are confirmed to be injected into the agent process.
@@ -595,4 +595,4 @@ GC command confirmed: `run-agent gc` supports `--older-than`, `--root`, `--dry-r
 Task ID Precision: Practical usage in `run-agent` (CLI and logs) uses second-level precision `task-YYYYMMDD-HHMMSS-<slug>`. Run ID uses millisecond/nanosecond precision for uniqueness but the timestamp part in the ID has second-level precision followed by literal `0000` (format: `YYYYMMDD-HHMMSS0000-<pid>-<seq>`).
 
 [2026-02-24 09:00:00] [tags: reconciliation, config, format]
-Configuration: YAML is the primary configuration format (`config.yaml`, `config.yml`). HCL remains supported but is secondary. Runtime code prefers YAML search order.
+Configuration: YAML is the primary configuration format (`config.yaml`, `config.yml`). HCL remains supported but is secondary. Runtime code prefers YAML search order. Config search path is `~/.config/conductor/`.

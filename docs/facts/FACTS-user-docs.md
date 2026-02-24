@@ -73,19 +73,19 @@
 `run-agent server` subcommands are `status`, `task`, `job`, `project`, `watch`, `bus`, `update`; client default server URL is `http://localhost:14355`.
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, conductor-binary]
-`./bin/conductor --help` currently shows global defaults `--host 0.0.0.0` and `--port 8080`.
+`./bin/conductor --help` shows global defaults `--host 0.0.0.0` and `--port 14355` (rebuilt 2026-02-24).
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, conductor-binary]
-`./bin/conductor --help` currently lists only: `bus`, `completion`, `help`, `job`, `project`, `status`, `task`, `watch`.
+`./bin/conductor --help` lists: `bus`, `completion`, `goal`, `help`, `job`, `monitor`, `project`, `status`, `task`, `watch`, `workflow`.
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, conductor-binary]
-`./bin/conductor status --help` and `./bin/conductor watch --help` default `--server` to `http://localhost:8080`.
+`./bin/conductor status --help` and `./bin/conductor watch --help` default `--server` to `http://localhost:14355`.
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, conductor-source]
 Source code (`cmd/conductor/main.go`, `cmd/conductor/status.go`, `cmd/conductor/watch.go`) defaults conductor port/server URL to `14355` and includes `goal`, `workflow`, and `monitor` commands.
 
-[2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, conductor-source]
-Current repository has binary-vs-source drift for `conductor`: built `./bin/conductor` behavior (port `8080`, fewer commands) does not match checked-in source defaults (`14355`, more commands).
+[2026-02-24 08:48:00] [tags: user-docs, dev-docs, cli, conductor-binary]
+Binary-vs-source drift resolved: `bin/conductor` rebuilt from source, now matches source defaults (port `14355`, full command set including `goal`, `workflow`, `monitor`).
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, config, discovery]
 Default config discovery (`internal/config.FindDefaultConfig`) order is: `./config.yaml`, `./config.yml`, `./config.hcl`, `$HOME/.config/conductor/config.yaml`, `$HOME/.config/conductor/config.yml`, `$HOME/.config/conductor/config.hcl`.
