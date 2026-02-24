@@ -89,7 +89,7 @@ Security checks are layered:
 Project/task lookup also keeps traversal bounded:
 
 - `findProjectDir(...)` checks only root-bound candidates.
-- `findProjectTaskDir(...)` checks root-bound candidates and depth-pruned walk.
+- `findProjectTaskDir(...)` checks root-bound candidates and depth-pruned walk (max depth 3).
 
 Sensitive file-serving and message bus code paths re-check confinement before filesystem reads/writes:
 

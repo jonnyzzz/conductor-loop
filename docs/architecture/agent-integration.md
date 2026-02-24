@@ -21,7 +21,7 @@ Conductor Loop currently uses two execution modes in `internal/runner/job.go`:
 | `claude` | CLI | `claude -p --input-format text --output-format stream-json --verbose --tools default --permission-mode bypassPermissions` | CLI stream parsing/output helpers in `internal/agent/claude` |
 | `codex` | CLI | `codex exec --dangerously-bypass-approvals-and-sandbox --json -` | CLI stream parsing/output helpers in `internal/agent/codex` |
 | `gemini` | CLI | `gemini --screen-reader true --approval-mode yolo --output-format stream-json` | CLI stream parsing/output helpers in `internal/agent/gemini/stream_parser.go` |
-| `perplexity` | REST | Construct `perplexity.NewPerplexityAgent(...)` and call `Execute(ctx, runCtx)` | `internal/agent/perplexity` |
+| `perplexity` | REST | Construct `perplexity.NewPerplexityAgent(...)` and call `Execute(ctx, runCtx)` (default model: `sonar-reasoning`) | `internal/agent/perplexity` |
 | `xai` | REST | Construct `xai.NewAgent(...)` and call `Execute(ctx, runCtx)` | `internal/agent/xai` |
 
 Notes:

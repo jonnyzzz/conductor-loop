@@ -136,7 +136,7 @@ High-level state transitions:
 3. On failure/timeout/crash: `status=failed`, non-zero `exit_code` (or failure summary), `end_time` set.
 
 Persistence semantics:
-- `WriteRunInfo` writes atomically (temp file + sync + rename).
+- `WriteRunInfo` writes atomically (temp file + sync + chmod + rename).
 - `UpdateRunInfo` uses lock file + exclusive lock + read-modify-write + atomic rewrite to avoid lost concurrent updates.
 
 ## 8. Task Completion FACT Propagation to `PROJECT-MESSAGE-BUS.md`

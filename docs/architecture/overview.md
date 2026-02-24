@@ -251,7 +251,7 @@ run-agent gc        — garbage-collect old run directories; rotate bus
 run-agent serve     — start optional monitoring/control HTTP server
 run-agent resume    — remove DONE marker to restart a completed task
 run-agent stop      — stop a running task by signaling its process group
-run-agent monitor   — manage unchecked TODOs.md task files
+run-agent monitor   — manage unchecked TODO task files (e.g. docs/dev/todos.md)
 run-agent wrap      — shell wrapper for claude/codex/gemini with task setup
 run-agent server …  — API-client commands against a running server
 ```
