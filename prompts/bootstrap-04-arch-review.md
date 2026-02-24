@@ -38,7 +38,7 @@ Multi-agent review of architecture and implementation plan.
 ## Success Criteria
 - 2+ agents provide independent reviews
 - Consensus on approach or documented differences
-- Issues logged to ISSUES.md
+- Issues logged to docs/dev/issues.md
 
 ## References
 - THE_PLAN_v5.md: Full implementation plan
@@ -48,4 +48,4 @@ Multi-agent review of architecture and implementation plan.
 Log to MESSAGE-BUS.md:
 - REVIEW: Architecture assessment
 - DECISION: Any plan adjustments
-- ERROR: Critical issues to ISSUES.md
+- ERROR: Critical issues to docs/dev/issues.md
