@@ -9,7 +9,7 @@ Defines the native Perplexity backend integration for run-agent. Unlike the othe
 
 ## REST API Interaction
 - **Endpoint**: `https://api.perplexity.ai/chat/completions` (default).
-- **Model**: `sonar-reasoning` (default).
+- **Model**: `sonar-pro` (recommended default). The `sonar-reasoning` model was deprecated by Perplexity AI and returns HTTP 400. Override via the `model` field in config.
 - **Method**: `POST`.
 - **Headers**:
     - `Authorization: Bearer <token>`
@@ -25,14 +25,21 @@ Defines the native Perplexity backend integration for run-agent. Unlike the othe
     - **Citations**: Collected from `citations` or `search_results` fields in the final chunks and appended to the output as a "Sources:" block.
 
 ## Environment / Config
-- Tokens/credentials configured in `config.yaml`:
+- Tokens/credentials configured in `~/.run-agent/conductor-loop.hcl` (HCL) or `config.yaml` (YAML):
+  ```hcl
+  perplexity {
+    token_file = "~/.perplexity"
+    model      = "sonar-pro"    # override default; sonar-reasoning is deprecated
+  }
+  ```
   ```yaml
   agents:
-    - type: perplexity
-      token: "..."                               # Inline token
-      # OR:
-      token_file: "~/.config/perplexity/token"   # File path
+    perplexity:
+      type: perplexity
+      token_file: ~/.perplexity
+      model: sonar-pro
   ```
+- `model` field overrides the hard-coded default in `internal/agent/perplexity/perplexity.go`.
 - Runner automatically injects token as `PERPLEXITY_API_KEY` environment variable.
 - Backend selection uses same round-robin/weights as other agent types.
 

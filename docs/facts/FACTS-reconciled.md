@@ -69,6 +69,34 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
 *   **Perplexity:** Implemented as a REST adapter.
 *   **Claude/Codex:** Implemented as CLI wrappers.
 
+## Perplexity Default Model
+[2026-02-24] [tags: reconciliation, perplexity, agents]
+*   **`sonar-reasoning` is deprecated** by Perplexity AI and returns HTTP 400 (`invalid_model`).
+*   **Recommended model:** `sonar-pro` — set via `model` field in config:
+    ```hcl
+    perplexity {
+      token_file = "~/.perplexity"
+      model      = "sonar-pro"
+    }
+    ```
+*   Hard-coded default in `internal/agent/perplexity/perplexity.go` (`defaultPerplexityModel`) still says `sonar-reasoning` and needs updating in a follow-up.
+*   **Workaround:** Always set `model = "sonar-pro"` (or another current model) in user config.
+
+## HCL Config: `defaults.timeout` Is Required
+[2026-02-24] [tags: reconciliation, config, hcl]
+*   Validation enforces `defaults.timeout > 0` — the HCL home config **must** include a `defaults` block with a positive `timeout`.
+*   A minimal `conductor-loop.hcl` without this block will fail to load with: `load config: defaults.timeout must be positive`.
+*   The auto-generated starter template already includes an example `defaults` block (commented out). Users must uncomment and set a value.
+
+## Test Suite: `test/local/`
+[2026-02-24] [tags: testing, local, binary]
+*   New package `test/local/` holds binary-path integration tests.
+*   Invokes `bin/run-agent job` directly (not Go packages) for end-to-end coverage.
+*   All four agents (claude, codex, gemini, perplexity) covered in a parallel table-driven test.
+*   Gated by `RUN_LOCAL_AGENT_TESTS=1`; skip guard prevents accidental CI execution.
+*   Run: `RUN_LOCAL_AGENT_TESTS=1 go test ./test/local/... -v -timeout 15m`
+*   Optional fixed output dir: `RUN_LOCAL_ROOT=/tmp/my-runs` (overrides `t.TempDir()`).
+
 ## Message Bus Schema
 [2026-02-24 09:45:00] [tags: reconciliation, messagebus]
 *   **Attachments:** The `Message` struct in Go does NOT have `attachment_path` or `attachments` fields. `FACTS-runner-storage.md` claim is drift.

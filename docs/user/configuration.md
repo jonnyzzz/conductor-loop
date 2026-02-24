@@ -227,10 +227,10 @@ Server bind behavior:
 agents:
   codex:
     type: codex
-    token_file: ~/.config/conductor/tokens/codex.token
+    token_file: ~/.openai
   claude:
     type: claude
-    token_file: ~/.config/conductor/tokens/claude.token
+    token_file: ~/.anthropic
 
 defaults:
   agent: codex
