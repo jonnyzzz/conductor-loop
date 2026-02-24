@@ -22,28 +22,23 @@ Features described in `README.md` or user docs that have **no implementation** o
 
 ---
 
-### GAP-DOC-002: Binary `bin/conductor` Defaults to Port 8080, Source Defaults to 14355
+### GAP-DOC-002: Binary `bin/conductor` Port Default — RESOLVED (2026-02-24)
 
-**README/Docs claim**: Web UI runs at `http://localhost:14355/ui/` (canonical default).
-`quick-start.md` line 113 shows: `./bin/conductor ... --port 8080`
+**Was**: `./bin/conductor --help` reported `--port int … (default 8080)` while source defaulted to `14355`.
 
-**Reality**: `./bin/conductor --help` reports `--port int … (default 8080)`.
-Source `cmd/conductor/*.go` uses `14355` as the default in all server-client flag defaults.
+**Resolution**: `bin/conductor` rebuilt from source on 2026-02-24. Now reports `--port int … (default 14355)` matching source and documentation.
 
-**Verification**: `./bin/conductor --help | grep port` → `--port int ... (default 8080)`
-
-**Impact**: The shipped binary conflicts with source, documentation, and startup scripts (`scripts/start-conductor.sh` passes `--port 14355`). Operators using the pre-built binary without an explicit `--port` flag will bind to the wrong port.
+**Verification**: `./bin/conductor --help | grep port` → `--port int ... (default 14355)`
 
 ---
 
-### GAP-DOC-003: `docs/user/installation.md` References Go 1.21+, Actual Requirement Is 1.24.0
+### GAP-DOC-003: Go 1.21 References in Docs — RESOLVED (2026-02-24)
 
-**Docs claim**: Go 1.21+ required (referenced in `docs/dev/storage-layout.md` line 1689: `FROM golang:1.21-alpine`).
-**Reality**: `go.mod` requires `go 1.24.0`. `docs/user/installation.md` correctly states `1.24.0`, but `docs/dev/storage-layout.md` contains a stale Dockerfile snippet with `golang:1.21-alpine`.
+**Was**: `docs/dev/storage-layout.md` line 1689 had `FROM golang:1.21-alpine` while `go.mod` requires `go 1.24.0`.
 
-**Verification**: `grep "1.21" docs/dev/storage-layout.md` → stale example; `cat go.mod | head -5` → `go 1.24.0`
+**Resolution**: `docs/dev/storage-layout.md` and all example Dockerfiles updated to `golang:1.24-alpine`. `docs/user/installation.md` already correctly stated 1.24.0.
 
-**Impact**: Developers or CI pipelines following the storage-layout reference may use an incompatible Go version.
+**Verification**: `grep "golang:" docs/dev/storage-layout.md` → `FROM golang:1.24-alpine`
 
 ---
 
@@ -233,12 +228,12 @@ Open items in `docs/dev/issues.md` with **PARTIALLY RESOLVED** status and **defe
 | Priority | Action | Closes |
 |----------|--------|--------|
 | P0 | Implement `run-agent output synthesize`, `run-agent review quorum`, `run-agent iterate` OR remove from FACTS/completed lists | GAP-DOC-007 |
-| P0 | Fix `bin/conductor` default port from 8080 → 14355 (rebuild or patch startup config) | GAP-DOC-002 |
+| ~~P0~~ | ~~Fix `bin/conductor` default port from 8080 → 14355~~ — **RESOLVED 2026-02-24** (binary rebuilt) | GAP-DOC-002 |
 | P0 | Implement monitor process cap with PID lockfile | GAP-P0-001 |
 | P0 | Fix SSE poll interval: increase from 100ms to 500ms or 1s, add incremental diff parsing | GAP-P0-007 |
 | P0 | Add monitor stop-suppression window (e.g., 30s cooldown after `run-agent stop`) | GAP-P0-002 |
 | P1 | Create task for Gemini `--output-format stream-json` CLI version guard + fallback | GAP-DOC-004 |
-| P1 | Update `docs/dev/storage-layout.md` Dockerfile to `golang:1.24` | GAP-DOC-003 |
+| ~~P1~~ | ~~Update `docs/dev/storage-layout.md` Dockerfile to `golang:1.24`~~ — **RESOLVED 2026-02-24** | GAP-DOC-003 |
 
 ### Near-term (next iteration)
 

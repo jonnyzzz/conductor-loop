@@ -14,7 +14,7 @@ Status: Iteration 5 synthesis
 
 | Priority | Task | Complexity | prompt-file |
 | :--- | :--- | :--- | :--- |
-| P0 | Reconcile conductor binary default port (8080 vs 14355) | S | `prompts/tasks/fix-conductor-binary-port.md` |
+| ~~P0~~ | ~~Reconcile conductor binary default port (8080 vs 14355)~~ **RESOLVED 2026-02-24** | S | `prompts/tasks/fix-conductor-binary-port.md` |
 | P0 | Reduce SSE CPU hotspot and full-bus reparse pressure | M | `prompts/tasks/fix-sse-cpu-hotspot.md` |
 | P0 | Enforce monitor process cap/single ownership | M | `prompts/tasks/fix-monitor-process-cap.md` |
 
