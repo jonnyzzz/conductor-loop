@@ -150,7 +150,7 @@ Set up project documentation following THE_PROMPT_v5.md conventions.
    - Permissions (file access, tool access)
    - Subsystem ownership
 
-2. **Create Instructions.md**
+2. **Create docs/dev/instructions.md**
    Document:
    - Repository structure
    - Build commands
@@ -176,7 +176,7 @@ Set up project documentation following THE_PROMPT_v5.md conventions.
 ## Success Criteria
 - All role prompt files exist
 - AGENTS.md defines clear conventions
-- Instructions.md has all tool paths
+- docs/dev/instructions.md has all tool paths
 
 ## References
 - THE_PROMPT_v5.md: Role-Specific Prompts section
