@@ -83,6 +83,31 @@ Source `cmd/conductor/*.go` uses `14355` as the default in all server-client fla
 
 ---
 
+### GAP-DOC-007: `run-agent output synthesize`, `run-agent review quorum`, `run-agent iterate` Claimed Complete But Not Implemented
+
+**FACTS-suggested-tasks.md claims** (under "Recently Completed"):
+- "`run-agent output synthesize` implemented (via r3 revision)"
+- "`run-agent review quorum` implemented (via r3 revision)"
+- "`run-agent iterate` implemented (via r3 revision)"
+
+**Reality**: All three commands are **NOT IMPLEMENTED**. Confirmed via:
+- `docs/user/cli-reference.md` line 22: "`run-agent iterate` is not available (`unknown command "iterate"`)."
+- `docs/dev/feature-requests-project-goal-manual-workflows.md` lines 174, 222, 272: All three marked **"Status: NOT YET IMPLEMENTED"**.
+- Source search across `cmd/run-agent/` and `internal/runner/`: zero matches for `synthesize`, `quorum`, or `iterate` command registrations.
+- `cmd/run-agent/main.go`: No `AddCommand` calls for these subcommands.
+
+**Verification**:
+```
+grep -rn '"iterate"\|"synthesize"\|"quorum"' cmd/ --include="*.go"  → no output
+grep -n "iterate" docs/user/cli-reference.md  → "not available (unknown command)"
+```
+
+**Impact**: Agents and operators relying on these commands for RLM orchestration (multi-agent fan-out, quorum review, iteration loops) receive `unknown command` errors. This is the most significant documentation gap — the FACTS file marks critical workflow commands as done when no implementation exists.
+
+**Backlog status**: The r3 task revisions (`task-20260222-102130-output-synthesize-cli-r3`, `-102140-review-quorum-cli-r3`, `-102150-iteration-loop-cli-r3`) were never run (no run directories exist). The FACTS completion status is incorrect.
+
+---
+
 ## Priority Gaps
 
 Open **P0** items from `docs/facts/FACTS-suggested-tasks.md` with **no evidence of implementation** (no task directory in `runs/conductor-loop/`, no corresponding code, no tests).
@@ -207,6 +232,7 @@ Open items in `ISSUES.md` with **PARTIALLY RESOLVED** status and **deferred medi
 
 | Priority | Action | Closes |
 |----------|--------|--------|
+| P0 | Implement `run-agent output synthesize`, `run-agent review quorum`, `run-agent iterate` OR remove from FACTS/completed lists | GAP-DOC-007 |
 | P0 | Fix `bin/conductor` default port from 8080 → 14355 (rebuild or patch startup config) | GAP-DOC-002 |
 | P0 | Implement monitor process cap with PID lockfile | GAP-P0-001 |
 | P0 | Fix SSE poll interval: increase from 100ms to 500ms or 1s, add incremental diff parsing | GAP-P0-007 |
