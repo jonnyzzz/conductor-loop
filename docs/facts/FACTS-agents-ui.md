@@ -228,6 +228,8 @@ UI state management: React Context + hooks (no Redux/Zustand in MVP). Build: npm
 
 [2026-02-04 23:03:05] [tags: ui, monitoring]
 UI served by `run-agent serve` command. Defaults: host 127.0.0.1, port 14355. (Legacy spec had port 8080 as default.)
+[2026-02-24 08:30:00] [tags: ui, monitoring, correction]
+Host default is `0.0.0.0` (all interfaces), not `127.0.0.1`. Port `14355` is confirmed.
 
 [2026-02-04 23:03:05] [tags: ui, monitoring]
 UI non-goals MVP: no remote multi-user access, no auth, no direct file editing, no full-text search across projects/tasks, no cross-host aggregation.

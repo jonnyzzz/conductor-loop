@@ -45,6 +45,9 @@ Canonical timestamp format: UTC `YYYYMMDD-HHMMSSMMMM-PID` (lexically sortable). 
 [2026-02-20 12:31:03] [tags: runner, storage, naming]
 Storage Q1 answered: run_id timestamp precision is 4-digit fractional seconds (`20060102-1504050000`). Previous code in `internal/storage` used only 3 digits; answer is 4 digits.
 
+[2026-02-24 08:30:00] [tags: runner, storage, naming, correction]
+Task ID timestamp uses second precision (`task-YYYYMMDD-HHMMSS-<slug>`). Run ID uses millisecond/nanosecond precision (`run-YYYYMMDD-HHMMSSmmmm-<pid>`). Earlier claims of identical precision were imprecise for Task IDs.
+
 [2026-02-04 23:03:05] [tags: runner, storage, naming]
 Project ID: recommended Java Identifier rules; no length limit enforced by runner.
 

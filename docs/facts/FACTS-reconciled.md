@@ -37,3 +37,6 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
 *   **Go:** `1.24.0` (Source: `go.mod`).
 *   **Legacy:** Docs mentioning `1.21+` are outdated.
 
+[2026-02-24 08:30:00] [tags: reconciliation, status]
+*   **Confirmed:** `FACTS-architecture.md` (host binding), `FACTS-user-docs.md` (Go version, config path, iterate cmd), and `FACTS-runner-storage.md` (ID precision) have been updated to reflect these reconciled truths.
+
