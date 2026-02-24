@@ -50,6 +50,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newServerCmd())
 	cmd.AddCommand(newIterateCmd())
 	cmd.AddCommand(newReviewCmd())
+	cmd.AddCommand(newFactsCmd())
 
 	return cmd
 }
