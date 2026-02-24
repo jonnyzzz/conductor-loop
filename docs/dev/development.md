@@ -4,6 +4,8 @@
 **Repository**: https://github.com/jonnyzzz/conductor-loop
 **Last Updated**: 2026-02-24
 
+For architecture rationale, see `docs/dev/architecture-review.md` and `docs/dev/dependency-analysis.md`.
+
 ---
 
 ## Quick Start

@@ -3,6 +3,7 @@
 This document provides a comprehensive overview of the conductor-loop system architecture, including component organization, data flow, design decisions, and performance considerations.
 
 Observability details are documented in `docs/dev/logging-observability.md`.
+Bootstrap review findings and dependency sequencing notes are documented in `docs/dev/architecture-review.md` and `docs/dev/dependency-analysis.md`.
 
 ## Table of Contents
 

@@ -1,6 +1,7 @@
 # Development Environment Setup
 
 This guide walks you through setting up a development environment for contributing to conductor-loop.
+For day-to-day branch, test, and commit workflow, see `docs/dev/development.md`.
 
 ## Table of Contents
 

@@ -224,7 +224,10 @@ See [Documentation Site Guide](docs/dev/documentation-site.md) for details.
 ### Developer Documentation
 
 - [Developer Guide](docs/dev/development-setup.md) - Contributing to Conductor Loop
+- [Development Workflow](docs/dev/development.md) - Day-to-day development and commit workflow
 - [Architecture](docs/dev/architecture.md) - System design and components
+- [Architecture Review Summary](docs/dev/architecture-review.md) - Bootstrap review outcomes and risk notes
+- [Dependency Analysis](docs/dev/dependency-analysis.md) - Historical dependency map with current validation notes
 - [Logging and Observability](docs/dev/logging-observability.md) - Structured runtime logs, redaction rules, and operator inspection points
 - [Safe Self-Update](docs/dev/self-update.md) - Deferred update/handoff behavior while root runs are active
 - [Testing Guide](docs/dev/testing.md) - Running tests
