@@ -1,138 +1,131 @@
 # Architecture Decisions
 
-This page captures architecture decisions that are currently implemented in the codebase.
-It aligns with `docs/decisions/*`, facts documents, `docs/dev/architecture.md`, `README.md`, and current source behavior.
+This document explains the key architectural decisions in conductor-loop — specifically WHY the system was built the way it was.
 
-## AD-01: Filesystem-First State (Instead of Database)
+## Decision 1: Filesystem Over Database
 
-### Decision
-Use the local filesystem as the system of record for runs, tasks, and message buses, rather than introducing a database dependency.
+**Context**: Conductor Loop needed a storage backend for task metadata, logs, and message bus data.
+**Decision**: All state (run metadata, message bus, task status) lives on the local filesystem.
+**Rationale**:
+- **Simplicity**: No database setup or maintenance required for users.
+- **Portability**: The system works anywhere the binary runs.
+- **Debuggability**: State can be inspected and modified with standard CLI tools (cat, grep, vim).
+- **Atomicity**: Atomic rename operations provide sufficient consistency for our use case.
+**Alternatives Considered**: SQLite (embedded), PostgreSQL (external).
+**Trade-offs**:
+- No complex query capabilities (mitigated by in-memory indexing).
+- Scaling limits constrained by single-node filesystem performance.
+- Local filesystem requirement means no NFS/SMB support.
+**Status**: Current
 
-### Context/problem
-Conductor Loop needs to run in local/offline workflows, support many direct CLI operations, and remain operable even when no API server is running.
+## Decision 2: O_APPEND + flock Over Message Queue
 
-### Rationale
-- Core state (`run-info.yaml`, `TASK-MESSAGE-BUS.md`, `PROJECT-MESSAGE-BUS.md`, `DONE`) is naturally file-scoped per task/run.
-- Most operational commands (`task`, `job`, `bus`, `list`, `watch`, `gc`) work directly against filesystem state.
-- Operators can inspect and recover state with standard tools without a DB service.
-- Atomic file-write patterns and explicit locking cover consistency-critical paths.
+**Context**: The system needed a reliable way to record and stream events between processes.
+**Decision**: Message bus uses O_APPEND writes with exclusive flock + lockless reads.
+**Rationale**:
+- **Zero Dependency**: No external message queue (like RabbitMQ or Kafka) to deploy.
+- **Performance**: High throughput (~37,000 msg/sec) with OS-buffered writes.
+- **Human-Readable**: YAML format makes the bus easy to read and debug.
+**Alternatives Considered**: Redis Pub/Sub, SQLite, Embedded NATS.
+**Trade-offs**:
+- File size grows indefinitely (mitigated by GC and auto-rotation).
+- No built-in pub/sub semantics (polling required).
+- Restricted to local filesystem locking semantics.
+**Status**: Current
 
-### Trade-offs
-- Query capabilities are limited compared to relational/document databases.
-- Large-scale aggregation requires scans/caches in application code.
-- Local filesystem semantics are assumed; some network filesystems are not supported for critical concurrency paths.
+## Decision 3: CLI-Wrapped Agents Over Direct API
 
-### Where implemented
-- `internal/storage/storage.go`
-- `internal/storage/atomic.go`
-- `cmd/run-agent/server.go`
-- `cmd/run-agent/list.go`
-- `cmd/run-agent/bus.go`
+**Context**: Agents need to execute tasks, access files, and potentially run tools.
+**Decision**: Claude, Codex, and Gemini are invoked as CLI subprocesses, not via their REST APIs directly.
+**Rationale**:
+- **Full Capability**: CLI tools provide built-in tool use, file access, and sandbox management that raw REST APIs don't.
+- **Simpler Auth**: Environment variables handle authentication without complex token management in the runner.
+- **Context Management**: Agents manage their own context window and history.
+**CLI flags used**:
+- `claude`: `-p --output-format stream-json --permission-mode bypassPermissions`
+- `codex`: `exec --dangerously-bypass-approvals-and-sandbox --json`
+- `gemini`: `--screen-reader true --approval-mode yolo --output-format stream-json`
+**Alternatives Considered**: Direct REST API integration for all agents.
+**Trade-offs**: Dependency on external CLI tools being installed.
+**Note**: Perplexity and xAI are exceptions (REST-only) because they lack equivalent CLI tools.
+**Status**: Current
 
-## AD-02: Append-Only Message Bus with `O_APPEND` + `flock` (Instead of External Queue)
+## Decision 4: YAML Over HCL (Config Format Evolution)
 
-### Decision
-Implement message transport as append-only files with `O_APPEND` and exclusive file locking, not a brokered queue (Kafka/RabbitMQ/etc.).
+**Context**: The system needs a configuration format for defining agents and defaults.
+**Decision**: YAML is the primary config format; HCL is supported for backward compatibility.
+**Rationale**:
+- **Ecosystem**: YAML has broader support and tooling in the ecosystem.
+- **History**: Initially chose HCL for HashiCorp-style declarative config, but reversed after validating YAML's practical advantages.
+**Alternatives Considered**: TOML, JSON.
+**Trade-offs**: HCL offers cleaner syntax for some hierarchical data, but YAML is more ubiquitous.
+**Current behavior**: Config search order is `config.yaml` > `config.yml` > `config.hcl`.
+**Status**: Current
 
-### Context/problem
-Multiple processes need to post ordered task/project events safely, with minimal operational overhead and no required external infrastructure.
+## Decision 5: SSE Over WebSockets
 
-### Rationale
-- `O_APPEND` keeps writes append-only at the file descriptor level.
-- Exclusive locks serialize writers and avoid interleaved records.
-- Read paths stay lock-free on Unix for high read throughput.
-- Retry/backoff handles transient lock contention.
-- `WithFsync` is available when durability is prioritized; default keeps throughput high.
+**Context**: The UI needs real-time updates for logs and message bus events.
+**Decision**: Server-Sent Events (SSE) for real-time streaming (not WebSockets).
+**Rationale**:
+- **Simplicity**: HTTP-based protocol with no complex upgrade handshake.
+- **Reliability**: Automatic reconnection is built into the browser EventSource API.
+- **Unidirectional**: Sufficient for log streaming; we don't need bidirectional socket communication.
+**Alternatives Considered**: WebSockets, gRPC-Web.
+**Trade-offs**: No bidirectional communication (mitigated by using standard REST for commands).
+**Status**: Current
 
-### Trade-offs
-- Message files grow over time and require rotation/GC.
-- Queue semantics like consumer groups, broker replication, and ack protocols are intentionally absent.
-- On native Windows, mandatory lock behavior can block concurrent reads while writers hold the lock.
+## Decision 6: Single Binary Deployment
 
-### Where implemented
-- `internal/messagebus/messagebus.go`
-- `internal/messagebus/lock.go`
-- `internal/messagebus/lock_unix.go`
-- `internal/messagebus/lock_windows.go`
-- `cmd/run-agent/gc.go`
+**Context**: Distribution and installation need to be as simple as possible.
+**Decision**: Both `run-agent` and `conductor` are single statically-linked Go binaries.
+**Rationale**:
+- **No Dependencies**: No runtime dependencies (Python, Node, JVM) required.
+- **Easy Distribution**: `curl` and run.
+- **Fast Startup**: Minimal startup overhead.
+- **Frontend**: Embedded via `go:embed`; build output goes to `frontend/dist/` which is served at `/ui/`.
+**Alternatives Considered**: Docker containers, Python package.
+**Trade-offs**: larger binary size due to static linking and embedded assets.
+**Status**: Current
 
-## AD-03: CLI-Wrapped Agents for Claude/Codex/Gemini; REST for Perplexity/xAI
+## Decision 7: Port 14355 as Default
 
-### Decision
-Run `claude`, `codex`, and `gemini` through CLI process wrappers; execute `perplexity` and `xai` through in-process REST backends.
+**Context**: Choosing a default port for the API server and `run-agent serve`.
+**Decision**: Default port is 14355.
+**Rationale**:
+- **Avoid Conflicts**: Avoids common development ports (3000, 8080, 8443, 5000).
+- **Memorable**: "14355" is easy enough to type.
+**History**: Early spec used 8080; changed to 14355 to avoid conflicts.
+**Status**: Current
 
-### Context/problem
-The runner must support heterogeneous providers while preserving a consistent run lifecycle (`run-info`, stdout/stderr capture, bus events, timeouts, output fallback).
+## Decision 8: DONE File Semantics
 
-### Rationale
-- CLI path keeps parity with vendor CLIs and local auth/tooling for Claude/Codex/Gemini.
-- Runner process management gives uniform lifecycle control for CLI agents.
-- REST path avoids requiring local binaries for Perplexity/xAI and integrates directly with provider APIs.
-- Validation logic mirrors this split: CLI presence/version checks for CLI agents; token checks for REST agents.
+**Context**: The orchestration loop needs a reliable signal to stop restarting a task.
+**Decision**: Task completion is signaled by creating an empty `DONE` file in the task directory.
+**Rationale**:
+- **Filesystem-Native**: Survives process restarts and API server downtime.
+- **Simple Control**: Can be removed manually to resume/restart a task.
+- **Semantics**: Zero-exit code does NOT stop the Ralph loop; only `DONE` stops it.
+**Alternatives Considered**: Database status flag, API call.
+**Trade-offs**: Relies on agents correctly creating the file.
+**Status**: Current
 
-### Trade-offs
-- Two execution paths increase maintenance surface.
-- CLI-backed agents depend on local binary installation and flag compatibility.
-- REST-backed agents depend on network/API stability and token availability.
+## Decision 9: No Auth for Local Use
 
-### Where implemented
-- `internal/runner/job.go`
-- `internal/runner/validate.go`
-- `internal/agent/claude/claude.go`
-- `internal/agent/codex/codex.go`
-- `internal/agent/perplexity/perplexity.go`
-- `internal/agent/xai/xai.go`
-- `README.md`
+**Context**: Securing the API while maintaining ease of use for local development.
+**Decision**: Optional API key (Bearer or X-API-Key header); exempt routes include health, version, metrics, `/ui/`.
+**Rationale**:
+- **Local Security**: Localhost deployment is reasonably secure by network isolation.
+- **Onboarding**: Mandatory auth would complicate the first-run experience.
+**Enable**: Set `CONDUCTOR_API_KEY` env var or use `--api-key` flag.
+**Status**: Current
 
-## AD-04: YAML-Oriented Configuration with HCL Compatibility
+## Decision 10: Process Groups (PGID) for Agent Management
 
-### Decision
-Treat YAML as the primary configuration format while keeping HCL parsing support for compatibility.
-
-### Context/problem
-The project needs human-editable config with clear defaults and backward compatibility with historical HCL usage.
-
-### Rationale
-- Default config discovery prefers `config.yaml` then `config.yml`, with `config.hcl` as a compatible fallback.
-- Loader auto-detects by extension and maps both formats into one `Config` model.
-- User-facing setup and examples are YAML-first.
-- Keeping HCL support reduces migration pressure for existing setups.
-
-### Trade-offs
-- Dual-format support adds parser and test complexity.
-- Documentation and behavior can drift if YAML/HCL parity is not continuously validated.
-- Operators must understand precedence rules when multiple config files exist.
-
-### Where implemented
-- `internal/config/config.go`
-- `internal/config/api.go`
-- `internal/config/tokens.go`
-- `internal/config/validation.go`
-- `README.md`
-
-## AD-05: Default Port `14355` with Auto-Bind on Non-Explicit Port Selection
-
-### Decision
-Use `14355` as the canonical default API/UI port, and when port selection is not explicit, auto-bind to the next free port (up to 100 attempts).
-
-### Context/problem
-The system needs a predictable default URL for CLI/UI workflows, but should avoid startup failure when the default/configured base port is already in use.
-
-### Rationale
-- `14355` is the shared default across server startup and client command defaults.
-- API config defaults normalize host/port (`0.0.0.0:14355`) when unset.
-- Server startup can fall forward to nearby free ports when users did not explicitly pin a port.
-- Explicit port selection remains strict to preserve operator intent.
-
-### Trade-offs
-- Auto-bind can move the actual port away from `14355`, so callers may need to read startup output.
-- Strict explicit-port mode can fail fast on conflicts.
-- Network policies/firewalls may need wider allowance when using auto-bind.
-
-### Where implemented
-- `internal/config/api.go`
-- `internal/api/server.go`
-- `cmd/run-agent/serve.go`
-- `cmd/conductor/main.go`
-- `cmd/run-agent/server.go`
-- `README.md`
+**Context**: Ensuring clean termination of agent processes and their children.
+**Decision**: Each agent runs in its own process group (Setsid=true on Unix).
+**Rationale**:
+- **Clean Cleanup**: Allows killing the entire agent subtree on stop/timeout.
+- **Orphan Prevention**: Prevents orphan processes from lingering.
+**Alternatives Considered**: Tracking individual PIDs.
+**Trade-offs**: Windows support is limited; WSL2 is recommended.
+**Status**: Current
