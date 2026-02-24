@@ -1,6 +1,6 @@
 # Validation Task: Issues, Questions, TODOs & Decisions Facts
 
-You are a validation agent. Cross-check existing facts against ALL revisions of ISSUES.md, QUESTIONS.md, TODOs.md, and MESSAGE-BUS.md.
+You are a validation agent. Cross-check existing facts against ALL revisions of docs/dev/issues.md, docs/dev/questions.md, docs/dev/todos.md, and MESSAGE-BUS.md.
 
 ## Output
 
@@ -21,28 +21,28 @@ Format:
 ```bash
 cd /Users/jonnyzzz/Work/conductor-loop
 
-# Get full history of ISSUES.md
-git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- ISSUES.md
+# Get full history of docs/dev/issues.md
+git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/dev/issues.md
 
-# Read EVERY revision of ISSUES.md
-for sha in $(git log --format="%H" -- ISSUES.md); do
+# Read EVERY revision of docs/dev/issues.md
+for sha in $(git log --format="%H" -- docs/dev/issues.md); do
   date=$(git log -1 --format="%ad" --date=format:"%Y-%m-%d %H:%M:%S" $sha)
   echo "=== $sha $date ==="
-  git show $sha:ISSUES.md | grep -E "^###|ISSUE-[0-9]+|Status:|Severity:|Resolved:" | head -30
+  git show $sha:docs/dev/issues.md | grep -E "^###|ISSUE-[0-9]+|Status:|Severity:|Resolved:" | head -30
 done
 
-# Get full history of QUESTIONS.md
-git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- QUESTIONS.md
-for sha in $(git log --format="%H" -- QUESTIONS.md); do
+# Get full history of docs/dev/questions.md
+git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/dev/questions.md
+for sha in $(git log --format="%H" -- docs/dev/questions.md); do
   date=$(git log -1 --format="%ad" --date=format:"%Y-%m-%d %H:%M:%S" $sha)
   echo "=== $sha $date ==="
-  git show $sha:QUESTIONS.md | grep -E "^##|^Q[0-9]|Decision:|Resolved:|Status:" | head -20
+  git show $sha:docs/dev/questions.md | grep -E "^##|^Q[0-9]|Decision:|Resolved:|Status:" | head -20
 done
 
-# Get full history of TODOs.md
-git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- TODOs.md
-# Read latest TODOs.md fully
-cat TODOs.md
+# Get full history of docs/dev/todos.md
+git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/dev/todos.md
+# Read latest docs/dev/todos.md fully
+cat docs/dev/todos.md
 
 # Read MESSAGE-BUS.md - extract DECISION and FACT entries
 grep -A3 "DECISION:\|FACT:\|ANSWER\|QUESTION:" MESSAGE-BUS.md | head -100

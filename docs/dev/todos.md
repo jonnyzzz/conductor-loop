@@ -34,7 +34,7 @@
 
 ### Docs / Process
 
-- [x] Log design-review checklist and implementation backlog to `TODO.md`.
+- [x] Log design-review checklist and implementation backlog to `docs/dev/todos.md`.
 - [x] Update `.md` docs for message bus usage with `run-agent`.
 - [x] Create feature requests for remaining project-goal-related manual bash workflows and expose them as conductor/run-agent commands (`docs/dev/feature-requests-project-goal-manual-workflows.md`); split into actionable command tasks.
 - [x] Log external release/update simplification request for swarm run-agent backlog (`swarm/tasks/TASK-20260221-devrig-release-update-simplification.md`).

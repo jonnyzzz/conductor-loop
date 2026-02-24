@@ -129,7 +129,7 @@ run-agent validate --config ~/.config/conductor/config.yaml --check-tokens
 run-agent serve --config ~/.config/conductor/config.yaml --root ./runs
 ```
 
-### `conductor` current binary (default port `8080`)
+### `conductor` current binary (default port `14355`)
 
 ```bash
 ./bin/conductor --config ~/.config/conductor/config.yaml --root ./runs
@@ -138,7 +138,7 @@ run-agent serve --config ~/.config/conductor/config.yaml --root ./runs
 Port note:
 
 - `run-agent serve` default: `14355`
-- current `./bin/conductor` default: `8080`
+- current `./bin/conductor` default: `14355`
 
 If you want explicit consistency, pass `--port` explicitly.
 

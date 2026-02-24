@@ -16,10 +16,10 @@ Each fact entry MUST follow this exact format:
 ## Files to Research
 
 ### Primary files (ALL revisions):
-- `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md`
-- `/Users/jonnyzzz/Work/conductor-loop/QUESTIONS.md`
-- `/Users/jonnyzzz/Work/conductor-loop/TODOs.md`
-- `/Users/jonnyzzz/Work/conductor-loop/TODO.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/dev/questions.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/dev/todos.md`
+- `/Users/jonnyzzz/Work/conductor-loop/TODO.md` (legacy, if present in history)
 
 ### Message bus (decisions logged there):
 - `/Users/jonnyzzz/Work/conductor-loop/MESSAGE-BUS.md`
@@ -43,14 +43,14 @@ Each fact entry MUST follow this exact format:
 
 ## Instructions
 
-1. Get full git history for ISSUES.md, QUESTIONS.md, TODOs.md:
-   `cd /Users/jonnyzzz/Work/conductor-loop && git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- ISSUES.md QUESTIONS.md TODOs.md TODO.md MESSAGE-BUS.md`
+1. Get full git history for docs/dev issues/questions/todos files:
+   `cd /Users/jonnyzzz/Work/conductor-loop && git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/dev/issues.md docs/dev/questions.md docs/dev/todos.md TODO.md MESSAGE-BUS.md`
 
-2. Read EACH revision of ISSUES.md to track: when each issue was filed, when resolved, what severity
+2. Read EACH revision of docs/dev/issues.md to track: when each issue was filed, when resolved, what severity
 
-3. Read EACH revision of QUESTIONS.md to track: questions and their answers over time
+3. Read EACH revision of docs/dev/questions.md to track: questions and their answers over time
 
-4. Read EACH revision of TODOs.md to see what tasks were added/completed at each point
+4. Read EACH revision of docs/dev/todos.md to see what tasks were added/completed at each point
 
 5. Read MESSAGE-BUS.md fully — extract all DECISION, FACT, and QUESTION entries
 

@@ -113,8 +113,8 @@ The design relies on PGID (process group ID) management and `kill(-pgid, 0)` for
 
 ### ISSUE-004: CLI Version Compatibility Breakage Risk
 **Severity**: CRITICAL
-**Status**: PARTIALLY RESOLVED
-**Resolved**: 2026-02-20
+**Status**: RESOLVED
+**Resolved**: 2026-02-21 (Session #40)
 **Blocking**: Agent backend reliability
 
 **Description**:
@@ -397,8 +397,8 @@ Tokens stored in config.hcl can expire (Anthropic, OpenAI tokens have TTL). No r
 
 ### ISSUE-010: Insufficient Error Context in Failure Scenarios
 **Severity**: HIGH
-**Status**: PARTIALLY RESOLVED
-**Resolved**: 2026-02-20 (phase 1)
+**Status**: RESOLVED
+**Resolved**: 2026-02-21 (Session #40)
 **Blocking**: Debugging and observability
 
 **Description**:
