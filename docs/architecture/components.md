@@ -183,7 +183,7 @@ The system is layered, with `cmd/` depends on everything, and `internal/` packag
 2.  **API Server (`internal/api/`) depends on:**
     -   **Storage**: To read run metadata and list projects/tasks.
     -   **Message Bus**: To read/poll for messages and stream them via SSE.
-    -   **Runner**: To trigger stop/start actions via runner package functions (`TerminateProcessGroup`, `RunTask`); reads filesystem state directly for observation.
+    -   **Runner**: Imported directly (not via network) for control actions — stop delivers SIGTERM to the agent's process group (`TerminateProcessGroup`), start invokes `RunTask`; reads filesystem state directly for observation.
     -   **Config**: For server settings (port, host).
 
 3.  **Agent (`internal/agent/`) depends on:**

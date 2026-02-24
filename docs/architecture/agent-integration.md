@@ -18,8 +18,8 @@ Conductor Loop currently uses two execution modes in `internal/runner/job.go`:
 
 | Agent type | Runner mode | Invocation details in runner | Adapter/backend package |
 | --- | --- | --- | --- |
-| `claude` | CLI | `claude -C <cwd> -p --input-format text --output-format stream-json --verbose --tools default --permission-mode bypassPermissions` | CLI stream parsing/output helpers in `internal/agent/claude` |
-| `codex` | CLI | `codex exec --dangerously-bypass-approvals-and-sandbox --json -C <cwd> -` | CLI stream parsing/output helpers in `internal/agent/codex` |
+| `claude` | CLI | `claude -p --input-format text --output-format stream-json --verbose --tools default --permission-mode bypassPermissions` | CLI stream parsing/output helpers in `internal/agent/claude` |
+| `codex` | CLI | `codex exec --dangerously-bypass-approvals-and-sandbox --json -` | CLI stream parsing/output helpers in `internal/agent/codex` |
 | `gemini` | CLI | `gemini --screen-reader true --approval-mode yolo --output-format stream-json` | CLI stream parsing/output helpers in `internal/agent/gemini/stream_parser.go` |
 | `perplexity` | REST | Construct `perplexity.NewPerplexityAgent(...)` and call `Execute(ctx, runCtx)` (default model: `sonar-reasoning`) | `internal/agent/perplexity` |
 | `xai` | REST | Construct `xai.NewAgent(...)` and call `Execute(ctx, runCtx)` | `internal/agent/xai` |
@@ -27,6 +27,7 @@ Conductor Loop currently uses two execution modes in `internal/runner/job.go`:
 Notes:
 - In the current `RunJob` path, `gemini` is treated as a CLI agent (via `commandForAgent` and `executeCLI`).
 - `internal/agent/gemini/gemini.go` contains a REST-capable Gemini adapter, but that code path is not selected by `executeREST` today.
+- Runner working directory is set via process spawn attributes (`SpawnOptions.Dir`), not via CLI `-C` flags.
 
 ## CLI vs REST Execution in Runner
 

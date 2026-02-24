@@ -168,7 +168,7 @@ Audit and logging tests validate that raw secrets are redacted and do not appear
 
 The API server includes a guard (`rejectUIDestructiveAction`) that prevents browser-based UI sessions from issuing destructive operations directly.
 
-When the API server detects browser-origin headers (e.g., `Origin`, `Referer`, `User-Agent` patterns associated with browser requests), the following operations are rejected with HTTP `403 Forbidden` before any filesystem change occurs:
+When the API server detects browser-origin headers (e.g., `X-Conductor-Client`, `Sec-Fetch-*`, `Origin`, `Referer`), the following operations are rejected with HTTP `403 Forbidden` before any filesystem change occurs:
 
 - Task deletion (`DELETE /api/v1/projects/{project}/tasks/{task}`)
 - Run deletion (`DELETE /api/v1/projects/{project}/tasks/{task}/runs/{run}`)
@@ -177,7 +177,7 @@ When the API server detects browser-origin headers (e.g., `Origin`, `Referer`, `
 
 This defense-in-depth measure ensures that a cross-site request forgery (CSRF) attempt via a compromised or malicious web page cannot use the UI session to destroy data. Legitimate destructive actions must be invoked via CLI (`run-agent` commands operating directly on the filesystem or via `run-agent server` client commands).
 
-The `403` response is returned regardless of whether API key authentication is enabled, because the block is applied before auth middleware for these routes.
+When API key authentication is enabled, auth middleware runs first; unauthenticated or invalid requests fail with `401` before handlers run. The UI destructive-action guard is executed in handlers (after auth) and returns `403` for browser-origin destructive requests.
 
 ## CI and GitHub Actions Security Stance
 

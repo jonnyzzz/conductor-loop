@@ -11,10 +11,11 @@ Conductor Loop provides a Prometheus-compatible metrics endpoint for monitoring 
 
 ### Key Metrics
 - `conductor_uptime_seconds`: The total time the conductor server has been running.
-- `conductor_active_runs`: The number of runs currently being executed.
+- `conductor_active_runs_total`: The number of runs currently being executed.
+- `conductor_completed_runs_total`: Cumulative count of runs that completed successfully.
 - `conductor_failed_runs_total`: Cumulative count of runs that terminated with a failure status.
-- `conductor_message_bus_append_total`: Count of successful appends to the message bus.
-- `conductor_queued_runs`: Number of runs waiting in the concurrency semaphore.
+- `conductor_messagebus_appends_total`: Count of successful appends to the message bus.
+- `conductor_queued_runs_total`: Number of runs waiting in the concurrency semaphore.
 - `conductor_api_requests_total`: Total count of API requests, partitioned by method and path.
 
 ## Logging
@@ -40,8 +41,8 @@ To trace requests across subsystems, Conductor Loop uses a correlation ID.
 
 Standard endpoints are provided to verify the operational status and version of the system. These endpoints are exempt from API key authentication.
 
-- **Health Endpoint**: `/api/v1/health` — Returns the current status of the server and its core dependencies.
-- **Version Endpoint**: `/api/v1/version` — Returns the version, commit hash, and build timestamp of the binary.
+- **Health Endpoint**: `/api/health` — Returns the current status of the server and its core dependencies.
+- **Version Endpoint**: `/api/version` — Returns the version, commit hash, and build timestamp of the binary.
 
 ## Run Artifacts
 

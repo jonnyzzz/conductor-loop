@@ -171,6 +171,8 @@ All route to `streamMessageBusPath(...)`:
 
 If `Last-Event-ID` no longer exists (`ErrSinceIDNotFound`), server resets cursor and continues polling.
 
+> **Note (Windows):** On Windows, mandatory file locking (`LockFileEx`) may cause API reads of the message bus to block behind concurrent writers. On Unix, reads are lockless and never block for this reason.
+
 ### 5.4 SSE Tunables and Limits
 
 From `SSEConfig` (with defaults):

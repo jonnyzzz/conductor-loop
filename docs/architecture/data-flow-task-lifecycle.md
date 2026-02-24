@@ -37,8 +37,9 @@ For each attempt, the runner performs run setup and agent execution:
 
 During and after execution:
 - `run-info.yaml` is updated with final status/outcome (`completed` or `failed`).
-- Runner guarantees `output.md` exists by end of run.
-- Task message bus receives run lifecycle events (`RUN_START`, `RUN_STOP`/`RUN_CRASH`).
+- The agent is the primary writer of `output.md` (parsed from stdout); the runner ensures the file exists by end of run, falling back to a copy of `agent-stdout.txt` if parsing fails.
+- Task message bus receives runner lifecycle events (`RUN_START`, `RUN_STOP`/`RUN_CRASH`).
+- The agent may post `FACT`, `PROGRESS`, and `DECISION` messages to the task bus during execution; these semantic updates are the primary source of the data propagated in Phase 5.
 
 ### 4. Completion
 
