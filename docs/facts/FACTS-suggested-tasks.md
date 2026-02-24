@@ -14,38 +14,38 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 ### Monitor process proliferation cap
 - **ID**: `task-20260223-155200-monitor-process-cap-limit`
 - **Description**: Fix monitor/session process proliferation that hits unified exec limits (60+ warnings). Enforce single monitor ownership, PID lockfile, auto-cleanup of stale monitor processes.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### Monitor stop-respawn race
 - **ID**: `task-20260223-155210-monitor-stop-respawn-race`
 - **Description**: Prevent immediate task respawn after manual `run-agent stop` when background monitor loops are active. Add explicit suppression window and reasoned restart policy.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### Blocked dependency deadlock recovery
 - **ID**: `task-20260223-155220-blocked-dependency-deadlock-recovery`
 - **Description**: Resolve blocked DAG chains with no active runs. `task-20260222-102110-job-batch-cli` and `task-20260222-102120-workflow-runner-cli` both exist with no runs and no DONE marker — blocked. Dependency diagnostics and auto-escalation workflow for stuck task chains.
-- **Source**: conductor-loop TODOs.md; confirmed via filesystem scan 2026-02-23
+- **Source**: conductor-loop docs/dev/todos.md; confirmed via filesystem scan 2026-02-23
 
 ### Run status finish criteria
 - **ID**: `task-20260223-155230-run-status-finish-criteria`
 - **Description**: Add explicit "all jobs finished" semantics distinguishing `running/queued` vs `blocked/failed`. Expose in CLI/UI summary output.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### RunInfo missing noise hardening
 - **ID**: `task-20260223-155240-runinfo-missing-noise-hardening`
 - **Description**: Harden status/list/stop paths against missing `run-info.yaml` artifacts with recovery and reduced noisy error output.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### Webserver uptime auto-recovery
 - **ID**: `task-20260223-155250-webserver-uptime-autorecover`
 - **Description**: Investigate and fix `webserver is no longer up` incidents. Add watchdog restart strategy, health probes, failure reason logging.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### SSE stream CPU hotspot
 - **ID**: `task-20260223-103400-serve-cpu-hotspot-sse-stream-all`
 - **Status**: Task directory exists; no runs started yet.
 - **Description**: Fix high CPU in `run-agent serve` under live Web UI. Confirmed hotspot is SSE streaming with aggressive 100ms polling and full bus-file reparse. Deliver fixes + regression/perf tests.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ---
 
@@ -55,32 +55,32 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 - **ID**: `task-20260222-214200-ui-latency-regression-investigation`
 - **Status**: Task directory exists with active runs; not DONE.
 - **Description**: Web UI updates take multiple seconds to appear. Root-cause and fix with measurable responsiveness improvements.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### Message bus empty regression
 - **ID**: `task-20260223-155300-messagebus-empty-regression-investigation`
 - **Description**: Intermittent empty Message Bus behavior. Ensure deterministic hydration/fallback under SSE degradation.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### Live logs regression guardrails
 - **ID**: `task-20260223-155310-live-logs-regression-guardrails`
 - **Description**: Lock live-log layout/visibility behavior with regression tests to prevent repeated regressions.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### Tree hierarchy regression guardrails
 - **ID**: `task-20260223-155320-tree-hierarchy-regression-guardrails`
 - **Description**: Extend tree hierarchy regression coverage (root/task/run + threaded subtasks + collapsed groups).
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### New task submit durability
 - **ID**: `task-20260223-155330-ui-new-task-submit-durability-regression-guard`
 - **Description**: Ensure form data never disappears on submit/reload/error. Persist drafts and audit submit lifecycle.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### Refresh/SSE CPU budget
 - **ID**: `task-20260223-155340-ui-refresh-churn-cpu-budget`
 - **Description**: Define and enforce refresh/SSE CPU budgets in tests/benchmarks (server + web UI).
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ---
 
@@ -89,12 +89,12 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 ### Repository token leak audit
 - **ID**: `task-20260223-155350-repo-history-token-leak-audit`
 - **Description**: Full repository + git-history token leak scan across all repos. Document findings. Add pre-commit/pre-push safeguards.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### First release readiness gate
 - **ID**: `task-20260223-155360-first-release-readiness-gate`
 - **Description**: Finalize release readiness gate: CI green, startup scripts, install/update paths, integration tests across agents.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ---
 
@@ -103,29 +103,29 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 ### Run artifacts git hygiene
 - **ID**: `task-20260223-155370-run-artifacts-git-hygiene`
 - **Description**: Prevent `runs/run_*` artifact clutter from polluting git status. Add ignore strategy + doc policy.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### Manual shell to CLI gap closure
 - **ID**: `task-20260223-155380-manual-shell-to-cli-gap-closure`
 - **Description**: Continue replacing repeated manual bash monitoring/status/recovery workflows with first-class `run-agent`/`conductor` commands.
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### Task iteration autopilot policy
 - **ID**: `task-20260223-155390-task-iteration-autopilot-policy`
 - **Description**: Formalize autonomous monitor policy (check cadence, stale thresholds, resume limits, escalation rules).
-- **Source**: conductor-loop TODOs.md
+- **Source**: conductor-loop docs/dev/todos.md
 
 ### Recursive delegation for large batches
 - **Description**: Continue recursive run-agent/conductor-loop delegation for large review and implementation batches.
-- **Source**: conductor-loop TODOs.md (Orchestration section)
+- **Source**: conductor-loop docs/dev/todos.md (Orchestration section)
 
 ### Product logo/favicon
 - **Description**: Generate and integrate final product logo/favicon artifacts (Gemini + nanobanana workflow).
-- **Source**: conductor-loop TODOs.md (Orchestration section)
+- **Source**: conductor-loop docs/dev/todos.md (Orchestration section)
 
 ### GitHub CI self-hosted
 - **Description**: Use conductor-loop to fix GitHub builds for itself and keep workflow self-hosted.
-- **Source**: conductor-loop TODOs.md (Repository section)
+- **Source**: conductor-loop docs/dev/todos.md (Repository section)
 
 ---
 
@@ -133,19 +133,19 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 
 ### Windows file locking (ISSUE-002)
 - **Description**: Windows uses mandatory locks that break the core assumption of lockless reads. Medium-term: implement shared-lock readers with timeout/retry on Windows. Long-term: consider named pipes or memory-mapped files.
-- **Source**: conductor-loop ISSUES.md, swarm runs sessions #1, #25, #41
+- **Source**: conductor-loop docs/dev/issues.md, swarm runs sessions #1, #25, #41
 
 ### Windows process groups (ISSUE-003)
 - **Description**: Windows lacks Unix-style PGID management. Medium-term: use Windows Job Objects (`CreateJobObject`, `AssignProcessToJobObject`, `TerminateJobObject`). Current stubs use PID-only workaround.
-- **Source**: conductor-loop ISSUES.md
+- **Source**: conductor-loop docs/dev/issues.md
 
 ### Token expiration handling (ISSUE-009)
 - **Description**: Tokens can expire with no detection or refresh. Deferred: full expiration detection via API call, OAuth refresh for supported providers.
-- **Source**: conductor-loop ISSUES.md, swarm runs sessions #25, #41
+- **Source**: conductor-loop docs/dev/issues.md, swarm runs sessions #25, #41
 
 ### Lock contention at 50+ agents (ISSUE-007)
 - **Description**: Retry with exponential backoff implemented but not tested at scale. Deferred: test with 50+ concurrent writers, optional write-through cache.
-- **Source**: conductor-loop ISSUES.md
+- **Source**: conductor-loop docs/dev/issues.md
 
 ---
 
@@ -207,11 +207,11 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 
 ### Unified bootstrap/updater script
 - **Description**: Merge `install.sh` and `run-agent.cmd` into a single updater/launcher script. Compare local version vs latest release, fetch updates, verify SHA/signatures, then execute.
-- **Source**: conductor-loop TODOs.md (`task-20260222-192500-unified-bootstrap-script-design`)
+- **Source**: conductor-loop docs/dev/todos.md (`task-20260222-192500-unified-bootstrap-script-design`)
 
 ---
 
-## Operational Knowledge (from Swarm ISSUES.md)
+## Operational Knowledge (from Swarm docs/dev/issues.md)
 
 These are not tasks but recurring operational problems worth tracking:
 

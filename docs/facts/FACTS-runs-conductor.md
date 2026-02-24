@@ -293,7 +293,7 @@ task-20260222-202600-followup-missing-runinfo-recovery: goal "TASK.md missing". 
 task-20260222-202610-followup-restart-exhausted-status-normalization: goal "TASK.md missing". status DONE. outcome: Normalized 3 restart-exhausted/completed tasks to unambiguous completed+done: wrote evidence outputs, added DONE markers, and appended reconciliation FACT entries; verified via run-agent list --json (done=true for all).
 
 [2026-02-22 20:26:20] [tags: runs, task, completed, general]
-task-20260222-202620-followup-blocked-rlm-backlog-completion: goal "TASK.md missing". status DONE. outcome: Updated /Users/jonnyzzz/Work/conductor-loop/TODOs.md entries for 102130/102140/102150 chains to replace stale 'execution in progress' notes with canonical-r3 closure + superseded-revision wording.
+task-20260222-202620-followup-blocked-rlm-backlog-completion: goal "TASK.md missing". status DONE. outcome: Updated /Users/jonnyzzz/Work/conductor-loop/docs/dev/todos.md entries for 102130/102140/102150 chains to replace stale 'execution in progress' notes with canonical-r3 closure + superseded-revision wording.
 
 [2026-02-22 20:26:30] [tags: runs, task, completed, security]
 task-20260222-202630-followup-unstarted-security-fixes-execution: goal "TASK.md missing". status DONE. outcome: Validation: go test ./internal/api PASS, installer smoke PASS, go build ./... PASS; go test ./... fails only in test/performance benchmark gate (TestRunCreationThroughput throughput threshold).
@@ -323,7 +323,7 @@ task-20260223-071800-security-audit-followup-action-plan: goal "Review current s
 task-20260223-071900-ui-agent-output-regression-tdd-claude-codex-review: goal "Fix regression: agent output/logs are no longer visible in the Web UI. Use TDD: add failing regression tests first (frontend + API/stream path as needed), then implement the fix...". status DONE. outcome: DONE marker present; no explicit FACT outcome recorded in task bus.
 
 [2026-02-23 07:28:00] [tags: runs, task, completed, runner]
-task-20260223-072800-cli-monitor-loop-simplification: goal "Implement first-class CLI support to replace the current custom bash monitor loop. Required behavior: (1) read pending task ids from TODOs.md unchecked items, (2) start missing ...". status DONE. outcome: DONE marker present; no explicit FACT outcome recorded in task bus.
+task-20260223-072800-cli-monitor-loop-simplification: goal "Implement first-class CLI support to replace the current custom bash monitor loop. Required behavior: (1) read pending task ids from docs/dev/todos.md unchecked items, (2) start missing ...". status DONE. outcome: DONE marker present; no explicit FACT outcome recorded in task bus.
 
 [2026-02-23 20:07:33] [tags: runs, task, completed, runner]
 task-20260223-200733-scan-jonnyzzz-runs: goal "# Research Task: Scan jonnyzzz-ai-coder Runs for Tasks & Requests". status DONE. outcome: DONE marker present; no explicit FACT outcome recorded in task bus.

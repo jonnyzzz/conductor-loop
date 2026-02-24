@@ -171,7 +171,7 @@ Claude CLI flags: "claude -p --input-format text --output-format text --tools de
 Perplexity is a native REST-backed agent (not CLI). Supports SSE streaming via stream=True parameter. All Perplexity models support streaming (sonar-pro, sonar-reasoning, sonar-deep-research, r1-1776). Citations arrive at the end of stream.
 
 [2026-02-04 17:54:24] [tags: swarm, idea, legacy, backends, decisions]
-xAI backend integration: Deferred to post-MVP. Tracked in ISSUES.md backlog.
+xAI backend integration: Deferred to post-MVP. Tracked in docs/dev/issues.md backlog.
 
 [2026-02-04 17:54:24] [tags: swarm, idea, legacy, backends, decisions]
 Agent selection: Round-robin by default. "I'm lucky" random selection with weights. Selection may consult message bus history.

@@ -46,14 +46,14 @@ Multi-Agent Next Bucket:
 - UI tree density (`task-20260222-100800-ui-tree-density` submitted).
 
 [2026-02-21 20:06:00] [tags: conductor-loop, todo, pending]
-Pending items in TODOs.md:
+Pending items in docs/dev/todos.md:
 - Continue recursive run-agent/conductor-loop delegation.
 - Review and integrate external release/update flow.
 - Generate and integrate final product logo (Gemini + nanobanana).
 - Review documents across workspace and move/deprecate duplicates.
 
 [2026-02-20 20:00:00] [tags: conductor-loop, issues, resolved]
-All CRITICAL issues resolved. All QUESTIONS.md answered.
+All CRITICAL issues resolved. All docs/dev/questions.md answered.
 
 [2026-02-20 15:52:00] [tags: conductor-loop, issues, open]
 HIGH issues remaining:
