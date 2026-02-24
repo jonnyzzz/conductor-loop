@@ -195,23 +195,26 @@ const homeHCLTemplate = `# conductor-loop — personal configuration
 # Documentation: https://github.com/jonnyzzz/conductor-loop/blob/main/docs/user/configuration.md
 # GitHub:        https://github.com/jonnyzzz/conductor-loop
 #
-# Add your agent API tokens below.
-# The agent type is inferred from the block name — no "type" field required.
-#
-# Example:
-#
-# codex {
-#   token_file = "~/.config/tokens/openai"
+# Agent type is inferred from the block name — no "type" field required.
+# Uncomment and fill in the agents you have API tokens for.
+
+# claude {
+#   token_file = "~/.anthropic"
 # }
 #
-# claude {
-#   token_file = "~/.config/tokens/anthropic"
+# codex {
+#   token_file = "~/.openai"
 # }
 #
 # gemini {
-#   token_file = "~/.config/tokens/google"
+#   token_file = "~/.vertex"
 # }
 #
+# perplexity {
+#   token_file = "~/.perplexity"
+#   model      = "sonar-pro"
+# }
+
 # defaults {
 #   agent               = "claude"
 #   timeout             = 300
