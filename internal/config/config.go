@@ -1,13 +1,11 @@
-// Package config provides YAML and HCL configuration loading for conductor loop.
+// Package config provides YAML configuration loading for conductor loop.
 package config
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/hashicorp/hcl"
 	"gopkg.in/yaml.v3"
 )
 
@@ -84,10 +82,8 @@ type StorageConfig struct {
 // Search order:
 //  1. ./config.yaml
 //  2. ./config.yml
-//  3. ./config.hcl
-//  4. $HOME/.config/conductor/config.yaml
-//  5. $HOME/.config/conductor/config.yml
-//  6. $HOME/.config/conductor/config.hcl
+//  3. $HOME/.config/conductor/config.yaml
+//  4. $HOME/.config/conductor/config.yml
 func FindDefaultConfig() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -104,13 +100,11 @@ func FindDefaultConfigIn(baseDir string) (string, error) {
 	candidates := []string{
 		filepath.Join(baseDir, "config.yaml"),
 		filepath.Join(baseDir, "config.yml"),
-		filepath.Join(baseDir, "config.hcl"),
 	}
 	if home != "" {
 		candidates = append(candidates,
 			filepath.Join(home, ".config", "conductor", "config.yaml"),
 			filepath.Join(home, ".config", "conductor", "config.yml"),
-			filepath.Join(home, ".config", "conductor", "config.hcl"),
 		)
 	}
 
@@ -187,16 +181,11 @@ func LoadConfigForServer(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// parseConfigFile reads and parses a config file, auto-detecting format by extension.
+// parseConfigFile reads and parses a YAML config file.
 func parseConfigFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	ext := strings.ToLower(filepath.Ext(path))
-	if ext == ".hcl" {
-		return parseHCLConfig(path, data)
 	}
 	return parseYAMLConfig(data)
 }
@@ -211,154 +200,6 @@ func parseYAMLConfig(data []byte) (*Config, error) {
 		cfg.Agents = make(map[string]AgentConfig)
 	}
 	return &cfg, nil
-}
-
-// parseHCLConfig decodes HCL bytes into a Config.
-func parseHCLConfig(path string, data []byte) (*Config, error) {
-	var raw map[string]interface{}
-	if err := hcl.Decode(&raw, string(data)); err != nil {
-		return nil, fmt.Errorf("parse HCL config %s: %w", path, err)
-	}
-
-	cfg := &Config{
-		Agents: make(map[string]AgentConfig),
-	}
-
-	// agents block
-	if v, ok := raw["agents"]; ok {
-		for name, agentRaw := range hclFirstBlock(v) {
-			agentBlocks := hclFirstBlock(agentRaw)
-			if agentBlocks == nil {
-				continue
-			}
-			agent := AgentConfig{}
-			if s, ok := agentBlocks["type"].(string); ok {
-				agent.Type = s
-			}
-			if s, ok := agentBlocks["token"].(string); ok {
-				agent.Token = s
-			}
-			if s, ok := agentBlocks["token_file"].(string); ok {
-				agent.TokenFile = s
-			}
-			if s, ok := agentBlocks["base_url"].(string); ok {
-				agent.BaseURL = s
-			}
-			if s, ok := agentBlocks["model"].(string); ok {
-				agent.Model = s
-			}
-			cfg.Agents[name] = agent
-		}
-	}
-
-	// defaults block
-	if m := hclFirstBlock(raw["defaults"]); m != nil {
-		if s, ok := m["agent"].(string); ok {
-			cfg.Defaults.Agent = s
-		}
-		if n, ok := m["timeout"].(int); ok {
-			cfg.Defaults.Timeout = n
-		}
-		if n, ok := m["max_concurrent_runs"].(int); ok {
-			cfg.Defaults.MaxConcurrentRuns = n
-		}
-		if n, ok := m["max_concurrent_root_tasks"].(int); ok {
-			cfg.Defaults.MaxConcurrentRootTasks = n
-		}
-		if dm := hclFirstBlock(m["diversification"]); dm != nil {
-			d := &DiversificationConfig{}
-			if b, ok := dm["enabled"].(bool); ok {
-				d.Enabled = b
-			}
-			if s, ok := dm["strategy"].(string); ok {
-				d.Strategy = s
-			}
-			if b, ok := dm["fallback_on_failure"].(bool); ok {
-				d.FallbackOnFailure = b
-			}
-			if list, ok := dm["agents"].([]interface{}); ok {
-				for _, item := range list {
-					if s, ok := item.(string); ok {
-						d.Agents = append(d.Agents, s)
-					}
-				}
-			}
-			if list, ok := dm["weights"].([]interface{}); ok {
-				for _, item := range list {
-					if n, ok := item.(int); ok {
-						d.Weights = append(d.Weights, n)
-					}
-				}
-			}
-			cfg.Defaults.Diversification = d
-		}
-	}
-
-	// api block
-	if m := hclFirstBlock(raw["api"]); m != nil {
-		if s, ok := m["host"].(string); ok {
-			cfg.API.Host = s
-		}
-		if n, ok := m["port"].(int); ok {
-			cfg.API.Port = n
-		}
-		if b, ok := m["auth_enabled"].(bool); ok {
-			cfg.API.AuthEnabled = b
-		}
-		if s, ok := m["api_key"].(string); ok {
-			cfg.API.APIKey = s
-		}
-		if list, ok := m["cors_origins"].([]interface{}); ok {
-			for _, item := range list {
-				if s, ok := item.(string); ok {
-					cfg.API.CORSOrigins = append(cfg.API.CORSOrigins, s)
-				}
-			}
-		}
-		if sm := hclFirstBlock(m["sse"]); sm != nil {
-			if n, ok := sm["poll_interval_ms"].(int); ok {
-				cfg.API.SSE.PollIntervalMs = n
-			}
-			if n, ok := sm["discovery_interval_ms"].(int); ok {
-				cfg.API.SSE.DiscoveryIntervalMs = n
-			}
-			if n, ok := sm["heartbeat_interval_s"].(int); ok {
-				cfg.API.SSE.HeartbeatIntervalS = n
-			}
-			if n, ok := sm["max_clients_per_run"].(int); ok {
-				cfg.API.SSE.MaxClientsPerRun = n
-			}
-		}
-	}
-
-	// storage block
-	if m := hclFirstBlock(raw["storage"]); m != nil {
-		if s, ok := m["runs_dir"].(string); ok {
-			cfg.Storage.RunsDir = s
-		}
-		if list, ok := m["extra_roots"].([]interface{}); ok {
-			for _, item := range list {
-				if s, ok := item.(string); ok {
-					cfg.Storage.ExtraRoots = append(cfg.Storage.ExtraRoots, s)
-				}
-			}
-		}
-	}
-
-	return cfg, nil
-}
-
-// hclFirstBlock returns the first element of an HCL v1 block value ([]map[string]interface{}).
-// Returns nil if the value is not a block or is empty.
-func hclFirstBlock(v interface{}) map[string]interface{} {
-	if v == nil {
-		return nil
-	}
-	blocks, ok := v.([]map[string]interface{})
-	if !ok || len(blocks) == 0 {
-		return nil
-	}
-	return blocks[0]
 }
 
 func applyAgentDefaults(cfg *Config) {

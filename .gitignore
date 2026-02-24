@@ -30,6 +30,18 @@ runs/
 orchestration-*.log
 output-*.md
 
+# run-agent runtime artifacts
+*.log
+logs_iter*/
+audit_iter*.log
+facts_iter*.log
+xref_iter*.log
+iter*.txt
+run-*.log
+sleep.log
+agent-watch.log
+agent-watch.out
+
 # Local tooling/runtime artifacts
 .playwright-mcp/
 /conductor-loop/
