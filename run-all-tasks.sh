@@ -167,7 +167,7 @@ Set up project documentation following THE_PROMPT_v5.md conventions.
    - THE_PROMPT_v5_test.md
    - THE_PROMPT_v5_debug.md
 
-4. **Create DEVELOPMENT.md**
+4. **Create docs/dev/development.md**
    - Local development setup
    - Running tests
    - Debugging tips
