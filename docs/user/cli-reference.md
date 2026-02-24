@@ -26,9 +26,9 @@ Important:
 ## Port Defaults (Reconciled)
 
 - `run-agent serve` default port: `14355`
-- `conductor` (current `./bin/conductor`) default port: `8080`
+- `conductor` (current `./bin/conductor`) default port: `14355`
 - `run-agent server ...` API-client commands default `--server`: `http://localhost:14355`
-- `conductor ...` API-client commands default `--server`: `http://localhost:8080`
+- `conductor ...` API-client commands default `--server`: `http://localhost:14355`
 
 ## `run-agent`
 
@@ -644,7 +644,7 @@ Subcommands:
 - `--config string`
 - `--disable-task-start`
 - `--host string` (default `0.0.0.0`)
-- `--port int` (default `8080`)
+- `--port int` (default `14355`)
 - `--root string`
 - `-v, --version`
 
@@ -657,7 +657,7 @@ Subcommands:
 - `task`
 - `project`
 
-Default `--server` URL in these subcommands: `http://localhost:8080`.
+Default `--server` URL in these subcommands: `http://localhost:14355`.
 
 ### `conductor status`
 
@@ -743,7 +743,7 @@ Subcommands:
 
 Highlights:
 
-- default server: `http://localhost:8080`
+- default server: `http://localhost:14355`
 - `list --status` supports: `running`, `active`, `done`, `failed`
 - `logs` supports `--follow`, `--run`, `--tail`
 - `runs` supports `--limit` (default `50`) and `--json`
@@ -759,7 +759,7 @@ Subcommands:
 
 Highlights:
 
-- default server: `http://localhost:8080`
+- default server: `http://localhost:14355`
 - `gc` supports `--older-than` (default `168h`), `--dry-run`, `--keep-failed`, `--json`
 - `delete` supports optional `--force` and `--json`
 

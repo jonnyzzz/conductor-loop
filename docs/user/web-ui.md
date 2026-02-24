@@ -12,7 +12,7 @@ http://localhost:14355/
 
 The web UI is served by the conductor server at the root `/` path (also accessible at `/ui/`) on the same port as the API. The default port is **14355**.
 
-Note: `run-agent serve` defaults to port `14355`. The current `./bin/conductor` binary defaults to `8080` unless `--port`/config overrides it.
+Note: `run-agent serve` defaults to port `14355`. The current `./bin/conductor` binary defaults to `14355` unless `--port`/config overrides it.
 
 ### Configuration
 

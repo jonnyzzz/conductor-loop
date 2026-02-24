@@ -3,7 +3,7 @@
 ## Validation Round 2 (codex)
 
 [2026-02-23 19:19:41] [tags: decision, validation, meta]
-Validation scope: traversed all revisions of `docs/dev/issues.md` (24 revisions), `docs/dev/questions.md` (2 revisions), and `docs/dev/todos.md` (21 revisions), plus current `MESSAGE-BUS.md`, `docs/dev/feature-requests-project-goal-manual-workflows.md`, `docs/SUGGESTED-TASKS.md`, `docs/swarm/ISSUES.md`, and `jonnyzzz-ai-coder/swarm/ISSUES.md` history.
+Validation scope: traversed all revisions of `docs/dev/issues.md` (24 revisions), `docs/dev/questions.md` (2 revisions), and `docs/dev/todos.md` (21 revisions), plus current `MESSAGE-BUS.md`, `docs/dev/feature-requests-project-goal-manual-workflows.md`, `docs/facts/FACTS-suggested-tasks.md`, `docs/swarm/ISSUES.md`, and `jonnyzzz-ai-coder/swarm/ISSUES.md` history.
 
 [2026-02-23 19:19:41] [tags: issue, validation, summary]
 Issue inventory after full-history cross-check: 22 unique issue IDs (`ISSUE-000`..`ISSUE-021`), with 19 RESOLVED and 3 PARTIALLY RESOLVED; 0 fully OPEN in latest `docs/dev/issues.md`.

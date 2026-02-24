@@ -42,8 +42,8 @@ This document explains the key architectural decisions in conductor-loop — spe
 - **Simpler Auth**: Environment variables handle authentication without complex token management in the runner.
 - **Context Management**: Agents manage their own context window and history.
 **CLI flags used**:
-- `claude`: `-p --output-format stream-json --permission-mode bypassPermissions`
-- `codex`: `exec --dangerously-bypass-approvals-and-sandbox --json`
+- `claude`: `-C <cwd> -p --input-format text --output-format stream-json --verbose --tools default --permission-mode bypassPermissions`
+- `codex`: `exec --dangerously-bypass-approvals-and-sandbox --json -C <cwd> -`
 - `gemini`: `--screen-reader true --approval-mode yolo --output-format stream-json`
 **Alternatives Considered**: Direct REST API integration for all agents.
 **Trade-offs**: Dependency on external CLI tools being installed.

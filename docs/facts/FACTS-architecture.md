@@ -1,3 +1,7 @@
+> **NOTE:** This file is a historical log of facts extracted from the codebase.
+> For the most up-to-date and reconciled information, please refer to [FACTS-reconciled.md](FACTS-reconciled.md).
+> Entries marked with `[corrected]` or `[outdated]` have been superseded.
+
 # Architecture & Core Design Facts
 
 Validated against source code and git history in:

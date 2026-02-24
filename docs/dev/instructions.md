@@ -419,7 +419,7 @@ Server flags:
 --config string         config file path (auto-detected if omitted)
 --root string           run-agent root directory
 --host string           HTTP listen host (default "0.0.0.0", overrides config)
---port int              HTTP listen port (default 8080, overrides config)
+--port int              HTTP listen port (default 14355, overrides config)
 --disable-task-start    disable task execution (read-only mode)
 ```
 
@@ -438,12 +438,12 @@ CONDUCTOR_DISABLE_TASK_START  set to "true" to disable task start
   --task task-20260220-190000-my-task \
   --agent claude \
   --prompt "Implement the feature described in..." \
-  --server http://localhost:8080
+  --server http://localhost:14355
 ```
 
 All flags:
 ```
---server string         conductor server URL (default "http://localhost:8080")
+--server string         conductor server URL (default "http://localhost:14355")
 --project string        project ID (required)
 --task string           task ID (required)
 --agent string          agent type, e.g. claude (required)
@@ -464,7 +464,7 @@ All flags:
 
 All flags:
 ```
---server string   conductor server URL (default "http://localhost:8080")
+--server string   conductor server URL (default "http://localhost:14355")
 --project string  filter by project ID
 --json            output response as JSON
 ```
@@ -473,13 +473,13 @@ All flags:
 
 ```bash
 ./bin/conductor status
-./bin/conductor status --server http://conductor:8080
+./bin/conductor status --server http://conductor:14355
 ./bin/conductor status --json
 ```
 
 All flags:
 ```
---server string   conductor server URL (default "http://localhost:8080")
+--server string   conductor server URL (default "http://localhost:14355")
 --json            output response as JSON
 ```
 
@@ -494,7 +494,7 @@ Stop all running runs of a task (writes DONE and sends SIGTERM to processes).
 
 All flags:
 ```
---server string   conductor server URL (default "http://localhost:8080")
+--server string   conductor server URL (default "http://localhost:14355")
 --project string  project ID
 --json            output response as JSON
 ```
@@ -508,7 +508,7 @@ All flags:
 
 All flags:
 ```
---server string   conductor server URL (default "http://localhost:8080")
+--server string   conductor server URL (default "http://localhost:14355")
 --project string  project ID
 --json            output response as JSON
 ```
