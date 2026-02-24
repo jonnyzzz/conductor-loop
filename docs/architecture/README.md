@@ -22,6 +22,13 @@ a Go multi-agent orchestration framework.
 
 ## Pages
 
+### [README.md](README.md)
+**Purpose**: Index of all architecture pages with quick-access links and validation notes.
+
+This page lists all 13 architecture documents, provides a Quick Links table for common queries, and records cross-page validation notes from each iteration pass.
+
+**Primary audience**: All
+
 ### [overview.md](overview.md)
 **Purpose**: Provide the primary architecture entry point for people learning conductor-loop.
 
