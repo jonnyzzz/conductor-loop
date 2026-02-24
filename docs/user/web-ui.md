@@ -12,6 +12,8 @@ http://localhost:14355/
 
 The web UI is served by the conductor server at the root `/` path (also accessible at `/ui/`) on the same port as the API. The default port is **14355**.
 
+Note: `run-agent serve` defaults to port `14355`. The current `./bin/conductor` binary defaults to `8080` unless `--port`/config overrides it.
+
 ### Configuration
 
 Port and host are configured in config.yaml:
@@ -62,7 +64,7 @@ The Web UI supports the same lifecycle as the console cloud-agent workflow, but 
 | Web UI workflow | Interactive operations, visual debugging, and manual task/run navigation |
 | Console cloud-agent workflow | Scripted automation, remote/headless operation, and CLI-first orchestration |
 
-CLI equivalents are documented in [CLI Reference](cli-reference.md) (`conductor job submit`, `conductor watch`, `conductor bus read/post`, `conductor task resume`).
+CLI equivalents are documented in [CLI Reference](cli-reference.md) (`run-agent server job submit`, `run-agent server watch`, `run-agent server bus read/post`, `run-agent server task resume`).
 
 ## Overview
 
@@ -521,7 +523,7 @@ Access via the settings icon (⚙️) in the top-right corner.
 3. Use CLI as the source of truth:
    - `run-agent bus read --project <project> --task <task> --root <runs-root> --follow`
    - `run-agent bus post --project <project> --task <task> --root <runs-root> --type PROGRESS --body "..."`.
-4. If you need server-only access, use `conductor bus read/post` instead.
+4. If you need server-only access, use `run-agent server bus read/post` instead.
 
 ## Browser Compatibility
 
@@ -551,7 +553,7 @@ For frontend development:
 
 ```bash
 # Start backend (built React UI served at http://localhost:14355/)
-conductor --config config.yaml
+run-agent serve --config config.yaml
 
 # Or start Vite dev server for hot-reload development (in frontend/)
 cd frontend

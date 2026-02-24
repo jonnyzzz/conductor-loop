@@ -1,5 +1,11 @@
 # Problem #7 Decision: Process Detachment Clarification
 
+## Implementation Status (R3 - 2026-02-24)
+
+- Clarification is implemented in code: Unix process setup uses `Setsid=true` (`internal/runner/pgid_unix.go`) while the runner still waits and records exits (`internal/runner/process.go`, `internal/runner/job.go`, `internal/runner/wrap.go`).
+- Process-group termination is implemented on Unix via `kill(-pgid, SIGTERM/SIGKILL)` (`internal/runner/stop_unix.go`), with Windows-specific behavior in `internal/runner/stop_windows.go`.
+- Related Ralph loop behavior is implemented in `internal/runner/ralph.go` + `internal/runner/wait.go` (DONE-aware child wait, no post-DONE restart).
+
 ## Assessment: **CLARIFICATION NEEDED, NOT A BUG**
 
 ### Current Specification

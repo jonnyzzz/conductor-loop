@@ -302,6 +302,43 @@ sudo pfctl -s rules
 sudo iptables -L
 ```
 
+### Task Shows `running` But Process Is Gone (Stale Status)
+
+**Symptom:**
+
+`run-agent status` or the UI shows `running`, but there is no live agent process.
+
+**Solution:**
+
+1. Re-read status (this triggers liveness reconciliation):
+```bash
+run-agent status --project <project> --root <runs-root>
+run-agent list --project <project> --root <runs-root> --json
+```
+2. If the task is truly finished, ensure `<runs-root>/<project>/<task>/DONE` exists, then run `run-agent status` again.
+3. If the task should continue, resume/start a new run for that task.
+
+### Missing `run-info.yaml`
+
+**Symptom:**
+```
+... run-info.yaml: no such file or directory
+```
+
+**Solution:**
+
+1. Find missing run metadata files:
+```bash
+find <runs-root>/<project>/<task>/runs -mindepth 1 -maxdepth 1 -type d \
+  ! -exec test -f "{}/run-info.yaml" \; -print
+```
+2. Access existing artifacts directly while triaging:
+```bash
+run-agent output --run-dir <runs-root>/<project>/<task>/runs/<run-id> --file output
+run-agent output --run-dir <runs-root>/<project>/<task>/runs/<run-id> --file stdout
+```
+3. Create a new canonical run for the task (resume or start a fresh run) so status/list have a readable latest run.
+
 ---
 
 ## Agent Issues
@@ -372,26 +409,29 @@ curl https://api.anthropic.com/v1/messages \
 
 **Symptom:**
 ```
-Error: agent execution timeout after 300s
+Error: idle output timeout after 30m0s
 ```
 
 **Solution:**
 
-Increase timeout in config.yaml:
-```yaml
-agents:
-  codex:
-    type: codex
-    timeout: 600  # Increase to 10 minutes
+Use the timeout knobs that actually exist:
+
+- `run-agent task --timeout ...` / `run-agent job --timeout ...` control idle-output timeout (`0` means no idle-output limit)
+- `defaults.timeout` in config is the global execution timeout budget
+- `agents.<name>.timeout` is **not** part of the runtime schema
+
+Examples:
+```bash
+# No idle-output timeout
+run-agent job --timeout 0 ...
+
+# 30-minute idle-output timeout
+run-agent task --timeout 30m ...
 ```
 
-Or per-task:
-```bash
-curl -X POST http://localhost:14355/api/v1/tasks \
-  -d '{
-    "agent_type": "codex",
-    "timeout": 600
-  }'
+```yaml
+defaults:
+  timeout: 600
 ```
 
 ### Agent Process Crashes
@@ -405,7 +445,8 @@ Error: agent process exited unexpectedly with code 1
 
 1. Check agent logs:
 ```bash
-cat runs/run_*/output.log
+cat runs/<project>/<task>/runs/<run-id>/agent-stdout.txt
+cat runs/<project>/<task>/runs/<run-id>/agent-stderr.txt
 ```
 
 2. Test agent directly:
@@ -597,6 +638,29 @@ curl http://localhost:14355/api/v1/tasks
 4. Refresh page
 5. Verify runs_dir is accessible
 
+### High CPU in `run-agent serve` (SSE Streams)
+
+**Symptom:**
+
+Server CPU spikes when Web UI live logs/message streams are open.
+
+**Cause (current behavior):**
+
+SSE defaults are aggressive (`poll_interval_ms=100`, `discovery_interval_ms=1000`) and can be expensive under heavy streaming.
+
+**Solution:**
+
+1. Increase SSE intervals in config:
+```yaml
+api:
+  sse:
+    poll_interval_ms: 250
+    discovery_interval_ms: 2000
+```
+2. Restart the server.
+3. Reduce the number of simultaneously open live-stream tabs.
+4. Prefer scoped task/project streams over global streams when debugging.
+
 ---
 
 ## Performance Issues
@@ -666,6 +730,26 @@ ulimit -n 4096
 ```
 
 Restart server after changing limits.
+
+### Monitor Process Proliferation
+
+**Symptom:**
+
+Many `run-agent monitor` processes accumulate; tasks are repeatedly started/resumed.
+
+**Solution:**
+
+1. Keep one monitor owner per project/TODO file.
+2. Find duplicate monitor processes:
+```bash
+pgrep -fl "run-agent monitor"
+```
+3. Stop extra monitor processes.
+4. Prefer scheduled one-shot mode instead of overlapping daemons:
+```bash
+run-agent monitor --project <project> --todo TODOs.md --once
+```
+5. Before manually stopping tasks, pause monitor loops to avoid immediate respawn races.
 
 ---
 
@@ -793,12 +877,19 @@ See [ISSUE-002](https://github.com/jonnyzzz/conductor-loop/blob/main/ISSUES.md) 
 ### Log File Locations
 
 ```
-runs/
-├── run_<timestamp>_<id>/
-│   ├── output.log          # Agent output
-│   ├── metadata.json       # Run metadata
-│   └── status.txt          # Current status
-└── ...
+<runs-root>/
+└── <project>/
+    └── <task>/
+        ├── TASK.md
+        ├── DONE                    # optional
+        ├── TASK-MESSAGE-BUS.md
+        └── runs/
+            └── <run-id>/
+                ├── run-info.yaml
+                ├── output.md
+                ├── agent-stdout.txt
+                ├── agent-stderr.txt
+                └── prompt.md
 ```
 
 ### Enable Debug Logging
@@ -904,7 +995,7 @@ When opening an issue, include:
 
 3. **Logs:**
    - Server logs
-   - Agent logs from runs/*/output.log
+   - Agent logs from `runs/<project>/<task>/runs/<run-id>/agent-stdout.txt` and `agent-stderr.txt`
    - Error messages (full stack trace)
 
 4. **Steps to Reproduce:**

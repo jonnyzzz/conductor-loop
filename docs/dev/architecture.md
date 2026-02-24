@@ -400,6 +400,71 @@ Additional subsystems built on top of the core 9:
 
 See [Subsystem Deep-Dives](subsystems.md) for detailed documentation on each.
 
+### Additional Features
+
+#### Task Dependencies (`depends_on`)
+
+Tasks can declare dependencies on other tasks. When a task with `depends_on` starts, the
+runner blocks until all declared dependency tasks have a `DONE` marker, posting
+`PROGRESS` and `FACT` messages to the bus while waiting. Cycle detection is included.
+Dependencies are persisted in `TASK-DEPENDS-ON.yaml` inside the task directory.
+
+**Package:** `internal/runner/` (`task.go`, `internal/taskdeps/`)
+
+#### Run Concurrency Controls
+
+Two complementary limits prevent resource exhaustion:
+
+| Config key | Scope | Mechanism |
+|---|---|---|
+| `defaults.max_concurrent_runs` | All runs (root + sub) | Package-level channel semaphore in `internal/runner/semaphore.go`; queued count exported to metrics |
+| `defaults.max_concurrent_root_tasks` | Root tasks only | Persistent planner state file `.conductor/root-task-planner.yaml` managed by the API server (`internal/api/root_task_planner.go`) |
+
+Both default to 0 (unlimited). Setting either to a positive integer enables the limit.
+
+#### Agent Diversification (`DiversificationConfig`)
+
+The `defaults.diversification` config block enables automatic agent selection across
+multiple configured agents. Strategies: `round-robin` (default) and `weighted`. When a
+selected agent fails, the runner can fall back to the next agent in the rotation.
+Fallback counts are tracked in Prometheus metrics (`conductor_agent_fallbacks_total`).
+
+```yaml
+defaults:
+  diversification:
+    enabled: true
+    strategy: round-robin    # or: weighted
+    agents: [claude, codex]
+    fallback_on_failure: true
+```
+
+**Package:** `internal/config/` (`DiversificationConfig`)
+
+#### Run-State Liveness Healing (`internal/runstate`)
+
+When the API server or CLI reads a run that is still marked `running` in `run-info.yaml`,
+`internal/runstate.ReadRunInfo` reconciles the status by checking whether the process
+(PID/PGID) is still alive and whether a `DONE` marker exists. Stale `running` entries are
+automatically updated to `completed` or `failed` on read, ensuring the UI never shows
+zombie runs.
+
+#### Prometheus `/metrics` Endpoint
+
+`GET /metrics` returns Prometheus-format text metrics (no auth required). Tracked metrics include:
+
+| Metric | Description |
+|---|---|
+| `conductor_uptime_seconds` | Server uptime |
+| `conductor_active_runs` | Currently running agent processes |
+| `conductor_completed_runs_total` | Completed runs since startup |
+| `conductor_failed_runs_total` | Failed runs since startup |
+| `conductor_queued_runs` | Runs waiting for a semaphore slot |
+| `conductor_api_requests_total` | API requests by method/path |
+| `conductor_messagebus_appends_total` | Message bus append calls |
+| `conductor_agent_fallbacks_total` | Diversification fallbacks per agent pair |
+
+**Package:** `internal/metrics/`
+
 ---
 
 ## Data Flow
@@ -546,10 +611,10 @@ See [Subsystem Deep-Dives](subsystems.md) for detailed documentation on each.
 run_id: MSG-20060102-150405-000000001-PID00123-0001
 project_id: my-project
 task_id: task-001
-agent_type: claude
+agent: claude
 pid: 12345
 pgid: 12345              # Process group ID (for child tracking)
-status: running          # running, success, failed, stopped
+status: running          # running, completed, failed
 start_time: 2026-02-05T10:00:00Z
 end_time: null           # Set on completion
 exit_code: null          # Set on completion
@@ -557,9 +622,8 @@ exit_code: null          # Set on completion
 
 **Status Values:**
 - `running` - Task is currently executing
-- `success` - Completed successfully (exit code 0)
-- `failed` - Failed with non-zero exit code
-- `stopped` - Manually stopped by user
+- `completed` - Completed (exit code 0)
+- `failed` - Failed with non-zero exit code or execution error
 
 ### Atomic Write Pattern
 
@@ -970,5 +1034,5 @@ For more detailed information, see:
 
 ---
 
-**Last Updated:** 2026-02-23
-**Version:** 2.1.0 (facts-validated)
+**Last Updated:** 2026-02-24
+**Version:** 2.2.0 (R3 facts-validated)

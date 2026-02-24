@@ -44,6 +44,20 @@ When creating a <RUNS_DIR>/run_XXX/prompt.md, copy the relevant role file verbat
 - Max parallel agents: 16.
 - Use parallelism to separate research, implementation, review, and testing.
 - If the agent thread limit is reached, close completed agents and retry spawns.
+- Rotate agent types (claude, codex, gemini) for variety; track success rates.
+
+## RLM Pattern (Recursive Language Model Decomposition)
+Activate RLM when: context > 50K tokens; OR context > 16K AND multi-hop reasoning needed; OR files > 5; OR task spans > 3 subsystems.
+
+Six-step protocol:
+1. **ASSESS** — peek at file sizes/counts before reading; post a FACT with scope
+2. **DECIDE** — match context size to strategy (grep first / partition / sub-agents)
+3. **DECOMPOSE** — split at natural boundaries (one sub-agent per subsystem or concern)
+4. **EXECUTE** — spawn sub-agents in parallel with `run-agent job ... &`; use `wait`; pass `--parent-run-id $JRUN_ID`
+5. **SYNTHESIZE** — collect sub-agent outputs; merge, deduplicate, resolve conflicts
+6. **VERIFY** — `go test ./...`, `go build ./...`, spot-check 2–3 claims
+
+Post PROGRESS at each phase boundary; post FACT for every commit.
 
 ## Agent Execution and Traceability (Required)
 All agent runs must use a unified runner script when available (for example, ./run-agent.sh in this repo). The runner must create a new run folder and enforce consistent file names. If no runner exists, manually create the run folder and required artifacts, and log the deviation to <MESSAGE_BUS>. If you are operating from a centralized template repo, copy the runner/monitor scripts into the project root or set RUNS_DIR/MESSAGE_BUS explicitly.

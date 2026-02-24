@@ -549,8 +549,11 @@ if waitWithoutRestartSignaled() {
 
 **Result:**
 - Ralph loop stops
-- Run status: `stopped` (not `failed`)
+- Run status: `completed` (loop returned nil, same as normal completion)
 - No restart attempted
+
+> **Note:** The actual `run-info.yaml` status values are `running`, `completed`, and
+> `failed` only. There is no `stopped` status in the current implementation.
 
 ---
 

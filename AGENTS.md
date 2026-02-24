@@ -2,7 +2,7 @@
 
 **Project**: Conductor Loop
 **Repository**: https://github.com/jonnyzzz/conductor-loop
-**Last Updated**: 2026-02-04
+**Last Updated**: 2026-02-24
 
 ---
 
@@ -44,7 +44,7 @@ import (
 
     // Project packages
     "github.com/jonnyzzz/conductor-loop/internal/runner"
-    "github.com/jonnyzzz/conductor-loop/pkg/messagebus"
+    "github.com/jonnyzzz/conductor-loop/internal/messagebus"
 )
 ```
 
@@ -172,60 +172,73 @@ Fixes: #45
 - **Tools**: Read, Grep, Bash (for debugging)
 - **Permissions**: Read anywhere, write fixes
 - **Output**: Root cause, fix description, verification
+- **Notes**: Must add a regression test before committing the fix; use IntelliJ MCP Steroid for breakpoints/step-through
 
 ---
 
 ## Subsystem Ownership
 
-### Core Systems (8 Subsystems)
+### Core Systems (`internal/`)
 
-#### 1. Agent Protocol (`pkg/agent/`, `internal/agent/`)
+All runtime implementation lives in `internal/`. The `pkg/` directory contains no Go source files.
+
+#### 1. Agent Protocol & Backends (`internal/agent/`)
 - **Owner**: Implementation agents
 - **Reviewers**: Multi-agent (2+ required)
-- **Files**: `pkg/agent/interface.go`, `internal/agent/protocol.go`
-- **Tests**: `test/agent/protocol_test.go`
+- **Files**: `internal/agent/agent.go`, `internal/agent/factory.go`, backends in `internal/agent/{claude,codex,gemini,perplexity,xai}/`
+- **Tests**: `internal/agent/**/*_test.go`
 
-#### 2. Agent Backends (`internal/agent/{claude,codex,gemini,perplexity,xai}/`)
-- **Owner**: Implementation agents (one per backend)
-- **Reviewers**: Multi-agent (2+ required)
-- **Files**: Each backend has its own package
-- **Tests**: `test/agent/integration/{backend}_test.go`
-
-#### 3. Runner Orchestration (`internal/runner/`)
+#### 2. Runner Orchestration (`internal/runner/`)
 - **Owner**: Implementation agents
 - **Reviewers**: Multi-agent (2+ required)
-- **Files**: `ralph_loop.go`, `process.go`, `orchestration.go`
-- **Tests**: `test/runner/`
+- **Files**: `ralph.go`, `job.go`, `orchestrator.go`
+- **Tests**: `internal/runner/*_test.go`
 
-#### 4. Storage Layout (`pkg/storage/`)
+#### 3. Storage Layout (`internal/storage/`)
 - **Owner**: Implementation agents
 - **Reviewers**: Multi-agent (2+ required)
-- **Files**: `layout.go`, `run_info.go`, `yaml_writer.go`
-- **Tests**: `test/storage/`
+- **Files**: `internal/storage/` (run-info, layout, atomic writes)
+- **Tests**: `internal/storage/*_test.go`
 
-#### 5. Message Bus (`pkg/messagebus/`)
+#### 4. Message Bus (`internal/messagebus/`)
 - **Owner**: Implementation agents
 - **Reviewers**: Multi-agent (2+ required)
-- **Files**: `writer.go`, `reader.go`, `msg_id.go`
-- **Tests**: `test/messagebus/`
+- **Files**: `internal/messagebus/` (writer, reader, msg_id, locking)
+- **Tests**: `internal/messagebus/*_test.go`
 
-#### 6. Configuration (`pkg/config/`)
+#### 5. Configuration (`internal/config/`)
 - **Owner**: Implementation agents
 - **Reviewers**: Multi-agent (2+ required)
-- **Files**: `config.go`, `loader.go`, `validation.go`
-- **Tests**: `test/config/`
+- **Files**: `internal/config/config.go`, `loader.go`, `validation.go`
+- **Tests**: `internal/config/*_test.go`
 
-#### 7. Frontend/Backend API (`internal/api/`)
+#### 6. Frontend/Backend API (`internal/api/`)
 - **Owner**: Implementation agents
 - **Reviewers**: Multi-agent (2+ required)
-- **Files**: `rest.go`, `sse.go`, `handlers.go`
-- **Tests**: `test/api/`
+- **Files**: `internal/api/routes.go`, `handlers_*.go`
+- **Tests**: `internal/api/*_test.go`
 
-#### 8. Monitoring UI (`web/`)
+#### 7. Monitoring UI (`frontend/`)
 - **Owner**: Implementation agents (frontend specialists)
 - **Reviewers**: Multi-agent (2+ required)
-- **Files**: `web/src/` (React/TypeScript)
-- **Tests**: `web/tests/`
+- **Files**: `frontend/src/` (React + TypeScript + JetBrains Ring UI, built with Vite)
+- **Notes**: After edits, run `cd frontend && npm run build`
+
+#### 8. Run State & Metrics (`internal/runstate/`, `internal/metrics/`)
+- **Owner**: Implementation agents
+- **Reviewers**: Multi-agent (2+ required)
+- **Files**: `internal/runstate/`, `internal/metrics/`
+- **Tests**: `internal/runstate/*_test.go`, `internal/metrics/*_test.go`
+
+#### 9. Task Dependencies & Goal Decomposition (`internal/taskdeps/`, `internal/goaldecompose/`)
+- **Owner**: Implementation agents
+- **Reviewers**: Multi-agent (2+ required)
+- **Files**: `internal/taskdeps/`, `internal/goaldecompose/`
+
+#### 10. Webhooks & Observability (`internal/webhook/`, `internal/obslog/`)
+- **Owner**: Implementation agents
+- **Reviewers**: Multi-agent (2+ required)
+- **Files**: `internal/webhook/`, `internal/obslog/`
 
 ---
 
@@ -247,7 +260,7 @@ Fixes: #45
   - Other agents' run folders
   - `run-info.yaml` files (runner-only)
   - `.git/` directory (use git commands only)
-  - Global config (`~/run-agent/config.hcl`)
+  - Global config (`~/run-agent/config.yaml`)
 
 ---
 
@@ -270,7 +283,7 @@ Fixes: #45
 
 ### Orchestrator Agents
 - All tools
-- Task spawning (via `run-agent task`)
+- Task spawning (via `run-agent job`)
 - Run management
 
 ---
@@ -333,6 +346,7 @@ and also available in the prompt preamble:
 | `TASK_FOLDER` | Absolute path to the task directory |
 | `RUN_FOLDER` | Absolute path to the current run directory |
 | `MESSAGE_BUS` | Absolute path to `TASK-MESSAGE-BUS.md` |
+| `CONDUCTOR_URL` | URL of the conductor server (e.g. `http://127.0.0.1:14355`) |
 
 ---
 

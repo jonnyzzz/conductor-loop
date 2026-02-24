@@ -1,5 +1,17 @@
 # Problem #2 FINAL DECISION: Ralph Loop DONE + Children Running
 
+## Implementation Status (R3 - 2026-02-24)
+
+The historical decision in this file is implemented in current code:
+
+- `internal/runner/ralph.go` checks `DONE` before and after root attempts.
+- When `DONE` exists and children are active, `handleDone()` waits through `WaitForChildren()` in `internal/runner/wait.go`.
+- Root is not restarted after `DONE`.
+- Wait defaults match the decision intent (300s timeout, 1s poll) and are configurable through Ralph options.
+- Timeout path emits a warning and then completes the task.
+
+Note: newer issue tracking uses different numbering; this file keeps the original "Problem #2" label.
+
 ## Decision: Modified Approach A - Wait Without Restart
 
 When DONE exists and children are running, the Ralph loop should:

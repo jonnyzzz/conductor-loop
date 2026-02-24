@@ -246,8 +246,19 @@ type AgentConfig struct {
 
 ```go
 type DefaultConfig struct {
-    Agent   string // Default agent name
-    Timeout int    // Default timeout in seconds
+    Agent                  string               // Default agent name
+    Timeout                int                  // Default timeout in seconds
+    MaxConcurrentRuns      int                  // 0 = unlimited; package-level semaphore
+    MaxConcurrentRootTasks int                  // 0 = unlimited; API-server root-task planner
+    Diversification        *DiversificationConfig // nil = disabled
+}
+
+// DiversificationConfig controls agent selection across multiple configured agents.
+type DiversificationConfig struct {
+    Enabled           bool     // Must be true to activate
+    Strategy          string   // "round-robin" (default) or "weighted"
+    Agents            []string // Ordered agent names to cycle through
+    FallbackOnFailure bool     // Try next agent when selected one fails
 }
 ```
 
@@ -1257,6 +1268,29 @@ echo "Task completed" > $TASK_FOLDER/DONE
 - **Restart Delay:** Configurable (default: 1 second)
 - **DONE File Check:** Every 1 second (configurable)
 
+### Task Dependencies (`depends_on`)
+
+Tasks can declare explicit dependencies on other tasks. When a task starts and has
+dependencies, `task.go` calls `resolveTaskDependencies()` which blocks until each
+dependency task has a `DONE` marker. The runner posts `PROGRESS` and `FACT` messages
+while waiting. Cycle detection prevents deadlocks. Dependencies are persisted to
+`TASK-DEPENDS-ON.yaml` in the task directory via `internal/taskdeps`.
+
+```go
+type TaskOptions struct {
+    DependsOn             []string      // Task IDs this task must wait for
+    DependencyPollInterval time.Duration // How often to check dependency DONE markers
+    // ...
+}
+```
+
+### Concurrency Semaphore (`max_concurrent_runs`)
+
+A package-level channel semaphore in `internal/runner/semaphore.go` limits how many
+concurrent runs (root + sub-agent) can execute simultaneously. Initialized once from
+`cfg.Defaults.MaxConcurrentRuns`; 0 means unlimited. Runs waiting for a slot are counted
+by `QueuedRunCount()` and forwarded to the metrics registry.
+
 ### Known Limitations
 
 1. **Windows:** Limited process group support
@@ -1968,6 +2002,70 @@ CSS classes follow the `project-stats-*` namespace:
 
 ---
 
+## 17. Run-State Liveness Healing
+
+**Package:** `internal/runstate/`
+**File:** `liveness.go`
+
+### Purpose
+
+When a server or CLI command reads a `run-info.yaml` that is still in `running` state,
+`runstate.ReadRunInfo` performs live reconciliation before returning the result. This
+prevents stale `running` records from persisting after a crash, kill, or host restart.
+
+### Healing Logic
+
+1. Load `run-info.yaml` via `storage.ReadRunInfo`.
+2. If status is not `running`, return as-is.
+3. Check whether the process is alive using PID/PGID liveness semantics.
+4. If the process is dead, update status to `failed` with error summary
+   `"reconciled stale running status: process is not alive"`.
+5. If a `DONE` marker exists for the task, update status to `completed` instead.
+6. Persist the healed status back to `run-info.yaml` atomically.
+
+The raw `storage.ReadRunInfo` function (no healing) is used internally by the runner
+itself (which manages process lifetime directly).
+
+---
+
+## 18. Prometheus Metrics (`/metrics`)
+
+**Package:** `internal/metrics/`
+**File:** `metrics.go`
+
+### Purpose
+
+Expose operational metrics in Prometheus text format for external monitoring (Grafana,
+alerting, etc.). The endpoint is read-only and does not require API key auth.
+
+### Endpoint
+
+`GET /metrics` — returns `text/plain` in Prometheus exposition format.
+
+This path is exempt from API key authentication (along with `/api/v1/health`,
+`/api/v1/version`, and `/ui/`).
+
+### Available Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `conductor_uptime_seconds` | Gauge | Seconds since server start |
+| `conductor_active_runs` | Gauge | Currently running agent processes |
+| `conductor_completed_runs_total` | Counter | Completed runs since startup |
+| `conductor_failed_runs_total` | Counter | Failed runs since startup |
+| `conductor_queued_runs` | Gauge | Runs waiting for a semaphore slot (`max_concurrent_runs`) |
+| `conductor_api_requests_total` | Counter | API requests by method and path |
+| `conductor_messagebus_appends_total` | Counter | Message bus append calls |
+| `conductor_agent_fallbacks_total` | Counter | Diversification fallbacks (labeled by source and target agent) |
+
+### Implementation
+
+`internal/metrics.Registry` is a lightweight in-memory struct with atomic counters.
+It is instantiated once at server startup and passed to subsystems that increment it.
+`FormatPrometheus()` serializes the current state to the text exposition format.
+
+---
+
 ## Next Steps
 
 For more specialized documentation, see:
@@ -1980,5 +2078,5 @@ For more specialized documentation, see:
 
 ---
 
-**Last Updated:** 2026-02-23 (facts-validated)
-**Version:** 1.1.0
+**Last Updated:** 2026-02-24 (R3 facts-validated)
+**Version:** 1.2.0

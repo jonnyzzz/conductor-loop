@@ -94,7 +94,7 @@ defaults:
 # API server settings
 api:
   host: "0.0.0.0"
-  port: 8080
+  port: 14355
   sse:
     poll_interval_ms: 500
     discovery_interval_ms: 2000
@@ -194,7 +194,7 @@ Agent diversification policy.
 API server configuration.
 
 - `host` (string): bind address (default `"0.0.0.0"`)
-- `port` (int): port (default `8080`; tries up to 100 consecutive ports if busy)
+- `port` (int): port (default `14355`; tries up to 100 consecutive ports if busy)
 - `sse.poll_interval_ms` (int): SSE polling interval in milliseconds
 - `sse.discovery_interval_ms` (int): SSE new-run discovery interval in milliseconds
 
@@ -276,7 +276,7 @@ defaults {
 
 api {
   host = "0.0.0.0"
-  port = 8080
+  port = 14355
 }
 
 storage {

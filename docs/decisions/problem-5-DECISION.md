@@ -1,5 +1,13 @@
 # Problem #5 Decision: output.md Creation Responsibility
 
+## Implementation Status (R3 - 2026-02-24)
+
+- Implemented as planned: runner guarantees `output.md`.
+- `agent.CreateOutputMD()` creates `output.md` from `agent-stdout.txt` when needed (`internal/agent/executor.go`).
+- Fallback is called in both main execution flows (`internal/runner/job.go`, `internal/runner/wrap.go`).
+
+Related current issue mapping: run-id collision hardening is implemented separately via atomic sequence suffix in `internal/runner/orchestrator.go` (`newRunID()`).
+
 ## Context
 Ambiguity existed between agent protocol ("Agents SHOULD write output.md") and backend specs ("Runner MAY create output.md").
 

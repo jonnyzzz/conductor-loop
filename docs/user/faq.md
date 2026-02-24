@@ -199,7 +199,7 @@ Open http://localhost:14355 and click on the run.
 
 **Option 4: Direct file access**
 ```bash
-cat runs/run_*/output.log
+cat runs/<project>/<task>/runs/<run-id>/agent-stdout.txt
 ```
 
 ### Can tasks communicate with each other?
@@ -353,7 +353,7 @@ The web UI is helpful for:
 Yes! The frontend is in `frontend/` and built with React. You can:
 1. Modify the source
 2. Rebuild: `cd frontend && npm run build`
-3. The conductor server will serve the new UI
+3. `run-agent serve` (or `conductor`) will serve the new UI
 
 ### Can I run the UI separately?
 
@@ -361,7 +361,7 @@ Yes, for development:
 
 ```bash
 # Terminal 1: Start backend
-conductor --config config.yaml
+run-agent serve --config config.yaml
 
 # Terminal 2: Start frontend dev server
 cd frontend
@@ -536,9 +536,9 @@ For best performance, use local SSD.
 
 ### Where do I find logs?
 
-**Server logs:** stdout/stderr where conductor was started
+**Server logs:** stdout/stderr where `run-agent serve` (or `conductor`) was started
 
-**Agent logs:** `runs/run_*/output.log`
+**Agent logs:** `runs/<project>/<task>/runs/<run-id>/agent-stdout.txt` and `agent-stderr.txt`
 
 **Message bus:** `<project>/PROJECT-MESSAGE-BUS.md`
 
@@ -547,11 +547,12 @@ See [Troubleshooting Guide](troubleshooting.md) for details.
 ### Why is my task stuck?
 
 Common causes:
-1. **Agent timeout**: Increase timeout in config
+1. **Timeout mismatch**: Increase `--timeout` on `run-agent task/job` (or set `0` for no idle-output limit) and/or raise `defaults.timeout` in config
 2. **Waiting for child tasks**: Check child task status
 3. **Network issues**: Check agent API connectivity
 4. **Resource exhaustion**: Check CPU/memory/disk
 5. **Deadlock**: Check for circular child dependencies
+6. **Stale metadata**: missing `run-info.yaml` or stale `running` status can make status output look stuck
 
 Debug with:
 ```bash
@@ -564,6 +565,40 @@ curl -N http://localhost:14355/api/v1/runs/<run-id>/stream
 # Check message bus
 curl http://localhost:14355/api/v1/messages?project_id=<project>
 ```
+
+### Why is `run-agent serve` using high CPU during live UI usage?
+
+Current defaults favor responsiveness (`api.sse.poll_interval_ms: 100`), which can be CPU-heavy under many active streams/tabs.
+
+Use these mitigations:
+- Increase `api.sse.poll_interval_ms` and `api.sse.discovery_interval_ms` in config
+- Keep fewer live log/message tabs open
+- Prefer scoped streams (`task`/`project`) instead of global streams when possible
+
+See [Troubleshooting Guide](troubleshooting.md) for exact commands.
+
+### Why do I see many `run-agent monitor` processes?
+
+This usually means multiple monitor loops were started for the same project/TODO file.
+
+Use one monitor owner only:
+- stop duplicate monitor processes
+- run monitor in scheduled `--once` mode if you need periodic checks
+- when manually stopping a task, pause monitor loops first to avoid immediate auto-resume
+
+See [Troubleshooting Guide](troubleshooting.md) for concrete recovery steps.
+
+### Why does a task still show `running` after the agent process exits?
+
+This is stale run metadata. Re-running `run-agent status`/`run-agent list` triggers liveness reconciliation and updates stale records.
+
+If the task is truly finished, make sure the task has a `DONE` marker and re-check status.
+
+### What should I do if `run-info.yaml` is missing?
+
+Use direct run paths to inspect existing files (`output.md`, `agent-stdout.txt`) and then create a new canonical run for that task (resume/start) so status/list use a readable latest run.
+
+The step-by-step commands are in [Troubleshooting Guide](troubleshooting.md) under **Missing `run-info.yaml`**.
 
 ### How do I report a bug?
 

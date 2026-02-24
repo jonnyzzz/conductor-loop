@@ -1,5 +1,13 @@
 # Problem #4 Decision: msg_id Collision Prevention
 
+## Implementation Status (R3 - 2026-02-24)
+
+- Implemented as planned in `internal/messagebus/msgid.go`.
+- Format in code is `MSG-<YYYYMMDD-HHMMSS>-<nanoseconds 9d>-PID<5d>-<seq4>`.
+- Sequence uses `sync/atomic` (`msgSequence`) and is combined with PID + timestamp for per-process uniqueness.
+
+Note: newer issue sets sometimes use "Problem #4" for storage layout topics; this record preserves the original msg_id-collision decision.
+
 ## Assessment: **SOLVED by Problem #1**
 
 ### Problem #1 Solution Recap

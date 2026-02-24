@@ -6,6 +6,36 @@
 
 ---
 
+## Implementation Status (R3 - 2026-02-24)
+
+This document is retained as a historical planning artifact. Current code and `go.mod` validation shows the following authoritative updates.
+
+### Current `go.mod` Dependency Snapshot
+
+- Go toolchain: `go 1.24.0`
+- Direct dependencies:
+  - `github.com/spf13/cobra v1.10.2`
+  - `github.com/spf13/viper v1.21.0`
+  - `golang.org/x/sync v0.19.0`
+  - `gopkg.in/yaml.v3 v3.0.1`
+- Indirect dependencies:
+  - `github.com/hashicorp/hcl v1.0.0`
+  - `github.com/inconshreveable/mousetrap v1.1.0`
+  - `github.com/pkg/errors v0.9.1`
+  - `github.com/spf13/pflag v1.0.10`
+  - `golang.org/x/sys v0.41.0`
+
+### Verified Drift vs Historical Analysis
+
+- Runtime code is implemented under `internal/*`; `pkg/*` is currently empty.
+- Message bus CLI commands are `run-agent bus post|read|discover` (not historical `poll|stream` wording).
+- Message bus write durability is configurable: `WithFsync(true)` enables sync, default is disabled for throughput.
+- xAI backend is implemented (`internal/agent/xai`) and wired into runner execution.
+- Run IDs include an atomic sequence suffix in `internal/runner/orchestrator.go`: `<timestamp>-<pid>-<seq>`.
+- Config loading supports both YAML and HCL by extension; this supersedes earlier HCL-only assumptions.
+
+---
+
 ## Executive Summary
 
 This document provides a comprehensive dependency analysis of the Conductor Loop architecture, mapping all component relationships, data flows, and critical paths. The analysis identifies 8 core subsystems with clear dependency chains and provides build order recommendations.

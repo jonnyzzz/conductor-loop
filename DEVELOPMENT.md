@@ -2,14 +2,14 @@
 
 **Project**: Conductor Loop
 **Repository**: https://github.com/jonnyzzz/conductor-loop
-**Last Updated**: 2026-02-04
+**Last Updated**: 2026-02-24
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-- Go 1.21 or later
+- Go 1.24.0 or later
 - Docker (for integration tests)
 - Python 3.9+ with `uv` (for monitoring scripts)
 - Git 2.30+
@@ -37,10 +37,10 @@ make build-cli
 ### First Run
 ```bash
 # Create a simple test task
-mkdir -p ~/run-agent/test-project/task-20260204-hello/
+mkdir -p ~/run-agent/test-project/task-20260224-hello/
 
 # Write task description
-cat > ~/run-agent/test-project/task-20260204-hello/TASK.md <<EOF
+cat > ~/run-agent/test-project/task-20260224-hello/TASK.md <<EOF
 # Test Task
 Run a simple echo command
 EOF
@@ -48,11 +48,11 @@ EOF
 # Run agent (once CLI is built)
 ./bin/run-agent task start \
   --agent claude \
-  --cwd ~/run-agent/test-project/task-20260204-hello \
+  --cwd ~/run-agent/test-project/task-20260224-hello \
   --prompt "Echo 'Hello from Conductor Loop'"
 
 # Check output
-cat ~/run-agent/test-project/task-20260204-hello/runs/*/output.md
+cat ~/run-agent/test-project/task-20260224-hello/runs/*/output.md
 ```
 
 ---
@@ -72,7 +72,7 @@ After initial setup, your workspace should look like:
 └── ...
 
 ~/run-agent/                    # Runtime storage root
-├── config.hcl                  # Global config
+├── config.yaml                 # Global config
 └── <project>/                  # Project folders
     └── task-*/                 # Task folders
         └── runs/               # Agent run folders
@@ -81,32 +81,29 @@ After initial setup, your workspace should look like:
 ### Configuration
 
 #### Global Config
-Create `~/run-agent/config.hcl`:
-```hcl
+Create `~/run-agent/config.yaml`:
+```yaml
 # Agent backend configurations
-agent "claude" {
-  enabled = true
-  cli_path = "claude"
-  token_file = "~/.config/claude/token"
-}
-
-agent "codex" {
-  enabled = true
-  cli_path = "codex"
-  token_file = "~/.config/openai/token"
-}
+agents:
+  claude:
+    type: claude
+    token_file: ~/.config/claude/token
+  codex:
+    type: codex
+    token_file: ~/.config/openai/token
 
 # Storage settings
-storage {
-  root_path = "~/run-agent"
-  max_delegation_depth = 16
-}
+storage:
+  runs_dir: ~/run-agent
 
-# Orchestration settings
-orchestration {
-  max_parallel_agents = 16
-  default_timeout = 3600  # seconds
-}
+# Delegation settings
+delegation:
+  max_depth: 16
+
+# Orchestration defaults
+defaults:
+  max_concurrent_runs: 16
+  timeout: 3600  # seconds
 ```
 
 #### Token Files
@@ -443,8 +440,8 @@ mkdir -p internal/agent/myagent
 # 2. Implement Agent interface
 # See internal/agent/claude/ for example
 
-# 3. Add configuration to config schema
-# See docs/specifications/subsystem-runner-orchestration-config-schema.md
+# 3. Add configuration to config schema (YAML)
+# See internal/config/config.go and docs/specifications/subsystem-runner-orchestration-config-schema.md
 
 # 4. Add integration test
 mkdir -p test/agent/integration

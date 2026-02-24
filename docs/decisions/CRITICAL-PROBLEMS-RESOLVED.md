@@ -5,6 +5,20 @@
 
 ---
 
+## Implementation Status (R3 - 2026-02-24)
+
+This file is preserved as a historical decision record. Current implementation validation against source code:
+
+- Problem #1 (message bus write path): Implemented with a deviation. `internal/messagebus/messagebus.go` uses `O_APPEND` + exclusive lock + retry/backoff; `fsync` is optional via `WithFsync(true)` and defaults to `false` (not fsync-always).
+- Problem #2 (DONE + children wait): Implemented. `internal/runner/ralph.go` + `internal/runner/wait.go` wait for active children when `DONE` exists and do not restart root after `DONE`.
+- Problem #3 (run-info update race): Implemented with stronger guarantees. `internal/storage/atomic.go` uses atomic temp-file replace and lock-file guarded `UpdateRunInfo()` (`run-info.yaml.lock`, 5s timeout).
+- Problem #4 (msg_id collision): Implemented. `internal/messagebus/msgid.go` generates IDs with UTC timestamp + nanoseconds + PID + atomic sequence.
+- Problem #5 (output.md fallback): Implemented. `internal/agent/executor.go` guarantees `output.md`; fallback is used by `internal/runner/job.go` and `internal/runner/wrap.go`.
+- Problem #7 (detach vs wait): Implemented/clarified. Unix process setup uses `Setsid=true` while parent wait/termination is still process-group based (`internal/runner/pgid_unix.go`, `internal/runner/stop_unix.go`).
+- Note on numbering: newer `ISSUE-*` records use a different numbering scheme; this document keeps original problem numbers.
+
+---
+
 ## Problem #1: Message Bus Race Condition → Data Loss ✅ APPROVED
 
 **Status**: APPROVED WITH MINOR CLARIFICATIONS (95% confidence)

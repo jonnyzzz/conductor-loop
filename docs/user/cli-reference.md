@@ -5,7 +5,7 @@ This reference is verified against live help output from:
 - `./bin/run-agent`
 - `./bin/conductor`
 
-Validation timestamp: 2026-02-23.
+Validation timestamp: 2026-02-24.
 
 ## Command Sets
 
@@ -20,6 +20,7 @@ Validation timestamp: 2026-02-23.
 Important:
 
 - `run-agent iterate` is not available (`unknown command "iterate"`).
+- `conductor monitor`, `conductor workflow`, and `conductor goal` are not available in the current `./bin/conductor` (`unknown command`).
 - The checked-in `./bin/conductor` currently differs from source code defaults. This document reflects the live binary behavior.
 
 ## Port Defaults (Reconciled)

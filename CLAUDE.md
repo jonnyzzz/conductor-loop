@@ -34,6 +34,7 @@ When running inside conductor-loop, these env vars are injected into your proces
 | `JRUN_TASK_ID` | Task identifier |
 | `JRUN_ID` | Run identifier for this execution |
 | `JRUN_PARENT_ID` | Run ID of the parent (if you were spawned as a sub-agent) |
+| `CONDUCTOR_URL` | URL of the conductor server (e.g. `http://127.0.0.1:14355`) |
 
 ### 2. Report Progress
 
@@ -193,7 +194,7 @@ Features visible while your task is running:
 
 ## RLM Pattern (for large tasks)
 
-Activate RLM when context > 50 K tokens, files > 5, or multi-hop reasoning is needed.
+Activate RLM when: context > 50 K tokens; OR context > 16 K AND multi-hop reasoning needed; OR files > 5; OR task spans > 3 subsystems.
 
 Six-step protocol:
 
