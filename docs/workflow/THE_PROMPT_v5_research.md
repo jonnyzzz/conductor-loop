@@ -136,25 +136,25 @@ find . -name "*message*bus*.go"
 grep -r "func.*MessageBus" .
 
 # Search for interface definitions
-grep -r "type.*interface" pkg/
+grep -r "type.*interface" internal/
 
 # Search for specific patterns
-grep -r "O_APPEND\|flock" pkg/messagebus/
+grep -r "O_APPEND\|flock" internal/messagebus/
 ```
 
 ### Understanding Context
 ```bash
 # See file history
-git log --follow -- pkg/messagebus/writer.go
+git log --follow -- internal/messagebus/writer.go
 
 # See who wrote code
-git blame pkg/messagebus/writer.go
+git blame internal/messagebus/writer.go
 
 # See recent changes
 git log --since="1 week ago" --oneline
 
 # Find related files
-git log --name-only pkg/messagebus/ | sort | uniq
+git log --name-only internal/messagebus/ | sort | uniq
 ```
 
 ---
@@ -328,7 +328,7 @@ grep -A 5 "FACT\|DECISION" TASK-MESSAGE-BUS.md | tail -20
 ```bash
 # Post findings
 # Type: FACT
-# Content: "Found 3 existing message bus implementations in pkg/"
+# Content: "Found 3 existing message bus implementations in internal/"
 
 # Post questions
 # Type: QUESTION
@@ -336,7 +336,7 @@ grep -A 5 "FACT\|DECISION" TASK-MESSAGE-BUS.md | tail -20
 
 # Post progress
 # Type: PROGRESS
-# Content: "Analyzed 15 files in pkg/messagebus/, reviewing tests next"
+# Content: "Analyzed 15 files in internal/messagebus/, reviewing tests next"
 ```
 
 ---

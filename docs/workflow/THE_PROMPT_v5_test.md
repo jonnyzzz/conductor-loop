@@ -50,10 +50,10 @@
    find . -name "*_test.go"
 
    # Find tests for specific package
-   find ./pkg/messagebus -name "*_test.go"
+   find ./internal/messagebus -name "*_test.go"
 
    # List test functions
-   grep -r "^func Test" ./pkg/messagebus/
+   grep -r "^func Test" ./internal/messagebus/
    ```
 
 3. **Determine Scope**
@@ -69,10 +69,10 @@
    go test ./...
 
    # Run specific package
-   go test ./pkg/messagebus/
+   go test ./internal/messagebus/
 
    # Run specific test
-   go test -run TestMessageBusPost ./pkg/messagebus/
+   go test -run TestMessageBusPost ./internal/messagebus/
 
    # Verbose output
    go test -v ./...
@@ -159,10 +159,10 @@
 go test ./...
 
 # Run tests in specific directory
-go test ./pkg/messagebus/
+go test ./internal/messagebus/
 
 # Run specific test function
-go test -run TestMessageBusPost ./pkg/messagebus/
+go test -run TestMessageBusPost ./internal/messagebus/
 
 # Run with verbose output
 go test -v ./...
@@ -177,7 +177,7 @@ go test -short ./...
 go test -race ./...
 
 # Race detection on specific package
-go test -race ./pkg/messagebus/
+go test -race ./internal/messagebus/
 ```
 
 ### Coverage
@@ -201,7 +201,7 @@ go tool cover -func=coverage.out
 go test -bench=. ./...
 
 # Run specific benchmark
-go test -bench=BenchmarkMessageBusPost ./pkg/messagebus/
+go test -bench=BenchmarkMessageBusPost ./internal/messagebus/
 
 # Benchmark with memory stats
 go test -bench=. -benchmem ./...
@@ -262,7 +262,7 @@ PASS: TestMessageBusConcurrent (1.23s)
 ### ❌ Failing Tests (2)
 
 #### 1. TestMessageBusLocking
-**Package**: `pkg/messagebus`
+**Package**: `internal/messagebus`
 **File**: `messagebus_test.go:123`
 **Duration**: 0.05s
 
@@ -305,17 +305,17 @@ Likely race condition in lock implementation.
 
 ### Coverage by Package
 ```
-pkg/messagebus        92.3%  ✅
-pkg/storage          85.1%  ✅
-pkg/config           78.5%  ⚠️  (below target)
+internal/messagebus        92.3%  ✅
+internal/storage          85.1%  ✅
+internal/config           78.5%  ⚠️  (below target)
 internal/runner      89.7%  ✅
 internal/agent       81.2%  ✅
 ```
 
 ### Uncovered Code
-1. `pkg/config/loader.go:145-152` - Error path when config file missing
-2. `pkg/storage/writer.go:89-92` - Rare fsync failure case
-3. `pkg/messagebus/reader.go:234-238` - EOF handling edge case
+1. `internal/config/loader.go:145-152` - Error path when config file missing
+2. `internal/storage/writer.go:89-92` - Rare fsync failure case
+3. `internal/messagebus/reader.go:234-238` - EOF handling edge case
 
 ### Coverage Recommendations
 - Add test for missing config file scenario
@@ -368,7 +368,7 @@ PASS
 <If races detected>
 ### ⚠️ RACE CONDITION DETECTED
 
-**Location**: `pkg/messagebus/writer.go:67`
+**Location**: `internal/messagebus/writer.go:67`
 **Description**: Write at 0x00c0001234 by goroutine 42, previous write at 0x00c0001234 by goroutine 41
 
 **Code**:
@@ -413,7 +413,7 @@ PASS: TestMessageBusIntegration (0.89s)
 ### Immediate Actions
 1. Fix `TestMessageBusLocking` - lock timeout issue
 2. Fix `TestStorageAtomic` - atomic write verification
-3. Improve coverage in `pkg/config` (78.5% → >80%)
+3. Improve coverage in `internal/config` (78.5% → >80%)
 
 ### Future Improvements
 1. Add integration test for agent lifecycle
@@ -429,16 +429,16 @@ PASS: TestMessageBusIntegration (0.89s)
 ---
 
 ## Files Tested
-- `pkg/messagebus/writer.go` (via `writer_test.go`)
-- `pkg/messagebus/reader.go` (via `reader_test.go`)
-- `pkg/storage/layout.go` (via `layout_test.go`)
-- `pkg/config/loader.go` (via `loader_test.go`)
+- `internal/messagebus/writer.go` (via `writer_test.go`)
+- `internal/messagebus/reader.go` (via `reader_test.go`)
+- `internal/storage/layout.go` (via `layout_test.go`)
+- `internal/config/loader.go` (via `loader_test.go`)
 
 ---
 
 ## Next Steps
 1. Spawn debug agent for `TestMessageBusLocking` failure
-2. Spawn implementation agent to improve `pkg/config` coverage
+2. Spawn implementation agent to improve `internal/config` coverage
 3. Re-run tests after fixes applied
 ```
 

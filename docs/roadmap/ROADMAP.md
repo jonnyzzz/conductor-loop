@@ -1,7 +1,7 @@
 # Product Roadmap: Project Evolution
 
 Generated: 2026-02-24
-Status: Iteration 5 synthesis
+Status: evo-r3 synthesis (2026-02-24 round 3 update)
 
 ## Prioritization Policy
 
@@ -17,6 +17,11 @@ Status: Iteration 5 synthesis
 | ~~P0~~ | ~~Reconcile conductor binary default port (8080 vs 14355)~~ **RESOLVED 2026-02-24** | S | `prompts/tasks/fix-conductor-binary-port.md` |
 | P0 | Reduce SSE CPU hotspot and full-bus reparse pressure | M | `prompts/tasks/fix-sse-cpu-hotspot.md` |
 | P0 | Enforce monitor process cap/single ownership | M | `prompts/tasks/fix-monitor-process-cap.md` |
+| P0 | Fix monitor stop-respawn race (suppression window) | S | `prompts/tasks/monitor-stop-respawn-race.md` |
+| P0 | Blocked dependency deadlock recovery and diagnostics | M | `prompts/tasks/blocked-dependency-deadlock-recovery.md` |
+| P0 | Add explicit run-status finish criteria (all_finished, blocked) | M | `prompts/tasks/run-status-finish-criteria.md` |
+| P0 | Harden status/list/stop against missing run-info.yaml | S | `prompts/tasks/runinfo-missing-noise-hardening.md` |
+| P0 | Webserver uptime auto-recovery (watchdog + health probe) | M | `prompts/tasks/webserver-uptime-autorecover.md` |
 
 ## Q2 2026 (P1 Correctness, Security, UX)
 
@@ -31,6 +36,10 @@ Status: Iteration 5 synthesis
 | P1 | Run repository token leak audit and guardrails | L | `prompts/tasks/token-leak-audit.md` |
 | P1 | Create release readiness gate script and policy | M | `prompts/tasks/release-readiness-gate.md` |
 | P1 | Unify bootstrap/update scripts | M | `prompts/tasks/unified-bootstrap.md` |
+| P1 | Fix message bus empty-state regression (SSE hydration) | M | `prompts/tasks/messagebus-empty-regression.md` |
+| P1 | Lock live-log layout with regression tests | M | `prompts/tasks/live-logs-regression-guardrails.md` |
+| P1 | New task submit durability (draft persistence, submit states) | M | `prompts/tasks/ui-new-task-submit-durability.md` |
+| P1 | Define and enforce SSE/refresh CPU budget | M | `prompts/tasks/ui-refresh-churn-cpu-budget.md` |
 
 ## Q3 2026 (Architecture and Platform)
 
@@ -42,6 +51,7 @@ Status: Iteration 5 synthesis
 | Architecture | Promote facts across task/project scopes | L | `prompts/tasks/global-fact-storage.md` |
 | Platform (Windows) | Add shared-lock reader behavior | L | `prompts/tasks/windows-file-locking.md` |
 | Platform (Windows) | Implement Job Object process-group control | L | `prompts/tasks/windows-process-groups.md` |
+| P2 | Prevent run/* artifact clutter from polluting git status | S | `prompts/tasks/run-artifacts-git-hygiene.md` |
 
 ## Long-Term Ideas (Design Required)
 

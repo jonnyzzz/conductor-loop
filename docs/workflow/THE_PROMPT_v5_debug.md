@@ -96,7 +96,7 @@
    # Add debug logging
    # Add print statements
    # Use delve debugger
-   dlv test ./pkg/messagebus -- -test.run TestFailingTest
+   dlv test ./internal/messagebus -- -test.run TestFailingTest
    ```
 
 3. **Check Related Code**
@@ -137,7 +137,7 @@
    go test -v -run TestPreviouslyFailing ./pkg/...
 
    # Run related tests
-   go test -v ./pkg/messagebus/
+   go test -v ./internal/messagebus/
 
    # Run full suite
    go test ./...
@@ -187,7 +187,7 @@ log.Printf("DEBUG: condition met: %v", condition)
 ### Use Delve Debugger
 ```bash
 # Start debugger for test
-dlv test ./pkg/messagebus
+dlv test ./internal/messagebus
 
 # In debugger
 (dlv) break messagebus.go:45
@@ -203,7 +203,7 @@ dlv test ./pkg/messagebus
 go test -race ./...
 
 # Run specific test with race detector
-go test -race -run TestConcurrent ./pkg/messagebus/
+go test -race -run TestConcurrent ./internal/messagebus/
 ```
 
 ### Print Stack Traces
@@ -234,7 +234,7 @@ log.Printf("Goroutine dump:\n%s", buf[:stacklen])
 ### Memory Profiling
 ```bash
 # Run with memory profile
-go test -memprofile=mem.prof ./pkg/messagebus/
+go test -memprofile=mem.prof ./internal/messagebus/
 
 # Analyze profile
 go tool pprof mem.prof
@@ -264,7 +264,7 @@ go tool pprof mem.prof
 ```
 
 ### Reproduction Steps
-1. Run `go test -run TestFailingTest ./pkg/messagebus/`
+1. Run `go test -run TestFailingTest ./internal/messagebus/`
 2. Observe error: "panic: runtime error: index out of range"
 3. Occurs when message queue is empty
 
@@ -286,7 +286,7 @@ Initial hypothesis: Index out of bounds when reading from empty queue
 3. Found that bounds check was missing when queue is empty
 
 ### Root Cause
-**File**: `<project-root>/pkg/messagebus/reader.go:123`
+**File**: `<project-root>/internal/messagebus/reader.go:123`
 
 **Problematic Code**:
 ```go
@@ -310,7 +310,7 @@ func (r *Reader) readFromQueue() (*Message, error) {
 ### Changes Made
 
 #### 1. Add Bounds Check
-**File**: `<project-root>/pkg/messagebus/reader.go:123`
+**File**: `<project-root>/internal/messagebus/reader.go:123`
 
 **Before**:
 ```go
@@ -334,7 +334,7 @@ func (r *Reader) readFromQueue() (*Message, error) {
 ```
 
 #### 2. Add Test for Empty Queue
-**File**: `<project-root>/pkg/messagebus/reader_test.go:234`
+**File**: `<project-root>/internal/messagebus/reader_test.go:234`
 
 **Added**:
 ```go
@@ -356,26 +356,26 @@ func TestReadFromEmptyQueue(t *testing.T) {
 
 ### Test Results
 ```
-$ go test -v -run TestReadFromEmptyQueue ./pkg/messagebus/
+$ go test -v -run TestReadFromEmptyQueue ./internal/messagebus/
 === RUN   TestReadFromEmptyQueue
 --- PASS: TestReadFromEmptyQueue (0.00s)
 PASS
-ok      github.com/jonnyzzz/conductor-loop/pkg/messagebus       0.123s
+ok      github.com/jonnyzzz/conductor-loop/internal/messagebus       0.123s
 ```
 
 ### Full Test Suite
 ```
 $ go test ./...
-ok      github.com/jonnyzzz/conductor-loop/pkg/messagebus       0.234s
-ok      github.com/jonnyzzz/conductor-loop/pkg/storage          0.156s
+ok      github.com/jonnyzzz/conductor-loop/internal/messagebus       0.234s
+ok      github.com/jonnyzzz/conductor-loop/internal/storage          0.156s
 ok      github.com/jonnyzzz/conductor-loop/internal/runner      0.189s
 ```
 
 ### Race Detector
 ```
-$ go test -race ./pkg/messagebus/
+$ go test -race ./internal/messagebus/
 PASS
-ok      github.com/jonnyzzz/conductor-loop/pkg/messagebus       0.456s
+ok      github.com/jonnyzzz/conductor-loop/internal/messagebus       0.456s
 ```
 
 ### IntelliJ Inspection
@@ -386,8 +386,8 @@ ok      github.com/jonnyzzz/conductor-loop/pkg/messagebus       0.456s
 ---
 
 ## Files Modified
-- `<project-root>/pkg/messagebus/reader.go` - Added bounds check
-- `<project-root>/pkg/messagebus/reader_test.go` - Added regression test
+- `<project-root>/internal/messagebus/reader.go` - Added bounds check
+- `<project-root>/internal/messagebus/reader_test.go` - Added regression test
 
 ## Files Created
 - None

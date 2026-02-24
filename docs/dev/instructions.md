@@ -146,13 +146,13 @@ go test -tags=integration ./test/...
 
 ### Run Specific Test Package
 ```bash
-go test ./pkg/messagebus/
+go test ./internal/messagebus/
 go test ./internal/runner/
 ```
 
 ### Run Specific Test Function
 ```bash
-go test -run TestMessageBusConcurrentWrites ./pkg/messagebus/
+go test -run TestMessageBusConcurrentWrites ./internal/messagebus/
 ```
 
 ### Verbose Test Output
@@ -668,7 +668,7 @@ cat docs/workflow/THE_PLAN_v5.md
 ### 2. Make Changes
 ```bash
 # Edit code
-vim pkg/messagebus/writer.go
+vim internal/messagebus/writer.go
 
 # Format code
 make fmt
@@ -691,7 +691,7 @@ make check
 ### 4. Commit Changes
 ```bash
 # Stage specific files
-git add pkg/messagebus/writer.go
+git add internal/messagebus/writer.go
 git add test/messagebus/writer_test.go
 
 # Commit with proper format
@@ -726,10 +726,10 @@ gh pr create --title "feat(messagebus): Add fsync for durability" --body "..."
 ### Debug Specific Package
 ```bash
 # Run tests with verbose output
-go test -v ./pkg/messagebus/
+go test -v ./internal/messagebus/
 
 # Run with race detector
-go test -race -v ./pkg/messagebus/
+go test -race -v ./internal/messagebus/
 ```
 
 ### Inspect Run Artifacts
@@ -754,11 +754,11 @@ cat runs/<project>/<task>/TASK-MESSAGE-BUS.md
 ### Profiling
 ```bash
 # CPU profile
-go test -cpuprofile=cpu.prof ./pkg/messagebus/
+go test -cpuprofile=cpu.prof ./internal/messagebus/
 go tool pprof cpu.prof
 
 # Memory profile
-go test -memprofile=mem.prof ./pkg/messagebus/
+go test -memprofile=mem.prof ./internal/messagebus/
 go tool pprof mem.prof
 ```
 

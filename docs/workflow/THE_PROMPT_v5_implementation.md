@@ -168,7 +168,7 @@ import (
     "github.com/pkg/errors"
 
     // Project
-    "github.com/jonnyzzz/conductor-loop/pkg/storage"
+    "github.com/jonnyzzz/conductor-loop/internal/storage"
 )
 
 // Public type with godoc comment
@@ -352,7 +352,7 @@ go build ./...
 ```
 
 ## Notes
-- Followed existing pattern from pkg/storage/writer.go
+- Followed existing pattern from internal/storage/writer.go
 - Used errors.Wrap for error context
 - Added table-driven tests
 - Coverage: 85% of new code

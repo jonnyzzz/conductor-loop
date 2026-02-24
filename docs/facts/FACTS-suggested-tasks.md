@@ -5,7 +5,7 @@ Consolidated from all agent runs, swarm documentation, ideas, issues, and TODOs 
 
 Only **open / not-yet-completed** items are listed. Completed work is omitted.
 
-Last updated: 2026-02-24 (iteration 5 synthesis: roadmap/tasks validated and normalized).
+Last updated: 2026-02-24 (evo-r3 round 3: 11 new task prompts added for P0/P1/P2 items).
 
 ---
 
@@ -21,26 +21,31 @@ Last updated: 2026-02-24 (iteration 5 synthesis: roadmap/tasks validated and nor
 - **ID**: `task-20260223-155210-monitor-stop-respawn-race`
 - **Description**: Prevent immediate task respawn after manual `run-agent stop` when background monitor loops are active. Add explicit suppression window and reasoned restart policy.
 - **Source**: conductor-loop docs/dev/todos.md
+- **prompt-file**: `prompts/tasks/monitor-stop-respawn-race.md`
 
 ### Blocked dependency deadlock recovery
 - **ID**: `task-20260223-155220-blocked-dependency-deadlock-recovery`
 - **Description**: Resolve blocked DAG chains with no active runs. `task-20260222-102110-job-batch-cli` and `task-20260222-102120-workflow-runner-cli` both exist with no runs and no DONE marker — blocked. Dependency diagnostics and auto-escalation workflow for stuck task chains.
 - **Source**: conductor-loop docs/dev/todos.md; confirmed via filesystem scan 2026-02-23
+- **prompt-file**: `prompts/tasks/blocked-dependency-deadlock-recovery.md`
 
 ### Run status finish criteria
 - **ID**: `task-20260223-155230-run-status-finish-criteria`
 - **Description**: Add explicit "all jobs finished" semantics distinguishing `running/queued` vs `blocked/failed`. Expose in CLI/UI summary output.
 - **Source**: conductor-loop docs/dev/todos.md
+- **prompt-file**: `prompts/tasks/run-status-finish-criteria.md`
 
 ### RunInfo missing noise hardening
 - **ID**: `task-20260223-155240-runinfo-missing-noise-hardening`
 - **Description**: Harden status/list/stop paths against missing `run-info.yaml` artifacts with recovery and reduced noisy error output.
 - **Source**: conductor-loop docs/dev/todos.md
+- **prompt-file**: `prompts/tasks/runinfo-missing-noise-hardening.md`
 
 ### Webserver uptime auto-recovery
 - **ID**: `task-20260223-155250-webserver-uptime-autorecover`
 - **Description**: Investigate and fix `webserver is no longer up` incidents. Add watchdog restart strategy, health probes, failure reason logging.
 - **Source**: conductor-loop docs/dev/todos.md
+- **prompt-file**: `prompts/tasks/webserver-uptime-autorecover.md`
 
 ### SSE stream CPU hotspot [P0]
 - **ID**: `task-20260223-103400-serve-cpu-hotspot-sse-stream-all`
@@ -76,6 +81,7 @@ Last updated: 2026-02-24 (iteration 5 synthesis: roadmap/tasks validated and nor
 - **ID**: `task-20260223-155310-live-logs-regression-guardrails`
 - **Description**: Lock live-log layout/visibility behavior with regression tests to prevent repeated regressions.
 - **Source**: conductor-loop docs/dev/todos.md
+- **prompt-file**: `prompts/tasks/live-logs-regression-guardrails.md`
 
 ### Tree hierarchy regression guardrails
 - **ID**: `task-20260223-155320-tree-hierarchy-regression-guardrails`
@@ -87,11 +93,13 @@ Last updated: 2026-02-24 (iteration 5 synthesis: roadmap/tasks validated and nor
 - **ID**: `task-20260223-155330-ui-new-task-submit-durability-regression-guard`
 - **Description**: Ensure form data never disappears on submit/reload/error. Persist drafts and audit submit lifecycle.
 - **Source**: conductor-loop docs/dev/todos.md
+- **prompt-file**: `prompts/tasks/ui-new-task-submit-durability.md`
 
 ### Refresh/SSE CPU budget
 - **ID**: `task-20260223-155340-ui-refresh-churn-cpu-budget`
 - **Description**: Define and enforce refresh/SSE CPU budgets in tests/benchmarks (server + web UI).
 - **Source**: conductor-loop docs/dev/todos.md
+- **prompt-file**: `prompts/tasks/ui-refresh-churn-cpu-budget.md`
 
 ---
 
@@ -113,10 +121,17 @@ Last updated: 2026-02-24 (iteration 5 synthesis: roadmap/tasks validated and nor
 
 ## P2 -- Workflow / Tooling / Docs
 
+### Message bus empty regression
+- **ID**: `task-20260223-155300-messagebus-empty-regression-investigation`
+- **Description**: Fix intermittent empty Message Bus display. Ensure deterministic hydration/fallback under SSE degradation.
+- **Source**: conductor-loop docs/dev/todos.md
+- **prompt-file**: `prompts/tasks/messagebus-empty-regression.md`
+
 ### Run artifacts git hygiene
 - **ID**: `task-20260223-155370-run-artifacts-git-hygiene`
 - **Description**: Prevent `runs/run_*` artifact clutter from polluting git status. Add ignore strategy + doc policy.
 - **Source**: conductor-loop docs/dev/todos.md
+- **prompt-file**: `prompts/tasks/run-artifacts-git-hygiene.md`
 
 ### Manual shell to CLI gap closure
 - **ID**: `task-20260223-155380-manual-shell-to-cli-gap-closure`
