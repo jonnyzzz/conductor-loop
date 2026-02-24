@@ -73,7 +73,19 @@ This blocks encoded traversal payloads such as `%2e%2e` before path joins.
 - `requirePathWithinRoot(root, target, field)` rejects escaped targets with `403`.
 - `pathWithinRoot` uses `filepath.Rel` semantics to confirm target remains under root.
 
-### 3. Handler enforcement
+### 3. Project and task directory resolution
+
+`findProjectDir` and `findProjectTaskDir` are the resolution functions that locate project and task directories from caller-supplied identifiers before any filesystem operation proceeds.
+
+Both functions are traversal-aware:
+
+- They resolve paths relative to `rootDir` only.
+- They support direct root lookup, `runs/` subdirectory lookup, and a bounded directory walk (depth ≤ 3).
+- All resolved candidates are checked with `requirePathWithinRoot` before being returned.
+
+This means a crafted `project_id` or `task_id` cannot cause handlers to read or write outside the configured storage root, regardless of how the identifier is constructed.
+
+### 4. Handler enforcement
 
 Handlers repeatedly apply these checks before filesystem access:
 
@@ -152,6 +164,21 @@ Two layers reduce inline secret leakage:
 
 Audit and logging tests validate that raw secrets are redacted and do not appear in persisted audit output.
 
+## UI Security: Browser-Origin Destructive Action Blocking
+
+The API server includes a guard (`rejectUIDestructiveAction`) that prevents browser-based UI sessions from issuing destructive operations directly.
+
+When the API server detects browser-origin headers (e.g., `Origin`, `Referer`, `User-Agent` patterns associated with browser requests), the following operations are rejected with HTTP `403 Forbidden` before any filesystem change occurs:
+
+- Task deletion (`DELETE /api/v1/projects/{project}/tasks/{task}`)
+- Run deletion (`DELETE /api/v1/projects/{project}/tasks/{task}/runs/{run}`)
+- Project deletion (`DELETE /api/v1/projects/{project}`)
+- Project GC (`POST /api/v1/projects/{project}/gc`)
+
+This defense-in-depth measure ensures that a cross-site request forgery (CSRF) attempt via a compromised or malicious web page cannot use the UI session to destroy data. Legitimate destructive actions must be invoked via CLI (`run-agent` commands operating directly on the filesystem or via `run-agent server` client commands).
+
+The `403` response is returned regardless of whether API key authentication is enabled, because the block is applied before auth middleware for these routes.
+
 ## CI and GitHub Actions Security Stance
 
 Runtime code in this page does not enforce CI policy directly. CI/CD posture is documented in `docs/dev/security-review-2026-02-23.md`.
@@ -177,4 +204,5 @@ This section is documentation-grounded; re-auditing live workflow files is out o
 | Webhook delivery | Payload tampering/spoofing | Optional HMAC-SHA256 signature header over raw JSON body | No built-in replay nonce/timestamp; receiver must enforce replay window/idempotency |
 | Logs and audit records | Secret leakage (tokens/keys/passwords) | Pattern+key redaction in `obslog`; sanitized form payload persistence in audit log | Redaction is best-effort pattern matching; avoid logging raw credentials in new code paths |
 | Config and repo hygiene | Inline token commits | `token_file` + env override support; docs/security review moved guidance away from inline secrets | Inline `token` still supported for compatibility; process controls remain required |
+| Browser-origin UI sessions | CSRF-triggered destructive operations (delete task/run/project, GC) | `rejectUIDestructiveAction` returns `403` on browser-origin requests to mutating endpoints | CLI and programmatic API clients are not affected by the block |
 | CI/CD pipeline | Supply-chain compromise in workflows/actions | Documented remediations in 2026-02-23 review (action pinning, scoped permissions, checksum verification) | This architecture page does not continuously verify workflow drift |
