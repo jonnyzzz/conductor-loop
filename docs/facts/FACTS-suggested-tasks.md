@@ -5,16 +5,17 @@ Consolidated from all agent runs, swarm documentation, ideas, issues, and TODOs 
 
 Only **open / not-yet-completed** items are listed. Completed work is omitted.
 
-Last updated: 2026-02-23 (review-suggested-tasks scan).
+Last updated: 2026-02-24 (iteration 2-3 task prompts added).
 
 ---
 
 ## P0 -- Critical Reliability / Orchestration
 
-### Monitor process proliferation cap
+### Monitor process proliferation cap [P0]
 - **ID**: `task-20260223-155200-monitor-process-cap-limit`
 - **Description**: Fix monitor/session process proliferation that hits unified exec limits (60+ warnings). Enforce single monitor ownership, PID lockfile, auto-cleanup of stale monitor processes.
 - **Source**: conductor-loop docs/dev/todos.md
+- **Prompt**: `prompts/tasks/fix-monitor-process-cap.md`
 
 ### Monitor stop-respawn race
 - **ID**: `task-20260223-155210-monitor-stop-respawn-race`
@@ -41,11 +42,18 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 - **Description**: Investigate and fix `webserver is no longer up` incidents. Add watchdog restart strategy, health probes, failure reason logging.
 - **Source**: conductor-loop docs/dev/todos.md
 
-### SSE stream CPU hotspot
+### SSE stream CPU hotspot [P0]
 - **ID**: `task-20260223-103400-serve-cpu-hotspot-sse-stream-all`
 - **Status**: Task directory exists; no runs started yet.
 - **Description**: Fix high CPU in `run-agent serve` under live Web UI. Confirmed hotspot is SSE streaming with aggressive 100ms polling and full bus-file reparse. Deliver fixes + regression/perf tests.
 - **Source**: conductor-loop docs/dev/todos.md
+- **Prompt**: `prompts/tasks/fix-sse-cpu-hotspot.md`
+
+### Binary default port mismatch [P0]
+- **ID**: `task-20260224-binary-port-mismatch`
+- **Description**: Built `./bin/conductor` reports default port `8080` while source defaults to `14355`. Reconcile binary vs. source discrepancy, document canonical default in CLI help and docs.
+- **Source**: `docs/facts/FACTS-user-docs.md` validation round 2 (formerly in "Newly Discovered")
+- **Prompt**: `prompts/tasks/fix-conductor-binary-port.md`
 
 ---
 
@@ -56,6 +64,7 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 - **Status**: Task directory exists with active runs; not DONE.
 - **Description**: Web UI updates take multiple seconds to appear. Root-cause and fix with measurable responsiveness improvements.
 - **Source**: conductor-loop docs/dev/todos.md
+- **Prompt**: `prompts/tasks/ui-latency-fix.md`
 
 ### Message bus empty regression
 - **ID**: `task-20260223-155300-messagebus-empty-regression-investigation`
@@ -71,6 +80,7 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 - **ID**: `task-20260223-155320-tree-hierarchy-regression-guardrails`
 - **Description**: Extend tree hierarchy regression coverage (root/task/run + threaded subtasks + collapsed groups).
 - **Source**: conductor-loop docs/dev/todos.md
+- **Prompt**: `prompts/tasks/ui-task-tree-guardrails.md`
 
 ### New task submit durability
 - **ID**: `task-20260223-155330-ui-new-task-submit-durability-regression-guard`
@@ -90,11 +100,13 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 - **ID**: `task-20260223-155350-repo-history-token-leak-audit`
 - **Description**: Full repository + git-history token leak scan across all repos. Document findings. Add pre-commit/pre-push safeguards.
 - **Source**: conductor-loop docs/dev/todos.md
+- **Prompt**: `prompts/tasks/token-leak-audit.md`
 
 ### First release readiness gate
 - **ID**: `task-20260223-155360-first-release-readiness-gate`
 - **Description**: Finalize release readiness gate: CI green, startup scripts, install/update paths, integration tests across agents.
 - **Source**: conductor-loop docs/dev/todos.md
+- **Prompt**: `prompts/tasks/release-readiness-gate.md`
 
 ---
 
@@ -134,10 +146,12 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 ### Windows file locking (ISSUE-002)
 - **Description**: Windows uses mandatory locks that break the core assumption of lockless reads. Medium-term: implement shared-lock readers with timeout/retry on Windows. Long-term: consider named pipes or memory-mapped files.
 - **Source**: conductor-loop docs/dev/issues.md, swarm runs sessions #1, #25, #41
+- **Prompt**: `prompts/tasks/windows-file-locking.md`
 
 ### Windows process groups (ISSUE-003)
 - **Description**: Windows lacks Unix-style PGID management. Medium-term: use Windows Job Objects (`CreateJobObject`, `AssignProcessToJobObject`, `TerminateJobObject`). Current stubs use PID-only workaround.
 - **Source**: conductor-loop docs/dev/issues.md
+- **Prompt**: `prompts/tasks/windows-process-groups.md`
 
 ### Token expiration handling (ISSUE-009)
 - **Description**: Tokens can expire with no detection or refresh. Deferred: full expiration detection via API call, OAuth refresh for supported providers.
@@ -154,6 +168,7 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 ### Merge cmd/conductor into cmd/run-agent
 - **Description**: Architecture review found two binaries should be one. Eliminate `cmd/conductor/` or merge into a single `run-agent` binary with subcommands.
 - **Source**: conductor-loop runs, task-20260221-105809-architecture-review
+- **Prompt**: `prompts/tasks/merge-conductor-run-agent.md`
 
 ### "Offline first" architecture documentation
 - **Description**: Document that filesystem is the source of truth and the monitoring server is fully optional. All operations must work without the server running.
@@ -166,14 +181,17 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 ### Environment sanitization
 - **Description**: Runner should inject only the specific token for each agent type, not leak all API keys via environment inheritance.
 - **Source**: swarm runs execution model review (run_20260204-210145 series)
+- **Prompt**: `prompts/tasks/env-sanitization.md`
 
 ### Global fact storage and promotion
 - **Description**: Introduce global location for facts. Dedicated process to promote facts from task -> project -> global level.
 - **Source**: swarm ideas.md lines 244-245
+- **Prompt**: `prompts/tasks/global-fact-storage.md`
 
 ### HCL config format support
 - **Description**: Specs designed for HCL but implementation uses YAML only. Either add HCL support or formally deprecate the HCL spec.
 - **Source**: swarm specs, conductor-loop run_20260220-162757-51062
+- **Prompt**: `prompts/tasks/hcl-config-deprecation.md`
 
 ### Agent progress output visibility
 - **Description**: Ensure progress output from each agent is visible for liveness detection. Review console options. Study Docker*Session classes from mcp-steroid test-helper.
@@ -208,6 +226,7 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 ### Unified bootstrap/updater script
 - **Description**: Merge `install.sh` and `run-agent.cmd` into a single updater/launcher script. Compare local version vs latest release, fetch updates, verify SHA/signatures, then execute.
 - **Source**: conductor-loop docs/dev/todos.md (`task-20260222-192500-unified-bootstrap-script-design`)
+- **Prompt**: `prompts/tasks/unified-bootstrap.md`
 
 ---
 
@@ -233,6 +252,7 @@ Items surfaced by this scan that were not previously in SUGGESTED-TASKS.md.
 ### Gemini CLI output-format fallback
 - **Description**: `FACTS-agents-ui.md` identifies a TODO: add CLI fallback for Gemini versions that reject `--output-format stream-json`. Currently the runner passes this flag unconditionally; older Gemini CLI builds fail silently or error out, causing lost agent output.
 - **Source**: `docs/facts/FACTS-agents-ui.md` validation round 2
+- **Prompt**: `prompts/tasks/gemini-stream-json-fallback.md`
 
 ### xAI backend completion
 - **Description**: `docs/facts/FACTS-agents-ui.md` notes the xAI backend is deferred/placeholder. Plan: use OpenCode agent targeting xAI models; default to `grok-4`. Currently only enabled when XAI_API_KEY provided. Coding-agent mode and model selection policy TBD.
@@ -243,7 +263,8 @@ Items surfaced by this scan that were not previously in SUGGESTED-TASKS.md.
 - **Source**: `docs/facts/FACTS-user-docs.md` validation round 2
 
 ### Binary default port mismatch
-- **Description**: Built `./bin/conductor` help reports default server port as `8080` while checked-in `cmd/conductor/*` source defaults to `14355`. Investigate and reconcile the binary vs. source discrepancy; document the canonical default clearly in CLI help and docs.
+- **Description**: *(Superseded by P0 entry above — see "Binary default port mismatch [P0]" in the P0 section.)*
+- **Prompt**: `prompts/tasks/fix-conductor-binary-port.md`
 - **Source**: `docs/facts/FACTS-user-docs.md` validation round 2
 
 ### job-batch-cli and workflow-runner-cli unstarted
@@ -251,6 +272,27 @@ Items surfaced by this scan that were not previously in SUGGESTED-TASKS.md.
 - **ID (workflow)**: `task-20260222-102120-workflow-runner-cli`
 - **Description**: Both task directories exist with no run history and no DONE marker. docs/dev/todos.md marks them `[x]` but no implementation evidence exists. `workflow-runner-cli` is blocked by `job-batch-cli` per FACTS. These need to be either executed or explicitly cancelled/superseded by the `task-20260223-155220-blocked-dependency-deadlock-recovery` P0 resolution.
 - **Source**: Filesystem scan 2026-02-23; `docs/facts/FACTS-issues-decisions.md`
+
+---
+
+## Planned Tasks (Iteration 2–3, Feb 2026)
+
+Task prompt files created during the Feb 2026 roadmap evolution sprint. Items below either have no prior backlog entry or were already completed but have new prompts for re-verification.
+
+### run-agent output synthesize (verify)
+- **Description**: `run-agent output synthesize` was implemented via r3 revision. Prompt exists for re-verification or deeper implementation if gaps remain.
+- **Status**: Previously marked DONE (`task-20260222-102130-output-synthesize-cli`); prompt created for validation.
+- **Prompt**: `prompts/tasks/implement-output-synthesize.md`
+
+### run-agent review quorum (verify)
+- **Description**: `run-agent review quorum` was implemented via r3 revision. Prompt exists for re-verification or deeper implementation if gaps remain.
+- **Status**: Previously marked DONE (`task-20260222-102140-review-quorum-cli`); prompt created for validation.
+- **Prompt**: `prompts/tasks/implement-review-quorum.md`
+
+### run-agent iterate (verify)
+- **Description**: `run-agent iterate` was implemented via r3 revision. Prompt exists for re-verification or deeper implementation if gaps remain.
+- **Status**: Previously marked DONE (`task-20260222-102150-iteration-loop-cli`); prompt created for validation.
+- **Prompt**: `prompts/tasks/implement-iterate.md`
 
 ---
 
