@@ -175,8 +175,9 @@ No size limits enforced for `output.md`, `TASK_STATE.md`, or FACT files.
 
 ## RunID Generation
 
-[2026-02-21 02:01:38] [tags: runner, storage, run-id]
-RunID format in Go code: `now.Format("20060102-150405000")` + PID separator → produces `YYYYMMDD-HHMMSSmmm-PID` (3-digit milliseconds in the `internal/storage` package implementation). The spec says 4-digit fractional seconds (`HHMMSSMMMM`).
+[2026-02-21 02:01:38] [tags: runner, storage, run-id, corrected]
+RunID format in Go code: `now.Format("20060102-150405000")` + PID separator → produces `YYYYMMDD-HHMMSSmmm-PID` (3-digit milliseconds in the `internal/storage` package implementation).
+*Correction: The authoritative format uses 4-digit fractional seconds (`0000` suffix) or high-precision depending on implementation version. See FACTS-reconciled.md.*
 
 [2026-02-21 02:01:38] [tags: runner, storage, run-id]
 RunID properties: lexically sortable (chronological), human-readable timestamp, 24-29 characters total. Different processes produce different IDs due to PID. Same-process same-millisecond collision is possible but unlikely; no explicit collision detection.
@@ -349,7 +350,7 @@ Config file format: YAML is primary (`config.yaml`), HCL (`config.hcl`) is suppo
 
 [2026-02-20 12:31:03] [tags: runner, config, schema, superseded, corrected]
 Q3 answered: YAML is the single source of truth. HCL config files are deprecated but supported. `run-agent` defaults to `~/.config/conductor/config.yaml`.
-*Update 2026-02-23: This decision was reversed. YAML is now the primary format and takes precedence over HCL. HCL remains supported for backward compatibility.*
+*Update 2026-02-23: This decision was reversed. YAML is now the primary format and takes precedence over HCL. HCL remains supported for backward compatibility. See FACTS-reconciled.md.*
 
 [2026-02-04 23:03:05] [tags: runner, config, schema]
 Required top-level blocks: `ralph`, `agent_selection`, `monitoring`, `delegation`. At least one `agent` block required.
