@@ -151,7 +151,7 @@ chmod 600 ~/.config/openai/token
 1. **Write Code**
    ```bash
    # Edit files
-   vim pkg/messagebus/writer.go
+   vim internal/messagebus/writer.go
 
    # Format automatically (on save, or manually)
    go fmt ./...
@@ -160,10 +160,10 @@ chmod 600 ~/.config/openai/token
 2. **Write Tests**
    ```bash
    # Write test in same package
-   vim pkg/messagebus/writer_test.go
+   vim internal/messagebus/writer_test.go
 
    # Run tests as you go
-   go test ./pkg/messagebus/
+   go test ./internal/messagebus/
    ```
 
 3. **Check Quality**
@@ -182,13 +182,13 @@ chmod 600 ~/.config/openai/token
 
 ```bash
 # Unit tests
-go test ./pkg/messagebus/
+go test ./internal/messagebus/
 
 # With coverage
-go test -cover ./pkg/messagebus/
+go test -cover ./internal/messagebus/
 
 # With race detector (IMPORTANT for concurrency)
-go test -race ./pkg/messagebus/
+go test -race ./internal/messagebus/
 
 # Integration tests
 go test -tags=integration ./test/...
@@ -201,8 +201,8 @@ make test
 
 ```bash
 # Stage specific files only
-git add pkg/messagebus/writer.go
-git add pkg/messagebus/writer_test.go
+git add internal/messagebus/writer.go
+git add internal/messagebus/writer_test.go
 
 # Commit with proper format (see AGENTS.md)
 git commit -m "feat(messagebus): Add fsync for durability
@@ -239,16 +239,16 @@ gh pr create \
 make test
 
 # Specific package
-go test ./pkg/messagebus/
+go test ./internal/messagebus/
 
 # Specific test
-go test -run TestMessageBusPost ./pkg/messagebus/
+go test -run TestMessageBusPost ./internal/messagebus/
 
 # Verbose output
-go test -v ./pkg/messagebus/
+go test -v ./internal/messagebus/
 
 # With race detector (always do this for concurrency tests!)
-go test -race ./pkg/messagebus/
+go test -race ./internal/messagebus/
 ```
 
 ### Coverage
@@ -269,17 +269,17 @@ go test -cover ./... | grep -E 'coverage: [0-9]+' | awk '{if ($2+0 < 80) exit 1}
 ### Benchmarks
 ```bash
 # Run benchmarks
-go test -bench=. ./pkg/messagebus/
+go test -bench=. ./internal/messagebus/
 
 # With memory stats
-go test -bench=. -benchmem ./pkg/messagebus/
+go test -bench=. -benchmem ./internal/messagebus/
 
 # Profile CPU
-go test -bench=. -cpuprofile=cpu.prof ./pkg/messagebus/
+go test -bench=. -cpuprofile=cpu.prof ./internal/messagebus/
 go tool pprof cpu.prof
 
 # Profile memory
-go test -bench=. -memprofile=mem.prof ./pkg/messagebus/
+go test -bench=. -memprofile=mem.prof ./internal/messagebus/
 go tool pprof mem.prof
 ```
 
@@ -305,7 +305,7 @@ go test -v -tags=integration ./test/...
 go install github.com/go-delve/delve/cmd/dlv@latest
 
 # Debug test
-dlv test ./pkg/messagebus
+dlv test ./internal/messagebus
 
 # In debugger:
 (dlv) break writer.go:45      # Set breakpoint
@@ -329,7 +329,7 @@ log.Printf("DEBUG: msg_id=%s, content=%s", msg.ID, msg.Content)
 ### Race Detector
 ```bash
 # Always run for concurrency code
-go test -race ./pkg/messagebus/
+go test -race ./internal/messagebus/
 
 # If race detected, you'll see:
 # WARNING: DATA RACE
@@ -340,11 +340,11 @@ go test -race ./pkg/messagebus/
 ### Profiling
 ```bash
 # CPU profiling during test
-go test -cpuprofile=cpu.prof -bench=. ./pkg/messagebus/
+go test -cpuprofile=cpu.prof -bench=. ./internal/messagebus/
 go tool pprof -http=:8080 cpu.prof
 
 # Memory profiling
-go test -memprofile=mem.prof -bench=. ./pkg/messagebus/
+go test -memprofile=mem.prof -bench=. ./internal/messagebus/
 go tool pprof -http=:8080 mem.prof
 ```
 
@@ -355,44 +355,52 @@ go tool pprof -http=:8080 mem.prof
 ### Running Agents Locally
 
 ```bash
-# Using run-agent.sh script
+# Submit a job with run-agent
+./bin/run-agent job \
+  --agent claude \
+  --project my-project \
+  --root ./runs \
+  --prompt "Describe what to do"
+
+# Or use the run-agent.sh helper script (legacy wrapper)
 ./run-agent.sh claude "$PWD" ./prompts/test.md
 
-# Script creates run folder and captures output
-# Check: runs/run_20260204-HHMMSS-PID/
+# Run directories are stored at: runs/<project>/<task>/runs/<run_id>/
 ```
 
 ### Monitoring Agent Runs
 
 ```bash
-# Watch agent status (60s poll)
-./watch-agents.sh
+# List all runs for a project
+./bin/run-agent list --project my-project --root ./runs
 
-# Live console monitor
-uv run python monitor-agents.py
+# Follow live output of a running job
+./bin/run-agent output --project my-project --task <task-id> --follow --root ./runs
 
-# Check specific run
-cat runs/run_20260204-123456-7890/agent-stdout.txt
-cat runs/run_20260204-123456-7890/agent-stderr.txt
-cat runs/run_20260204-123456-7890/output.md
+# Watch until task reaches terminal state
+./bin/run-agent watch --project my-project --task <task-id> --root ./runs
+
+# Check specific run directory
+ls runs/my-project/<task-id>/runs/<run-id>/
+cat runs/my-project/<task-id>/runs/<run-id>/agent-stdout.txt
+cat runs/my-project/<task-id>/runs/<run-id>/output.md
 ```
 
 ### Debugging Agent Issues
 
 ```bash
 # Check run metadata
-cat runs/run_*/run-info.yaml
+cat runs/<project>/<task>/runs/<run-id>/run-info.yaml
 
-# Check if agent still running
-cat runs/run_*/pid.txt
-ps -p $(cat runs/run_*/pid.txt)
+# Check process status
+./bin/run-agent list --project <project> --task <task-id> --root ./runs
 
-# Check exit code
-grep EXIT_CODE runs/run_*/cwd.txt
+# Read message bus for task events
+./bin/run-agent bus read --project <project> --task <task-id> --root ./runs --tail 20
 
 # Read full logs
-less runs/run_*/agent-stdout.txt
-less runs/run_*/agent-stderr.txt
+less runs/<project>/<task>/runs/<run-id>/agent-stdout.txt
+less runs/<project>/<task>/runs/<run-id>/agent-stderr.txt
 ```
 
 ---
@@ -538,11 +546,11 @@ rm -rf runs/run_*
 
 ```bash
 # CPU profile
-go test -cpuprofile=cpu.prof -bench=. ./pkg/messagebus/
+go test -cpuprofile=cpu.prof -bench=. ./internal/messagebus/
 go tool pprof cpu.prof
 
 # Memory profile
-go test -memprofile=mem.prof -bench=. ./pkg/messagebus/
+go test -memprofile=mem.prof -bench=. ./internal/messagebus/
 go tool pprof mem.prof
 
 # View profiles in browser
@@ -553,12 +561,12 @@ go tool pprof -http=:8080 cpu.prof
 
 ```bash
 # Run benchmarks
-go test -bench=. ./pkg/messagebus/
+go test -bench=. ./internal/messagebus/
 
 # Compare benchmarks
-go test -bench=. ./pkg/messagebus/ > old.txt
+go test -bench=. ./internal/messagebus/ > old.txt
 # Make changes
-go test -bench=. ./pkg/messagebus/ > new.txt
+go test -bench=. ./internal/messagebus/ > new.txt
 benchcmp old.txt new.txt
 ```
 
@@ -566,7 +574,7 @@ benchcmp old.txt new.txt
 
 ```bash
 # Check allocations
-go test -bench=. -benchmem ./pkg/messagebus/
+go test -bench=. -benchmem ./internal/messagebus/
 
 # Look for allocations in hot paths
 # Consider:
@@ -615,12 +623,12 @@ go test -bench=. -benchmem ./pkg/messagebus/
 ## Resources
 
 ### Documentation
-- [THE_PROMPT_v5.md](../../docs/workflow/THE_PROMPT_v5.md) - Workflow document
+- [THE_PROMPT_v5.md](../workflow/THE_PROMPT_v5.md) - Workflow document
 - [AGENTS.md](../../AGENTS.md) - Agent conventions and ownership
 - [instructions.md](instructions.md) - Tool paths and commands
-- [THE_PLAN_v5.md](../../docs/workflow/THE_PLAN_v5.md) - Implementation plan
-- [docs/specifications/](../../docs/specifications/) - Subsystem specifications
-- [docs/decisions/](../../docs/decisions/) - Architecture decisions
+- [THE_PLAN_v5.md](../workflow/THE_PLAN_v5.md) - Implementation plan
+- [specifications/](../specifications/) - Subsystem specifications
+- [decisions/](../decisions/) - Architecture decisions
 
 ### External Resources
 - [Effective Go](https://go.dev/doc/effective_go)

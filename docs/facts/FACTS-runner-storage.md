@@ -578,7 +578,7 @@ Configuration file precedence: `config.yaml` > `config.yml` > `config.hcl`. This
 `run-info.yaml` schema uses YAML tags in the source code (`internal/storage/runinfo.go`), confirming it is indeed a YAML file, not HCL.
 
 [2026-02-23 19:25:00] [tags: runner, storage, naming]
-RunID generation confirmed: `YYYYMMDD-HHMMSSMMMM-PID` (4-digit fractional seconds) in `internal/runner/orchestrator.go`.
+RunID generation confirmed: `YYYYMMDD-HHMMSS0000-<pid>-<seq>` (seconds precision with literal `0000` suffix) in `internal/runner/orchestrator.go`.
 
 [2026-02-23 19:25:00] [tags: runner, storage, env]
 Environment variables `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `RUNS_DIR`, `MESSAGE_BUS`, `RUN_FOLDER` are confirmed to be injected into the agent process.

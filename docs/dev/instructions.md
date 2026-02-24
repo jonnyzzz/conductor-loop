@@ -594,7 +594,7 @@ rm runs/agent-watch.pid
 ## Environment Setup
 
 ### Prerequisites
-1. Go 1.21 or later
+1. Go 1.24.0 or later
 2. Docker (for integration tests)
 3. Python 3.9+ with uv (for monitoring scripts)
 4. Claude CLI (for Claude agent backend)

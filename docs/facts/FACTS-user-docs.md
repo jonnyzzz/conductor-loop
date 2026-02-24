@@ -181,7 +181,7 @@ Message bus defaults: exclusive lock timeout `10s`, poll interval `200ms`, appen
 Current docs drift examples observed during validation: `docs/user/configuration.md` still describes `~/.conductor/config.yaml` and per-agent `timeout`, while runtime code uses `~/.config/conductor/*` and does not define `agents.<name>.timeout`.
 
 [2026-02-24 08:30:00] [tags: user-docs, dev-docs, docs, drift, correction]
-Correction: Repository `go.mod` requires `go 1.24.0`. Documentation referencing `1.21+` is outdated. Config path is `~/.config/conductor/`. `run-agent iterate` is currently unavailable in the binary.
+Correction: Repository `go.mod` requires `go 1.24.0`. Documentation referencing `1.21+` is outdated and must be updated. Config path is `~/.config/conductor/`. `run-agent iterate` is currently unavailable in the binary (confirmed via help output).
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, docs, git-history]
 Latest docs-related commit in sampled history is `493ab3832d9e2c40bee1c0922cd2bd5441f6fd31` at `2026-02-23 14:50:19` (`feat(cli): add TODO-driven monitor commands`).

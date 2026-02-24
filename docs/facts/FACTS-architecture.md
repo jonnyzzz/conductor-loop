@@ -215,7 +215,7 @@ Commit `28b6ca106b95181ea34f29b39a6331588cac85cc` fixed storage run-ID collision
 ## Reconciliation (2026-02-24)
 
 [2026-02-24 07:55:00] [tags: reconciliation, architecture, network]
-Host Binding: `run-agent serve` source code (`cmd/run-agent/serve.go`) defaults to `0.0.0.0` (all interfaces), not `127.0.0.1` (localhost) as previously stated in `FACTS-ui` sections. `port=14355` is the canonical default for both `run-agent serve` and `conductor`.
+Host Binding: `run-agent serve` source code (`cmd/run-agent/serve.go`) defaults to `0.0.0.0` (all interfaces), as confirmed in recent code audits. `port=14355` is the canonical default for both `run-agent serve` and `conductor`.
 
 [2026-02-24 08:55:00] [tags: reconciliation, architecture, subsystems]
 Subsystem Count: The current architecture consists of 16 documented subsystems (as detailed in `docs/dev/subsystems.md`), including core layers (Storage, Config, Message Bus, Agent Protocol/Backends, Runner), API/UI components, and specific CLI command implementations.

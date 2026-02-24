@@ -27,10 +27,11 @@ For each iteration, submit 3 parallel sub-agents via `run-agent job` with distin
 ### Agent A (codex) — Auditor/Mover
 - Read all facts files, check for contradictions, verify newer > older priority
 - Move appropriate root-level `.md` files into `docs/` subfolders
+- If a source file is already absent from root and already present under `docs/`, treat it as already consolidated; do not recreate it at root.
 - Files to consider moving from root:
-  - `DEVELOPMENT.md` → `docs/dev/development.md`
-  - `ARCHITECTURE-REVIEW-SUMMARY.md` → `docs/dev/architecture-review.md`
-  - `DEPENDENCY_ANALYSIS.md` → `docs/dev/dependency-analysis.md`
+  - `DEVELOPMENT.md` → `docs/dev/development.md` (verify path + refs if already moved)
+  - `ARCHITECTURE-REVIEW-SUMMARY.md` → `docs/dev/architecture-review.md` (verify path + refs if already moved)
+  - `DEPENDENCY_ANALYSIS.md` → `docs/dev/dependency-analysis.md` (verify path + refs if already moved)
   - `IMPLEMENTATION-README.md` → `docs/dev/implementation-status.md`
   - `ISSUES.md` → `docs/dev/issues.md`
   - `QUESTIONS.md` → `docs/dev/questions.md`

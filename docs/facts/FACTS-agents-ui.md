@@ -217,7 +217,7 @@ UI Run Detail: default = output.md. Raw stdout/stderr via toggle. Prompt, stdout
 UI Start New Task flow: select existing project or type new. New project → prompt for source code folder (presets from config, expand `~` and env vars). Create/pick task ID. If task exists: attach/restart (default) or new with timestamp suffix. Prompt editor with autosave (local storage keyed by host + project + task). Submit: create dirs, write TASK.md, invoke `run-agent task` via backend API (no shell scripts).
 
 [2026-02-04 23:03:05] [tags: ui, monitoring]
-UI Message Bus view: most recent entries shown as header-only (click to expand). Threaded view via `parents[]` links. Post USER/ANSWER via backend (UI does NOT write files directly). Plain text rendering in MVP (no Markdown). `attachment_path` rendered as link/button.
+UI Message Bus view: most recent entries shown as header-only (click to expand). Threaded view via `parents[]` links. Post USER/ANSWER via backend (UI does NOT write files directly). Plain text rendering in MVP (no Markdown). `attachment_path` rendered as link/button (Note: `attachment_path` field is currently missing from the Go `Message` struct).
 
 [2026-02-04 23:03:05] [tags: ui, monitoring]
 UI Output & Logs: live streaming via SSE (WebSocket optional), 2s polling fallback. Single SSE endpoint streams all files line-by-line with header messages per file/run. Default tail: last 1MB or 5k lines; "Load more" for older chunks. stdout/stderr merged chronologically with stream tags + color coding. Filter toggle to isolate stderr. `output.md` is default render target; raw logs secondary.
@@ -229,7 +229,7 @@ UI Status indicators: semaphore-style badges per run. Stuck detection: warn afte
 UI state management: React Context + hooks (no Redux/Zustand in MVP). Build: npm/webpack. Dev: webpack-dev-server with proxy to Go backend.
 
 [2026-02-04 23:03:05] [tags: ui, monitoring]
-UI served by `run-agent serve` command. Defaults: host 0.0.0.0 (all interfaces), port 14355. (Legacy spec had port 8080 as default.)
+UI served by `run-agent serve` command. Defaults: host 0.0.0.0 (all interfaces), port 14355.
 [2026-02-24 08:30:00] [tags: ui, monitoring, correction]
 Host default is `0.0.0.0` (all interfaces), not `127.0.0.1`. Port `14355` is confirmed.
 
@@ -242,7 +242,7 @@ UI non-goals MVP: no remote multi-user access, no auth, no direct file editing, 
 
 [2026-02-04 23:03:05] [tags: ui, api]
 API base path: `/api/v1` (current spec). Legacy spec used `/api` without version prefix.
-Protocol: REST/JSON + Server-Sent Events (SSE). Format: JSON for REST, `text/event-stream` for SSE. Default port: 14355 (current); legacy spec: 8080.
+Protocol: REST/JSON + Server-Sent Events (SSE). Format: JSON for REST, `text/event-stream` for SSE. Default port: 14355 (current).
 
 [2026-02-04 23:03:05] [tags: ui, api]
 API health endpoints: `GET /api/v1/health` → `{"status": "ok"}`. `GET /api/v1/version` → `{"version": "v1"}`. Used by UI to validate backend host.

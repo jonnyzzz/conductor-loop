@@ -15,7 +15,7 @@ Conductor Loop is a Go-based multi-agent orchestration framework implementing th
 ## Code Style & Conventions
 
 ### Go Style
-- **Language**: Go 1.21+
+- **Language**: Go 1.24.0+
 - **Formatting**: Use `go fmt` and `gofmt` exclusively
 - **Linting**: Follow `golangci-lint` recommendations
 - **Package naming**: Lowercase, single-word names (e.g., `runner`, `storage`, `messagebus`)
