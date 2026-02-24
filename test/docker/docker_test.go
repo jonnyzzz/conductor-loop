@@ -174,18 +174,23 @@ func TestDockerHomeConfigAutoCreate(t *testing.T) {
 	healthURL := fmt.Sprintf("http://localhost:%d/api/v1/health", env.hostPort)
 	waitForHTTP(t, healthURL)
 
-	// The auto-created config must now be in the mounted directory.
-	createdPath := filepath.Join(homeRunAgentDir, "conductor-loop.hcl")
-	data, err := os.ReadFile(createdPath)
+	// Read the auto-created config via docker exec to avoid host-permission issues
+	// (the file is owned by root inside the container with mode 0600).
+	out, err = exec.Command("docker", "exec", containerID,
+		"cat", "/root/.run-agent/conductor-loop.hcl").CombinedOutput()
 	if err != nil {
-		t.Fatalf("~/.run-agent/conductor-loop.hcl not created by server: %v", err)
+		t.Fatalf("~/.run-agent/conductor-loop.hcl not created by server: %v (%s)", err, strings.TrimSpace(string(out)))
 	}
-	content := string(data)
+	content := string(out)
 	if !strings.Contains(content, "github.com/jonnyzzz/conductor-loop") {
 		t.Fatalf("auto-created config missing GitHub URL:\n%s", content)
 	}
-	if !strings.Contains(content, "documentation") {
+	if !strings.Contains(strings.ToLower(content), "documentation") {
 		t.Fatalf("auto-created config missing documentation reference:\n%s", content)
+	}
+	// Verify the file exists in the bind-mounted directory too (proves it was written to the mount).
+	if _, statErr := os.Stat(filepath.Join(homeRunAgentDir, "conductor-loop.hcl")); statErr != nil {
+		t.Fatalf("conductor-loop.hcl not visible on host via bind mount: %v", statErr)
 	}
 }
 

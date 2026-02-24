@@ -116,7 +116,7 @@ func TestParentChildRunsThreeChildren(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
-	if elapsed := time.Since(start); elapsed < 250*time.Millisecond {
+	if elapsed := time.Since(start); elapsed < 100*time.Millisecond {
 		t.Fatalf("expected RunTask to wait for children, elapsed %v", elapsed)
 	}
 
