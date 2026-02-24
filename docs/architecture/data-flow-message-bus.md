@@ -110,6 +110,36 @@ Components:
 - process id modulo 100000 (5 digits)
 - atomic per-process sequence modulo 10000 (4 digits)
 
+### Concurrency Model Diagram 
+
+```text 
+    WRITER (Agent/Runner)              READER (CLI/API/UI) 
+   +---------------------+            +---------------------+ 
+   |  Generate Msg ID    |            |                     | 
+   +----------+----------+            |                     | 
+              |                       |                     | 
+   +----------v----------+            |                     | 
+   | Open O_APPEND       |            |                     | 
+   +----------+----------+            |                     | 
+              |                       |                     | 
+   +----------v----------+            +----------v----------+ 
+   | flock (EXCLUSIVE)   |            |  open (READ_ONLY)   | 
+   | [Blocks other wrtr] <------------+  [Lockless on Unix] | 
+   +----------+----------+            +----------+----------+ 
+              |                       |                     | 
+   +----------v----------+            +----------v----------+ 
+   |  Write YAML Entry   |            | Read From Offset    | 
+   +----------+----------+            +----------+----------+ 
+              |                       |                     | 
+   +----------v----------+            +----------v----------+ 
+   |  Optional fsync()   |            |  Parse YAML Docs    | 
+   +----------+----------+            +---------------------+ 
+              | 
+   +----------v----------+ 
+   |  unlock & close     | 
+   +---------------------+ 
+``` 
+
 ## Read paths (lockless reads)
 
 All three read APIs do not acquire bus locks explicitly. They open/read files directly.
