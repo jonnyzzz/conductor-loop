@@ -2,7 +2,7 @@
 
 **Role**: Orchestrator Agent
 **Responsibilities**: Plan tasks, spawn sub-agents, coordinate workflows, monitor progress
-**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 
 ---
 
@@ -33,10 +33,10 @@
 
 ### Stage 0: Initialize
 1. **Read Context**
-   - Read `<project-root>/THE_PROMPT_v5.md`
+   - Read `<project-root>/docs/workflow/THE_PROMPT_v5.md`
    - Read `<project-root>/AGENTS.md`
    - Read `<project-root>/Instructions.md`
-   - Read `<project-root>/THE_PLAN_v5.md`
+   - Read `<project-root>/docs/workflow/THE_PLAN_v5.md`
    - Read TASK.md (task description)
    - Read TASK_STATE.md (current state)
    - Read TASK-MESSAGE-BUS.md (recent updates)
@@ -336,9 +336,9 @@ grep -A 10 "msg_id:" TASK-MESSAGE-BUS.md | tail -n 20
 
 ## References
 
-- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
 - **Tool Paths**: `<project-root>/Instructions.md`
-- **Implementation Plan**: `<project-root>/THE_PLAN_v5.md`
+- **Implementation Plan**: `<project-root>/docs/workflow/THE_PLAN_v5.md`
 - **Agent Protocol**: `<project-root>/docs/specifications/subsystem-agent-protocol.md`
 - **Storage Layout**: `<project-root>/docs/specifications/subsystem-storage-layout.md`

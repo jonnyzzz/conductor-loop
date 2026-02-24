@@ -3,8 +3,8 @@
 ## FIRST: Read your operating manuals
 
 ```bash
-cat /Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md
-cat /Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5_orchestrator.md
+cat /Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5.md
+cat /Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5_orchestrator.md
 cat /Users/jonnyzzz/Work/jonnyzzz.com-src/RLM.md
 ```
 

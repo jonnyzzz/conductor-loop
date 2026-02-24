@@ -20,7 +20,7 @@ Newer information overrides older. The author is always Eugene Petrenko (eugene.
 For each file below, run `git log -- <file>` to get all commits, then read key revisions using `git show <sha>:<file>` to trace evolution. Use `git log -p -- <file>` for diff history.
 
 ### Primary files:
-- `/Users/jonnyzzz/Work/conductor-loop/THE_PLAN_v5.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PLAN_v5.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/dev/architecture-review.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/dev/dependency-analysis.md`
 - `/Users/jonnyzzz/Work/conductor-loop/IMPLEMENTATION-README.md`
@@ -41,7 +41,7 @@ For each file below, run `git log -- <file>` to get all commits, then read key r
 
 ## Instructions
 
-1. Run `cd /Users/jonnyzzz/Work/conductor-loop && git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- THE_PLAN_v5.md docs/dev/architecture-review.md docs/dev/dependency-analysis.md docs/decisions/ docs/dev/architecture.md docs/dev/ralph-loop.md docs/dev/subsystems.md` to get the commit list
+1. Run `cd /Users/jonnyzzz/Work/conductor-loop && git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/workflow/THE_PLAN_v5.md THE_PLAN_v5.md docs/dev/architecture-review.md docs/dev/dependency-analysis.md docs/decisions/ docs/dev/architecture.md docs/dev/ralph-loop.md docs/dev/subsystems.md` to get the commit list
 
 2. For each significant commit, read the file state at that commit with `git show <sha>:<file>`
 

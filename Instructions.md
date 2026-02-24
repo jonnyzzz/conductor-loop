@@ -34,8 +34,8 @@ conductor-loop/
 │   └── decisions/              # Architecture decisions
 ├── runs/                       # Active agent runs (local dev)
 ├── prompts/                    # Task prompt files
-├── THE_PROMPT_v5.md            # Workflow document
-├── THE_PLAN_v5.md              # Implementation plan
+├── docs/workflow/THE_PROMPT_v5.md  # Workflow document (moved)
+├── docs/workflow/THE_PLAN_v5.md   # Implementation plan (moved)
 ├── AGENTS.md                   # Agent conventions (this file's companion)
 ├── Instructions.md             # This file
 ├── MESSAGE-BUS.md              # Project message bus
@@ -662,7 +662,7 @@ git checkout -b feat/my-feature
 
 # Read project conventions
 cat AGENTS.md
-cat THE_PLAN_v5.md
+cat docs/workflow/THE_PLAN_v5.md
 ```
 
 ### 2. Make Changes
@@ -792,8 +792,8 @@ go tool pprof mem.prof
 
 ## References
 
-- **Workflow Document**: `<project-root>/THE_PROMPT_v5.md`
-- **Implementation Plan**: `<project-root>/THE_PLAN_v5.md`
+- **Workflow Document**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
+- **Implementation Plan**: `<project-root>/docs/workflow/THE_PLAN_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
 - **Specifications**: `<project-root>/docs/specifications/`
 - **Architecture Decisions**: `<project-root>/docs/decisions/`

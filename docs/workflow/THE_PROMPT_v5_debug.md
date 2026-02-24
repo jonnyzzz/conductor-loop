@@ -2,7 +2,7 @@
 
 **Role**: Debug Agent
 **Responsibilities**: Diagnose failures, root cause analysis, bug fixes, verification
-**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 
 ---
 
@@ -590,7 +590,7 @@ ok      github.com/jonnyzzz/conductor-loop/pkg/messagebus       0.456s
 
 ## References
 
-- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
 - **Tool Paths**: `<project-root>/Instructions.md`
 - **Delve Debugger**: https://github.com/go-delve/delve

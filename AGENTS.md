@@ -476,8 +476,8 @@ ln, err := net.Listen("tcp", ":8080")
 
 ## References
 
-- **Workflow**: `<project-root>/THE_PROMPT_v5.md`
-- **Plan**: `<project-root>/THE_PLAN_v5.md`
+- **Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
+- **Plan**: `<project-root>/docs/workflow/THE_PLAN_v5.md`
 - **Specifications**: `<project-root>/docs/specifications/`
 - **Decisions**: `<project-root>/docs/decisions/`
 - **Agent Protocol**: `<project-root>/docs/specifications/subsystem-agent-protocol.md`

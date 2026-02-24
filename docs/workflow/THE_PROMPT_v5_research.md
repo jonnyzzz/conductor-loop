@@ -2,7 +2,7 @@
 
 **Role**: Research Agent
 **Responsibilities**: Explore codebase, analyze patterns, gather information, provide recommendations
-**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 
 ---
 
@@ -343,9 +343,9 @@ grep -A 5 "FACT\|DECISION" TASK-MESSAGE-BUS.md | tail -20
 
 ## References
 
-- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
 - **Tool Paths**: `<project-root>/Instructions.md`
-- **Implementation Plan**: `<project-root>/THE_PLAN_v5.md`
+- **Implementation Plan**: `<project-root>/docs/workflow/THE_PLAN_v5.md`
 - **Specifications**: `<project-root>/docs/specifications/`
 - **Decisions**: `<project-root>/docs/decisions/`

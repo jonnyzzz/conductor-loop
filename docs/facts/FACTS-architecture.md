@@ -1,7 +1,7 @@
 # Architecture & Core Design Facts
 
 Validated against source code and git history in:
-`cmd/`, `internal/`, `docs/dev/`, `THE_PLAN_v5.md`, `docs/dev/architecture-review.md`,
+`cmd/`, `internal/`, `docs/dev/`, `docs/workflow/THE_PLAN_v5.md`, `docs/dev/architecture-review.md`,
 `docs/dev/dependency-analysis.md`, and `docs/swarm/docs/legacy/*`.
 
 ---
@@ -192,10 +192,10 @@ Optional webhook notifications are implemented for `run_stop` events with async 
 `docs/dev/architecture.md` and `docs/dev/subsystems.md` still contain stale claims (for example "conductor is a deprecated alias" and outdated code/test counts) that no longer match current source code.
 
 [2026-02-04 23:03:05] [tags: architecture, history, plan]
-`THE_PLAN_v5.md` initial revision defines 8 core subsystems and the original multi-phase architecture plan.
+`docs/workflow/THE_PLAN_v5.md` initial revision defines 8 core subsystems and the original multi-phase architecture plan.
 
 [2026-02-20 22:24:09] [tags: architecture, history, plan]
-`THE_PLAN_v5.md` has two revisions in this repository (`2026-02-04` and `2026-02-20`), with the document still representing planning-phase architecture context.
+`docs/workflow/THE_PLAN_v5.md` has two revisions in this repository (`2026-02-04` and `2026-02-20`), with the document still representing planning-phase architecture context.
 
 [2026-02-04 23:17:00] [tags: architecture, history, dependencies]
 `docs/dev/dependency-analysis.md` has a single revision and documents the original 8-subsystem DAG and critical path rationale from planning.

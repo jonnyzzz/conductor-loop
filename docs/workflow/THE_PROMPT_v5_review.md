@@ -2,7 +2,7 @@
 
 **Role**: Review Agent
 **Responsibilities**: Code review, quality checks, provide structured feedback
-**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 **Quorum Requirement**: 2+ agents for non-trivial/multi-line changes
 
 ---
@@ -445,7 +445,7 @@ When multiple review agents are used:
 
 ## References
 
-- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
 - **Tool Paths**: `<project-root>/Instructions.md`
 - **Go Code Review Comments**: https://go.dev/wiki/CodeReviewComments

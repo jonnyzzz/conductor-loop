@@ -221,7 +221,7 @@ wait   # synthesize after all complete
 ```
 
 See `docs/user/rlm-orchestration.md` for the full guide with templates.
-See `THE_PROMPT_v5.md` and `THE_PROMPT_v5_orchestrator.md` for role-prompt conventions.
+See `docs/workflow/THE_PROMPT_v5.md` and `docs/workflow/THE_PROMPT_v5_orchestrator.md` for role-prompt conventions.
 
 ---
 

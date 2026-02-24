@@ -11,7 +11,7 @@ This bundle is based on:
 - `run-agent --help` and subcommand help (`task`, `job`, `watch`, `status`, `output`, `bus`, `server`)
 - `docs/user/cli-reference.md`
 - `docs/user/rlm-orchestration.md`
-- `THE_PROMPT_v5.md`
+- `docs/workflow/THE_PROMPT_v5.md`
 - `artifacts/context/RLM.md`
 
 Current CLI coverage is good for single-command operations (`job submit`, `watch`, `status`, `output`, `bus`), but coordinators still rely on shell scripts for multi-step project-goal orchestration.

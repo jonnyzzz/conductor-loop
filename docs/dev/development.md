@@ -131,7 +131,7 @@ chmod 600 ~/.config/openai/token
    # Read project conventions
    cat AGENTS.md
    cat Instructions.md
-   cat THE_PLAN_v5.md
+   cat docs/workflow/THE_PLAN_v5.md
    ```
 
 2. **Create Branch**
@@ -448,7 +448,7 @@ mkdir -p test/agent/integration
 # Write test
 
 # 5. Update documentation
-# Add to THE_PLAN_v5.md
+# Add to docs/workflow/THE_PLAN_v5.md
 # Add to AGENTS.md
 ```
 
@@ -603,7 +603,7 @@ go test -bench=. -benchmem ./pkg/messagebus/
 
 ### Getting Help
 
-- Read THE_PROMPT_v5.md for workflow
+- Read docs/workflow/THE_PROMPT_v5.md for workflow
 - Read AGENTS.md for conventions
 - Check docs/specifications/ for details
 - Search existing code for patterns
@@ -615,10 +615,10 @@ go test -bench=. -benchmem ./pkg/messagebus/
 ## Resources
 
 ### Documentation
-- [THE_PROMPT_v5.md](../../THE_PROMPT_v5.md) - Workflow document
+- [THE_PROMPT_v5.md](../../docs/workflow/THE_PROMPT_v5.md) - Workflow document
 - [AGENTS.md](../../AGENTS.md) - Agent conventions and ownership
 - [Instructions.md](../../Instructions.md) - Tool paths and commands
-- [THE_PLAN_v5.md](../../THE_PLAN_v5.md) - Implementation plan
+- [THE_PLAN_v5.md](../../docs/workflow/THE_PLAN_v5.md) - Implementation plan
 - [docs/specifications/](../../docs/specifications/) - Subsystem specifications
 - [docs/decisions/](../../docs/decisions/) - Architecture decisions
 

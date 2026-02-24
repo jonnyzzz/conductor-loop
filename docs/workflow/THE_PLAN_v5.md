@@ -408,7 +408,7 @@ Project ready when:
 
 - Specifications: `docs/specifications/subsystem-*.md`
 - Decisions: `docs/decisions/CRITICAL-PROBLEMS-RESOLVED.md`
-- Workflow: `THE_PROMPT_v5.md`
+- Workflow: `docs/workflow/THE_PROMPT_v5.md`
 - Repository: https://github.com/jonnyzzz/conductor-loop
 
 ---

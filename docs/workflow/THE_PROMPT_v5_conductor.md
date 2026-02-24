@@ -1,7 +1,7 @@
 # THE_PROMPT_v5 — Conductor Loop Edition
 
 Conductor-loop-specific orchestration methodology for agents running inside
-the Ralph loop. For the general orchestration workflow, see `THE_PROMPT_v5.md`.
+the Ralph loop. For the general orchestration workflow, see `docs/workflow/THE_PROMPT_v5.md`.
 
 ---
 
@@ -124,6 +124,6 @@ curl "$CONDUCTOR_URL/metrics"
 ## References
 
 - `AGENTS.md` — project conventions, commit format, testing policy
-- `THE_PROMPT_v5.md` — general orchestration methodology
-- `THE_PLAN_v5.md` — current execution plan
+- `docs/workflow/THE_PROMPT_v5.md` — general orchestration methodology
+- `docs/workflow/THE_PLAN_v5.md` — current execution plan
 - `docs/specifications/` — subsystem specifications

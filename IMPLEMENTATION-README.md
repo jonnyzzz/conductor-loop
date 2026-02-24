@@ -44,8 +44,8 @@ conductor-loop/
 │   └── decisions/          # Design decisions
 ├── prompts/                # Task prompts (auto-generated)
 ├── runs/                   # Agent execution logs
-├── THE_PLAN_v5.md          # Comprehensive implementation plan
-├── THE_PROMPT_v5.md        # Workflow guidelines
+├── docs/workflow/THE_PLAN_v5.md    # Comprehensive implementation plan (moved)
+├── docs/workflow/THE_PROMPT_v5.md  # Workflow guidelines (moved)
 ├── run-agent.sh            # Agent execution script
 └── run-all-tasks.sh        # Parallel orchestration script (⭐ MAIN SCRIPT)
 ```
@@ -56,7 +56,7 @@ conductor-loop/
 
 ### 1. Review the Plan
 
-Read `THE_PLAN_v5.md` to understand the full implementation strategy:
+Read `docs/workflow/THE_PLAN_v5.md` to understand the full implementation strategy:
 - 7 phases with 30+ tasks
 - Parallel execution strategy
 - Success criteria for each phase
@@ -364,8 +364,8 @@ Project ready when:
 - **Planning Documentation**: ~/Work/jonnyzzz-ai-coder/swarm/
 - **Original Specifications**: docs/specifications/
 - **Design Decisions**: docs/decisions/
-- **Implementation Plan**: THE_PLAN_v5.md
-- **Workflow Guide**: THE_PROMPT_v5.md
+- **Implementation Plan**: docs/workflow/THE_PLAN_v5.md
+- **Workflow Guide**: docs/workflow/THE_PROMPT_v5.md
 
 ---
 

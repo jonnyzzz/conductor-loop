@@ -262,16 +262,16 @@ $BUS_POST --type FACT --body "VERIFY: build + tests pass"
 ## Role Prompts
 
 Each sub-agent should start from a role prompt file that includes its specific scope.
-The canonical role files are in the conductor-loop project root:
+The canonical role files are in `docs/workflow/` in the conductor-loop project root:
 
 | Role file | Purpose |
 |---|---|
-| `THE_PROMPT_v5_orchestrator.md` | Root agent: plans and delegates |
-| `THE_PROMPT_v5_research.md` | Read-only: explores and summarises |
-| `THE_PROMPT_v5_implementation.md` | Writes code, runs tests, commits |
-| `THE_PROMPT_v5_review.md` | Reviews changes (quorum: 2+ agents) |
-| `THE_PROMPT_v5_test.md` | Runs and verifies tests |
-| `THE_PROMPT_v5_debug.md` | Root-causes failures and fixes |
+| `docs/workflow/THE_PROMPT_v5_orchestrator.md` | Root agent: plans and delegates |
+| `docs/workflow/THE_PROMPT_v5_research.md` | Read-only: explores and summarises |
+| `docs/workflow/THE_PROMPT_v5_implementation.md` | Writes code, runs tests, commits |
+| `docs/workflow/THE_PROMPT_v5_review.md` | Reviews changes (quorum: 2+ agents) |
+| `docs/workflow/THE_PROMPT_v5_test.md` | Runs and verifies tests |
+| `docs/workflow/THE_PROMPT_v5_debug.md` | Root-causes failures and fixes |
 
 When writing a sub-task prompt, copy the relevant role file verbatim and append
 task-specific instructions at the bottom.  Always use **absolute paths** for any
@@ -321,8 +321,8 @@ task-specific instructions at the bottom.  Always use **absolute paths** for any
 ## Further Reading
 
 - [RLM paper (arXiv)](https://arxiv.org/abs/2512.24601) — Zhang, Kraska, Khattab (MIT CSAIL)
-- `THE_PROMPT_v5.md` — full orchestration workflow and role-prompt conventions
-- `THE_PROMPT_v5_orchestrator.md` — root-agent role prompt
+- `docs/workflow/THE_PROMPT_v5.md` — full orchestration workflow and role-prompt conventions
+- `docs/workflow/THE_PROMPT_v5_orchestrator.md` — root-agent role prompt
 - `AGENTS.md` — project conventions, commit format, message bus protocol
 - `CLAUDE.md` — quick reference for agents running inside conductor-loop
 - [CLI Reference](cli-reference.md) — all `run-agent` flags

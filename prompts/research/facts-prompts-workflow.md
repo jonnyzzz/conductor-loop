@@ -16,15 +16,15 @@ Each fact entry MUST follow this exact format:
 ## Files to Research
 
 ### Primary workflow files (ALL revisions):
-- `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
-- `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5_conductor.md`
-- `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5_orchestrator.md`
-- `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5_implementation.md`
-- `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5_research.md`
-- `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5_review.md`
-- `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5_test.md`
-- `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5_monitor.md`
-- `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5_debug.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5_conductor.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5_orchestrator.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5_implementation.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5_research.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5_review.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5_test.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5_monitor.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5_debug.md`
 
 ### Configuration & conventions:
 - `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
@@ -43,7 +43,7 @@ Each fact entry MUST follow this exact format:
 ## Instructions
 
 1. For each file, get ALL revisions:
-   `cd /Users/jonnyzzz/Work/conductor-loop && git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- THE_PROMPT_v5.md THE_PROMPT_v5_conductor.md THE_PROMPT_v5_orchestrator.md AGENTS.md CLAUDE.md Instructions.md`
+   `cd /Users/jonnyzzz/Work/conductor-loop && git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/workflow/THE_PROMPT_v5.md docs/workflow/THE_PROMPT_v5_conductor.md docs/workflow/THE_PROMPT_v5_orchestrator.md AGENTS.md CLAUDE.md Instructions.md`
 
 2. Read each revision to see how the methodology evolved
 

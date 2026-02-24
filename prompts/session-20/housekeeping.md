@@ -63,7 +63,7 @@ Count the actual issues in each category and update the table if it's wrong. Als
 
 ### Task 4: Check THE_PLAN_v5.md for remaining work
 
-Read `/Users/jonnyzzz/Work/conductor-loop/THE_PLAN_v5.md` and identify:
+Read `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PLAN_v5.md` and identify:
 1. Any stages/tasks that are marked as incomplete but are actually done
 2. Add a brief status summary at the end of the file: "Stage N: COMPLETE (as of 2026-02-20)"
 

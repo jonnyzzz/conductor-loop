@@ -221,7 +221,7 @@ Critical Path: Phase 3 (Runner Orchestration, 30h sequential)
    - Phase 4b: ui-frontend sequential after API (12h)
    - Alternative: Keep parallel IF API spec frozen + mandatory integration tests
 
-3. **Update THE_PLAN_v5.md**:
+3. **Update docs/workflow/THE_PLAN_v5.md**:
    - Document corrected phase ordering
    - Add Phase 0.5 for research tasks
    - Add explicit cross-phase prerequisites
@@ -270,7 +270,7 @@ Critical Path: Phase 3 (Runner Orchestration, 30h sequential)
 
 ---
 
-## Action Items for THE_PLAN_v5.md Update
+## Action Items for docs/workflow/THE_PLAN_v5.md Update
 
 ### Section Updates Required:
 
@@ -362,7 +362,7 @@ Critical Path: Phase 3 (Runner Orchestration, 30h sequential)
 ## Files Requiring Updates
 
 ### Critical (Must Update Before Phase 1):
-1. **THE_PLAN_v5.md** - Phase ordering corrections
+1. **docs/workflow/THE_PLAN_v5.md** - Phase ordering corrections
 2. **docs/specifications/subsystem-message-bus-tools.md** - Add concurrency section
 3. **docs/specifications/subsystem-runner-orchestration-config-schema.md** - Config schema fixes
 4. **README.md** - Add Windows platform statement
@@ -417,7 +417,7 @@ The conductor-loop architecture is **fundamentally sound** with **comprehensive 
 **Overall Assessment**: **READY FOR IMPLEMENTATION AFTER REORDERING**
 
 **Recommended Next Steps**:
-1. Update THE_PLAN_v5.md with corrected phase ordering
+1. Update docs/workflow/THE_PLAN_v5.md with corrected phase ordering
 2. Add message bus concurrency section to specification
 3. Make Windows platform support decision (support vs unsupported)
 4. Proceed with Phase 0 (Bootstrap) → Phase 0.5 (Research) → Phase 1 (Infrastructure)

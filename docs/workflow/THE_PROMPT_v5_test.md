@@ -2,7 +2,7 @@
 
 **Role**: Test Agent
 **Responsibilities**: Run tests, verify functionality, report results, measure coverage
-**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 
 ---
 
@@ -537,7 +537,7 @@ func TestConcurrent(t *testing.T) {
 
 ## References
 
-- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
 - **Tool Paths**: `<project-root>/Instructions.md`
 - **Go Testing**: https://go.dev/doc/tutorial/add-a-test

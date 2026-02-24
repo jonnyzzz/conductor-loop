@@ -1,6 +1,6 @@
 # FACTS: Prompts, Workflow & Methodology
 
-Extracted from all revisions of THE_PROMPT_v5.md, role prompt files, AGENTS.md, CLAUDE.md, Instructions.md, and rlm-orchestration.md.
+Extracted from all revisions of docs/workflow/THE_PROMPT_v5.md, role prompt files, AGENTS.md, CLAUDE.md, Instructions.md, and rlm-orchestration.md.
 
 ---
 
@@ -35,7 +35,7 @@ Monitor Agent CWD is project root or runs directory. No Edit/Write for source fi
 
 ---
 
-## Workflow Stages (THE_PROMPT_v5.md — Required Development Flow)
+## Workflow Stages (docs/workflow/THE_PROMPT_v5.md — Required Development Flow)
 
 [2026-02-04 23:03:05] [tags: workflow, stages, orchestrator]
 The Required Development Flow defines 13 agent stages (Stage 0–12). Any failure must be logged to MESSAGE-BUS (and docs/dev/issues.md if blocking). Flow restarts from beginning or from a root-selected stage as appropriate.
@@ -81,10 +81,10 @@ Stage 12 (Monitor and apply fixes): Monitor preflight and review results, apply 
 
 ---
 
-## Orchestrator Workflow Stages (THE_PROMPT_v5_orchestrator.md)
+## Orchestrator Workflow Stages (docs/workflow/THE_PROMPT_v5_orchestrator.md)
 
 [2026-02-04 23:16:56] [tags: workflow, orchestrator, stage-0-init]
-Orchestrator Stage 0 (Initialize): Read context (THE_PROMPT_v5.md, AGENTS.md, etc.), assess situation (DONE/blockers), update TASK_STATE.md, post PROGRESS.
+Orchestrator Stage 0 (Initialize): Read context (docs/workflow/THE_PROMPT_v5.md, AGENTS.md, etc.), assess situation (DONE/blockers), update TASK_STATE.md, post PROGRESS.
 
 [2026-02-04 23:16:56] [tags: workflow, orchestrator, stage-1-plan]
 Orchestrator Stage 1 (Plan Execution Strategy): Identify independent vs. dependent subtasks. Write focused prompt files with absolute paths, expected outputs, success criteria, and appropriate CWD.

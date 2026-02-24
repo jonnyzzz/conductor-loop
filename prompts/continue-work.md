@@ -8,10 +8,10 @@ This is a Go-based multi-agent orchestration framework implementing the Ralph Lo
 
 ## Required Reading (project-root-resolved paths — read ALL before acting)
 
-1. <project-root>/THE_PROMPT_v5.md — primary workflow and methodology
+1. <project-root>/docs/workflow/THE_PROMPT_v5.md — primary workflow and methodology
 2. <project-root>/AGENTS.md — agent conventions, code style, commit format, subsystem ownership
 3. <project-root>/Instructions.md — tool paths, build/test commands, repo structure
-4. <project-root>/THE_PLAN_v5.md — implementation plan with phases and task IDs
+4. <project-root>/docs/workflow/THE_PLAN_v5.md — implementation plan with phases and task IDs
 5. <project-root>/ISSUES.md — 20 open issues (6 CRITICAL, 7 HIGH, 6 MEDIUM, 2 LOW)
 6. <project-root>/QUESTIONS.md — 9 open design questions from 2026-02-20 session
 7. <project-root>/MESSAGE-BUS.md — project message bus with full history
@@ -76,7 +76,7 @@ Work through the 7 HIGH issues, prioritizing ISSUE-003 (Windows process groups),
 
 ## Working Plan
 
-You work fully independently following <project-root>/THE_PROMPT_v5.md and the RLM.md approach:
+You work fully independently following <project-root>/docs/workflow/THE_PROMPT_v5.md and the RLM.md approach:
 
 1. **You take decisions yourself** — do not wait for human input
 2. **You start sub-agent processes** via `<project-root>/run-agent.sh [claude|codex|gemini] <cwd> <prompt_file>` to research, validate, implement, review, and test
@@ -140,7 +140,7 @@ Or use the conductor REST API: `curl http://localhost:8080/api/v1/runs`
 
 ## Development Flow per Change
 
-Follow THE_PROMPT_v5.md Required Development Flow — each stage is a distinct agent:
+Follow docs/workflow/THE_PROMPT_v5.md Required Development Flow — each stage is a distinct agent:
 1. Stage 0: Cleanup — read MESSAGE-BUS, AGENTS, Instructions, ISSUES
 2. Stage 1: Read local docs
 3. Stage 2: Research task with multi-agent context (2+ parallel agents)

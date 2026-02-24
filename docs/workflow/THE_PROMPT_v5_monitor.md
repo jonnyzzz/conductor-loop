@@ -2,7 +2,7 @@
 
 **Role**: Monitor Agent
 **Responsibilities**: Watch agent runs, update status, detect issues, maintain run summaries
-**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 
 ---
 
@@ -441,7 +441,7 @@ This role complements `monitor-agents.py`:
 
 ## References
 
-- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
 - **Tool Paths**: `<project-root>/Instructions.md`
 - **Storage Layout**: `<project-root>/docs/specifications/subsystem-storage-layout.md`

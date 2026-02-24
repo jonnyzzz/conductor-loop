@@ -43,8 +43,8 @@ cat docs/dev/architecture.md
 # Read ralph loop doc
 cat docs/dev/ralph-loop.md
 
-# Read THE_PLAN_v5.md (all revisions)
-git log --format="%H %ad" --date=format:"%Y-%m-%d %H:%M:%S" -- THE_PLAN_v5.md | head -10
+# Read THE_PLAN_v5.md (all revisions — now at docs/workflow/)
+git log --format="%H %ad" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/workflow/THE_PLAN_v5.md THE_PLAN_v5.md | head -10
 # Then read first and latest revisions
 
 # Check ARCHITECTURE-REVIEW-SUMMARY.md

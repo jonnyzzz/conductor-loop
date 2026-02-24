@@ -2,7 +2,7 @@
 
 **Role**: Implementation Agent
 **Responsibilities**: Write code, modify files, implement features, follow conventions
-**Base Prompt**: `<project-root>/THE_PROMPT_v5.md`
+**Base Prompt**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 **Preferred Backend**: Codex (with IntelliJ MCP Steroid), fallback to Claude
 
 ---
@@ -455,9 +455,9 @@ go build ./...
 
 ## References
 
-- **Base Workflow**: `<project-root>/THE_PROMPT_v5.md`
+- **Base Workflow**: `<project-root>/docs/workflow/THE_PROMPT_v5.md`
 - **Agent Conventions**: `<project-root>/AGENTS.md`
 - **Tool Paths**: `<project-root>/Instructions.md`
-- **Implementation Plan**: `<project-root>/THE_PLAN_v5.md`
+- **Implementation Plan**: `<project-root>/docs/workflow/THE_PLAN_v5.md`
 - **Go Style Guide**: https://go.dev/doc/effective_go
 - **Project Patterns**: Examine `pkg/` and `internal/` for examples

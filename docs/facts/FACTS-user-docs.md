@@ -195,3 +195,6 @@ Go Version: Repository `go.mod` requires `go 1.24.0`. Documentation referencing 
 
 [2026-02-24 07:45:00] [tags: reconciliation, user-docs, config-path]
 Config Path: Runtime code uses `~/.config/conductor/` (and local `./config.*`). Documentation referencing `~/.conductor/` is outdated.
+
+[2026-02-24 08:30:00] [tags: reconciliation, workflow, prompts]
+Workflow prompt files moved: `THE_PROMPT_v5*.md` and `THE_PLAN_v5.md` moved from root to `docs/workflow/`. CLI code references to root paths (e.g. `internal/runner/orchestrator.go` help text injection) are now stale and need update.

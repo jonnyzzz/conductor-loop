@@ -21,21 +21,21 @@ Format:
 ```bash
 cd /Users/jonnyzzz/Work/conductor-loop
 
-# Get full history of THE_PROMPT_v5.md
-git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- THE_PROMPT_v5.md
+# Get full history of THE_PROMPT_v5.md (now at docs/workflow/)
+git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/workflow/THE_PROMPT_v5.md THE_PROMPT_v5.md
 
 # Read EVERY revision to track evolution
-for sha in $(git log --format="%H" -- THE_PROMPT_v5.md); do
+for sha in $(git log --format="%H" -- docs/workflow/THE_PROMPT_v5.md THE_PROMPT_v5.md); do
   date=$(git log -1 --format="%ad" --date=format:"%Y-%m-%d %H:%M:%S" $sha)
   echo "=== $sha $date ==="
-  git show $sha:THE_PROMPT_v5.md | grep -E "^##|Stage [0-9]|Priority|Max [0-9]|MUST NOT|CRITICAL|Quality Gate" | head -20
+  git show $sha:docs/workflow/THE_PROMPT_v5.md 2>/dev/null || git show $sha:THE_PROMPT_v5.md 2>/dev/null | grep -E "^##|Stage [0-9]|Priority|Max [0-9]|MUST NOT|CRITICAL|Quality Gate" | head -20
 done
 
 # Read current full THE_PROMPT_v5.md
-cat THE_PROMPT_v5.md
+cat docs/workflow/THE_PROMPT_v5.md
 
 # Read all specialized prompt variants
-for f in THE_PROMPT_v5_conductor.md THE_PROMPT_v5_orchestrator.md THE_PROMPT_v5_implementation.md THE_PROMPT_v5_research.md THE_PROMPT_v5_review.md THE_PROMPT_v5_test.md THE_PROMPT_v5_monitor.md THE_PROMPT_v5_debug.md; do
+for f in docs/workflow/THE_PROMPT_v5_conductor.md docs/workflow/THE_PROMPT_v5_orchestrator.md docs/workflow/THE_PROMPT_v5_implementation.md docs/workflow/THE_PROMPT_v5_research.md docs/workflow/THE_PROMPT_v5_review.md docs/workflow/THE_PROMPT_v5_test.md docs/workflow/THE_PROMPT_v5_monitor.md docs/workflow/THE_PROMPT_v5_debug.md; do
   echo "=== $f ==="
   git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- "$f" | head -3
   cat "$f" | grep -E "^##|Stage|Priority|constraint|must|MUST|max|Max" | head -20

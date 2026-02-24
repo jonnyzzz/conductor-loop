@@ -188,7 +188,7 @@ Split runner-orchestration into parallel components:
 - Reduces critical path from 7-10 days to 5-6 days (20-30% improvement)
 
 **Dependencies**:
-- THE_PLAN_v5.md updates
+- docs/workflow/THE_PLAN_v5.md updates
 - Phase 3 task decomposition
 
 **Resolution Notes** (2026-02-20, task-20260220-200003-runner-analysis):
@@ -254,7 +254,7 @@ Make infra-storage, infra-messagebus, infra-config ALL PARALLEL (no dependencies
 - Saves 1-2 days on critical path
 
 **Dependencies**:
-- THE_PLAN_v5.md updates
+- docs/workflow/THE_PLAN_v5.md updates
 
 **Resolution Notes** (2026-02-21, Session #25):
 
@@ -345,7 +345,7 @@ All integration smoke tests already implemented and passing:
 - internal/runner/process_test.go, test/unit/process_test.go: process management tests
 
 **Dependencies**:
-- THE_PLAN_v5.md updates
+- docs/workflow/THE_PLAN_v5.md updates
 - Test infrastructure setup
 
 ---
@@ -526,7 +526,7 @@ flock utilities from internal/messagebus/lock.go. File: internal/storage/atomic.
 **Blocking**: Integration testing
 
 **Description**:
-Runner has bidirectional data flow with Message Bus (writes START/STOP events AND reads for Ralph decisions), creating a runtime circular dependency not captured in THE_PLAN_v5.md phase ordering.
+Runner has bidirectional data flow with Message Bus (writes START/STOP events AND reads for Ralph decisions), creating a runtime circular dependency not captured in docs/workflow/THE_PLAN_v5.md phase ordering.
 
 **Impact**:
 - Integration testing may reveal timing issues
@@ -577,7 +577,7 @@ Phase 2 shows agent-protocol and all backends as fully parallel, but backends de
 - Exclude agent-xai from MVP (post-MVP only)
 
 **Dependencies**:
-- THE_PLAN_v5.md updates
+- docs/workflow/THE_PLAN_v5.md updates
 
 **Resolution Notes**:
 All implementations complete. Protocol is defined in internal/agent/ and backends in internal/agent/{claude,codex,gemini,perplexity,xai}/. The sequencing concern was a planning artifact — no rework occurred.
@@ -610,7 +610,7 @@ Stage 6b: Advanced Testing (PARALLEL, after 6a)
 ```
 
 **Dependencies**:
-- THE_PLAN_v5.md updates
+- docs/workflow/THE_PLAN_v5.md updates
 
 **Resolution Notes**:
 Integration tests in test/integration/ cover all subsystems: messagebus_concurrent_test.go, messagebus_test.go, orchestration_test.go, api_test.go, and more. Sub-phase structure was handled organically.
@@ -648,7 +648,7 @@ Add Phase 0.5: Walking Skeleton (3-4 days)
 - High confidence gain before full implementation
 
 **Dependencies**:
-- THE_PLAN_v5.md updates
+- docs/workflow/THE_PLAN_v5.md updates
 
 **Resolution Notes**:
 Architecture was validated via dog-food test in session #5: run-agent binary executed a real task, Ralph loop completed, REST API served runs. Walking skeleton concern was resolved through dog-food testing.
@@ -686,7 +686,7 @@ Extract all research into parallel "Research Sprint" (Stage 1.5):
 - Implementation proceeds with full knowledge
 
 **Dependencies**:
-- THE_PLAN_v5.md updates
+- docs/workflow/THE_PLAN_v5.md updates
 
 **Resolution Notes**:
 Research parallelization was achieved via the conductor-loop dog-food process: parallel sub-agents via ./bin/run-agent job across sessions #11-#24. No serial research bottleneck occurred.
@@ -995,7 +995,7 @@ New features implemented (from docs/dev/questions.md decisions):
 - **Risk Assessment**: Agent #3 findings (43 risks documented)
 - **Implementation Strategy**: Agent #4 findings
 - **Message Bus**: MESSAGE-BUS.md
-- **Implementation Plan**: THE_PLAN_v5.md
+- **Implementation Plan**: docs/workflow/THE_PLAN_v5.md
 - **Critical Decisions**: docs/decisions/CRITICAL-PROBLEMS-RESOLVED.md
 - **Specifications**: docs/specifications/
 

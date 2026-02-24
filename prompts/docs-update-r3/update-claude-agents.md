@@ -6,7 +6,7 @@ You are a documentation update agent (Round 3). Facts take priority over all exi
 
 1. `/Users/jonnyzzz/Work/conductor-loop/CLAUDE.md`
 2. `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md`
-3. `/Users/jonnyzzz/Work/conductor-loop/THE_PROMPT_v5.md`
+3. `/Users/jonnyzzz/Work/conductor-loop/docs/workflow/THE_PROMPT_v5.md`
 
 ## Facts sources (read ALL first)
 

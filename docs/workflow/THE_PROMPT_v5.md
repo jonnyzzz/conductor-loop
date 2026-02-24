@@ -31,13 +31,13 @@ Maintain a short list of recurring MCP/tool startup issues and required fallback
 ## Role-Specific Prompts (Required)
 Each agent run must use a dedicated role prompt file. Do not improvise or redefine roles.
 Recommended role files (relative to project root):
-- THE_PROMPT_v5_orchestrator.md
-- THE_PROMPT_v5_research.md
-- THE_PROMPT_v5_implementation.md
-- THE_PROMPT_v5_review.md
-- THE_PROMPT_v5_test.md
-- THE_PROMPT_v5_debug.md
-- THE_PROMPT_v5_monitor.md (status-loop prompt; agent may update when improving monitoring)
+- docs/workflow/THE_PROMPT_v5_orchestrator.md
+- docs/workflow/THE_PROMPT_v5_research.md
+- docs/workflow/THE_PROMPT_v5_implementation.md
+- docs/workflow/THE_PROMPT_v5_review.md
+- docs/workflow/THE_PROMPT_v5_test.md
+- docs/workflow/THE_PROMPT_v5_debug.md
+- docs/workflow/THE_PROMPT_v5_monitor.md (status-loop prompt; agent may update when improving monitoring)
 When creating a <RUNS_DIR>/run_XXX/prompt.md, copy the relevant role file verbatim and append task-specific instructions. Always use absolute paths for all .md file references inside the prompt so sub-agents do not search for files. If role prompt files do not exist, create them from the base template or map to existing versioned role prompts via a project-specific override, and log the decision to <MESSAGE_BUS>.
 
 ## Parallelism
@@ -165,15 +165,15 @@ Each bullet below is a distinct agent stage. The root agent selects the agent ty
 - <RUNS_DIR>/run_XXX/ contains prompt/log artifacts (prompt.md, agent-stdout.txt, agent-stderr.txt, cwd.txt; optional run.log).
 - MESSAGE-BUS.md is the main trace log; ISSUES.md is the blocker log.
 - FACTS.md (if used) records verified facts and decisions.
-- THE_PLAN.md (or THE_PLAN_v5.md) is the execution plan.
-- THE_PROMPT_v5.md is the primary entry point for new agents.
+- docs/workflow/THE_PLAN_v5.md is the execution plan.
+- docs/workflow/THE_PROMPT_v5.md is the primary entry point for new agents.
 
 ## References (Start Here)
 New agents should begin with:
-1. THE_PROMPT_v5.md (this file)
+1. docs/workflow/THE_PROMPT_v5.md (this file)
 2. AGENTS.md
 3. Instructions.md
-4. THE_PLAN.md (or THE_PLAN_v5.md)
+4. docs/workflow/THE_PLAN_v5.md
 5. A project development guide if present (for example, DEVELOPMENT-GUIDE.md)
 
 ## Tools and Access
@@ -186,7 +186,7 @@ New agents should begin with:
 If this template conflicts with the Required Development Flow, the Required Development Flow wins.
 
 ### Phase 0: Bootstrap
-1. Read AGENTS.md, Instructions.md, and the current plan (THE_PLAN.md or THE_PLAN_v5.md).
+1. Read AGENTS.md, Instructions.md, and the current plan (docs/workflow/THE_PLAN_v5.md).
 2. Create a new <RUNS_DIR>/run_XXX/ folder (via run-agent) and keep any extra orchestration notes there if needed.
 3. Log initial DECISIONs in MESSAGE-BUS.md.
 
