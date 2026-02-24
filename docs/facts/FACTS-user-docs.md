@@ -189,7 +189,10 @@ Latest docs-related commit in sampled history is `493ab3832d9e2c40bee1c0922cd2bd
 ## Reconciliation (2026-02-24)
 
 [2026-02-24 07:45:00] [tags: reconciliation, user-docs, port]
-Server Port: `run-agent serve` source defaults to `14355`. `bin/conductor` help currently shows default `8080`, which is a known drift in the binary build or help text generation. `14355` is the correct canonical default.
+Server Port: `run-agent serve` source defaults to `14355`. `14355` is the correct canonical default.
+
+[2026-02-24 09:50:00] [tags: reconciliation, user-docs, port, resolved]
+Binary drift resolved: `bin/conductor` rebuilt from source on 2026-02-24. `./bin/conductor --help` now shows `--port int ... (default 14355)` and includes all commands (`goal`, `monitor`, `workflow`). Binary-vs-source mismatch is no longer present.
 
 [2026-02-24 07:45:00] [tags: reconciliation, user-docs, iterate]
 `run-agent iterate`: Command is missing from `bin/run-agent` ("unknown command") despite task logs claiming implementation. This is a known discrepancy; the command is effectively unavailable in the current binary.

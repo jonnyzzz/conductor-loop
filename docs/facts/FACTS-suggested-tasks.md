@@ -49,10 +49,11 @@ Last updated: 2026-02-24 (iteration 5 synthesis: roadmap/tasks validated and nor
 - **Source**: conductor-loop docs/dev/todos.md
 - **prompt-file**: `prompts/tasks/fix-sse-cpu-hotspot.md`
 
-### Binary default port mismatch [P0]
+### ~~Binary default port mismatch~~ [RESOLVED 2026-02-24]
 - **ID**: `task-20260224-binary-port-mismatch`
-- **Description**: Built `./bin/conductor` reports default port `8080` while source defaults to `14355`. Reconcile binary vs. source discrepancy, document canonical default in CLI help and docs.
-- **Source**: `docs/facts/FACTS-user-docs.md` validation round 2 (formerly in "Newly Discovered")
+- **Status**: DONE — `bin/conductor` rebuilt from source; now reports `--port ... (default 14355)` and includes all commands.
+- **Description**: ~~Built `./bin/conductor` reports default port `8080` while source defaults to `14355`.~~ Resolved by rebuilding binary.
+- **Source**: `docs/facts/FACTS-user-docs.md` validation round 2
 - **prompt-file**: `prompts/tasks/fix-conductor-binary-port.md`
 
 ---
