@@ -342,8 +342,9 @@ Termination events (STOP, CRASH) are logged to the message bus by run-agent.
 [2026-02-04 23:03:05] [tags: runner, config, schema]
 Config file format: HCL (HashiCorp Configuration Language) version 2. File location: `~/run-agent/config.hcl` (global only in MVP). Encoding: UTF-8 without BOM.
 
-[2026-02-20 12:31:03] [tags: runner, config, schema]
+[2026-02-20 12:31:03] [tags: runner, config, schema, superseded]
 Q3 answered: HCL is the single source of truth. YAML config files are deprecated. `run-agent` defaults to `~/run-agent/config.hcl` when `--config` is omitted.
+*Update 2026-02-23*: This decision was reversed. YAML is now the primary format and takes precedence over HCL. HCL remains supported for backward compatibility.
 
 [2026-02-04 23:03:05] [tags: runner, config, schema]
 Required top-level blocks: `ralph`, `agent_selection`, `monitoring`, `delegation`. At least one `agent` block required.

@@ -165,7 +165,7 @@ xAI model selection: default `grok-4` unless overridden. User preference: "the l
 All agents: run-agent validates agent types on config load; unknown backends rejected immediately.
 
 [2026-02-04 23:03:05] [tags: agent-backend, all]
-Config format (authoritative): YAML (`config.yaml`), not HCL. Fields: `token` (inline) or `token_file` (path). Mutually exclusive. `@file` shorthand NOT supported. All backends follow same pattern.
+Config format (authoritative): YAML (`config.yaml`) takes precedence over HCL (`config.hcl`). Fields: `token` (inline) or `token_file` (path). Mutually exclusive. `@file` shorthand NOT supported. All backends follow same pattern.
 
 [2026-02-04 23:03:05] [tags: agent-backend, all]
 Token-to-env mapping (hardcoded in runner):
