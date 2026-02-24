@@ -35,7 +35,7 @@ cat cmd/run-agent/main.go | head -30
 cat cmd/conductor/main.go | head -20
 
 # Check git log for architecture files
-git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- THE_PLAN_v5.md ARCHITECTURE-REVIEW-SUMMARY.md DEPENDENCY_ANALYSIS.md docs/dev/architecture.md docs/dev/ralph-loop.md | head -30
+git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/workflow/THE_PLAN_v5.md THE_PLAN_v5.md ARCHITECTURE-REVIEW-SUMMARY.md DEPENDENCY_ANALYSIS.md docs/dev/architecture.md docs/dev/ralph-loop.md | head -30
 
 # Read the architecture doc
 cat docs/dev/architecture.md
