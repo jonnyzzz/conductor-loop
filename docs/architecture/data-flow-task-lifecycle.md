@@ -1,164 +1,107 @@
-# Task Lifecycle Data Flow
+# Data Flow: Task Lifecycle
 
-This page describes the task lifecycle implemented today, from task submission to project-scope completion propagation.
+This document describes the control and data flow for a task from submission through completion propagation.
 
-Implementation grounding:
-- `internal/runner/task.go`
-- `internal/runner/ralph.go`
-- `internal/runner/job.go`
-- `internal/runner/task_completion_propagation.go`
-- `internal/storage/runinfo.go`
-- `internal/storage/atomic.go`
+Grounded in:
+- `docs/facts/FACTS-runner-storage.md`
+- `docs/facts/FACTS-architecture.md`
 
-## End-to-End Sequence (ASCII)
+## Lifecycle Phases
+
+### 1. Submission
+
+A task enters the system through either:
+- CLI: `run-agent job ...`
+- API: `POST /tasks`
+
+At submission time, the runner resolves project/task directories under storage and reads task input from `TASK.md` (or creates it during task setup flows).
+
+### 2. Orchestration
+
+Task execution is coordinated by the Ralph loop:
+- The loop checks `<task>/DONE` before starting a root attempt.
+- If `DONE` is present, it does not start or restart the root agent.
+- If `DONE` is absent, it starts an attempt (subject to restart/time budget policy).
+
+This is the primary control gate: `DONE` controls loop continuation.
+
+### 3. Execution
+
+For each attempt, the runner performs run setup and agent execution:
+- Creates `runs/<run_id>/`.
+- Creates `run-info.yaml` with initial running state (`status=running`, `exit_code=-1`).
+- Spawns the agent process/backend.
+- Injects run context environment:
+  - `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`
+  - `MESSAGE_BUS`, `TASK_FOLDER`, `RUN_FOLDER`, `RUNS_DIR`
+
+During and after execution:
+- `run-info.yaml` is updated with final status/outcome (`completed` or `failed`).
+- Runner guarantees `output.md` exists by end of run.
+- Task message bus receives run lifecycle events (`RUN_START`, `RUN_STOP`/`RUN_CRASH`).
+
+### 4. Completion
+
+Completion signal is file-based:
+- The root agent writes `<task>/DONE` when task work is complete.
+- Ralph loop observes `DONE`, stops restarting root runs, and transitions toward shutdown.
+- If child runs are still active, the loop waits up to configured timeout before final exit.
+
+Operationally, a task is complete when `DONE` exists and child execution is no longer active.
+
+### 5. Propagation
+
+After Ralph loop exits, completion facts are propagated upward:
+- Runner synthesizes task-level facts and run outcomes.
+- It writes a project-scoped `FACT` message to `PROJECT-MESSAGE-BUS.md`.
+- Idempotency files/locks prevent duplicate propagation.
+- Propagation failures are logged on the task bus as `ERROR`, but do not re-open task execution.
+
+## Key Data Artifacts
+
+### `TASK.md` (input)
+- Canonical task prompt/instructions.
+- Read by runner/agent as the task contract.
+
+### `run-info.yaml` (run state; atomic updates)
+- Canonical per-run metadata (`run_id`, status, timing, exit, paths, lineage).
+- Persisted with atomic write semantics (temp file + `fsync` + rename).
+
+### `output.md` (result)
+- Canonical run/task result artifact.
+- Ensured by runner at the end of execution.
+
+### `DONE` (signal)
+- Empty marker file in the task directory.
+- Drives Ralph loop termination behavior and prevents further root restarts.
+
+## ASCII Sequence Diagram
 
 ```text
-submitter (CLI/API)     RunTask/task.go      taskdeps        RalphLoop        runJob/job.go        storage/*         agent backend      TASK-BUS        PROJECT-BUS
-       |                      |                 |                 |                 |                   |                  |               |                 |
-1.     | submit task -------->|                 |                 |                 |                   |                  |               |                 |
-2.     |                      | ensure TASK.md  |                 |                 |                   |                  |               |                 |
-3.     |                      | resolve deps -->| validate/ready? |                 |                   |                  |               |                 |
-4.     |                      |<----------------|                 |                 |                   |                  |               |                 |
-5.     |                      | wait until deps ready (or DONE already present)    |                   |                  |               |                 |
-6.     |                      |-------------------------------> NewRalphLoop()      |                   |                  |               |                 |
-7.     |                      |                                 check DONE?          |                   |                  |               |                 |
-8.     |                      |                                 start attempt #N --->| create run dir     |                  |               |                 |
-9.     |                      |                                                      | write run-info(running, exit=-1) ---->|              |                 |
-10.    |                      |                                                      | post RUN_START ------------------------------------->|                 |
-11.    |                      |                                                      | execute agent -------------------------------------->|                 |
-12.    |                      |                                                      |<-------------------------------------- stdout/stderr |
-13.    |                      |                                                      | update run-info(completed/failed) ---->|             |                 |
-14.    |                      |                                                      | ensure output.md (CreateOutputMD fallback)          |                 |
-15.    |                      |                                                      | post RUN_STOP/RUN_CRASH ---------------------------->|                 |
-16.    |                      |                                 check DONE again; restart only if DONE absent         |               |                 |
-17.    |                      | if DONE: stop restarts; wait active children if any |                   |                  |               |                 |
-18.    |                      | propagateTaskCompletionToProject() ---------------------------------------------------->| append FACT ------>|
-19.    |                      | task bus gets FACT/INFO/ERROR about propagation      |                   |                  |<--------------|                 |
+Submitter            Runner (RunTask/Ralph)       Storage                Agent               TASK Bus               PROJECT Bus
+    |                         |                      |                      |                    |                        |
+1.  | run-agent job /         |                      |                      |                    |                        |
+    | POST /tasks ----------> |                      |                      |                    |                        |
+2.  |                         | read TASK.md ------> |                      |                    |                        |
+3.  |                         | check DONE --------> | stat <task>/DONE     |                    |                        |
+4.  |                         | if DONE missing: start attempt               |                    |                        |
+5.  |                         | create run dir ----> | runs/<run_id>/        |                    |                        |
+6.  |                         | write run-info ----> | run-info.yaml(running)|                    |                        |
+7.  |                         | spawn + env --------------------------------> |                    |                        |
+8.  |                         |                     (JRUN_*, TASK_FOLDER, RUN_FOLDER, MESSAGE_BUS)                    |
+9.  |                         | post RUN_START -------------------------------------------------> |                        |
+10. |                         | <------------------- execution/output --------|                    |                        |
+11. |                         | update run-info ---> | run-info.yaml(final)  |                    |                        |
+12. |                         | ensure output.md --->| output.md              |                    |                        |
+13. |                         | post RUN_STOP/CRASH -------------------------------------------> |                        |
+14. |                         | check DONE again --->| stat <task>/DONE       |                    |                        |
+15. |                         | if DONE present: stop restart loop            |                    |                        |
+16. |                         | propagate completion FACT ---------------------------------------> | append FACT            |
+17. |                         | (on propagation error: log ERROR) -----------> |                    |                        |
 ```
 
-## 1. Submit Task
+## Control and Data Summary
 
-`RunTask(projectID, taskID, TaskOptions)` is the root entry point for task lifecycle orchestration.
-
-Key effects:
-- Resolves root/task directories and ensures task directory exists.
-- Resolves prompt from `TASK.md`, `--prompt`, or `--prompt-file`.
-- Persists `TASK.md` when missing and prompt is provided.
-- Opens task message bus (`TASK-MESSAGE-BUS.md`) for progress/fact/error messages.
-
-## 2. Dependency Gating
-
-Before entering Ralph loop, `RunTask` resolves dependencies and gates execution:
-- Reads/normalizes `depends_on` (`TASK-CONFIG.yaml`), optionally overriding from `TaskOptions.DependsOn`.
-- Validates no dependency cycle.
-- Polls unresolved dependencies via `taskdeps.BlockedBy(...)`.
-
-Dependency readiness (current implementation):
-- Ready if dependency task has `DONE`, or
-- Ready if dependency’s latest run is `completed` and no dependency run is currently `running`.
-
-While blocked, task bus receives `PROGRESS` updates (`task blocked by dependencies: ...`).
-When unblocked, task bus receives a `FACT` (`dependencies satisfied; starting task`).
-
-## 3. Ralph Loop and Restart Behavior
-
-`RalphLoop.Run()` controls retries/restarts.
-
-Core loop behavior:
-- Checks `DONE` before starting each attempt.
-- If `DONE` exists, it does not start a new root run.
-- Runs one root attempt via `runRoot(ctx, attempt)` (backed by `runJob`).
-- Re-checks `DONE` after attempt completion.
-- Stops with error if `maxRestarts` is exceeded.
-
-Restart/resume prompt prefix behavior:
-- `RestartPrefix` is: `Continue working on the following:\n\n`.
-- Prefix is added when:
-  - `attempt > 0` (retry), or
-  - `TaskOptions.ResumeMode == true` (even on first attempt in that invocation).
-- `previousRunID` is threaded across attempts and persisted in each run’s `run-info.yaml` as `previous_run_id`.
-
-## 4. Run Creation and Agent Execution
-
-Each attempt executes `runJob(...)`:
-- Allocates run directory under `<task>/runs/<run_id>` (`createRunDir`).
-- Uses preallocated run dir for the first attempt when provided (`TaskOptions.FirstRunDir`).
-- Writes prompt preamble into `prompt.md`.
-- Initializes `RunInfo` with `status=running`, `exit_code=-1`, path fields (`prompt_path`, `output_path`, `stdout_path`, `stderr_path`), IDs, agent type, and timing.
-
-Execution then diverges by backend type:
-- CLI agents (`claude`, `codex`, `gemini`): spawn process, stream stdout/stderr to files.
-- REST agents (`perplexity`, `xai`): execute backend adapter and finalize run info.
-
-Run events posted to task bus:
-- `RUN_START`
-- `RUN_STOP` on success
-- `RUN_CRASH` on failure
-
-## 5. `output.md` Guarantee and Fallback
-
-After agent execution, runner enforces `output.md` existence:
-- Parser helpers may generate `output.md` for stream-json agents.
-- `agent.CreateOutputMD(runDir, "")` is always called to guarantee file presence.
-- With empty fallback argument, `CreateOutputMD` copies from `agent-stdout.txt` if `output.md` is missing.
-- If `output.md` already exists, it is preserved.
-
-Effect: normal runs end with `output.md` available; if fallback copy cannot be done, the run returns an error (`ensure output.md` path).
-
-## 6. DONE Semantics and No-Restart-After-DONE
-
-`DONE` semantics are file-based:
-- Valid marker is a file at `<taskDir>/DONE`.
-- `DONE` as a directory is treated as an error.
-
-No-restart guarantees:
-- Dependency wait loop exits early if task already has `DONE`.
-- Ralph loop checks `DONE` before any new attempt; if present, root runner is not called.
-- Ralph loop also checks `DONE` after each attempt, so a run that creates `DONE` immediately blocks further restarts.
-
-Child-run handling when DONE is present:
-- Loop enumerates active child runs and waits for them up to configured timeout.
-- If timeout occurs, warning is posted to task bus and loop returns without restarting root.
-
-## 7. `run-info.yaml` Fields and State Transitions (High Level)
-
-Schema is defined in `internal/storage/runinfo.go`.
-
-Important fields:
-- Identity/lineage: `run_id`, `parent_run_id`, `previous_run_id`, `project_id`, `task_id`
-- Execution identity: `agent`, `agent_version`, `process_ownership`, `pid`, `pgid`, `commandline`
-- Timing/outcome: `start_time`, `end_time`, `exit_code`, `status`, `error_summary`
-- Artifacts: `cwd`, `prompt_path`, `output_path`, `stdout_path`, `stderr_path`
-
-High-level state transitions:
-1. Run allocated and initialized with `status=running`, `exit_code=-1`.
-2. On normal completion: `status=completed`, `exit_code=0`, `end_time` set.
-3. On failure/timeout/crash: `status=failed`, non-zero `exit_code` (or failure summary), `end_time` set.
-
-Persistence semantics:
-- `WriteRunInfo` writes atomically (temp file + sync + chmod + rename).
-- `UpdateRunInfo` uses lock file + exclusive lock + read-modify-write + atomic rewrite to avoid lost concurrent updates.
-
-## 8. Task Completion FACT Propagation to `PROJECT-MESSAGE-BUS.md`
-
-After Ralph loop returns, `RunTask` calls `propagateTaskCompletionToProject(...)`.
-
-Propagation behavior:
-- Requires `DONE` file; if missing, no project FACT is posted.
-- Builds run summary from `<task>/runs/*/run-info.yaml`.
-- Reads task-level `FACT` signals and latest run stop/crash event from task bus.
-- Computes deterministic `propagation_key` from DONE mtime + run summary + fact count.
-- Uses task-local lock/state files for idempotency:
-  - `TASK-COMPLETE-FACT-PROPAGATION.lock`
-  - `TASK-COMPLETE-FACT-PROPAGATION.yaml`
-- Also de-duplicates by scanning existing project FACT messages with matching `meta.kind=task_completion_propagation` and `meta.propagation_key`.
-
-Posted project message:
-- Type `FACT`, written to `<project>/PROJECT-MESSAGE-BUS.md`
-- Includes metadata (source task/run paths, summary counts, latest run status/output path, propagation key)
-- Includes links to task bus, DONE marker, latest `run-info.yaml`, latest `output.md`
-- Includes parents tracing to latest run event and recent task FACT messages
-
-If propagation fails:
-- Task bus gets an `ERROR` message (`task completion fact propagation failed: ...`)
-- `RunTask` still returns success (failure is surfaced but non-fatal to task completion)
+- Control flow is loop-driven and `DONE`-gated.
+- Data flow is file-first (`TASK.md`, `run-info.yaml`, `output.md`, `DONE`) with append-only buses for lifecycle events and propagated facts.
+- Project-level visibility is achieved by post-completion fact propagation from task scope to project scope.
