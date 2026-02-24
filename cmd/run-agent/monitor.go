@@ -282,6 +282,16 @@ Use --dry-run to see planned actions without executing them.`,
 // In --once mode it performs one pass, waits for any started jobs, then returns.
 // In daemon mode it loops on --interval until the process is killed.
 func runMonitor(out io.Writer, opts monitorOpts) error {
+	// Acquire a PID lockfile to enforce single monitor ownership per scope.
+	// --once mode is exempt: single-pass callers don't need a long-lived lock.
+	if !opts.Once && opts.Interval != 0 {
+		release, err := acquireMonitorLock(opts.RootDir, opts.ProjectID)
+		if err != nil {
+			return err
+		}
+		defer release()
+	}
+
 	if opts.Once || opts.Interval == 0 {
 		var wg sync.WaitGroup
 		err := monitorPass(out, opts, &wg, time.Now())
