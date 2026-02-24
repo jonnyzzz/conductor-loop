@@ -209,6 +209,21 @@ func TestResolveRunDir_SpecificRunIDNotFound(t *testing.T) {
 	}
 }
 
+// TestStopCmd_MissingRunInfo verifies that stop returns cleanly (nil error) when
+// run-info.yaml is absent from the specified --run-dir.
+func TestStopCmd_MissingRunInfo(t *testing.T) {
+	root := t.TempDir()
+	runDir := filepath.Join(root, "proj", "task1", "runs", "run-orphan")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	err := runStop(runDir, "", "", "", "", false)
+	if err != nil {
+		t.Fatalf("expected no error for missing run-info.yaml, got: %v", err)
+	}
+}
+
 func TestStopCmd_FlagParsing_RunDir(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{

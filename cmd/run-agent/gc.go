@@ -312,7 +312,9 @@ func gcRun(runDir string, cutoff time.Time, dryRun, keepFailed bool) (deleted bo
 	info, readErr := storage.ReadRunInfo(infoPath)
 	if readErr != nil {
 		if errors.Is(readErr, os.ErrNotExist) {
-			return false, 0, nil // skip: may be active or mid-creation
+			// No run-info.yaml: log a single warning for the orphaned run dir and skip.
+			fmt.Fprintf(os.Stderr, "warning: skipping orphaned run dir %s (no run-info.yaml)\n", filepath.Base(runDir))
+			return false, 0, nil
 		}
 		return false, 0, fmt.Errorf("skip %s: read run-info: %w", runDir, readErr)
 	}

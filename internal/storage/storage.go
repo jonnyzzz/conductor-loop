@@ -1,6 +1,7 @@
 package storage
 
 import (
+	stderrors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -142,6 +143,11 @@ func (s *FileStorage) ListRuns(projectID, taskID string) ([]*RunInfo, error) {
 		path := filepath.Join(baseDir, entry.Name(), "run-info.yaml")
 		info, err := ReadRunInfo(path)
 		if err != nil {
+			if stderrors.Is(err, os.ErrNotExist) {
+				// Synthesize a minimal RunInfo with unknown status when run-info.yaml is absent.
+				runs = append(runs, &RunInfo{RunID: entry.Name(), Status: StatusUnknown})
+				continue
+			}
 			return nil, errors.Wrapf(err, "read run-info for run %s", entry.Name())
 		}
 		runs = append(runs, info)

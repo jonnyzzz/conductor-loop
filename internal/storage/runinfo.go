@@ -10,6 +10,19 @@ const (
 	StatusCompleted = "completed"
 	// StatusFailed indicates a failed run completion.
 	StatusFailed = "failed"
+	// StatusUnknown is used for synthetic RunInfo when run-info.yaml is absent.
+	StatusUnknown = "unknown"
+
+	// Task-level derived statuses (not stored in run-info.yaml).
+
+	// StatusAllFinished indicates a task with the DONE marker and no active runs.
+	StatusAllFinished = "all_finished"
+	// StatusQueued indicates runs are scheduled but not yet started.
+	StatusQueued = "queued"
+	// StatusBlocked indicates all pending runs have unfulfilled dependencies.
+	StatusBlocked = "blocked"
+	// StatusPartialFail indicates some runs have failed while the task still has active runs.
+	StatusPartialFail = "partial_failure"
 )
 
 // RunInfo defines the persisted run metadata stored in run-info.yaml.

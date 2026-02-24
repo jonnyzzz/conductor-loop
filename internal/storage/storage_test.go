@@ -283,6 +283,51 @@ func TestReadRunInfoInvalidYAML(t *testing.T) {
 	}
 }
 
+// TestListRunsMissingRunInfo verifies that ListRuns synthesizes a RunInfo with
+// StatusUnknown when a run directory exists but run-info.yaml is absent.
+func TestListRunsMissingRunInfo(t *testing.T) {
+	root := t.TempDir()
+	st, err := NewStorage(root)
+	if err != nil {
+		t.Fatalf("NewStorage: %v", err)
+	}
+	// Create an orphaned run directory with no run-info.yaml
+	orphanDir := filepath.Join(root, "project", "task", "runs", "orphan-run")
+	if err := os.MkdirAll(orphanDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// Also create a normal run alongside the orphan
+	st.now = func() time.Time { return time.Date(2026, 2, 24, 10, 0, 0, 0, time.UTC) }
+	st.pid = func() int { return 99 }
+	_, err = st.CreateRun("project", "task", "codex")
+	if err != nil {
+		t.Fatalf("CreateRun: %v", err)
+	}
+
+	runs, err := st.ListRuns("project", "task")
+	if err != nil {
+		t.Fatalf("ListRuns should not fail for missing run-info.yaml, got: %v", err)
+	}
+	// Should include both the normal run and the orphaned one
+	if len(runs) < 2 {
+		t.Fatalf("expected at least 2 runs (1 normal + 1 orphan), got %d", len(runs))
+	}
+	// Find the orphaned run
+	var orphan *RunInfo
+	for _, r := range runs {
+		if r.RunID == "orphan-run" {
+			orphan = r
+			break
+		}
+	}
+	if orphan == nil {
+		t.Fatalf("orphaned run not found in list output")
+	}
+	if orphan.Status != StatusUnknown {
+		t.Fatalf("expected orphan status=%q, got %q", StatusUnknown, orphan.Status)
+	}
+}
+
 func TestUpdateRunInfoApplyError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run-info.yaml")
 	info := &RunInfo{RunID: "run", ProjectID: "project", TaskID: "task", AgentType: "codex", StartTime: time.Now().UTC(), Status: StatusRunning}
