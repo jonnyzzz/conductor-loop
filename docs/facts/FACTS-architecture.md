@@ -211,3 +211,8 @@ In `jonnyzzz-ai-coder`, the corresponding legacy docs were removed (`docs(swarm)
 
 [2026-02-21 04:02:12] [tags: architecture, storage, history]
 Commit `28b6ca106b95181ea34f29b39a6331588cac85cc` fixed storage run-ID collisions by adding a process-local atomic counter in run-id generation.
+
+## Reconciliation (2026-02-24)
+
+[2026-02-24 07:55:00] [tags: reconciliation, architecture, network]
+Host Binding: `run-agent serve` source code (`cmd/run-agent/serve.go`) defaults to `0.0.0.0` (all interfaces), not `127.0.0.1` (localhost) as previously stated in `FACTS-ui` sections. `port=14355` remains confirmed.
