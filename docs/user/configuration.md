@@ -2,22 +2,57 @@
 
 This document reflects the current runtime config schema in `internal/config` and live CLI behavior.
 
+## Personal Home Configuration (`~/.run-agent/conductor-loop.hcl`)
+
+The primary place to store your API tokens and personal defaults is:
+
+```
+~/.run-agent/conductor-loop.hcl
+```
+
+This file is **created automatically on first run** with a commented template so
+you can open it and fill in your tokens. It uses a simple HCL block format where
+the agent type is inferred from the block name — no `type` field required:
+
+```hcl
+# ~/.run-agent/conductor-loop.hcl
+# Full reference: https://github.com/jonnyzzz/conductor-loop/blob/main/docs/user/configuration.md
+
+codex {
+  token_file = "~/.config/tokens/openai"
+}
+
+claude {
+  token_file = "~/.config/tokens/anthropic"
+}
+
+gemini {
+  token_file = "~/.config/tokens/google"
+}
+
+defaults {
+  agent               = "claude"
+  timeout             = 300
+  max_concurrent_runs = 4
+}
+```
+
 ## Configuration File Discovery
 
 When `--config` is not passed, config resolution is:
 
 1. `CONDUCTOR_CONFIG` environment variable
-2. `./config.yaml`
-3. `./config.yml`
-4. `./config.hcl`
-5. `$HOME/.config/conductor/config.yaml`
-6. `$HOME/.config/conductor/config.yml`
-7. `$HOME/.config/conductor/config.hcl`
+2. `./config.yaml` (project-local)
+3. `./config.yml` (project-local)
+4. `~/.run-agent/conductor-loop.hcl` ← **auto-created on first run**
 
 Important:
 
-- `~/.conductor/config.yaml` is stale and is no longer the default discovery path.
-- Both YAML and HCL are supported. `.hcl` files are parsed as HCL by extension.
+- `~/.conductor/config.yaml` and `~/.config/conductor/config.yaml` are no longer
+  in the discovery path. Use `~/.run-agent/conductor-loop.hcl` instead.
+- `.hcl` files in project directories are **not** discovered automatically;
+  pass them explicitly with `--config`.
+- Both YAML (`config.yaml`) and HCL (`conductor-loop.hcl`) are supported.
 
 ## Config Precedence for Server Startup
 
@@ -52,7 +87,7 @@ agents:
 
 Fields:
 
-- `type` (required): one of `claude`, `codex`, `gemini`, `perplexity`, `xai`
+- `type` (optional in HCL — inferred from block/agent name; required in YAML): one of `claude`, `codex`, `gemini`, `perplexity`, `xai`
 - `token` (optional): inline token
 - `token_file` (optional): token file path
 - `base_url` (optional)
@@ -211,20 +246,25 @@ storage:
   runs_dir: ./runs
 ```
 
-## Equivalent HCL Example
+## Equivalent HCL Example (`~/.run-agent/conductor-loop.hcl`)
+
+HCL uses flat top-level blocks. Agent type is inferred from the block name so
+`type` is optional.
 
 ```hcl
-agents {
-  codex {
-    type = "codex"
-    token_file = "./secrets/codex.token"
-  }
+# Agent blocks — type inferred from block name, no "type" field required.
+codex {
+  token_file = "~/.config/tokens/openai"
+}
+
+claude {
+  token_file = "~/.config/tokens/anthropic"
 }
 
 defaults {
-  agent = "codex"
-  timeout = 300
-  max_concurrent_runs = 4
+  agent                  = "codex"
+  timeout                = 300
+  max_concurrent_runs    = 4
   max_concurrent_root_tasks = 2
 }
 
@@ -234,7 +274,7 @@ api {
 }
 
 storage {
-  runs_dir = "./runs"
+  runs_dir = "~/.run-agent/runs"
 }
 ```
 

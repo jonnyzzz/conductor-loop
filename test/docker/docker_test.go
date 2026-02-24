@@ -137,6 +137,58 @@ func TestDockerRun(t *testing.T) {
 	waitForHTTP(t, env.healthURL())
 }
 
+// TestDockerHomeConfigAutoCreate verifies that the server automatically creates
+// ~/.run-agent/conductor-loop.hcl on first startup when the file is absent.
+// It also validates that the created file contains the GitHub documentation URL.
+func TestDockerHomeConfigAutoCreate(t *testing.T) {
+	ensureDocker(t)
+	env := newTestEnv(t)
+	buildDockerImage(t, env.root)
+
+	// Use a temp dir as the home .run-agent directory for the container.
+	// We mount it to /root/.run-agent inside the container (container runs as root).
+	homeRunAgentDir := t.TempDir()
+
+	// Run the container WITHOUT CONDUCTOR_CONFIG so the binary falls back to
+	// discovering / creating ~/.run-agent/conductor-loop.hcl.
+	runAgentDir := t.TempDir() // isolated /data/runs mount
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-d",
+		"-p", fmt.Sprintf("%d:14355", env.hostPort),
+		"-v", fmt.Sprintf("%s:/root/.run-agent", homeRunAgentDir),
+		"-v", fmt.Sprintf("%s:/data/runs", runAgentDir),
+		testImage,
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("docker run: %v (%s)", err, strings.TrimSpace(string(out)))
+	}
+	containerID := strings.TrimSpace(string(out))
+	t.Cleanup(func() {
+		exec.Command("docker", "stop", containerID).Run() //nolint:errcheck
+	})
+
+	healthURL := fmt.Sprintf("http://localhost:%d/api/v1/health", env.hostPort)
+	waitForHTTP(t, healthURL)
+
+	// The auto-created config must now be in the mounted directory.
+	createdPath := filepath.Join(homeRunAgentDir, "conductor-loop.hcl")
+	data, err := os.ReadFile(createdPath)
+	if err != nil {
+		t.Fatalf("~/.run-agent/conductor-loop.hcl not created by server: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "github.com/jonnyzzz/conductor-loop") {
+		t.Fatalf("auto-created config missing GitHub URL:\n%s", content)
+	}
+	if !strings.Contains(content, "documentation") {
+		t.Fatalf("auto-created config missing documentation reference:\n%s", content)
+	}
+}
+
 func TestDockerPersistence(t *testing.T) {
 	ensureDocker(t)
 	env := newTestEnv(t)

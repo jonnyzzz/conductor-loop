@@ -1,30 +1,31 @@
 # HCL User Home Configuration
 
-conductor-loop supports an optional HCL configuration file at `~/.conductor.hcl`.
+conductor-loop uses `~/.run-agent/conductor-loop.hcl` as the personal configuration
+file for agent API tokens and user-level defaults.
 
-This file is loaded automatically before per-project `config.yaml` when no project-level
-config is found, making it ideal for storing agent tokens and personal defaults without
-checking credentials into every project repository.
+The file is created automatically on first run (with a commented-out template) so
+you can open it and fill in your tokens without locating it manually.
+
+**Full reference:** [docs/user/configuration.md](../user/configuration.md)
 
 ## File location
 
 ```
-~/.conductor.hcl
+~/.run-agent/conductor-loop.hcl
 ```
+
+The `~/.run-agent/` directory also holds the binary cache
+(`~/.run-agent/binaries/`) managed by `scripts/deploy_locally.sh` and
+`scripts/fetch_release.sh`.
 
 ## Format
 
-The file uses a minimal subset of HCL (HashiCorp Configuration Language):
-
-- **Agent blocks** — one block per agent; the block name is the agent identifier
-- **Agent type inference** — `type` is optional; inferred from the block name
-- **Reserved blocks** — `defaults`, `api`, `storage`
+Minimal HCL subset — block-based with string/integer values and `#` comments.
+Agent **type is inferred from the block name** (no `type` attribute needed).
 
 ```hcl
-# ~/.conductor.hcl — personal conductor-loop configuration
+# ~/.run-agent/conductor-loop.hcl
 
-# Agent blocks — type is inferred from the block name.
-# No need for type = "codex" inside the codex block.
 codex {
   token_file = "~/.config/tokens/openai"
   model      = "o4-mini"
@@ -38,65 +39,27 @@ gemini {
   token_file = "~/.config/tokens/google"
 }
 
-# Global defaults
 defaults {
   agent               = "claude"
   timeout             = 300
   max_concurrent_runs = 4
 }
 
-# API server settings (optional)
 api {
   port = 14355
 }
 ```
 
-## Supported attributes
-
-### Agent block
-
-| Attribute    | Type   | Description                                 |
-|--------------|--------|---------------------------------------------|
-| `type`       | string | Agent type override (default: block name)   |
-| `token`      | string | API token (prefer `token_file`)             |
-| `token_file` | string | Path to file containing the API token       |
-| `base_url`   | string | Custom API base URL                         |
-| `model`      | string | Model name override                         |
-
-### `defaults` block
-
-| Attribute                  | Type | Description                       |
-|----------------------------|------|-----------------------------------|
-| `agent`                    | str  | Default agent name                |
-| `timeout`                  | int  | Default run timeout (seconds)     |
-| `max_concurrent_runs`      | int  | Max simultaneous agent runs       |
-| `max_concurrent_root_tasks`| int  | Max simultaneous root tasks       |
-
-### `api` block
-
-| Attribute | Type | Description          |
-|-----------|------|----------------------|
-| `host`    | str  | Bind address         |
-| `port`    | int  | Listen port (14355)  |
-
-### `storage` block
-
-| Attribute  | Type | Description              |
-|------------|------|--------------------------|
-| `runs_dir` | str  | Path for run directories |
-
 ## Config discovery order
 
-When `--config` is not specified, conductor-loop searches for configuration in this order:
-
-1. `./config.yaml` (project-local)
-2. `./config.yml` (project-local)
-3. `~/.conductor.hcl` **(this file)**
-4. `~/.config/conductor/config.yaml`
-5. `~/.config/conductor/config.yml`
+1. `./config.yaml` (project-local, e.g. `config.local.yaml` via `--config`)
+2. `./config.yml`
+3. **`~/.run-agent/conductor-loop.hcl`** ← this file (auto-created on first run)
 
 ## Notes
 
-- Only `~/.conductor.hcl` is supported; project-level `.hcl` files are not discovered.
-- Tilde expansion in paths (`~`) is handled by the config loader.
-- For per-project overrides, use `config.yaml` in the project root.
+- Only `~/.run-agent/conductor-loop.hcl` is recognised; `.hcl` files in project
+  directories are not discovered.
+- Tilde `~` in path values is expanded to the real home directory at load time.
+- For per-project overrides (different runs dir, port, etc.), put a `config.yaml`
+  in the project root and pass it via `--config`.

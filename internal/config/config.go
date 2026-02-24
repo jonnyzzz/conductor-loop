@@ -77,15 +77,65 @@ type StorageConfig struct {
 	ExtraRoots []string `yaml:"extra_roots,omitempty"`
 }
 
+// HomeHCLConfigDir returns the directory that holds the user home HCL config.
+// The directory is $HOME/.run-agent.
+func HomeHCLConfigDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("user home dir: %w", err)
+	}
+	return filepath.Join(home, ".run-agent"), nil
+}
+
+// HomeHCLConfigPath returns the canonical path of the user home HCL config:
+// $HOME/.run-agent/conductor-loop.hcl
+func HomeHCLConfigPath() (string, error) {
+	dir, err := HomeHCLConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "conductor-loop.hcl"), nil
+}
+
+// EnsureHomeHCLConfig creates $HOME/.run-agent/conductor-loop.hcl (and the
+// parent directory) with a starter template if the file does not already exist.
+// Returns the path to the config file.
+func EnsureHomeHCLConfig() (string, error) {
+	path, err := HomeHCLConfigPath()
+	if err != nil {
+		return "", err
+	}
+	return ensureHomeHCLConfigAt(path)
+}
+
+// ensureHomeHCLConfigAt is the testable core of EnsureHomeHCLConfig.
+func ensureHomeHCLConfigAt(path string) (string, error) {
+	if _, err := os.Stat(path); err == nil {
+		return path, nil // already exists
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return "", fmt.Errorf("create config dir: %w", err)
+	}
+	if err := os.WriteFile(path, []byte(homeHCLTemplate), 0o600); err != nil {
+		return "", fmt.Errorf("write home config: %w", err)
+	}
+	return path, nil
+}
+
 // FindDefaultConfig searches for a config file in default locations.
+// It also ensures $HOME/.run-agent/conductor-loop.hcl exists (creates it
+// with a starter template if absent).
 // Returns the path if found, empty string if not found.
 // Search order:
 //  1. ./config.yaml
 //  2. ./config.yml
-//  3. $HOME/.conductor.hcl
-//  4. $HOME/.config/conductor/config.yaml
-//  5. $HOME/.config/conductor/config.yml
+//  3. $HOME/.run-agent/conductor-loop.hcl  (created automatically if absent)
 func FindDefaultConfig() (string, error) {
+	// Ensure the home config always exists so users can edit it on first run.
+	if _, err := EnsureHomeHCLConfig(); err != nil {
+		// Non-fatal: continue even if we cannot create the file.
+		_ = err
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("get working directory: %w", err)
@@ -94,13 +144,12 @@ func FindDefaultConfig() (string, error) {
 }
 
 // FindDefaultConfigIn searches for a config file starting from baseDir.
-// This variant is provided for testability without os.Chdir.
+// This variant is provided for testability without os.Chdir or home-dir
+// side effects (no auto-creation of the home config).
 // Search order:
-//  1. ./config.yaml (project-local)
-//  2. ./config.yml  (project-local)
-//  3. $HOME/.conductor.hcl (user home HCL config — no type field required in agent blocks)
-//  4. $HOME/.config/conductor/config.yaml
-//  5. $HOME/.config/conductor/config.yml
+//  1. <baseDir>/config.yaml (project-local)
+//  2. <baseDir>/config.yml  (project-local)
+//  3. $HOME/.run-agent/conductor-loop.hcl
 func FindDefaultConfigIn(baseDir string) (string, error) {
 	home, _ := os.UserHomeDir()
 
@@ -110,9 +159,7 @@ func FindDefaultConfigIn(baseDir string) (string, error) {
 	}
 	if home != "" {
 		candidates = append(candidates,
-			filepath.Join(home, ".conductor.hcl"),
-			filepath.Join(home, ".config", "conductor", "config.yaml"),
-			filepath.Join(home, ".config", "conductor", "config.yml"),
+			filepath.Join(home, ".run-agent", "conductor-loop.hcl"),
 		)
 	}
 

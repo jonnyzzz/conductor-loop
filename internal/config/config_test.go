@@ -236,8 +236,10 @@ func TestResolveStoragePaths(t *testing.T) {
 }
 
 func TestFindDefaultConfig_NotFound(t *testing.T) {
-	dir := t.TempDir()
-	path, err := FindDefaultConfigIn(dir)
+	baseDir := t.TempDir()
+	// Point HOME at an empty temp dir so ~/.run-agent/conductor-loop.hcl is absent.
+	t.Setenv("HOME", t.TempDir())
+	path, err := FindDefaultConfigIn(baseDir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -262,13 +264,14 @@ func TestFindDefaultConfig_FoundYaml(t *testing.T) {
 }
 
 func TestFindDefaultConfig_FoundHome(t *testing.T) {
+	// Verify that ~/.run-agent/conductor-loop.hcl is discovered when it exists.
 	dir := t.TempDir()
-	homeConfigDir := filepath.Join(dir, ".config", "conductor")
-	if err := os.MkdirAll(homeConfigDir, 0o755); err != nil {
+	runAgentDir := filepath.Join(dir, ".run-agent")
+	if err := os.MkdirAll(runAgentDir, 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	configPath := filepath.Join(homeConfigDir, "config.yaml")
-	if err := os.WriteFile(configPath, []byte("agents: {}\n"), 0o600); err != nil {
+	configPath := filepath.Join(runAgentDir, "conductor-loop.hcl")
+	if err := os.WriteFile(configPath, []byte("# empty\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -288,8 +291,8 @@ func TestFindDefaultConfig_FoundHome(t *testing.T) {
 }
 
 func TestFindDefaultConfig_ProjectHCLNotFound(t *testing.T) {
-	// Only ~/.conductor.hcl is supported (user home). A config.hcl in a project
-	// directory must NOT be discovered.
+	// Only ~/.run-agent/conductor-loop.hcl is supported as HCL config.
+	// A config.hcl in a project directory must NOT be discovered.
 	dir := t.TempDir()
 	hclPath := filepath.Join(dir, "config.hcl")
 	if err := os.WriteFile(hclPath, []byte("# hcl config\n"), 0o600); err != nil {
@@ -299,8 +302,92 @@ func TestFindDefaultConfig_ProjectHCLNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if path != "" {
-		t.Fatalf("expected no config found (project .hcl not supported), got %q", path)
+	// The real ~/.run-agent/conductor-loop.hcl may exist on the test host,
+	// so we only assert that config.hcl from the project dir was NOT returned.
+	if path == hclPath {
+		t.Fatalf("project-level config.hcl must not be discovered, got %q", path)
+	}
+}
+
+func TestEnsureHomeHCLConfig_CreatesFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".run-agent", "conductor-loop.hcl")
+
+	got, err := ensureHomeHCLConfigAt(path)
+	if err != nil {
+		t.Fatalf("ensureHomeHCLConfigAt: %v", err)
+	}
+	if got != path {
+		t.Fatalf("expected path %q, got %q", path, got)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read created file: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("expected non-empty template")
+	}
+	content := string(data)
+	if !strings.Contains(content, "github.com/jonnyzzz/conductor-loop") {
+		t.Fatal("expected GitHub URL in template")
+	}
+	if !strings.Contains(strings.ToLower(content), "documentation") {
+		t.Fatal("expected documentation reference in template")
+	}
+
+	// Permissions should be 0600.
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("expected mode 0600, got %04o", info.Mode().Perm())
+	}
+}
+
+func TestEnsureHomeHCLConfig_ExistingFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "conductor-loop.hcl")
+	original := "# my custom config\n"
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	if _, err := ensureHomeHCLConfigAt(path); err != nil {
+		t.Fatalf("ensureHomeHCLConfigAt: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if string(data) != original {
+		t.Fatalf("existing file was modified: got %q", string(data))
+	}
+}
+
+func TestFindDefaultConfigIn_HomeHCL(t *testing.T) {
+	// FindDefaultConfigIn must discover ~/.run-agent/conductor-loop.hcl when
+	// no project-local config is present.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("cannot determine home dir")
+	}
+	homeHCL := filepath.Join(home, ".run-agent", "conductor-loop.hcl")
+
+	// Create a temp baseDir with no project config so home config is reached.
+	baseDir := t.TempDir()
+	found, err := FindDefaultConfigIn(baseDir)
+	if err != nil {
+		t.Fatalf("FindDefaultConfigIn: %v", err)
+	}
+
+	// If the home HCL exists it must be the result (no other home candidates).
+	if _, statErr := os.Stat(homeHCL); statErr == nil {
+		if found != homeHCL {
+			t.Fatalf("expected %q, got %q", homeHCL, found)
+		}
 	}
 }
 

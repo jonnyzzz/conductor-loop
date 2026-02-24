@@ -25,7 +25,8 @@ Files inside each run directory: `run-info.yaml`, `prompt.md`, `output.md`, `age
 Task directory files: `TASK.md`, `TASK_STATE.md`, `DONE`, `TASK-MESSAGE-BUS.md`, `TASK-FACTS-<timestamp>.md`, `ATTACH-<timestamp>-<name>.<ext>`, `runs/`.
 
 [2026-02-04 23:03:05] [tags: runner, storage, layout]
-Project directory files: `PROJECT-MESSAGE-BUS.md`, `home-folders.md`, `FACT-<timestamp>-<name>.md`, `config.hcl` (global only, at root, not in project dir).
+Project directory files: `PROJECT-MESSAGE-BUS.md`, `home-folders.md`, `FACT-<timestamp>-<name>.md`.
+Global user config: `~/.run-agent/conductor-loop.hcl` (auto-created on first run; not inside any project dir).
 
 [2026-02-04 23:03:05] [tags: runner, storage, layout]
 No host_id segmentation; runs live under `<project>/<task>` only.

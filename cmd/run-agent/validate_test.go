@@ -49,8 +49,10 @@ func createValidateCLIScript(t *testing.T, dir, name, versionOutput string) {
 }
 
 func TestValidateCmd_NoConfig(t *testing.T) {
-	// Use an empty temp dir so FindDefaultConfig finds nothing.
+	// Use an empty temp dir so FindDefaultConfig finds nothing (no project
+	// config and no home config).
 	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
 	err := runValidate("", "", "", false, false)
 	if err != nil {
 		t.Errorf("expected no error with no config found: %v", err)
@@ -59,6 +61,7 @@ func TestValidateCmd_NoConfig(t *testing.T) {
 
 func TestValidateCmd_RootDirValid(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
 	err := runValidate("", dir, "", false, false)
 	if err != nil {
 		t.Errorf("expected no error with valid root dir: %v", err)
@@ -260,6 +263,7 @@ defaults:
 
 func TestValidateCmd_CheckNetworkFlagNoConfig(t *testing.T) {
 	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
 	// --check-network with no config should not crash.
 	err := runValidate("", "", "", true, false)
 	if err != nil {

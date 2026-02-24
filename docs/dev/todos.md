@@ -335,11 +335,11 @@ Their findings are reflected in the UX backlog above and the implemented changes
 
 ## New Task Intake (2026-02-24)
 
-- [ ] `task-20260224-hcl-home-config`: Re-implement HCL config support for user home (`~/.conductor.hcl`); infer agent type from block key name (no `type` field required); merge as base config layer loaded before per-project YAML; support blocks: agent blocks (codex/claude/gemini/etc.), `defaults {}`, `api {}`, `storage {}`.
-- [ ] `task-20260224-binary-dir-structure`: Establish `~/conductor-loop/binaries/<version>/run-agent` directory convention; maintain `~/conductor-loop/binaries/_latest/` symlink updated by install/update scripts; same layout for local dev builds.
-- [ ] `task-20260224-run-agent-cmd-latest-binary`: Update `run-agent.cmd` (and `run-agent.sh`) to check `~/conductor-loop/binaries/_latest/run-agent` as the preferred binary resolution path, before falling back to script-sibling and `dist/`.
-- [ ] `task-20260224-deploy-locally-sh`: Create `scripts/deploy_locally.sh` — build binary with version LDFLAGS from source, copy to `~/conductor-loop/binaries/<version>/run-agent`, update `~/conductor-loop/binaries/_latest/` symlink.
-- [ ] `task-20260224-fetch-release-stub`: Stub `scripts/fetch_release.sh` — future GitHub releases JSON fetcher that downloads correct versioned binary and places it under `~/conductor-loop/binaries/<version>/`; document the intended pattern (no GitHub release exists yet, local dev scenario only for now).
+- [x] `task-20260224-hcl-home-config`: HCL config at `~/.run-agent/conductor-loop.hcl`; auto-created on first run with commented template (GitHub URL + docs link); agent type inferred from block name; `~/.config/conductor/` paths dropped; Docker integration test added.
+- [x] `task-20260224-binary-dir-structure`: Established `~/.run-agent/binaries/<version>/run-agent` directory convention; `~/.run-agent/binaries/_latest/` maintained by install scripts.
+- [x] `task-20260224-run-agent-cmd-latest-binary`: `run-agent.cmd` now checks `~/.run-agent/binaries/_latest/run-agent` as preferred binary path (Unix + Windows PowerShell).
+- [x] `task-20260224-deploy-locally-sh`: `scripts/deploy_locally.sh` — builds with LDFLAGS, deploys to `~/.run-agent/binaries/<version>/`, updates `_latest/`.
+- [x] `task-20260224-fetch-release-stub`: `scripts/fetch_release.sh` — documented stub with full commented implementation for future GitHub releases; exits with clear message for now.
 
 ## User Design Review (verbatim)
 

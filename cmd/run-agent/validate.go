@@ -93,16 +93,14 @@ func runValidate(configPath, rootDir, agentFilter string, checkNetwork, checkTok
 	}
 
 	// Load config if a path was found or specified.
-	// When --check-tokens is set, use LoadConfigForServer so that missing token
-	// files do not cause a load failure — the deep token check handles that.
+	// Always use LoadConfigForServer here — the validate command performs its own
+	// agent-level checks and reports them user-visibly. Using the strict LoadConfig
+	// would cause validate to hard-fail on a fresh template home config that has no
+	// agents yet (which is the expected default state on first run).
 	var cfg *config.Config
 	if configPath != "" {
 		var err error
-		if checkTokens {
-			cfg, err = config.LoadConfigForServer(configPath)
-		} else {
-			cfg, err = config.LoadConfig(configPath)
-		}
+		cfg, err = config.LoadConfigForServer(configPath)
 		if err != nil {
 			fmt.Printf("Config: FAIL\n  %v\n\n", err)
 			hasFailure = true

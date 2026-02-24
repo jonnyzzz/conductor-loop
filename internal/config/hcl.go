@@ -1,4 +1,4 @@
-// Package config — minimal HCL config parser for ~/.conductor.hcl.
+// Package config — minimal HCL config parser for ~/.run-agent/conductor-loop.hcl.
 // Supports a subset of HCL syntax sufficient for conductor-loop configuration:
 //   - Block headers:        name { ... }
 //   - String values:        key = "value"
@@ -188,6 +188,36 @@ func applyHCLAPIBlock(cfg *Config, values map[string]string) error {
 	}
 	return nil
 }
+
+// homeHCLTemplate is written to ~/.run-agent/conductor-loop.hcl on first run
+// when the file does not already exist.
+const homeHCLTemplate = `# conductor-loop — personal configuration
+# Documentation: https://github.com/jonnyzzz/conductor-loop/blob/main/docs/user/configuration.md
+# GitHub:        https://github.com/jonnyzzz/conductor-loop
+#
+# Add your agent API tokens below.
+# The agent type is inferred from the block name — no "type" field required.
+#
+# Example:
+#
+# codex {
+#   token_file = "~/.config/tokens/openai"
+# }
+#
+# claude {
+#   token_file = "~/.config/tokens/anthropic"
+# }
+#
+# gemini {
+#   token_file = "~/.config/tokens/google"
+# }
+#
+# defaults {
+#   agent               = "claude"
+#   timeout             = 300
+#   max_concurrent_runs = 4
+# }
+`
 
 func applyHCLStorageBlock(cfg *Config, values map[string]string) error {
 	if v, ok := values["runs_dir"]; ok {

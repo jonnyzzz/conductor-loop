@@ -88,7 +88,7 @@ Source code (`cmd/conductor/main.go`, `cmd/conductor/status.go`, `cmd/conductor/
 Binary-vs-source drift resolved: `bin/conductor` rebuilt from source, now matches source defaults (port `14355`, full command set including `goal`, `workflow`, `monitor`).
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, config, discovery]
-Default config discovery (`internal/config.FindDefaultConfig`) order is: `./config.yaml`, `./config.yml`, `./config.hcl`, `$HOME/.config/conductor/config.yaml`, `$HOME/.config/conductor/config.yml`, `$HOME/.config/conductor/config.hcl`.
+Default config discovery (`internal/config.FindDefaultConfig`) order is: `./config.yaml`, `./config.yml`, `~/.run-agent/conductor-loop.hcl`. The `~/.run-agent/conductor-loop.hcl` file is auto-created on first run with a commented template. `~/.config/conductor/` paths are no longer in the discovery chain. [2026-02-24 updated]
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, config, discovery]
 `run-agent serve` and `conductor` resolve config in order: `--config` flag -> `CONDUCTOR_CONFIG` env -> `FindDefaultConfig` search.
@@ -201,7 +201,7 @@ Binary drift resolved: `bin/conductor` rebuilt from source on 2026-02-24. `./bin
 Go Version: Repository `go.mod` requires `go 1.24.0`. Documentation referencing `1.21+` was outdated and has been updated to `1.24.0` across `docs/`, `examples/`, and `prompts/`.
 
 [2026-02-24 07:45:00] [tags: reconciliation, user-docs, config-path]
-Config Path: Runtime code uses `~/.config/conductor/` (Standard XDG-like path) and local `./config.*`. Documentation referencing `~/.conductor/` is outdated.
+Config Path: Runtime code uses `~/.run-agent/conductor-loop.hcl` (personal HCL) and local `./config.yaml`. `~/.config/conductor/` and `~/.conductor/` paths are no longer in the discovery chain. [2026-02-24 updated]
 
 [2026-02-24 08:30:00] [tags: reconciliation, workflow, prompts]
 Workflow prompt files moved: `THE_PROMPT_v5*.md` and `THE_PLAN_v5.md` moved from root to `docs/workflow/`. CLI code references to root paths (e.g. `internal/runner/orchestrator.go` help text injection) are now stale and need update to use `docs/workflow/` prefix.

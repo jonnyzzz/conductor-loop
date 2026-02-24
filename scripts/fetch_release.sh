@@ -34,7 +34,7 @@
 set -euo pipefail
 
 GITHUB_REPO="jonnyzzz/conductor-loop"
-BINARIES_HOME="${HOME}/conductor-loop/binaries"
+BINARIES_HOME="${HOME}/.run-agent/binaries"
 
 fail() {
   printf 'fetch_release.sh: %s\n' "$*" >&2

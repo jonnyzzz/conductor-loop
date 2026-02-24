@@ -15,7 +15,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-BINARIES_HOME="${HOME}/conductor-loop/binaries"
+BINARIES_HOME="${HOME}/.run-agent/binaries"
 
 fail() {
   printf 'deploy_locally.sh: %s\n' "$*" >&2

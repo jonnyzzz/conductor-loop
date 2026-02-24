@@ -59,8 +59,8 @@ resolve_run_agent_binary() {
     fi
   fi
 
-  # ~/conductor-loop/binaries/_latest/run-agent — maintained by deploy_locally.sh / install scripts.
-  local home_latest="${HOME}/conductor-loop/binaries/_latest/run-agent"
+  # ~/.run-agent/binaries/_latest/run-agent — maintained by deploy_locally.sh / install scripts.
+  local home_latest="${HOME}/.run-agent/binaries/_latest/run-agent"
   looked+=("$home_latest")
   if [ -f "$home_latest" ] && [ -x "$home_latest" ]; then
     printf '%s\n' "$home_latest"
@@ -147,7 +147,7 @@ function Resolve-RunAgentBinary ^
     }; ^
   }; ^
  ^
-  $homeLatest = [System.IO.Path]::GetFullPath((Join-Path $env:USERPROFILE 'conductor-loop\binaries\_latest\run-agent.exe')); ^
+  $homeLatest = [System.IO.Path]::GetFullPath((Join-Path $env:USERPROFILE '.run-agent\binaries\_latest\run-agent.exe')); ^
   $looked.Add($homeLatest); ^
   if (Test-Path -LiteralPath $homeLatest -PathType Leaf) ^
   { ^

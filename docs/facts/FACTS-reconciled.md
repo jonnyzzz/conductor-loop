@@ -29,9 +29,27 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
 
 ## Configuration Path & Format
 [2026-02-24 07:45:00] [tags: reconciliation, config]
-*   **Canonical Path:** `~/.config/conductor/` (Standard XDG-like path) or `./config.*`.
-*   **Legacy/Drift:** `~/.conductor/` found in some user docs is outdated.
-*   **Format Priority:** YAML (`config.yaml`, `config.yml`) takes precedence over HCL (`config.hcl`). HCL is supported but secondary.
+*   **Canonical User Home Config:** `~/.run-agent/conductor-loop.hcl`
+    - Directory: `~/.run-agent/` (also holds `binaries/` for versioned binary cache)
+    - **Auto-created on first run** with commented template pointing to GitHub docs
+    - Agent type inferred from HCL block name — no `type` field required
+    - File permissions: `0600`; directory: `0700`
+*   **Discovery order** (when `--config` / `CONDUCTOR_CONFIG` not set):
+    1. `./config.yaml`
+    2. `./config.yml`
+    3. `~/.run-agent/conductor-loop.hcl`
+*   **Dropped paths** (no longer in discovery): `~/.config/conductor/`, `~/.conductor/`
+*   **Project-local `.hcl` files are NOT auto-discovered** — pass via `--config` explicitly.
+*   **Format:** YAML (`config.yaml`) for project-level config; HCL for user home config.
+*   **Documentation:** `docs/user/configuration.md` is the authoritative reference.
+    Direct link: `https://github.com/jonnyzzz/conductor-loop/blob/main/docs/user/configuration.md`
+
+## Binary Cache Directory
+[2026-02-24] [tags: binary, install, deploy]
+*   **Location:** `~/.run-agent/binaries/`
+*   **Structure:** `~/.run-agent/binaries/<version>/run-agent` (versioned), `~/.run-agent/binaries/_latest/run-agent` (symlink to current version)
+*   **Managed by:** `scripts/deploy_locally.sh` (local dev builds) and `scripts/fetch_release.sh` (future GitHub release downloads)
+*   **`run-agent.cmd` resolution order:** `$RUN_AGENT_BIN` env → `~/.run-agent/binaries/_latest/run-agent` → script-sibling `run-agent` → `dist/run-agent-<os>-<arch>` → PATH
 
 ## Runtime Versions
 [2026-02-24 07:45:00] [tags: reconciliation, env]
