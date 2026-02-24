@@ -1337,7 +1337,7 @@ func buildTaskInfoWithQueue(rootDir, projectID, taskID, taskPath string, queue m
 	status := "idle"
 	done := false
 	if _, err := os.Stat(filepath.Join(taskPath, "DONE")); err == nil {
-		status = "completed"
+		status = storage.StatusAllFinished
 		done = true
 	}
 	dependsOn, err := taskdeps.ReadDependsOn(taskPath)
@@ -1349,6 +1349,8 @@ func buildTaskInfoWithQueue(rootDir, projectID, taskID, taskPath string, queue m
 		return taskInfo{}, err
 	}
 	lastActivity := time.Time{}
+	hasRunning := false
+	hasFailed := false
 	for _, run := range runs {
 		candidate := run.EndTime
 		if candidate.IsZero() {
@@ -1358,7 +1360,16 @@ func buildTaskInfoWithQueue(rootDir, projectID, taskID, taskPath string, queue m
 			lastActivity = candidate
 		}
 		if run.EndTime.IsZero() {
-			status = "running"
+			hasRunning = true
+		} else if run.Status == storage.StatusFailed {
+			hasFailed = true
+		}
+	}
+	if hasRunning {
+		if hasFailed {
+			status = storage.StatusPartialFail
+		} else {
+			status = storage.StatusRunning
 		}
 	}
 	blockedBy := []string(nil)
@@ -1368,13 +1379,13 @@ func buildTaskInfoWithQueue(rootDir, projectID, taskID, taskPath string, queue m
 			return taskInfo{}, errors.Wrapf(err, "resolve blocked dependencies for %s/%s", projectID, taskID)
 		}
 		if len(blockedBy) > 0 {
-			status = "blocked"
+			status = storage.StatusBlocked
 		}
 	}
 	queuePosition := 0
-	if !done && status != "running" {
+	if !done && status != storage.StatusRunning && status != storage.StatusPartialFail {
 		if state, ok := queue[taskQueueKey{ProjectID: projectID, TaskID: taskID}]; ok && state.Queued {
-			status = "queued"
+			status = storage.StatusQueued
 			queuePosition = state.QueuePosition
 		}
 	}

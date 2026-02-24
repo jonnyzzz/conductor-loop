@@ -257,10 +257,12 @@ func statusRowMatchesFilter(row statusRow, statusFilter string) bool {
 	switch statusFilter {
 	case "active":
 		return strings.EqualFold(row.Status, storage.StatusRunning)
-	case "done":
+	case "done", "all_finished":
 		return row.Done
 	case "pending":
 		return row.Status == "-"
+	case "partial_failure":
+		return strings.EqualFold(row.Status, storage.StatusPartialFail)
 	default:
 		return strings.EqualFold(row.Status, statusFilter)
 	}

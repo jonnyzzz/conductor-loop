@@ -2052,6 +2052,17 @@ func buildTaskFromRuns(
 		createdAt = taskRuns[0].StartTime
 	}
 
+	// Detect partial_failure: some runs failed while task still has active runs.
+	hasFailed := false
+	for _, run := range taskRuns {
+		if run.Status == storage.StatusFailed && run.EndTime != nil {
+			hasFailed = true
+		}
+	}
+	if running && hasFailed {
+		status = storage.StatusPartialFail
+	}
+
 	state := "idle"
 	if running {
 		state = "running"
@@ -2082,20 +2093,21 @@ func buildTaskFromRuns(
 			}
 		}
 	}
-	if done && len(taskRuns) == 0 {
-		status = "done"
+	if done && !running {
+		status = storage.StatusAllFinished
+		state = "done"
 	}
 	if len(taskRuns) == 0 && !done && len(dependsOn) > 0 {
 		if unresolved, err := taskdeps.BlockedBy(rootDir, projectID, dependsOn); err == nil && len(unresolved) > 0 {
 			blockedBy = unresolved
-			status = "blocked"
+			status = storage.StatusBlocked
 			state = "blocked"
 		}
 	}
 	queuePosition := 0
 	if !done && !running {
 		if queued, ok := queue[taskQueueKey{ProjectID: projectID, TaskID: taskID}]; ok && queued.Queued {
-			status = "queued"
+			status = storage.StatusQueued
 			state = "queued"
 			queuePosition = queued.QueuePosition
 		}
@@ -2125,26 +2137,23 @@ func filterTasksByStatus(tasks []projectTask, filter, rootDir, projectID string)
 	case "running", "active":
 		var out []projectTask
 		for _, t := range tasks {
-			if t.Status == "running" {
+			if t.Status == storage.StatusRunning {
 				out = append(out, t)
 			}
 		}
 		return out
-	case "done":
+	case "done", "all_finished":
 		var out []projectTask
 		for _, t := range tasks {
-			taskDir, ok := findProjectTaskDir(rootDir, projectID, t.ID)
-			if ok {
-				if _, err := os.Stat(filepath.Join(taskDir, "DONE")); err == nil {
-					out = append(out, t)
-				}
+			if t.Done {
+				out = append(out, t)
 			}
 		}
 		return out
 	case "failed":
 		var out []projectTask
 		for _, t := range tasks {
-			if t.Status == "failed" {
+			if t.Status == storage.StatusFailed {
 				out = append(out, t)
 			}
 		}
@@ -2152,7 +2161,7 @@ func filterTasksByStatus(tasks []projectTask, filter, rootDir, projectID string)
 	case "blocked":
 		var out []projectTask
 		for _, t := range tasks {
-			if t.Status == "blocked" {
+			if t.Status == storage.StatusBlocked {
 				out = append(out, t)
 			}
 		}
@@ -2160,7 +2169,15 @@ func filterTasksByStatus(tasks []projectTask, filter, rootDir, projectID string)
 	case "queued", "postponed":
 		var out []projectTask
 		for _, t := range tasks {
-			if t.Status == "queued" {
+			if t.Status == storage.StatusQueued {
+				out = append(out, t)
+			}
+		}
+		return out
+	case "partial_failure":
+		var out []projectTask
+		for _, t := range tasks {
+			if t.Status == storage.StatusPartialFail {
 				out = append(out, t)
 			}
 		}

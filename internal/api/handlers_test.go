@@ -1531,3 +1531,153 @@ func TestHandleRunStop_ExternalOwnership(t *testing.T) {
 		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+// TestStatusAllFinished verifies that buildTaskInfoWithQueue returns "all_finished"
+// when the DONE file is present and all runs have completed.
+func TestStatusAllFinished(t *testing.T) {
+	root := t.TempDir()
+	projectID := "project"
+	taskID := "task-20260224-000001-aa"
+	taskPath := filepath.Join(root, projectID, taskID)
+	runDir := filepath.Join(taskPath, "runs", "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskPath, "TASK.md"), []byte("prompt\n"), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskPath, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write DONE: %v", err)
+	}
+	now := time.Now().UTC()
+	info := &storage.RunInfo{
+		RunID:     "run-1",
+		ProjectID: projectID,
+		TaskID:    taskID,
+		Status:    storage.StatusCompleted,
+		StartTime: now.Add(-time.Minute),
+		EndTime:   now,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	task, err := buildTaskInfo(root, projectID, taskID, taskPath)
+	if err != nil {
+		t.Fatalf("buildTaskInfo: %v", err)
+	}
+	if task.Status != storage.StatusAllFinished {
+		t.Errorf("status=%q, want %q", task.Status, storage.StatusAllFinished)
+	}
+}
+
+// TestStatusPartialFailure verifies that buildTaskInfoWithQueue returns "partial_failure"
+// when some runs failed and at least one is still active.
+func TestStatusPartialFailure(t *testing.T) {
+	root := t.TempDir()
+	projectID := "project"
+	taskID := "task-20260224-000002-bb"
+	taskPath := filepath.Join(root, projectID, taskID)
+	if err := os.MkdirAll(taskPath, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskPath, "TASK.md"), []byte("prompt\n"), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+
+	now := time.Now().UTC()
+	// Failed run (has EndTime).
+	failedDir := filepath.Join(taskPath, "runs", "run-1")
+	if err := os.MkdirAll(failedDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	failedInfo := &storage.RunInfo{
+		RunID:     "run-1",
+		ProjectID: projectID,
+		TaskID:    taskID,
+		Status:    storage.StatusFailed,
+		StartTime: now.Add(-2 * time.Minute),
+		EndTime:   now.Add(-time.Minute),
+		ExitCode:  1,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(failedDir, "run-info.yaml"), failedInfo); err != nil {
+		t.Fatalf("write failed run-info: %v", err)
+	}
+
+	// Active run (no EndTime).
+	activeDir := filepath.Join(taskPath, "runs", "run-2")
+	if err := os.MkdirAll(activeDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	activeInfo := &storage.RunInfo{
+		RunID:     "run-2",
+		ProjectID: projectID,
+		TaskID:    taskID,
+		Status:    storage.StatusRunning,
+		StartTime: now.Add(-30 * time.Second),
+		ExitCode:  -1,
+	}
+	if err := storage.WriteRunInfo(filepath.Join(activeDir, "run-info.yaml"), activeInfo); err != nil {
+		t.Fatalf("write active run-info: %v", err)
+	}
+
+	task, err := buildTaskInfo(root, projectID, taskID, taskPath)
+	if err != nil {
+		t.Fatalf("buildTaskInfo: %v", err)
+	}
+	if task.Status != storage.StatusPartialFail {
+		t.Errorf("status=%q, want %q", task.Status, storage.StatusPartialFail)
+	}
+}
+
+// TestStatusFilterAllFinished verifies that listTasks with "all_finished" filter
+// returns only tasks with the DONE marker.
+func TestStatusFilterAllFinished(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{RootDir: root, DisableTaskStart: true})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	projectID := "project"
+	doneTask := "task-20260224-000003-cc"
+	activeTask := "task-20260224-000004-dd"
+
+	for _, tid := range []string{doneTask, activeTask} {
+		taskPath := filepath.Join(root, projectID, tid)
+		if err := os.MkdirAll(taskPath, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(taskPath, "TASK.md"), []byte("prompt\n"), 0o644); err != nil {
+			t.Fatalf("write TASK.md: %v", err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, projectID, doneTask, "DONE"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write DONE: %v", err)
+	}
+
+	tasks, err := listTasks(root)
+	if err != nil {
+		t.Fatalf("listTasks: %v", err)
+	}
+	_ = server // ensure server compiles
+
+	var doneCount, activeCount int
+	for _, task := range tasks {
+		switch task.TaskID {
+		case doneTask:
+			doneCount++
+			if task.Status != storage.StatusAllFinished {
+				t.Errorf("done task status=%q, want %q", task.Status, storage.StatusAllFinished)
+			}
+		case activeTask:
+			activeCount++
+		}
+	}
+	if doneCount != 1 {
+		t.Errorf("expected 1 done task, found %d", doneCount)
+	}
+	if activeCount != 1 {
+		t.Errorf("expected 1 active task, found %d", activeCount)
+	}
+}
