@@ -4,7 +4,7 @@
 You are a research agent working on the conductor-loop project at /Users/jonnyzzz/Work/conductor-loop.
 
 ## Required Reading
-- /Users/jonnyzzz/Work/conductor-loop/ISSUES.md — see ISSUE-004
+- /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md — see ISSUE-004
 - /Users/jonnyzzz/Work/conductor-loop/AGENTS.md — code conventions
 - /Users/jonnyzzz/Work/conductor-loop/Instructions.md — tool paths
 

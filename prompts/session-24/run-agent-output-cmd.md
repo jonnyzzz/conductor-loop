@@ -23,7 +23,7 @@ File paths (absolute):
 - Example of another command: `/Users/jonnyzzz/Work/conductor-loop/cmd/run-agent/validate.go`
 - Storage package: `/Users/jonnyzzz/Work/conductor-loop/internal/storage/`
 - Instructions file: `/Users/jonnyzzz/Work/conductor-loop/Instructions.md`
-- Issues file: `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md`
+- Issues file: `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md`
 
 ## Requirements
 

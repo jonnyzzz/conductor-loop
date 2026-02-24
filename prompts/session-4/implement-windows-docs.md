@@ -5,7 +5,7 @@ You are an implementation agent working on the conductor-loop project at /Users/
 
 ## Required Reading
 - /Users/jonnyzzz/Work/conductor-loop/AGENTS.md — code conventions
-- /Users/jonnyzzz/Work/conductor-loop/ISSUES.md — see ISSUE-002
+- /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md — see ISSUE-002
 - /Users/jonnyzzz/Work/conductor-loop/internal/messagebus/lock.go — current locking
 - /Users/jonnyzzz/Work/conductor-loop/internal/messagebus/lock_unix.go — Unix-specific lock
 - /Users/jonnyzzz/Work/conductor-loop/README.md — project README

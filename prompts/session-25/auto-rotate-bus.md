@@ -140,7 +140,7 @@ Change status to RESOLVED.
 
 1. `/Users/jonnyzzz/Work/conductor-loop/internal/messagebus/messagebus.go` — add option + rotation logic
 2. `/Users/jonnyzzz/Work/conductor-loop/internal/messagebus/messagebus_test.go` — add tests
-3. `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md` — update ISSUE-016
+3. `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md` — update ISSUE-016
 
 ## Existing Code to Read First
 

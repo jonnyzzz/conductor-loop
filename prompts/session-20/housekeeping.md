@@ -47,7 +47,7 @@ Make any necessary corrections. If the docs are already accurate, just confirm i
 
 ### Task 3: Verify ISSUES.md summary table is accurate
 
-Read `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md` and verify the summary table at the top matches the actual count of issues in each category.
+Read `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md` and verify the summary table at the top matches the actual count of issues in each category.
 
 Current summary:
 ```

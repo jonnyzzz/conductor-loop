@@ -21,7 +21,7 @@ The runtime directory hierarchy is:
     PROJECT-MESSAGE-BUS.md
     <task_id>/
       TASK.md
-      TASK_STATE.md
+      TASK-CONFIG.yaml
       TASK-MESSAGE-BUS.md
       DONE
       runs/

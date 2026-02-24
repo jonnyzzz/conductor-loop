@@ -9,7 +9,7 @@ complete and all concerns are moot. Also run garbage collection on accumulated t
 ## Context
 
 File paths (absolute):
-- Issues file: `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md`
+- Issues file: `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md`
 - run-agent binary: `/Users/jonnyzzz/Work/conductor-loop/bin/run-agent`
 - Runs directory: `/Users/jonnyzzz/Work/conductor-loop/runs`
 

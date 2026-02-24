@@ -9,7 +9,7 @@ You are an implementation agent for the Conductor Loop project.
 - /Users/jonnyzzz/Work/conductor-loop/AGENTS.md
 - /Users/jonnyzzz/Work/conductor-loop/internal/messagebus/messagebus.go
 - /Users/jonnyzzz/Work/conductor-loop/internal/messagebus/messagebus_test.go
-- /Users/jonnyzzz/Work/conductor-loop/QUESTIONS.md
+- /Users/jonnyzzz/Work/conductor-loop/docs/dev/questions.md
 
 ## Human Decision (from QUESTIONS.md Q1)
 

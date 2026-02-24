@@ -4,7 +4,7 @@
 Address ISSUE-009: Tokens stored in config can expire causing silent failures. Add startup validation that checks tokens are set (for REST agents) and warns (not fails) when token is missing.
 
 ## Context
-- ISSUE-009 in `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md` — token expiration handling
+- ISSUE-009 in `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md` — token expiration handling
 - File: `internal/runner/validate.go` — existing `ValidateAgent` function validates CLI version
 - File: `internal/runner/job.go` — `tokenEnvVar()` maps agent type to env var name
 - File: `internal/config/` — config loading and agent config schema
@@ -13,7 +13,7 @@ Address ISSUE-009: Tokens stored in config can expire causing silent failures. A
 1. Read `/Users/jonnyzzz/Work/conductor-loop/internal/runner/validate.go`
 2. Read `/Users/jonnyzzz/Work/conductor-loop/internal/runner/job.go` — focus on token handling
 3. Read `/Users/jonnyzzz/Work/conductor-loop/internal/config/config.go` — AgentConfig struct
-4. Read `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md` — ISSUE-009
+4. Read `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md` — ISSUE-009
 
 ## Requirements
 
@@ -102,6 +102,6 @@ that is deferred to a future release. This fix covers the presence check.
 ```
 
 ## Mark ISSUE-009 Update
-After implementing, update `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md`:
+After implementing, update `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md`:
 - Change ISSUE-009 status to "PARTIALLY RESOLVED"
 - Add resolution note: "ValidateToken() warns on missing token at job start. Full expiration detection deferred."

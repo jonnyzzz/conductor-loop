@@ -960,9 +960,10 @@ codex:
 **Package:** `internal/agent/gemini/`
 
 **Implementation:**
-- Uses Google's Gemini API
-- Direct API calls (HTTP client)
-- Requires Google API key
+- Uses Google's `gemini` CLI tool
+- Spawns subprocess with `exec.CommandContext`
+- Redirects stdout/stderr to files
+- Requires `GEMINI_API_KEY` environment variable
 
 **Configuration:**
 ```yaml

@@ -3,7 +3,7 @@
 ## Required Reading (absolute paths)
 - /Users/jonnyzzz/Work/conductor-loop/AGENTS.md
 - /Users/jonnyzzz/Work/conductor-loop/Instructions.md
-- /Users/jonnyzzz/Work/conductor-loop/QUESTIONS.md (see Q8)
+- /Users/jonnyzzz/Work/conductor-loop/docs/dev/questions.md (see Q8)
 - /Users/jonnyzzz/Work/conductor-loop/docs/specifications/subsystem-monitoring-ui-QUESTIONS.md
 
 ## Context

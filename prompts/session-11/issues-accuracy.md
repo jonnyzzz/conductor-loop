@@ -7,12 +7,12 @@ Working directory: /Users/jonnyzzz/Work/conductor-loop
 
 Read these files first:
 - /Users/jonnyzzz/Work/conductor-loop/AGENTS.md — conventions
-- /Users/jonnyzzz/Work/conductor-loop/ISSUES.md — current issues file
+- /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md — current issues file
 - /Users/jonnyzzz/Work/conductor-loop/MESSAGE-BUS.md — session history (for recent resolutions)
 
 ## Task
 
-Review and update /Users/jonnyzzz/Work/conductor-loop/ISSUES.md to accurately reflect the current implementation state. Many issues have been resolved in sessions #5 through #10 but the document may not fully reflect this.
+Review and update /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md to accurately reflect the current implementation state. Many issues have been resolved in sessions #5 through #10 but the document may not fully reflect this.
 
 ### What to Do
 

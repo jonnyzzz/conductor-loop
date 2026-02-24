@@ -10,8 +10,8 @@ Several issues and questions are marked incorrectly (open when resolved, or miss
 Read these files first:
 - `/Users/jonnyzzz/Work/conductor-loop/AGENTS.md` — conventions
 - `/Users/jonnyzzz/Work/conductor-loop/Instructions.md` — project structure
-- `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md` — current issues list
-- `/Users/jonnyzzz/Work/conductor-loop/QUESTIONS.md` — design questions
+- `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md` — current issues list
+- `/Users/jonnyzzz/Work/conductor-loop/docs/dev/questions.md` — design questions
 - `/Users/jonnyzzz/Work/conductor-loop/MESSAGE-BUS.md` — session history (last 200 lines are most relevant)
 
 ## Specific Changes to Make

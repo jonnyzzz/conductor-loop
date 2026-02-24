@@ -20,7 +20,7 @@ into parallel components.
 - /Users/jonnyzzz/Work/conductor-loop/internal/runner/ralph.go
 - /Users/jonnyzzz/Work/conductor-loop/internal/runner/task.go
 - /Users/jonnyzzz/Work/conductor-loop/internal/runner/orchestrator.go
-- /Users/jonnyzzz/Work/conductor-loop/ISSUES.md (ISSUE-005 section)
+- /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md (ISSUE-005 section)
 
 ### 2. Analyze the bottleneck
 - Map out the full call graph of runJob()
@@ -56,7 +56,7 @@ Write a detailed analysis to /tmp/issue-005-analysis.md including:
 - Estimated effort
 
 ### 6. Update ISSUES.md
-Based on your analysis, update ISSUE-005 in /Users/jonnyzzz/Work/conductor-loop/ISSUES.md:
+Based on your analysis, update ISSUE-005 in /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md:
 - Is this actually a bottleneck in the current implementation?
 - Update status if appropriate
 - Add a "Resolution Notes" section with your findings

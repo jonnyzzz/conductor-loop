@@ -31,7 +31,7 @@ Close ISSUE-006 (Storage-MessageBus Dependency Inversion) as a planning artifact
 
 ## What To Do
 
-1. Read `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md` carefully
+1. Read `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md` carefully
 2. Read relevant code files to verify the current implementation state
 3. Mark ISSUE-006 as RESOLVED in ISSUES.md with proper explanation
 4. Audit other PARTIALLY RESOLVED issues and check if any deferred items are now worth doing or should be explicitly closed as "deferred indefinitely"

@@ -85,3 +85,7 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
 
 [2026-02-24 10:05:00] [tags: reconciliation, status]
 *   **Confirmed:** `FACTS-architecture.md` (host binding), `FACTS-user-docs.md` (Go version, config path, iterate cmd), and `FACTS-runner-storage.md` (ID precision and literal 0000 suffix) have been updated to reflect these reconciled truths.
+
+[2026-02-24 10:30:00] [tags: reconciliation, docs, corrections]
+*   **Architecture Docs:** `docs/dev/architecture.md` updated to correct Run ID format (seconds + 0000 suffix).
+*   **Subsystems Docs:** `docs/dev/subsystems.md` updated to correctly describe Gemini as a CLI-based backend, matching implementation reality.

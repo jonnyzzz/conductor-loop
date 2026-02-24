@@ -3,7 +3,7 @@
 ## Required Reading (absolute paths)
 - /Users/jonnyzzz/Work/conductor-loop/AGENTS.md
 - /Users/jonnyzzz/Work/conductor-loop/Instructions.md
-- /Users/jonnyzzz/Work/conductor-loop/ISSUES.md (see ISSUE-004)
+- /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md (see ISSUE-004)
 
 ## Context
 ISSUE-004 (CRITICAL): CLI Version Compatibility Breakage Risk. Claude CLI and Codex CLI are evolving rapidly. Flag changes or output format changes could break integration. No version detection mechanism exists.

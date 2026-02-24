@@ -107,7 +107,7 @@ The storage layer manages persistent run metadata using a file-based storage sys
 │           │   ├── prompt.md
 │           │   └── output.md
 │           │
-│           └── 20260205-1031451234-12345-1/
+│           └── 20260205-1031450000-12345-1/
 │               ├── run-info.yaml
 │               ├── agent-stdout.txt
 │               ├── agent-stderr.txt
@@ -116,7 +116,7 @@ The storage layer manages persistent run metadata using a file-based storage sys
 └── another-project/
     └── task-20260205-104000-fix/
         └── runs/
-            └── 20260205-1045127890-67890-0/
+            └── 20260205-1045120000-67890-0/
                 └── ...
 ```
 
@@ -157,7 +157,7 @@ The run-info.yaml file contains all metadata about a single agent execution.
 version: 1
 
 # Unique identifiers
-run_id: 20260205-1030451234-12345-0
+run_id: 20260205-1030450000-12345-0
 project_id: my-project
 task_id: task-001
 
@@ -202,7 +202,7 @@ error_summary: ""                         # Human-readable error summary on fail
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `version` | int | No | Schema version (currently 1) for future evolution |
-| `run_id` | string | Yes | Unique run identifier (format: `YYYYMMDD-HHMMSSMMMM-PID-SEQ`) |
+| `run_id` | string | Yes | Unique run identifier (format: `YYYYMMDD-HHMMSS0000-PID-SEQ`) |
 | `project_id` | string | Yes | Project identifier (Java identifier rules) |
 | `task_id` | string | Yes | Task identifier within project |
 
@@ -275,7 +275,7 @@ const (
 ### Example: Running Task
 
 ```yaml
-run_id: 20260205-1030451234-12345-0
+run_id: 20260205-1030450000-12345-0
 project_id: my-project
 task_id: task-001
 agent: claude
@@ -293,7 +293,7 @@ stderr_path: stderr
 ### Example: Completed Task
 
 ```yaml
-run_id: 20260205-1030451234-12345-0
+run_id: 20260205-1030450000-12345-0
 project_id: my-project
 task_id: task-001
 agent: codex
@@ -313,7 +313,7 @@ commandline: codex --prompt "Implement feature X"
 ### Example: Failed Task
 
 ```yaml
-run_id: 20260205-1030451234-12345-0
+run_id: 20260205-1030450000-12345-0
 project_id: my-project
 task_id: task-001
 agent: gemini
@@ -330,8 +330,8 @@ stderr_path: stderr
 ### Example: Child Run
 
 ```yaml
-run_id: 20260205-1045127890-67890-0
-parent_run_id: 20260205-1030451234-12345-0  # Parent run ID
+run_id: 20260205-1045120000-67890-0
+parent_run_id: 20260205-1030450000-12345-0  # Parent run ID
 project_id: my-project
 task_id: task-001
 agent: claude
@@ -347,7 +347,7 @@ cwd: /path/to/projects/my-project
 
 ```yaml
 # First run (failed)
-run_id: 20260205-1030451234-12345-0
+run_id: 20260205-1030450000-12345-0
 project_id: my-project
 task_id: task-001
 agent: claude
@@ -357,8 +357,8 @@ start_time: 2026-02-05T10:30:45.123Z
 end_time: 2026-02-05T10:31:00.000Z
 
 # Second run (restart)
-run_id: 20260205-1031054567-12345-1
-previous_run_id: 20260205-1030451234-12345-0  # Links to previous run
+run_id: 20260205-1031050000-12345-1
+previous_run_id: 20260205-1030450000-12345-0  # Links to previous run
 project_id: my-project
 task_id: task-001
 agent: claude

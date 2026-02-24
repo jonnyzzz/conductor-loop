@@ -19,7 +19,7 @@ Each fact entry MUST follow this exact format:
 - `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/dev/questions.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/dev/todos.md`
-- `/Users/jonnyzzz/Work/conductor-loop/TODO.md` (legacy, if present in history)
+- `/Users/jonnyzzz/Work/conductor-loop/docs/dev/todos.md` (legacy, if present in history)
 
 ### Message bus (decisions logged there):
 - `/Users/jonnyzzz/Work/conductor-loop/MESSAGE-BUS.md`

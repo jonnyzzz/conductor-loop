@@ -1,8 +1,12 @@
 # Concurrency Architecture
 
-This page describes how concurrency is controlled in Conductor Loop today.
+This document describes how Conductor Loop coordinates parallel work and synchronizes shared state.
 
-Implementation grounding:
+Primary source documents:
+- `docs/facts/FACTS-architecture.md`
+- `docs/facts/FACTS-runner-storage.md`
+
+Implementation references:
 - `internal/runner/ralph.go`
 - `internal/runner/semaphore.go`
 - `internal/runner/task.go`
@@ -10,142 +14,81 @@ Implementation grounding:
 - `internal/messagebus/messagebus.go`
 - `internal/messagebus/lock.go`
 - `internal/taskdeps/taskdeps.go`
+- `internal/runner/stop_unix.go`
 
-## Concurrency Model
+## Ralph Loop
 
-```mermaid
-flowchart LR
-  A[API task submit] --> B{root_task_planner enabled?}
-  B -- yes --> C[Root-task planner queue<br/>max_concurrent_root_tasks]
-  B -- no --> D[Start task immediately]
-  C --> D
-  D --> E[Task dependency gate<br/>depends_on DAG]
-  E --> F[Ralph loop]
-  F --> G[Run slot semaphore<br/>max_concurrent_runs]
-  G --> H[Root run attempt]
-  H --> I[Message bus append<br/>exclusive file lock]
-  H --> J{DONE marker present?}
-  J -- no --> F
-  J -- yes --> K[Wait active child runs]
-  K --> L[Task completes]
-```
+`RalphLoop.Run()` is the restart supervisor for a root task.
 
-## Ralph Loop: Restart, DONE, Max Restarts
+Restart semantics:
+- The loop checks `<task_dir>/DONE` before each root attempt and again after each attempt.
+- A zero exit code does not terminate the loop by itself. If `DONE` is still absent and restart budget remains, a new attempt is started.
+- The loop stops launching new root attempts once `DONE` exists.
+`DONE` checks:
+- `DONE` must be a file. If `DONE` is a directory, the loop treats it as an error.
+- When `DONE` is present, the loop transitions to child-drain behavior rather than restart behavior.
+`wait_timeout` and `poll_interval`:
+- The child-drain phase uses `waitTimeout` and `pollInterval` in the loop implementation (documented as child wait timeout/poll interval in facts).
+- Defaults are `waitTimeout=300s` and `pollInterval=1s`.
+- If children are still active at timeout, the loop logs a warning and completes without restarting the root.
 
-`RalphLoop.Run()` is the root retry loop.
+## Run Concurrency
 
-Key semantics:
-- `DONE` is checked before starting each attempt and again right after each attempt.
-- If `DONE` exists, no new root attempt is started.
-- Default loop settings are:
-  `maxRestarts=100`, `restartDelay=1s`, child wait timeout `300s`, child poll interval `1s`.
-- Attempt numbers start at `0` (`"starting root agent (restart #0)"`).
-- The loop exits with error when `restarts >= maxRestarts` before launching the next attempt.
+### `max_concurrent_runs` (all runs)
 
-`DONE` behavior:
-- `DONE` must be a file; `DONE` as a directory is treated as an error.
-- On `DONE`, the loop calls `handleDone()`:
-  - Finds active child runs.
-  - If none are active: completes immediately.
-  - If active children exist: waits for them up to `waitTimeout`.
-  - If child wait times out: writes a warning and returns success (no further restart).
-  - If child wait fails for another reason: returns error.
+All run executions pass through one package-level semaphore in `internal/runner/semaphore.go`.
 
-## Run Concurrency Limit: `max_concurrent_runs`
+- The semaphore is initialized from `defaults.max_concurrent_runs`.
+- `n > 0` creates a bounded channel semaphore.
+- `n <= 0` means unlimited run concurrency.
+- `acquireSem(ctx)` blocks while all slots are occupied; `releaseSem()` frees a slot.
+- This gate applies to all runs that execute through `runJob` (root attempts and child jobs), not just root tasks.
 
-Run-level admission is guarded by a package semaphore in `internal/runner/semaphore.go`.
+### `max_concurrent_root_tasks` (root tasks)
 
-Behavior:
-- `initSemaphore(n)` is one-shot; only the first call applies.
-- `n > 0`: bounded buffered channel semaphore.
-- `n <= 0`: unlimited concurrency (no semaphore).
-- `acquireSem(ctx)` blocks until a slot is available or context is canceled.
-- `releaseSem()` releases one slot.
+Root task admission is separately controlled in the API layer by a planner.
 
-Queued-run tracking:
-- `queuedRunsGauge` counts runs waiting for a slot.
-- The gauge increments before waiting and decrements when a waiter acquires a slot or exits on cancellation.
-- `SetWaitingRunHook` publishes `+1/-1` deltas for metrics integration.
+- Enabled by `defaults.max_concurrent_root_tasks`.
+- Implemented by `rootTaskPlanner` with persistent state at `.conductor/root-task-planner.yaml`.
+- Planner entries are queued/running; scheduling promotes queued entries while running count is below the configured limit.
+- Scope is root task starts submitted through the API planner path, not all run attempts.
 
-Operational implication:
-- If all slots are in use, new runs queue in-process and can be observed via queued-run metrics.
+## Message Bus
 
-## Root-Task Planner FIFO Queue: `max_concurrent_root_tasks`
+The message bus is append-only with single-writer synchronization.
 
-When `max_concurrent_root_tasks > 0`, API-created root tasks are admitted through `rootTaskPlanner`.
+Exclusive write lock:
+- Writers open with `O_APPEND` and acquire an exclusive lock before append.
+- On Unix, locking uses `flock(LOCK_EX|LOCK_NB)` with polling until lock timeout.
+Append retries:
+- Lock acquisition timeout is bounded (default `10s`).
+- On lock-timeout failures, append retries with exponential backoff (default `3` attempts, base `100ms`).
+Lockless reads:
+- Read paths (`ReadMessages`, `ReadLastN`) do not take the write lock.
+- This gives lockless-read behavior on Unix while writes are serialized.
 
-State and ordering:
-- Planner state is persisted at `<root>/.conductor/root-task-planner.yaml`.
-- Each entry gets a monotonically increasing `Order` (`NextOrder`), then queued/running state.
-- Scheduling order is FIFO by `Order` (with deterministic tie-breakers).
+## Task Dependencies
 
-Capacity model:
-- `scheduleLocked()` computes `available = limit - runningCount`.
-- `runningCount` includes:
-  - planner entries marked `running`, and
-  - externally discovered running root runs from `run-info.yaml` scan (prevents oversubscription).
-- Up to `available` queued entries are promoted to running and returned as launches.
+Task dependencies form a per-project DAG through `depends_on`.
 
-Queue lifecycle:
-- `Submit()` either starts immediately (`status=started`) or queues (`status=queued`, `queue_position`).
-- `OnRunFinished*()` removes finished running entries and promotes queued entries.
-- `Recover()` reconciles persisted planner state and reschedules after server restart.
+DAG execution:
+- Dependencies are stored in `TASK-CONFIG.yaml` as `depends_on`.
+- Tasks do not enter Ralph execution until dependencies are satisfied.
+Cycle detection:
+- `ValidateNoCycle` builds the dependency graph and rejects updates that introduce a cycle.
+- Rejections use explicit dependency cycle errors.
+Blocking waits:
+- `waitForDependencies` performs a blocking wait loop with periodic polling.
+- Default dependency polling interval is `2s` when not overridden.
+- While blocked, it posts `PROGRESS` messages listing unresolved dependencies.
+- When blockers clear, it posts a `FACT` message and proceeds to execution.
+- If the current task receives `DONE` while blocked, dependency waiting exits immediately.
 
-Recovery details:
-- Missing `run-info.yaml` for a `running` entry is tolerated briefly (`5s` grace).
-- After grace, stale running entries are re-queued.
-- Completed/failed root runs are removed from planner occupancy.
-- Queued entries for tasks already marked `DONE` are dropped.
-- Planner writes are atomic (temp file + sync + rename).
+## Process Groups
 
-## Message Bus Lock Contention and Retry/Backoff
+Conductor uses process groups to propagate stop signals across an entire run tree.
 
-`AppendMessage()` serializes writes with an exclusive file lock.
-
-Locking model:
-- Writer opens bus file with `O_APPEND`.
-- `LockExclusive(file, timeout)` attempts non-blocking lock repeatedly every `10ms` until timeout.
-- Default lock timeout: `10s`.
-- On success, one append operation executes under the lock.
-
-Retry model:
-- Default append attempts: `3` (`maxRetries`).
-- Retries happen only on lock-timeout failures.
-- Backoff is exponential: `retryBackoff * 2^(attempt-1)` with default base `100ms`.
-- Non-lock errors fail immediately.
-
-Contention observability:
-- `ContentionStats()` exposes total attempts and retries.
-
-Platform note:
-- On Unix-like systems this is advisory file locking.
-- On Windows this is mandatory byte-range locking, so reads can block behind active writer locks.
-
-## Task Dependency DAG, Cycle Detection, and Gating
-
-Dependencies are maintained in `TASK-CONFIG.yaml` as `depends_on`.
-
-Graph validation:
-- `Normalize()` trims, splits comma-separated values, de-duplicates, validates IDs, and rejects self-dependency.
-- `ValidateNoCycle()` builds the project dependency graph and runs DFS cycle detection.
-- On cycle, task start/config update is rejected (`dependency cycle detected: ...`).
-
-Runtime gating:
-- `RunTask()` resolves dependencies before entering Ralph loop.
-- `waitForDependencies()` polls unresolved dependencies (default interval `2s`).
-- A dependency is ready when:
-  - dependency task has `DONE`, or
-  - its latest run is `completed` and no run is currently `running`.
-- While blocked, task bus receives `PROGRESS` with current blockers.
-- When all blockers clear, task bus receives `FACT` and task execution proceeds.
-- If the current task gets `DONE` while waiting, dependency wait exits immediately.
-
-## Failure and Recovery Summary
-
-- Root run crashes/failures: Ralph loop retries until `maxRestarts`; then fails fast with error.
-- `DONE` with active children: waits; timeout is downgraded to warning and task still completes.
-- Run-slot pressure: excess runs wait on semaphore; queued gauge tracks in-flight waiters.
-- Root-task oversubscription risk: planner counts both persisted running entries and externally running root runs before admitting more.
-- Planner state drift/stale entries: `reconcileLocked()` re-queues stale running entries after grace and removes terminal ones.
-- Message bus lock contention: append retries with exponential backoff on lock timeouts; exhausts with explicit failure.
-- Dependency graph errors: cycle detection blocks invalid dependency updates before execution.
+Signal propagation:
+- On Unix, stop logic sends `SIGTERM` to `-PGID` (`syscall.Kill(-pgid, SIGTERM)`), targeting the whole process group.
+- If graceful termination fails and a force path is used, escalation sends `SIGKILL` to `-PGID`.
+- Liveness and cleanup logic also use PGID-aware checks, so group state rather than only one PID drives orchestration decisions.

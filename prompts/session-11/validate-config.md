@@ -8,7 +8,7 @@ Working directory: /Users/jonnyzzz/Work/conductor-loop
 Read these files first (absolute paths):
 - /Users/jonnyzzz/Work/conductor-loop/AGENTS.md — conventions, commit format, code style
 - /Users/jonnyzzz/Work/conductor-loop/Instructions.md — tool paths, build/test commands
-- /Users/jonnyzzz/Work/conductor-loop/ISSUES.md — ISSUE-009 description
+- /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md — ISSUE-009 description
 
 ## Task
 

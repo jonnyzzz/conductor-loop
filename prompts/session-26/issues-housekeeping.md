@@ -21,7 +21,7 @@ Also, the Session #25 summary in MESSAGE-BUS.md says "Total: 0 fully open" but t
 ## Required Actions
 
 ### 1. Fix ISSUES.md Summary Table
-In /Users/jonnyzzz/Work/conductor-loop/ISSUES.md, update the summary table to:
+In /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md, update the summary table to:
 ```
 | Severity | Open | Partially Resolved | Resolved |
 |----------|------|-------------------|----------|

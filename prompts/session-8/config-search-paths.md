@@ -12,7 +12,7 @@ You are an implementation agent for the Conductor Loop project.
 - /Users/jonnyzzz/Work/conductor-loop/internal/config/config_test.go
 - /Users/jonnyzzz/Work/conductor-loop/cmd/conductor/main.go
 - /Users/jonnyzzz/Work/conductor-loop/cmd/run-agent/main.go
-- /Users/jonnyzzz/Work/conductor-loop/QUESTIONS.md
+- /Users/jonnyzzz/Work/conductor-loop/docs/dev/questions.md
 
 ## Human Decision (from QUESTIONS.md Q9)
 

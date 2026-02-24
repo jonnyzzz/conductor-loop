@@ -124,8 +124,9 @@ monitoring server can be started or stopped at any time without affecting runnin
 ```
 
 **Key invariant:** The runner and agent processes operate entirely on the local
-filesystem. The API server is a read-mostly observer — it never calls back into
-the runner or agent.
+filesystem. The API server is a read-mostly observer — it reads filesystem state
+directly and calls runner package functions only for control actions (stop, start);
+the runner itself never calls back to the server.
 
 ---
 

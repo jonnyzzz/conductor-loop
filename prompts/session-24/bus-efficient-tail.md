@@ -17,7 +17,7 @@ File paths (absolute):
 - Message bus implementation: `/Users/jonnyzzz/Work/conductor-loop/internal/messagebus/messagebus.go`
 - Message bus tests: `/Users/jonnyzzz/Work/conductor-loop/internal/messagebus/messagebus_test.go`
 - Bus CLI command: `/Users/jonnyzzz/Work/conductor-loop/cmd/run-agent/bus.go`
-- Issues file: `/Users/jonnyzzz/Work/conductor-loop/ISSUES.md`
+- Issues file: `/Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md`
 
 ## Requirements
 
