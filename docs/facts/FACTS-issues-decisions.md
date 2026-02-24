@@ -6,7 +6,7 @@
 Validation scope: traversed all revisions of `docs/dev/issues.md` (24 revisions), `docs/dev/questions.md` (2 revisions), and `docs/dev/todos.md` (21 revisions), plus current `MESSAGE-BUS.md`, `docs/dev/feature-requests-project-goal-manual-workflows.md`, `docs/SUGGESTED-TASKS.md`, `docs/swarm/ISSUES.md`, and `jonnyzzz-ai-coder/swarm/ISSUES.md` history.
 
 [2026-02-23 19:19:41] [tags: issue, validation, summary]
-Issue inventory after full-history cross-check: 22 unique issue IDs (`ISSUE-000`..`ISSUE-021`), with 17 RESOLVED and 5 PARTIALLY RESOLVED; 0 fully OPEN in latest `docs/dev/issues.md`.
+Issue inventory after full-history cross-check: 22 unique issue IDs (`ISSUE-000`..`ISSUE-021`), with 19 RESOLVED and 3 PARTIALLY RESOLVED; 0 fully OPEN in latest `docs/dev/issues.md`.
 
 ### ISSUES (all 22, with severity/status/resolved)
 
@@ -23,7 +23,7 @@ ISSUE-002: Windows File Locking Incompatibility. Severity: CRITICAL. Status: PAR
 ISSUE-003: Windows Process Group Management Not Supported. Severity: HIGH. Status: PARTIALLY RESOLVED. Resolved: 2026-02-20 (short-term stubs).
 
 [2026-02-20 15:42:12] [tags: issue, agent, compatibility]
-ISSUE-004: CLI Version Compatibility Breakage Risk. Severity: CRITICAL. Status: PARTIALLY RESOLVED. Resolved: 2026-02-20.
+ISSUE-004: CLI Version Compatibility Breakage Risk. Severity: CRITICAL. Status: RESOLVED. Resolved: 2026-02-21 (Session #40).
 
 [2026-02-20 19:25:20] [tags: issue, runner, architecture]
 ISSUE-005: Phase 3 Runner Implementation is Monolithic Bottleneck. Severity: HIGH. Status: RESOLVED. Resolved: 2026-02-20.
@@ -41,7 +41,7 @@ ISSUE-008: No Early Integration Validation Checkpoints. Severity: HIGH. Status: 
 ISSUE-009: Agent Token Expiration Handling Not Implemented. Severity: HIGH. Status: PARTIALLY RESOLVED. Resolved: 2026-02-20 (phase 1).
 
 [2026-02-20 15:55:02] [tags: issue, runner, observability]
-ISSUE-010: Insufficient Error Context in Failure Scenarios. Severity: HIGH. Status: PARTIALLY RESOLVED. Resolved: 2026-02-20 (phase 1).
+ISSUE-010: Insufficient Error Context in Failure Scenarios. Severity: HIGH. Status: RESOLVED. Resolved: 2026-02-21 (Session #40).
 
 [2026-02-20 23:49:11] [tags: issue, agent, planning]
 ISSUE-011: Agent Protocol Should Sequence Before Backends. Severity: MEDIUM. Status: RESOLVED. Resolved: 2026-02-20 (Session #24).

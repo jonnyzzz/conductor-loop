@@ -24,8 +24,8 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
 ## Timestamps & IDs
 [2026-02-24 07:45:00] [tags: reconciliation, naming]
 *   **Task ID:** `task-<YYYYMMDD>-<HHMMSS>-<slug>` (Seconds precision).
-*   **Run ID:** `YYYYMMDD-HHMMSSmmmm-<pid>` (Millisecond/Nanosecond precision).
-*   **Correction:** `FACTS-runner-storage.md` claim of identical precision was imprecise for Task IDs.
+*   **Run ID:** `YYYYMMDD-HHMMSS0000-<pid>-<seq>` (Seconds precision in timestamp with literal `0000` suffix, uniqueness via PID and process-local atomic sequence).
+*   **Correction:** Earlier claims of millisecond/nanosecond precision in the timestamp part were imprecise.
 
 ## Configuration Path
 [2026-02-24 07:45:00] [tags: reconciliation, config]

@@ -587,4 +587,7 @@ GC command confirmed: `run-agent gc` supports `--older-than`, `--root`, `--dry-r
 ## Reconciliation (2026-02-24)
 
 [2026-02-24 07:45:00] [tags: reconciliation, naming, task-id]
-Task ID Precision: Practical usage in `run-agent` (CLI and logs) uses second-level precision `task-YYYYMMDD-HHMMSS-<slug>`. Run ID uses millisecond/nanosecond precision. The earlier statement "This is the format for run_id, task folder timestamps" is corrected: Task folder timestamps are second-precision.
+Task ID Precision: Practical usage in `run-agent` (CLI and logs) uses second-level precision `task-YYYYMMDD-HHMMSS-<slug>`. Run ID uses millisecond/nanosecond precision for uniqueness but the timestamp part in the ID has second-level precision followed by literal `0000` (format: `YYYYMMDD-HHMMSS0000-<pid>-<seq>`).
+
+[2026-02-24 09:00:00] [tags: reconciliation, config, format]
+Configuration: YAML is the primary configuration format (`config.yaml`, `config.yml`). HCL remains supported but is secondary. Runtime code prefers YAML search order.

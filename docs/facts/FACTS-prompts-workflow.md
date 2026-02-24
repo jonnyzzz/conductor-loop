@@ -41,7 +41,7 @@ Monitor Agent CWD is project root or runs directory. No Edit/Write for source fi
 The Required Development Flow defines 13 agent stages (Stage 0–12). Any failure must be logged to MESSAGE-BUS (and docs/dev/issues.md if blocking). Flow restarts from beginning or from a root-selected stage as appropriate.
 
 [2026-02-04 23:03:05] [tags: workflow, stage-0, cleanup]
-Stage 0 (Cleanup): Read MESSAGE-BUS.md, AGENTS.md, docs/dev/instructions.md, FACTS.md, docs/dev/issues.md. Summarize/append; do not edit MESSAGE-BUS history. Ensure orchestration files are accessible.
+Stage 0 (Cleanup): Read MESSAGE-BUS.md, AGENTS.md, docs/dev/instructions.md, docs/facts/ (FACTS files), and docs/dev/issues.md. Summarize/append; do not edit MESSAGE-BUS history. Ensure orchestration files are accessible.
 
 [2026-02-04 23:03:05] [tags: workflow, stage-1, docs]
 Stage 1 (Read local docs): Read AGENTS.md and all relevant .md files using absolute paths.
