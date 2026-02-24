@@ -4817,3 +4817,8 @@ task_id: task-20260222-100450-status-liveness-reconcile
 run_id: ""
 ---
 Validation complete: go test ./internal/runstate ./internal/api ./cmd/run-agent passed; go test ./... passed; go build ./... passed. golangci-lint is unavailable in this environment (command not found).
+[2026-02-24 08:51:07] FACT: Scenario 1 (single agent) passed
+[2026-02-24 08:51:07] FACT: Scenario 2 (parent-child) passed
+[2026-02-24 08:51:07] FACT: Scenario 3 (Ralph wait) passed
+[2026-02-24 08:51:07] FACT: Scenario 4 (message bus race) passed
+[2026-02-24 08:51:07] FACT: All acceptance tests passed
