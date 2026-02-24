@@ -139,7 +139,7 @@ This document collects open design questions and uncertainties identified during
 ## References
 
 - **Implementation Review**: 2026-02-20 session
-- **Issues**: ISSUES.md (pre-existing issues)
+- **Issues**: docs/dev/issues.md (pre-existing issues)
 - **Message Bus**: internal/messagebus/messagebus.go
 - **Ralph Loop**: internal/runner/ralph.go
 - **Storage**: internal/storage/atomic.go

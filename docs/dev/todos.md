@@ -309,3 +309,42 @@
 - [x] `task-20260223-144510-ui-collapsed-selection-no-jump`: fixed.
 - [x] `task-20260223-144520-ui-collapsed-task-label-ellipsis-hover-id`: fixed.
 - [x] `task-20260223-072800-cli-monitor-loop-simplification`: completed baseline monitor command replacement for ad-hoc shell loops.
+
+---
+
+## UX Execution Plan (2026-02-21)
+
+Source: manual design review + run-agent UX review tasks (`ux-layout`, `ux-flow`, `ux-bus`).
+
+- [x] Frontend UX batch (tree, message bus, logs, layout, task details, new task flow).
+- [x] Backend timeout semantics batch (idle-timeout behavior + tests).
+- [x] Documentation batch (message bus usage + operator guidance).
+- [x] Cross-check against existing run-agent review outputs and close gaps.
+
+## Reviewed UX Outputs
+
+Reviewed UX/run-agent reports:
+- `task-20260221-181000-ux-flow`
+- `task-20260221-181000-ux-bus`
+- `task-20260221-181000-ux-layout`
+- `task-20260221-184300-ux-review-messagebus`
+- `task-20260221-184300-ux-review-runs-logs`
+- `task-20260221-184300-ux-review-layout` (failed run; partial evidence only)
+
+Their findings are reflected in the UX backlog above and the implemented changes in this iteration.
+
+## User Design Review (verbatim)
+
+Raw user requests collected 2026-02-21:
+- merge task with [codex] like line, it's all one line
+- fix message bus, it's empty
+- + New Task -- add in the tree for each project
+- hide completed runs under ... N completed link
+- new task -- do not allow changing task id, only allow to write a modifier
+- review output from other running review tasks
+- live logs not visible, and do not work well so far
+- message bus section takes space from the task details
+- task details -- attributes should go up
+- task details, tree view -- not clear if a task will restart after end/failure
+- task timeout computed incorrectly -- it should measure idle time if there is no new output for that time, but a task should not timeout if the output is flowing
+- the message bus requires update in the .md files to explain how to use run-agent for that

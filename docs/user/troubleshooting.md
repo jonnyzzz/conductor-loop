@@ -747,7 +747,7 @@ pgrep -fl "run-agent monitor"
 3. Stop extra monitor processes.
 4. Prefer scheduled one-shot mode instead of overlapping daemons:
 ```bash
-run-agent monitor --project <project> --todo TODOs.md --once
+run-agent monitor --project <project> --todo docs/dev/todos.md --once
 ```
 5. Before manually stopping tasks, pause monitor loops to avoid immediate respawn races.
 
@@ -868,7 +868,7 @@ If you must run on native Windows, reduce the number of concurrent agents to
 minimize lock contention. The system will function but with degraded
 performance under concurrent workloads.
 
-See [ISSUE-002](https://github.com/jonnyzzz/conductor-loop/blob/main/ISSUES.md) for tracking and future improvements.
+See [ISSUE-002](https://github.com/jonnyzzz/conductor-loop/blob/main/docs/dev/issues.md) for tracking and future improvements.
 
 ---
 

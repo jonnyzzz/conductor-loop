@@ -374,7 +374,7 @@ Critical Path: Phase 3 (Runner Orchestration, 30h sequential)
 
 ### Medium Priority (Update During Phase 2-3):
 8. **docs/specifications/subsystem-runner-orchestration.md** - Add version detection requirements
-9. **ISSUES.md** - Add new risks and mitigation tracking
+9. **docs/dev/issues.md** - Add new risks and mitigation tracking
 
 ---
 

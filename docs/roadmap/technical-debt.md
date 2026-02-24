@@ -5,28 +5,28 @@
 - ISSUE-002 (Windows file locking) is still only short-term resolved; deferred medium-term work remains:
   - Windows shared-lock reader with timeout/retry.
   - Windows-specific integration tests (depends on Windows CI).
-  - Evidence: `ISSUES.md:38-41`, `ISSUES.md:68-69`, `docs/facts/FACTS-issues-decisions.md:20`.
+  - Evidence: `docs/dev/issues.md:38-41`, `docs/dev/issues.md:68-69`, `docs/facts/FACTS-issues-decisions.md:20`.
 
 - ISSUE-003 (Windows process group management) is still using stubs/workarounds; deferred medium-term work remains:
   - Replace PID-as-PGID workaround with Windows Job Objects.
   - Implement child detection/termination via Job Object APIs.
-  - Evidence: `ISSUES.md:77-80`, `ISSUES.md:103-107`, `docs/facts/FACTS-issues-decisions.md:23`.
+  - Evidence: `docs/dev/issues.md:77-80`, `docs/dev/issues.md:103-107`, `docs/facts/FACTS-issues-decisions.md:23`.
 
 - ISSUE-004 (CLI compatibility risk) is still recorded as PARTIALLY RESOLVED in facts and issue header, with deferred follow-ups:
   - Compatibility matrix/config override for minimum versions.
   - Integration test suite across multiple CLI versions.
   - Version support documentation alignment.
-  - Evidence: `ISSUES.md:114-117`, `ISSUES.md:139-141`, `docs/facts/FACTS-issues-decisions.md:26`.
+  - Evidence: `docs/dev/issues.md:114-117`, `docs/dev/issues.md:139-141`, `docs/facts/FACTS-issues-decisions.md:26`.
 
 - ISSUE-009 (token expiration handling) remains phase-1 only:
   - Full token expiration detection via API checks is deferred.
   - OAuth token refresh remains deferred.
-  - Evidence: `ISSUES.md:353-356`, `ISSUES.md:386-387`, `docs/facts/FACTS-issues-decisions.md:41`.
+  - Evidence: `docs/dev/issues.md:353-356`, `docs/dev/issues.md:386-387`, `docs/facts/FACTS-issues-decisions.md:41`.
 
 - ISSUE-010 (error context) remains phase-1 only:
   - Structured ERROR event type is deferred.
   - Error pattern knowledge base and stronger UI surfacing are deferred.
-  - Evidence: `ISSUES.md:398-401`, `ISSUES.md:423-425`, `docs/facts/FACTS-issues-decisions.md:44`.
+  - Evidence: `docs/dev/issues.md:398-401`, `docs/dev/issues.md:423-425`, `docs/facts/FACTS-issues-decisions.md:44`.
 
 - Message bus durability/rotation decisions are still tracked as deferred/backlog items:
   - Q1: fsync remains opt-in only.
@@ -95,7 +95,7 @@
   - Windows integration tests for locking/process management.
   - Multi-CLI compatibility integration suite.
   - High-concurrency message bus writer stress tests (50+ writers).
-  - Evidence: `ISSUES.md:69`, `ISSUES.md:140`, `ISSUES.md:303`.
+  - Evidence: `docs/dev/issues.md:69`, `docs/dev/issues.md:140`, `docs/dev/issues.md:303`.
 
 ## Refactoring Needs
 
@@ -107,7 +107,7 @@
 - Runner execution path still carries a large core file and known low-priority duplication:
   - `internal/runner/job.go` (~973 LOC)
   - Deferred cleanup: merge duplicate finalization logic (`executeCLI` + `finalizeRun`).
-  - Evidence: `ISSUES.md:221-223`.
+  - Evidence: `docs/dev/issues.md:221-223`.
 
 - CLI server command implementation is large and a candidate for decomposition:
   - `cmd/run-agent/server.go` (~2169 LOC).

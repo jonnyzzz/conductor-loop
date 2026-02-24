@@ -2,7 +2,7 @@
 
 **Generated**: 2026-02-24
 **Agent**: Claude Sonnet 4.6 (Gap Analysis Agent, Iteration 1)
-**Sources**: `README.md`, `ISSUES.md`, `TODOs.md`, `docs/facts/FACTS-suggested-tasks.md`, source in `cmd/`, `internal/`, `docs/user/`
+**Sources**: `README.md`, `docs/dev/issues.md`, `docs/dev/todos.md`, `docs/facts/FACTS-suggested-tasks.md`, source in `cmd/`, `internal/`, `docs/user/`
 
 ---
 
@@ -184,7 +184,7 @@ Open **P0** items from `docs/facts/FACTS-suggested-tasks.md` with **no evidence 
 
 ## Issue Gaps
 
-Open items in `ISSUES.md` with **PARTIALLY RESOLVED** status and **deferred medium-term work** that has no assigned task in `FACTS-suggested-tasks.md` or `TODOs.md`.
+Open items in `docs/dev/issues.md` with **PARTIALLY RESOLVED** status and **deferred medium-term work** that has no assigned task in `FACTS-suggested-tasks.md` or `docs/dev/todos.md`.
 
 ### GAP-ISSUE-002: Windows Shared-Lock Readers (ISSUE-002, medium-term deferred)
 
