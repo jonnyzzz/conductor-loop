@@ -419,7 +419,7 @@ Two complementary limits prevent resource exhaustion:
 | Config key | Scope | Mechanism |
 |---|---|---|
 | `defaults.max_concurrent_runs` | All runs (root + sub) | Package-level channel semaphore in `internal/runner/semaphore.go`; queued count exported to metrics |
-| `defaults.max_concurrent_root_tasks` | Root tasks only | Persistent planner state file `.conductor/root-task-planner.yaml` managed by the API server (`internal/api/root_task_planner.go`) |
+| `defaults.max_concurrent_root_tasks` | Root tasks only | Persistent planner state file `<storage-root>/.conductor/root-task-planner.yaml` managed by the API server (`internal/api/root_task_planner.go`) |
 
 Both default to 0 (unlimited). Setting either to a positive integer enables the limit.
 
