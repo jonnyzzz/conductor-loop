@@ -615,12 +615,12 @@ go test -bench=. -benchmem ./pkg/messagebus/
 ## Resources
 
 ### Documentation
-- [THE_PROMPT_v5.md](THE_PROMPT_v5.md) - Workflow document
-- [AGENTS.md](AGENTS.md) - Agent conventions and ownership
-- [Instructions.md](Instructions.md) - Tool paths and commands
-- [THE_PLAN_v5.md](THE_PLAN_v5.md) - Implementation plan
-- [docs/specifications/](docs/specifications/) - Subsystem specifications
-- [docs/decisions/](docs/decisions/) - Architecture decisions
+- [THE_PROMPT_v5.md](../../THE_PROMPT_v5.md) - Workflow document
+- [AGENTS.md](../../AGENTS.md) - Agent conventions and ownership
+- [Instructions.md](../../Instructions.md) - Tool paths and commands
+- [THE_PLAN_v5.md](../../THE_PLAN_v5.md) - Implementation plan
+- [docs/specifications/](../../docs/specifications/) - Subsystem specifications
+- [docs/decisions/](../../docs/decisions/) - Architecture decisions
 
 ### External Resources
 - [Effective Go](https://go.dev/doc/effective_go)

@@ -236,6 +236,5 @@ jobs:
 
 ## Related Workflows
 
-- [security-audit.md](./security-audit.md) - Deep security focus
-- [refactoring.md](./refactoring.md) - Post-review improvements
-- [testing.md](./testing.md) - Generate tests for found issues
+- [Workflows Overview](./README.md) - All available workflows
+- [Best Practices](../best-practices.md) - Production-ready patterns and tips

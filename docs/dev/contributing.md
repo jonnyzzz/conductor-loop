@@ -840,7 +840,7 @@ For concurrent code, always include:
 
 If you need help:
 
-- Read the [Developer Guide](getting-started.md)
+- Read the [Developer Guide](development-setup.md)
 - Check [Architecture Documentation](architecture.md)
 - Review [Specifications](../specifications/)
 - Ask in [GitHub Discussions](https://github.com/jonnyzzz/conductor-loop/discussions)

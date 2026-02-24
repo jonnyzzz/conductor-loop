@@ -1346,4 +1346,4 @@ Currently, there is no built-in rate limiting. For production use, consider:
 - [CLI Reference](cli-reference.md) - Command-line interface
 - [Web UI Guide](web-ui.md) - Using the web interface
 - [Configuration](configuration.md) - Configure the server
-- [Examples](../examples/basic-usage.md) - API usage examples
+- [Examples](../../examples/README.md) - API usage examples

@@ -502,7 +502,7 @@ services:
 
 **Option 3: Kubernetes**
 
-Create deployments, services, and persistent volume claims. See [Developer Guide](../dev/deployment.md) for k8s examples.
+Create deployments, services, and persistent volume claims. See [Installation Guide](installation.md) for deployment details.
 
 ### How do I back up runs?
 
@@ -619,7 +619,7 @@ The step-by-step commands are in [Troubleshooting Guide](troubleshooting.md) und
 
 ### How can I contribute?
 
-Contributions welcome! See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
+Contributions welcome! See [Contributing Guide](../dev/contributing.md) for guidelines.
 
 Ways to contribute:
 - **Bug reports**: Open issues
