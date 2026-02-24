@@ -179,7 +179,7 @@ Initial orchestration decision: run parallel implementation with cap 16 and role
 Message bus write path changed to remove per-write `fsync()` for throughput; rationale recorded as coordination/log use case with OS-page-cache durability model.
 
 [2026-02-20 14:55:00] [tags: decision, issue, runner]
-Session decision recorded that `ISSUE-001` was already resolved in code and then marked resolved in `ISSUES.md`.
+Session decision recorded that `ISSUE-001` was already resolved in code and then marked resolved in `docs/dev/issues.md`.
 
 [2026-02-20 15:00:00] [tags: decision, questions, summary]
 Message bus captured consolidated decisions for Q1..Q9 (fsync/rotation/DONE/restart/locking/JRUN vars/child runs/status endpoint/config format).

@@ -198,7 +198,7 @@ Last updated: 2026-02-23 (review-suggested-tasks scan).
 ### Release/update simplification
 - **ID**: `TASK-20260221-devrig-release-update-simplification`
 - **Description**: Implement deterministic "always latest" updater path using GitHub Releases as source of truth and `run-agent.jonnyzzz.com` as controlled download endpoint. Keep signature/hash verification. Minimize per-release manual steps.
-- **Source**: swarm tasks/, conductor-loop TODOs.md
+- **Source**: swarm tasks/, conductor-loop docs/dev/todos.md
 
 ### Bootstrap latest domain
 - **ID**: `TASK-20260221-devrig-release-latest-bootstrap-domain`
@@ -249,7 +249,7 @@ Items surfaced by this scan that were not previously in SUGGESTED-TASKS.md.
 ### job-batch-cli and workflow-runner-cli unstarted
 - **ID (batch)**: `task-20260222-102110-job-batch-cli`
 - **ID (workflow)**: `task-20260222-102120-workflow-runner-cli`
-- **Description**: Both task directories exist with no run history and no DONE marker. TODOs.md marks them `[x]` but no implementation evidence exists. `workflow-runner-cli` is blocked by `job-batch-cli` per FACTS. These need to be either executed or explicitly cancelled/superseded by the `task-20260223-155220-blocked-dependency-deadlock-recovery` P0 resolution.
+- **Description**: Both task directories exist with no run history and no DONE marker. docs/dev/todos.md marks them `[x]` but no implementation evidence exists. `workflow-runner-cli` is blocked by `job-batch-cli` per FACTS. These need to be either executed or explicitly cancelled/superseded by the `task-20260223-155220-blocked-dependency-deadlock-recovery` P0 resolution.
 - **Source**: Filesystem scan 2026-02-23; `docs/facts/FACTS-issues-decisions.md`
 
 ---
