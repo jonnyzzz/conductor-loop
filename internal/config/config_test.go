@@ -287,8 +287,9 @@ func TestFindDefaultConfig_FoundHome(t *testing.T) {
 	}
 }
 
-func TestFindDefaultConfig_HCLNotFound(t *testing.T) {
-	// HCL config format is no longer supported; a .hcl file should NOT be discovered.
+func TestFindDefaultConfig_ProjectHCLNotFound(t *testing.T) {
+	// Only ~/.conductor.hcl is supported (user home). A config.hcl in a project
+	// directory must NOT be discovered.
 	dir := t.TempDir()
 	hclPath := filepath.Join(dir, "config.hcl")
 	if err := os.WriteFile(hclPath, []byte("# hcl config\n"), 0o600); err != nil {
@@ -299,7 +300,118 @@ func TestFindDefaultConfig_HCLNotFound(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if path != "" {
-		t.Fatalf("expected no config found (HCL deprecated), got %q", path)
+		t.Fatalf("expected no config found (project .hcl not supported), got %q", path)
+	}
+}
+
+func TestParseHCLConfig_AgentInference(t *testing.T) {
+	hcl := `
+# conductor home config
+codex {
+  token_file = "~/.tokens/codex"
+  model = "codex-davinci-003"
+}
+
+claude {
+  token_file = "~/.tokens/claude"
+}
+
+defaults {
+  agent = "codex"
+  timeout = 120
+  max_concurrent_runs = 4
+}
+
+api {
+  port = 14355
+}
+`
+	cfg, err := parseHCLConfig([]byte(hcl))
+	if err != nil {
+		t.Fatalf("parseHCLConfig: %v", err)
+	}
+
+	if len(cfg.Agents) != 2 {
+		t.Fatalf("expected 2 agents, got %d", len(cfg.Agents))
+	}
+
+	codex, ok := cfg.Agents["codex"]
+	if !ok {
+		t.Fatal("expected codex agent")
+	}
+	if codex.TokenFile != "~/.tokens/codex" {
+		t.Fatalf("expected token_file %q, got %q", "~/.tokens/codex", codex.TokenFile)
+	}
+	if codex.Model != "codex-davinci-003" {
+		t.Fatalf("expected model %q, got %q", "codex-davinci-003", codex.Model)
+	}
+	// Type not set in HCL — will be inferred from block name by applyAgentDefaults.
+	if codex.Type != "" {
+		t.Fatalf("expected empty type before inference, got %q", codex.Type)
+	}
+
+	if cfg.Defaults.Agent != "codex" {
+		t.Fatalf("expected defaults.agent %q, got %q", "codex", cfg.Defaults.Agent)
+	}
+	if cfg.Defaults.Timeout != 120 {
+		t.Fatalf("expected defaults.timeout 120, got %d", cfg.Defaults.Timeout)
+	}
+	if cfg.Defaults.MaxConcurrentRuns != 4 {
+		t.Fatalf("expected max_concurrent_runs 4, got %d", cfg.Defaults.MaxConcurrentRuns)
+	}
+	if cfg.API.Port != 14355 {
+		t.Fatalf("expected api.port 14355, got %d", cfg.API.Port)
+	}
+}
+
+func TestParseHCLConfig_ExplicitType(t *testing.T) {
+	hcl := `
+my_openai {
+  type = "codex"
+  token_file = "~/.tokens/openai"
+}
+`
+	cfg, err := parseHCLConfig([]byte(hcl))
+	if err != nil {
+		t.Fatalf("parseHCLConfig: %v", err)
+	}
+	agent, ok := cfg.Agents["my_openai"]
+	if !ok {
+		t.Fatal("expected my_openai agent")
+	}
+	if agent.Type != "codex" {
+		t.Fatalf("expected explicit type %q, got %q", "codex", agent.Type)
+	}
+}
+
+func TestParseHCLConfig_UnclosedBlock(t *testing.T) {
+	hcl := `
+codex {
+  token = "abc"
+`
+	if _, err := parseHCLConfig([]byte(hcl)); err == nil {
+		t.Fatal("expected error for unclosed block")
+	}
+}
+
+func TestParseHCLConfig_InvalidLine(t *testing.T) {
+	hcl := `
+codex {
+  not_a_kv_pair
+}
+`
+	if _, err := parseHCLConfig([]byte(hcl)); err == nil {
+		t.Fatal("expected error for invalid key-value line")
+	}
+}
+
+func TestParseHCLConfig_EmptyFile(t *testing.T) {
+	cfg, err := parseHCLConfig([]byte(""))
+	if err != nil {
+		t.Fatalf("unexpected error for empty file: %v", err)
+	}
+	if len(cfg.Agents) != 0 {
+		t.Fatalf("expected 0 agents, got %d", len(cfg.Agents))
 	}
 }
 

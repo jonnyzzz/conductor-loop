@@ -333,6 +333,14 @@ Reviewed UX/run-agent reports:
 
 Their findings are reflected in the UX backlog above and the implemented changes in this iteration.
 
+## New Task Intake (2026-02-24)
+
+- [ ] `task-20260224-hcl-home-config`: Re-implement HCL config support for user home (`~/.conductor.hcl`); infer agent type from block key name (no `type` field required); merge as base config layer loaded before per-project YAML; support blocks: agent blocks (codex/claude/gemini/etc.), `defaults {}`, `api {}`, `storage {}`.
+- [ ] `task-20260224-binary-dir-structure`: Establish `~/conductor-loop/binaries/<version>/run-agent` directory convention; maintain `~/conductor-loop/binaries/_latest/` symlink updated by install/update scripts; same layout for local dev builds.
+- [ ] `task-20260224-run-agent-cmd-latest-binary`: Update `run-agent.cmd` (and `run-agent.sh`) to check `~/conductor-loop/binaries/_latest/run-agent` as the preferred binary resolution path, before falling back to script-sibling and `dist/`.
+- [ ] `task-20260224-deploy-locally-sh`: Create `scripts/deploy_locally.sh` — build binary with version LDFLAGS from source, copy to `~/conductor-loop/binaries/<version>/run-agent`, update `~/conductor-loop/binaries/_latest/` symlink.
+- [ ] `task-20260224-fetch-release-stub`: Stub `scripts/fetch_release.sh` — future GitHub releases JSON fetcher that downloads correct versioned binary and places it under `~/conductor-loop/binaries/<version>/`; document the intended pattern (no GitHub release exists yet, local dev scenario only for now).
+
 ## User Design Review (verbatim)
 
 Raw user requests collected 2026-02-21:

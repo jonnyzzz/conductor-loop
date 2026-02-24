@@ -82,8 +82,9 @@ type StorageConfig struct {
 // Search order:
 //  1. ./config.yaml
 //  2. ./config.yml
-//  3. $HOME/.config/conductor/config.yaml
-//  4. $HOME/.config/conductor/config.yml
+//  3. $HOME/.conductor.hcl
+//  4. $HOME/.config/conductor/config.yaml
+//  5. $HOME/.config/conductor/config.yml
 func FindDefaultConfig() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -94,6 +95,12 @@ func FindDefaultConfig() (string, error) {
 
 // FindDefaultConfigIn searches for a config file starting from baseDir.
 // This variant is provided for testability without os.Chdir.
+// Search order:
+//  1. ./config.yaml (project-local)
+//  2. ./config.yml  (project-local)
+//  3. $HOME/.conductor.hcl (user home HCL config — no type field required in agent blocks)
+//  4. $HOME/.config/conductor/config.yaml
+//  5. $HOME/.config/conductor/config.yml
 func FindDefaultConfigIn(baseDir string) (string, error) {
 	home, _ := os.UserHomeDir()
 
@@ -103,6 +110,7 @@ func FindDefaultConfigIn(baseDir string) (string, error) {
 	}
 	if home != "" {
 		candidates = append(candidates,
+			filepath.Join(home, ".conductor.hcl"),
 			filepath.Join(home, ".config", "conductor", "config.yaml"),
 			filepath.Join(home, ".config", "conductor", "config.yml"),
 		)
@@ -181,11 +189,15 @@ func LoadConfigForServer(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// parseConfigFile reads and parses a YAML config file.
+// parseConfigFile reads and parses a config file.
+// Files ending in ".hcl" are parsed as HCL; all others as YAML.
 func parseConfigFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
+	}
+	if filepath.Ext(path) == ".hcl" {
+		return parseHCLConfig(data)
 	}
 	return parseYAMLConfig(data)
 }
