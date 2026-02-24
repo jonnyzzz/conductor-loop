@@ -38,7 +38,7 @@ RUN mkdir -p /data/runs /data/config
 
 WORKDIR /data
 
-EXPOSE 8080
+EXPOSE 14355
 
 CMD ["conductor"]
 ```
@@ -53,7 +53,7 @@ services:
     build: .
     container_name: conductor
     ports:
-      - "8080:8080"
+      - "14355:14355"
     volumes:
       - ./data/runs:/data/runs
       - ./config.yaml:/data/config/config.yaml:ro
@@ -100,7 +100,7 @@ agents:
 
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 14355
   cors_origins:
     - http://localhost:3000
 
@@ -133,7 +133,7 @@ func TestDockerPersistence(t *testing.T) {
     time.Sleep(5 * time.Second)
 
     // Create a run via API
-    resp, err := http.Post("http://localhost:8080/api/v1/tasks", ...)
+    resp, err := http.Post("http://localhost:14355/api/v1/tasks", ...)
     if err != nil {
         t.Fatalf("POST failed: %v", err)
     }
@@ -145,7 +145,7 @@ func TestDockerPersistence(t *testing.T) {
     time.Sleep(5 * time.Second)
 
     // Verify run still exists
-    resp, err = http.Get(fmt.Sprintf("http://localhost:8080/api/v1/runs/%s", runID))
+    resp, err = http.Get(fmt.Sprintf("http://localhost:14355/api/v1/runs/%s", runID))
     if err != nil || resp.StatusCode != 200 {
         t.Errorf("run not found after restart")
     }
@@ -162,7 +162,7 @@ Test with multiple conductor instances:
 Add health check to Dockerfile:
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/api/v1/health || exit 1
+  CMD curl -f http://localhost:14355/api/v1/health || exit 1
 ```
 
 ### 7. CI/CD Integration

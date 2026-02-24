@@ -66,7 +66,7 @@ run-agent bus post --type DECISION \
 Split at semantic seams — by package, by subsystem, by concern.
 
 Good boundaries for a Go repo:
-- one sub-agent per top-level package (`internal/runner`, `internal/api`, `pkg/storage`)
+- one sub-agent per top-level package (`internal/runner`, `internal/api`, `internal/storage`)
 - one sub-agent per feature concern (auth, storage, UI)
 - one sub-agent per concern *type* (implementation, tests, docs)
 
@@ -103,7 +103,7 @@ run-agent job \
   --agent   claude \
   --parent-run-id "$JRUN_ID" \
   --timeout 30m \
-  --prompt  "Investigate pkg/storage: check ReadLastN edge cases, post findings via bus, write output.md" &
+  --prompt  "Investigate internal/storage: check ReadLastN edge cases, post findings via bus, write output.md" &
 
 # Subsystem C — API
 run-agent job \
@@ -241,7 +241,7 @@ spawn() {
 }
 
 spawn "runner"  "Fix race conditions in internal/runner. Post FACT for each commit."
-spawn "storage" "Fix ReadLastN edge cases in pkg/storage. Post FACT for each commit."
+spawn "storage" "Fix ReadLastN edge cases in internal/storage. Post FACT for each commit."
 spawn "api"     "Review SSE error handling in internal/api. Post FACT for each commit."
 
 wait

@@ -1,131 +1,84 @@
 # Architecture Decisions
 
-This document explains the key architectural decisions in conductor-loop — specifically WHY the system was built the way it was.
+This document captures the rationale behind key architecture choices in conductor-loop.
 
-## Decision 1: Filesystem Over Database
+## 1) Filesystem Over Database
 
-**Context**: Conductor Loop needed a storage backend for task metadata, logs, and message bus data.
-**Decision**: All state (run metadata, message bus, task status) lives on the local filesystem.
-**Rationale**:
-- **Simplicity**: No database setup or maintenance required for users.
-- **Portability**: The system works anywhere the binary runs.
-- **Debuggability**: State can be inspected and modified with standard CLI tools (cat, grep, vim).
-- **Atomicity**: Atomic rename operations provide sufficient consistency for our use case.
-**Alternatives Considered**: SQLite (embedded), PostgreSQL (external).
-**Trade-offs**:
-- No complex query capabilities (mitigated by in-memory indexing).
-- Scaling limits constrained by single-node filesystem performance.
-- Local filesystem requirement means no NFS/SMB support.
-**Status**: Current
+### Context
+Conductor-loop needed persistent state for tasks, runs, message buses, and completion markers while staying easy to run locally and offline.
 
-## Decision 2: O_APPEND + flock Over Message Queue
+### Decision
+Use the filesystem as the primary state store (`TASK.md`, `run-info.yaml`, `TASK-MESSAGE-BUS.md`, `PROJECT-MESSAGE-BUS.md`, `DONE`) instead of a database.
 
-**Context**: The system needed a reliable way to record and stream events between processes.
-**Decision**: Message bus uses O_APPEND writes with exclusive flock + lockless reads.
-**Rationale**:
-- **Zero Dependency**: No external message queue (like RabbitMQ or Kafka) to deploy.
-- **Performance**: High throughput (~37,000 msg/sec) with OS-buffered writes.
-- **Human-Readable**: YAML format makes the bus easy to read and debug.
-**Alternatives Considered**: Redis Pub/Sub, SQLite, Embedded NATS.
-**Trade-offs**:
-- File size grows indefinitely (mitigated by GC and auto-rotation).
-- No built-in pub/sub semantics (polling required).
-- Restricted to local filesystem locking semantics.
-**Status**: Current
+### Consequences / Trade-offs
+- Simpler operations: zero database setup, easier local debugging, and better offline behavior.
+- Git-ops friendly: plain files are inspectable, reviewable, and scriptable with standard tooling.
+- Trade-off: no rich query engine (queries are mostly scan/index based) and single-node scaling limits.
+- Trade-off: design depends on local filesystem semantics rather than distributed storage guarantees.
 
-## Decision 3: CLI-Wrapped Agents Over Direct API
+## 2) `O_APPEND` + `flock` for Message Bus
 
-**Context**: Agents need to execute tasks, access files, and potentially run tools.
-**Decision**: Claude, Codex, and Gemini are invoked as CLI subprocesses, not via their REST APIs directly.
-**Rationale**:
-- **Full Capability**: CLI tools provide built-in tool use, file access, and sandbox management that raw REST APIs don't.
-- **Simpler Auth**: Environment variables handle authentication without complex token management in the runner.
-- **Context Management**: Agents manage their own context window and history.
-**CLI flags used**:
-- `claude`: `-C <cwd> -p --input-format text --output-format stream-json --verbose --tools default --permission-mode bypassPermissions`
-- `codex`: `exec --dangerously-bypass-approvals-and-sandbox --json -C <cwd> -`
-- `gemini`: `--screen-reader true --approval-mode yolo --output-format stream-json`
-**Alternatives Considered**: Direct REST API integration for all agents.
-**Trade-offs**: Dependency on external CLI tools being installed.
-**Note**: Perplexity and xAI are exceptions (REST-only) because they lack equivalent CLI tools.
-**Status**: Current
+### Context
+Multiple processes must append to the same message bus safely without introducing external infrastructure.
 
-## Decision 4: YAML Over HCL (Config Format Evolution)
+### Decision
+Write bus entries to append-only files using `O_APPEND` plus exclusive `flock` (with retries/backoff), while keeping reads lockless on Unix.
 
-**Context**: The system needs a configuration format for defining agents and defaults.
-**Decision**: YAML is the primary config format; HCL is supported for backward compatibility.
-**Rationale**:
-- **Ecosystem**: YAML has broader support and tooling in the ecosystem.
-- **History**: Initially chose HCL for HashiCorp-style declarative config, but reversed after validating YAML's practical advantages.
-**Alternatives Considered**: TOML, JSON.
-**Trade-offs**: HCL offers cleaner syntax for some hierarchical data, but YAML is more ubiquitous.
-**Current behavior**: Config search order is `config.yaml` > `config.yml` > `config.hcl`.
-**Status**: Current
+### Consequences / Trade-offs
+- Atomic append behavior on Unix and durable file-based event history without Redis/Kafka.
+- Operational simplicity: no external queue or broker dependency.
+- Trade-off: Windows uses `LockFileEx` semantics, so write locks can block concurrent reads.
+- Trade-off: files grow over time and require rotation/GC policy.
 
-## Decision 5: SSE Over WebSockets
+## 3) CLI-Wrapped Agents (Claude/Codex/Gemini)
 
-**Context**: The UI needs real-time updates for logs and message bus events.
-**Decision**: Server-Sent Events (SSE) for real-time streaming (not WebSockets).
-**Rationale**:
-- **Simplicity**: HTTP-based protocol with no complex upgrade handshake.
-- **Reliability**: Automatic reconnection is built into the browser EventSource API.
-- **Unidirectional**: Sufficient for log streaming; we don't need bidirectional socket communication.
-**Alternatives Considered**: WebSockets, gRPC-Web.
-**Trade-offs**: No bidirectional communication (mitigated by using standard REST for commands).
-**Status**: Current
+### Context
+The system integrates multiple coding agents with different capabilities and release cadences.
 
-## Decision 6: Single Binary Deployment
+### Decision
+Run Claude, Codex, and Gemini as isolated CLI subprocesses with redirected stdio. Keep Perplexity and xAI as in-process REST adapters.
 
-**Context**: Distribution and installation need to be as simple as possible.
-**Decision**: Both `run-agent` and `conductor` are single statically-linked Go binaries.
-**Rationale**:
-- **No Dependencies**: No runtime dependencies (Python, Node, JVM) required.
-- **Easy Distribution**: `curl` and run.
-- **Fast Startup**: Minimal startup overhead.
-- **Frontend**: Embedded via `go:embed`; build output goes to `frontend/dist/` which is served at `/ui/`.
-**Alternatives Considered**: Docker containers, Python package.
-**Trade-offs**: larger binary size due to static linking and embedded assets.
-**Status**: Current
+### Consequences / Trade-offs
+- Process isolation improves containment and makes failures easier to reason about per run.
+- Agent updates remain decoupled from conductor-loop releases (CLI tools can evolve independently).
+- I/O handling is straightforward via stdout/stderr capture and `output.md` fallback.
+- Trade-off: runtime depends on CLI availability/version compatibility on the host.
 
-## Decision 7: Port 14355 as Default
+## 4) YAML Over HCL for Configuration
 
-**Context**: Choosing a default port for the API server and `run-agent serve`.
-**Decision**: Default port is 14355.
-**Rationale**:
-- **Avoid Conflicts**: Avoids common development ports (3000, 8080, 8443, 5000).
-- **Memorable**: "14355" is easy enough to type.
-**History**: Early spec used 8080; changed to 14355 to avoid conflicts.
-**Status**: Current
+### Context
+Early designs and legacy docs used HCL, but long-term maintenance favored stronger ecosystem support in current Go tooling.
 
-## Decision 8: DONE File Semantics
+### Decision
+Adopt YAML as the primary config format (`gopkg.in/yaml.v3`), with HCL retained only for legacy compatibility.
 
-**Context**: The orchestration loop needs a reliable signal to stop restarting a task.
-**Decision**: Task completion is signaled by creating an empty `DONE` file in the task directory.
-**Rationale**:
-- **Filesystem-Native**: Survives process restarts and API server downtime.
-- **Simple Control**: Can be removed manually to resume/restart a task.
-- **Semantics**: Zero-exit code does NOT stop the Ralph loop; only `DONE` stops it.
-**Alternatives Considered**: Database status flag, API call.
-**Trade-offs**: Relies on agents correctly creating the file.
-**Status**: Current
+### Consequences / Trade-offs
+- Better library/tooling fit and standardized config direction across docs and runtime.
+- Clear precedence (`config.yaml` / `config.yml` before `config.hcl`) reduces ambiguity for new deployments.
+- Trade-off: dual-format support still adds compatibility code and migration complexity.
 
-## Decision 9: No Auth for Local Use
+## 5) Default Port `14355`
 
-**Context**: Securing the API while maintaining ease of use for local development.
-**Decision**: Optional API key (Bearer or X-API-Key header); exempt routes include health, version, metrics, `/ui/`.
-**Rationale**:
-- **Local Security**: Localhost deployment is reasonably secure by network isolation.
-- **Onboarding**: Mandatory auth would complicate the first-run experience.
-**Enable**: Set `CONDUCTOR_API_KEY` env var or use `--api-key` flag.
-**Status**: Current
+### Context
+A default API/UI port was needed that avoids common collisions in local development environments.
 
-## Decision 10: Process Groups (PGID) for Agent Management
+### Decision
+Use `14355` as the canonical default port for `run-agent serve` and `conductor`.
 
-**Context**: Ensuring clean termination of agent processes and their children.
-**Decision**: Each agent runs in its own process group (Setsid=true on Unix).
-**Rationale**:
-- **Clean Cleanup**: Allows killing the entire agent subtree on stop/timeout.
-- **Orphan Prevention**: Prevents orphan processes from lingering.
-**Alternatives Considered**: Tracking individual PIDs.
-**Trade-offs**: Windows support is limited; WSL2 is recommended.
-**Status**: Current
+### Consequences / Trade-offs
+- Lower collision risk than common ports such as `3000` and `8080`.
+- Consistent default across CLI/server flows improves predictability.
+- Trade-off: any fixed default can still conflict in specific environments, so override support remains necessary.
+
+## 6) Process Groups (PGID) for Lifecycle Control
+
+### Context
+Agent processes can spawn child processes; stop/restart flows must clean up the full process tree, not just a single PID.
+
+### Decision
+Use process groups (`setsid`/PGID on Unix) and signal the group for termination and liveness checks.
+
+### Consequences / Trade-offs
+- Cleaner shutdown behavior and reduced orphaned subprocesses.
+- Better control for Ralph-loop stop/timeout handling across agent trees.
+- Trade-off: Windows parity is limited and semantics differ from Unix PGID behavior.

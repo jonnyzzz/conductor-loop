@@ -166,7 +166,7 @@ Create `scripts/load-test.sh`:
 # Simulate high load
 
 for i in {1..100}; do
-    curl -X POST http://localhost:8080/api/v1/tasks \
+    curl -X POST http://localhost:14355/api/v1/tasks \
         -H "Content-Type: application/json" \
         -d '{"task_id": "load-'$i'", "agent_type": "codex"}' &
 done
