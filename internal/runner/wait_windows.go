@@ -13,6 +13,14 @@ func isProcessGroupAlive(pgid int) (bool, error) {
 	if pgid <= 0 {
 		return false, errors.New("pgid is invalid")
 	}
+
+	// If a Job Object is registered for this PID, use its active process count.
+	// A count of 0 means the entire process tree has exited.
+	if count := jobObjectActiveProcesses(pgid); count >= 0 {
+		return count > 0, nil
+	}
+
+	// Fallback: single-PID liveness check via GetExitCodeProcess.
 	proc, err := os.FindProcess(pgid)
 	if err != nil {
 		return false, errors.Wrap(err, "find process")
