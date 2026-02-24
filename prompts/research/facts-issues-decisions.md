@@ -33,7 +33,7 @@ Each fact entry MUST follow this exact format:
 
 ### Feature requests:
 - `/Users/jonnyzzz/Work/conductor-loop/docs/dev/feature-requests-project-goal-manual-workflows.md`
-- `/Users/jonnyzzz/Work/conductor-loop/docs/SUGGESTED-TASKS.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/facts/FACTS-suggested-tasks.md`
 
 ### Swarm issues:
 - `/Users/jonnyzzz/Work/conductor-loop/docs/swarm/ISSUES.md`

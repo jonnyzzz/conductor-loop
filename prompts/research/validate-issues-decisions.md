@@ -50,8 +50,8 @@ grep -A3 "DECISION:\|FACT:\|ANSWER\|QUESTION:" MESSAGE-BUS.md | head -100
 # Check feature requests doc
 cat docs/dev/feature-requests-project-goal-manual-workflows.md | head -60
 
-# Check SUGGESTED-TASKS.md
-cat docs/SUGGESTED-TASKS.md | head -60
+# Check FACTS-suggested-tasks.md
+cat docs/facts/FACTS-suggested-tasks.md | head -60
 
 # Read swarm ISSUES.md
 cat docs/swarm/ISSUES.md

@@ -1,17 +1,17 @@
-# Research Task: Review and Update SUGGESTED-TASKS.md
+# Research Task: Review and Update FACTS-suggested-tasks.md
 
-You are a research agent. Your goal is to review the existing SUGGESTED-TASKS.md,
+You are a research agent. Your goal is to review the existing FACTS-suggested-tasks.md,
 cross-reference against all completed run-agent tasks, docs/dev/todos.md, docs/dev/issues.md,
 and the new FACTS-runs-*.md files to produce an updated, accurate task list.
 
 ## Output
 
-OVERWRITE: `/Users/jonnyzzz/Work/conductor-loop/docs/SUGGESTED-TASKS.md`
+OVERWRITE: `/Users/jonnyzzz/Work/conductor-loop/docs/facts/FACTS-suggested-tasks.md`
 
-## Step 1: Read existing SUGGESTED-TASKS.md
+## Step 1: Read existing FACTS-suggested-tasks.md
 
 ```bash
-cat /Users/jonnyzzz/Work/conductor-loop/docs/SUGGESTED-TASKS.md
+cat /Users/jonnyzzz/Work/conductor-loop/docs/facts/FACTS-suggested-tasks.md
 ```
 
 ## Step 2: Read FACTS-runs files for recent task outcomes
@@ -23,7 +23,7 @@ cat /Users/jonnyzzz/Work/conductor-loop/docs/facts/FACTS-runs-jonnyzzz.md 2>/dev
 
 ## Step 3: Check which suggested tasks are now done
 
-For each task listed in SUGGESTED-TASKS.md, check if there's a completed run-agent task:
+For each task listed in FACTS-suggested-tasks.md, check if there's a completed run-agent task:
 
 ```bash
 ROOT=/Users/jonnyzzz/run-agent/conductor-loop
@@ -126,9 +126,9 @@ echo "==="
 cat /Users/jonnyzzz/Work/conductor-loop/docs/dev/issues.md | grep -E "^###|Status:|Severity:|ISSUE-" | head -60
 ```
 
-## Step 6: Rewrite SUGGESTED-TASKS.md
+## Step 6: Rewrite FACTS-suggested-tasks.md
 
-Produce an updated SUGGESTED-TASKS.md that:
+Produce an updated FACTS-suggested-tasks.md that:
 1. **Removes** tasks that have a DONE run in `/Users/jonnyzzz/run-agent/conductor-loop/`
 2. **Updates** status of in-progress tasks
 3. **Adds** new tasks found in recent runs that aren't yet listed

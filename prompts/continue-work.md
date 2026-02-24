@@ -141,7 +141,7 @@ Or use the conductor REST API: `curl http://localhost:8080/api/v1/runs`
 ## Development Flow per Change
 
 Follow docs/workflow/THE_PROMPT_v5.md Required Development Flow — each stage is a distinct agent:
-1. Stage 0: Cleanup — read MESSAGE-BUS, AGENTS, Instructions, ISSUES
+1. Stage 0: Cleanup — read MESSAGE-BUS, AGENTS, Instructions, and docs/dev/issues.md
 2. Stage 1: Read local docs
 3. Stage 2: Research task with multi-agent context (2+ parallel agents)
 4. Stage 3: Select tasks (low-hanging fruit first)
