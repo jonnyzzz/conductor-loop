@@ -530,7 +530,7 @@ Legacy spec had explicit xAI note: "xAI integration is deferred post-MVP". Curre
 Current spec added: `scope: global` for FACT files living under `~/run-agent/global/`. Not in legacy spec.
 
 [2026-02-20 12:31:03] [tags: runner, storage, evolution]
-Storage QUESTIONS file in legacy: "No open questions at this time." Current spec added 6 new questions (Q1–Q6) all subsequently answered.
+Storage QUESTIONS file in legacy: "No open questions at this time." Current spec added 6 new questions (Q1–Q6) all subsequently answered. (See docs/dev/questions.md)
 
 [2026-02-20 15:55:02] [tags: runner, env, evolution]
 Current env-contract QUESTIONS file added RUNS_DIR/MESSAGE_BUS injection question (absent in legacy). Answered: inject as informational, don't block overrides. Implemented 2026-02-20.
