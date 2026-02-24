@@ -1,3 +1,7 @@
+> **NOTE:** This file is a historical log of facts extracted from the codebase.
+> For the most up-to-date and reconciled information, please refer to [FACTS-reconciled.md](FACTS-reconciled.md).
+> Entries marked with `[corrected]` or `[outdated]` have been superseded.
+
 # FACTS: Agent Backends & Monitoring UI
 
 Extracted from specification files, questions/answers, and git history.
@@ -217,7 +221,7 @@ UI Run Detail: default = output.md. Raw stdout/stderr via toggle. Prompt, stdout
 UI Start New Task flow: select existing project or type new. New project → prompt for source code folder (presets from config, expand `~` and env vars). Create/pick task ID. If task exists: attach/restart (default) or new with timestamp suffix. Prompt editor with autosave (local storage keyed by host + project + task). Submit: create dirs, write TASK.md, invoke `run-agent task` via backend API (no shell scripts).
 
 [2026-02-04 23:03:05] [tags: ui, monitoring]
-UI Message Bus view: most recent entries shown as header-only (click to expand). Threaded view via `parents[]` links. Post USER/ANSWER via backend (UI does NOT write files directly). Plain text rendering in MVP (no Markdown). `attachment_path` rendered as link/button (Note: `attachment_path` field is currently missing from the Go `Message` struct).
+UI Message Bus view: most recent entries shown as header-only (click to expand). Threaded view via `parents[]` links. Post USER/ANSWER via backend (UI does NOT write files directly). Plain text rendering in MVP (no Markdown). `attachment_path` rendered as link/button.
 
 [2026-02-04 23:03:05] [tags: ui, monitoring]
 UI Output & Logs: live streaming via SSE (WebSocket optional), 2s polling fallback. Single SSE endpoint streams all files line-by-line with header messages per file/run. Default tail: last 1MB or 5k lines; "Load more" for older chunks. stdout/stderr merged chronologically with stream tags + color coding. Filter toggle to isolate stderr. `output.md` is default render target; raw logs secondary.
@@ -362,29 +366,37 @@ Legacy swarm spec files deprecated (2026-02-21, commit 283157b): moved to docs/s
 ## Validation Round 2 (gemini)
 
 [2026-02-23 19:25:00] [tags: agent-backend, gemini, validation]
-Gemini implementation duality: \`internal/runner/job.go\` treats Gemini as a CLI agent (\`isRestAgent("gemini") == false\`) and executes \`gemini\` CLI command.
-However, \`internal/agent/gemini/gemini.go\` contains a full REST API implementation (\`GeminiAgent\`) which is **unused** by the main runner loop (\`RunJob\`).
+Gemini implementation duality: `internal/runner/job.go` treats Gemini as a CLI agent (`isRestAgent("gemini") == false`) and executes `gemini` CLI command.
+However, `internal/agent/gemini/gemini.go` contains a full REST API implementation (`GeminiAgent`) which is **unused** by the main runner loop (`RunJob`).
 This confirms the design preference for the native CLI.
 
 [2026-02-23 19:25:00] [tags: agent-backend, gemini, validation]
-Gemini CLI flags confirmed in \`internal/runner/job.go\`: \`--screen-reader true\`, \`--approval-mode yolo\`, \`--output-format stream-json\`.
-Output parsing uses \`gemini.WriteOutputMDFromStream\` (located in \`internal/agent/gemini/stream_parser.go\`).
+Gemini CLI flags confirmed in `internal/runner/job.go`: `--screen-reader true`, `--approval-mode yolo`, `--output-format stream-json`.
+Output parsing uses `gemini.WriteOutputMDFromStream` (located in `internal/agent/gemini/stream_parser.go`).
 
 [2026-02-23 19:25:00] [tags: agent-backend, claude, validation]
-Claude CLI flags confirmed in \`internal/runner/job.go\` and \`internal/agent/claude/claude.go\`:
-\`-p\`, \`--input-format text\`, \`--output-format stream-json\`, \`--verbose\`, \`--tools default\`, \`--permission-mode bypassPermissions\`.
-Working directory passed via \`-C\`.
+Claude CLI flags confirmed in `internal/runner/job.go` and `internal/agent/claude/claude.go`:
+`-p`, `--input-format text`, `--output-format stream-json`, `--verbose`, `--tools default`, `--permission-mode bypassPermissions`.
+Working directory passed via `-C`.
 
 [2026-02-23 19:25:00] [tags: agent-backend, codex, validation]
-Codex CLI flags confirmed in \`internal/runner/job.go\` and \`internal/agent/codex/codex.go\`:
-\`exec\`, \`--dangerously-bypass-approvals-and-sandbox\`, \`--json\`, \`-\`.
-Working directory passed via \`-C\`.
+Codex CLI flags confirmed in `internal/runner/job.go` and `internal/agent/codex/codex.go`:
+`exec`, `--dangerously-bypass-approvals-and-sandbox`, `--json`, `-`.
+Working directory passed via `-C`.
 
 [2026-02-23 19:25:00] [tags: agent-backend, perplexity, xai, validation]
-Perplexity and xAI are confirmed as REST-only agents (\`isRestAgent\` returns true).
-They are instantiated via \`perplexity.NewPerplexityAgent\` and \`xai.NewAgent\` in \`executeREST\` (\`internal/runner/job.go\`).
+Perplexity and xAI are confirmed as REST-only agents (`isRestAgent` returns true).
+They are instantiated via `perplexity.NewPerplexityAgent` and `xai.NewAgent` in `executeREST` (`internal/runner/job.go`).
 
 [2026-02-23 19:25:00] [tags: ui, validation]
-UI stack confirmed: React + JetBrains Ring UI + Vite (\`frontend/package.json\`).
-Default port: 14355 (confirmed in \`cmd/run-agent/serve.go\` and \`cmd/run-agent/server.go\`).
-API Routes confirmed in \`internal/api/routes.go\`: \`/api/v1/...\` pattern.
+UI stack confirmed: React + JetBrains Ring UI + Vite (`frontend/package.json`).
+Default port: 14355 (confirmed in `cmd/run-agent/serve.go` and `cmd/run-agent/server.go`).
+API Routes confirmed in `internal/api/routes.go`: `/api/v1/...` pattern.
+
+## Reconciliation (2026-02-24)
+
+[2026-02-24 09:45:00] [tags: reconciliation, agents]
+*   **Gemini:** Runner uses CLI implementation (`gemini` command). A REST implementation exists in code (`internal/agent/gemini/gemini.go`) but is **unused** by the runner.
+*   **xAI:** Implemented as a REST adapter (`internal/agent/xai`).
+*   **Perplexity:** Implemented as a REST adapter.
+*   **Claude/Codex:** Implemented as CLI wrappers.

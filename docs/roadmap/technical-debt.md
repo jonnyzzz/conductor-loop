@@ -35,17 +35,12 @@
 
 ## Inconsistencies
 
-- Binary/source port mismatch is still present:
+- ~~Binary/source port mismatch~~ — **RESOLVED 2026-02-24** (`bin/conductor` rebuilt from source):
   - Source defaults to `14355` in both CLI flag and server fallback.
     - `cmd/conductor/main.go:67`
     - `internal/api/server.go:93-95`
-  - `bin/conductor --help` still advertises default `8080`.
-    - Command output: `./bin/conductor --help` shows `--port ... (default 8080)`.
-  - Local root binary (`./conductor`) advertises `14355`, confirming `bin/conductor` is stale.
-
-- Packaged `bin/conductor` command surface is also stale relative to source/current binary:
-  - Missing `goal`, `monitor`, `workflow` commands visible in `./conductor --help`.
-  - Evidence: `./bin/conductor --help` vs `./conductor --help`.
+  - `bin/conductor --help` now advertises `--port ... (default 14355)`.
+  - `bin/conductor` now includes `goal`, `monitor`, `workflow` commands matching source.
 
 - Runner specification drift against implementation:
   - Spec still claims YAML-only current implementation with HCL as target.
