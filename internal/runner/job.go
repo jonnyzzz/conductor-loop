@@ -378,6 +378,7 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 
 	env := mergeEnv(os.Environ(), envOverrides)
 	env = removeEnvKeys(env, "CLAUDECODE")
+	env = sanitizeEnvForAgent(agentType, env)
 
 	runDirAbs, err := absPath(runDir)
 	if err != nil {
