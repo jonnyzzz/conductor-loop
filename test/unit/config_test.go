@@ -257,7 +257,7 @@ defaults:
 	if cfg.API.Port != 14355 {
 		t.Fatalf("expected default port, got %d", cfg.API.Port)
 	}
-	if cfg.API.SSE.PollIntervalMs != 100 {
+	if cfg.API.SSE.PollIntervalMs != 500 {
 		t.Fatalf("expected default poll interval, got %d", cfg.API.SSE.PollIntervalMs)
 	}
 	if cfg.API.SSE.DiscoveryIntervalMs != 1000 {
