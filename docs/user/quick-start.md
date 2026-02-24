@@ -103,22 +103,14 @@ run-agent server task list --project my-project
 run-agent server bus read --project my-project --task task-20260223-100000-hello-world --tail 10
 ```
 
-## 6. Optional: `conductor` Binary
+## 6. Server Management Commands
 
-The `conductor` binary defaults to port `14355` (same as `run-agent serve`).
-
-Start it:
+`run-agent server` provides API client commands that require the server to be running:
 
 ```bash
-./bin/conductor --config ~/.config/conductor/config.yaml --root ./runs
-```
-
-Then:
-
-```bash
-./bin/conductor status
-./bin/conductor task list --project my-project
-./bin/conductor watch --project my-project --task task-20260223-100000-hello-world
+./bin/run-agent server status
+./bin/run-agent server task list --project my-project
+./bin/run-agent server watch --project my-project --task task-20260223-100000-hello-world
 ```
 
 ## 7. Common Follow-ups

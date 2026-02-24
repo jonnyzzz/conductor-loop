@@ -98,20 +98,6 @@ resolve_server_binary() {
     return 0
   fi
 
-  for candidate in "$repo_root/conductor" "$repo_root/bin/conductor"; do
-    if [[ -x "$candidate" ]]; then
-      resolve_binary_mode="conductor"
-      resolve_binary_path="$candidate"
-      return 0
-    fi
-  done
-
-  if candidate="$(command -v conductor 2>/dev/null)"; then
-    resolve_binary_mode="conductor"
-    resolve_binary_path="$candidate"
-    return 0
-  fi
-
   if [[ -n "${RUN_AGENT_BIN:-}" ]]; then
     [[ -x "$RUN_AGENT_BIN" ]] || fail "RUN_AGENT_BIN is not executable: $RUN_AGENT_BIN"
     resolve_binary_mode="run-agent"
@@ -133,7 +119,7 @@ resolve_server_binary() {
     return 0
   fi
 
-  fail "no server binary found. Set CONDUCTOR_BIN or RUN_AGENT_BIN, or build ./cmd/conductor or ./cmd/run-agent"
+  fail "no server binary found. Set RUN_AGENT_BIN, or build ./cmd/run-agent"
 }
 
 config_path="${CONDUCTOR_CONFIG:-}"
