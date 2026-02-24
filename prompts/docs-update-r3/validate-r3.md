@@ -9,13 +9,13 @@ user docs, dev docs, and spec QUESTIONS files. Your job: verify the key changes 
 cd /Users/jonnyzzz/Work/conductor-loop
 
 echo "=== Port references ==="
-grep -rn "14355\|8080" README.md DEVELOPMENT.md CLAUDE.md AGENTS.md docs/ | grep -v "facts\|swarm\|\.git\|binary.*8080\|drift" | head -30
+grep -rn "14355\|8080" README.md docs/dev/development.md CLAUDE.md AGENTS.md docs/ | grep -v "facts\|swarm\|\.git\|binary.*8080\|drift" | head -30
 
 echo "=== Go version ==="
-grep -rn "go 1\.\|golang 1\.\|Go 1\." README.md DEVELOPMENT.md CLAUDE.md docs/ | grep -v "facts\|swarm" | head -20
+grep -rn "go 1\.\|golang 1\.\|Go 1\." README.md docs/dev/development.md CLAUDE.md docs/ | grep -v "facts\|swarm" | head -20
 
 echo "=== Config path ==="
-grep -rn "\.conductor\b\|~/.conductor\|config.yaml\|XDG" README.md DEVELOPMENT.md CLAUDE.md docs/ | grep -v "facts\|swarm\|stale\|was\|old" | head -20
+grep -rn "\.conductor\b\|~/.conductor\|config.yaml\|XDG" README.md docs/dev/development.md CLAUDE.md docs/ | grep -v "facts\|swarm\|stale\|was\|old" | head -20
 ```
 
 ## Step 2: Verify key features appear in dev docs

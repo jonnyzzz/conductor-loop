@@ -1,4 +1,4 @@
-# Docs Update R3: decisions/ folder + DEPENDENCY_ANALYSIS.md
+# Docs Update R3: decisions/ folder + dependency-analysis.md
 
 You are a documentation update agent (Round 3). Facts take priority over all existing content.
 
@@ -9,7 +9,7 @@ You are a documentation update agent (Round 3). Facts take priority over all exi
 3. `/Users/jonnyzzz/Work/conductor-loop/docs/decisions/problem-4-DECISION.md`
 4. `/Users/jonnyzzz/Work/conductor-loop/docs/decisions/problem-5-DECISION.md`
 5. `/Users/jonnyzzz/Work/conductor-loop/docs/decisions/problem-7-DECISION.md`
-6. `/Users/jonnyzzz/Work/conductor-loop/DEPENDENCY_ANALYSIS.md`
+6. `/Users/jonnyzzz/Work/conductor-loop/docs/dev/dependency-analysis.md`
 
 ## Facts sources (read ALL first)
 
@@ -48,7 +48,7 @@ cat go.mod
 - **Facts override docs** — these are decision records, so preserve historical decisions but add implementation status
 - For each decision doc: add a short "Implementation Status" section at the top if missing, reflecting whether the decision was implemented as planned or deviated
 - Check if the actual code matches the decision (e.g., fsync: is it always-on or configurable?)
-- For DEPENDENCY_ANALYSIS.md: update any stale dependency versions or analysis from current go.mod
+- For docs/dev/dependency-analysis.md: update any stale dependency versions or analysis from current go.mod
 - These are historical docs — preserve the decision text, only add status updates
 - Keep existing structure — add annotations, don't rewrite
 

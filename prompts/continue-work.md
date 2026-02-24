@@ -15,7 +15,7 @@ This is a Go-based multi-agent orchestration framework implementing the Ralph Lo
 5. <project-root>/ISSUES.md — 20 open issues (6 CRITICAL, 7 HIGH, 6 MEDIUM, 2 LOW)
 6. <project-root>/QUESTIONS.md — 9 open design questions from 2026-02-20 session
 7. <project-root>/MESSAGE-BUS.md — project message bus with full history
-8. <project-root>/DEVELOPMENT.md — development guide and local setup
+8. <project-root>/docs/dev/development.md — development guide and local setup
 9. <project-root>/README.md — project overview and architecture diagram
 10. https://jonnyzzz.com/RLM.md — Recursive Language Model decomposition methodology (Assess, Decide, Decompose, Execute, Synthesize, Verify). Apply when context exceeds 50K tokens, processing >5 files, or multi-hop reasoning is needed.
 11. https://jonnyzzz.com/MULTI-AGENT.md — multi-agent orchestration patterns

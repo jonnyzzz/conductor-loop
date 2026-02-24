@@ -5,8 +5,8 @@ You are a documentation update agent (Round 3). Facts take priority over all exi
 ## Files to update (overwrite each in-place)
 
 1. `/Users/jonnyzzz/Work/conductor-loop/README.md`
-2. `/Users/jonnyzzz/Work/conductor-loop/DEVELOPMENT.md`
-3. `/Users/jonnyzzz/Work/conductor-loop/ARCHITECTURE-REVIEW-SUMMARY.md`
+2. `/Users/jonnyzzz/Work/conductor-loop/docs/dev/development.md`
+3. `/Users/jonnyzzz/Work/conductor-loop/docs/dev/architecture-review.md`
 4. `/Users/jonnyzzz/Work/conductor-loop/IMPLEMENTATION-README.md`
 
 ## Facts sources (read ALL first)
@@ -43,8 +43,8 @@ grep -n "14355\|8080\|port" README.md | head -10
 
 - **Facts override docs** — port is 14355 (canonical), Go is 1.24.0, config path is ~/.config/conductor/
 - For README.md: ensure the quick-start example commands, port numbers, and feature list match current reality
-- For DEVELOPMENT.md: update Go version, build commands, port references
-- For ARCHITECTURE-REVIEW-SUMMARY.md: check if the summary matches FACTS-architecture.md; update stale claims
+- For docs/dev/development.md: update Go version, build commands, port references
+- For docs/dev/architecture-review.md: check if the summary matches FACTS-architecture.md; update stale claims
 - For IMPLEMENTATION-README.md: update any stale implementation status markers
 - Keep existing structure — targeted corrections only, no full rewrites
 - Do not add sections that don't exist yet

@@ -991,7 +991,7 @@ New features implemented (from QUESTIONS.md decisions):
 ## References
 
 - **Specification Review**: Agent #1 findings
-- **Dependency Analysis**: Agent #2 findings (DEPENDENCY_ANALYSIS.md)
+- **Dependency Analysis**: Agent #2 findings (docs/dev/dependency-analysis.md)
 - **Risk Assessment**: Agent #3 findings (43 risks documented)
 - **Implementation Strategy**: Agent #4 findings
 - **Message Bus**: MESSAGE-BUS.md

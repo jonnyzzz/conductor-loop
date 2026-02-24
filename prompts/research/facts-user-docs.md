@@ -17,7 +17,7 @@ Each fact entry MUST follow this exact format:
 
 ### User docs (ALL revisions):
 - `/Users/jonnyzzz/Work/conductor-loop/README.md`
-- `/Users/jonnyzzz/Work/conductor-loop/DEVELOPMENT.md`
+- `/Users/jonnyzzz/Work/conductor-loop/docs/dev/development.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/user/installation.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/user/quick-start.md`
 - `/Users/jonnyzzz/Work/conductor-loop/docs/user/configuration.md`
@@ -43,7 +43,7 @@ Each fact entry MUST follow this exact format:
 ## Instructions
 
 1. Get git history for each file:
-   `cd /Users/jonnyzzz/Work/conductor-loop && git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- README.md DEVELOPMENT.md docs/user/ docs/dev/`
+   `cd /Users/jonnyzzz/Work/conductor-loop && git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- README.md docs/dev/development.md docs/user/ docs/dev/`
 
 2. Read current state of each file and key historical revisions
 

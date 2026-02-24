@@ -15,7 +15,7 @@
   - `<project-root>/ISSUES.md`
   - `<project-root>/AGENTS.md`
   - `<project-root>/Instructions.md`
-  - `<project-root>/DEVELOPMENT.md`
+  - `<project-root>/docs/dev/development.md`
 
 ## Section-by-Section Feedback
 
