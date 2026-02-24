@@ -45,7 +45,7 @@
 2. **Assess Situation**
    - Identify what has been done (check DONE file, completed runs)
    - Identify what remains (compare against plan)
-   - Check for blockers (ISSUES.md, ERROR messages in bus)
+   - Check for blockers (docs/dev/issues.md, ERROR messages in bus)
    - Review sub-agent outputs (read output.md files)
 
 3. **Update State**

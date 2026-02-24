@@ -76,7 +76,7 @@ This script will:
 3. Execute Stage 1: Core Infrastructure (3 tasks)
 4. Continue through all 7 stages
 5. Log everything to MESSAGE-BUS.md
-6. Log blockers to ISSUES.md
+6. Log blockers to docs/dev/issues.md
 
 ### 3. Monitor Progress
 
@@ -248,7 +248,7 @@ ls runs/ | grep -v ".pid" | wc -l
 grep "ERROR" MESSAGE-BUS.md | tail -20
 
 # Check blockers
-cat ISSUES.md
+cat docs/dev/issues.md
 ```
 
 ### Debug Individual Task
@@ -336,7 +336,7 @@ Project ready when:
 1. Check `agent-stderr.txt` for errors
 2. Verify agent CLI is installed and working
 3. Try fallback to Claude: `run-agent.sh claude ...`
-4. Log issue to ISSUES.md
+4. Log issue to docs/dev/issues.md
 
 ### Issue: Lock Timeout on Message Bus
 **Symptom**: "lock timeout: message bus locked for >10s"

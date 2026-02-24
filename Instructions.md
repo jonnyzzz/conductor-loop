@@ -39,7 +39,7 @@ conductor-loop/
 ├── AGENTS.md                   # Agent conventions (this file's companion)
 ├── Instructions.md             # This file
 ├── MESSAGE-BUS.md              # Project message bus
-├── ISSUES.md                   # Known issues and blockers
+├── docs/dev/issues.md          # Known issues and blockers (moved from root)
 ├── go.mod                      # Go module definition
 ├── go.sum                      # Go dependency checksums
 ├── Makefile                    # Build automation

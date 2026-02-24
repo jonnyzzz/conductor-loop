@@ -10,7 +10,7 @@ Use these placeholders to avoid hardcoded paths:
 - <PROJECT_ROOT> - absolute path to the repo root
 - <RUNS_DIR> - <PROJECT_ROOT>/runs
 - <MESSAGE_BUS> - <PROJECT_ROOT>/MESSAGE-BUS.md
-- <ISSUES_FILE> - <PROJECT_ROOT>/ISSUES.md
+- <ISSUES_FILE> - <PROJECT_ROOT>/docs/dev/issues.md
 
 ## Core Principles
 - Root agent orchestrates; sub-agents do codebase work in the target repo.

@@ -980,7 +980,7 @@ New fix logged: **ISSUE-021: Data race in Server.ListenAndServe/Shutdown** — R
 - **Fix**: Added `mu sync.Mutex` to `Server` struct; both `ListenAndServe()` and `Shutdown()` now access `s.server` under lock
 - **Commit**: 01e164c
 
-New features implemented (from QUESTIONS.md decisions):
+New features implemented (from docs/dev/questions.md decisions):
 - Task ID enforcement (storage-layout Q4) — Committed: 5e2d85b
 - Config default search paths (Q9) — Committed: b86b887
 - MessageBus WithFsync option (Q1) — Committed: 26146da
@@ -1019,7 +1019,7 @@ Summary: CRITICAL partially resolved 2 → 1, CRITICAL resolved 4 → 5.
 - Frontend already had error_summary display via .metadata-error CSS
 Summary: HIGH partially resolved 3 → 2, HIGH resolved 5 → 6.
 
-**Q4 from QUESTIONS.md**: run-agent resume command implemented (commit 35ac45b).
+**Q4 from docs/dev/questions.md**: run-agent resume command implemented (commit 35ac45b).
 Resolves the backlogged "run-agent task resume" decision.
 
 **Bug fix**: runner/orchestrator.go newRunID() collision (commit 06316c5).
