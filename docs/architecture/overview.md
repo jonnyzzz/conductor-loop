@@ -49,14 +49,18 @@ API + SSE server (internal/api) <--> React + Ring UI (frontend)
 ```
 
 ## Related architecture pages
-- [Ralph Loop / Runner Orchestration](../dev/ralph-loop.md)
-- [Storage Layout](../dev/storage-layout.md)
-- [Message Bus](../dev/message-bus.md)
-- [Adding Agent Backends](../dev/adding-agents.md)
-- [API Reference](../user/api-reference.md)
-- [Web UI / Monitoring](../user/web-ui.md)
-- [Configuration](../user/configuration.md)
-- [Security Review](../dev/security-review-2026-02-23.md)
+- [Architecture Index](README.md)
+- [Component Reference](components.md)
+- [Architecture Decisions](decisions.md)
+- [Task Lifecycle Data Flow](data-flow-task-lifecycle.md)
+- [Message Bus Data Flow](data-flow-message-bus.md)
+- [API Request Lifecycle](data-flow-api.md)
+- [Agent Integration Architecture](agent-integration.md)
+- [Deployment Architecture](deployment.md)
+- [Frontend Architecture](frontend-architecture.md)
+- [Observability Architecture](observability.md)
+- [Security Architecture](security.md)
+- [Concurrency Architecture](concurrency.md)
 
 ## Source of truth
 Primary code paths:
