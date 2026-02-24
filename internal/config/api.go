@@ -46,7 +46,7 @@ func applyAPIDefaults(cfg *Config) {
 		cfg.API.Port = 14355
 	}
 	if cfg.API.SSE.PollIntervalMs == 0 {
-		cfg.API.SSE.PollIntervalMs = 100
+		cfg.API.SSE.PollIntervalMs = 500
 	}
 	if cfg.API.SSE.DiscoveryIntervalMs == 0 {
 		cfg.API.SSE.DiscoveryIntervalMs = 1000

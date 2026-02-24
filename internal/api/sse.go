@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	defaultPollInterval      = 100 * time.Millisecond
+	defaultPollInterval      = 500 * time.Millisecond
 	defaultDiscoveryInterval = time.Second
 	defaultHeartbeatInterval = 30 * time.Second
 	defaultMaxClientsPerRun  = 10
