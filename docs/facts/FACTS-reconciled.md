@@ -61,5 +61,11 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
 *   **Subsystems:** 16 verified subsystems documented in `docs/dev/subsystems.md`, superseding the original 8.
 *   **Subsystem List:** Storage, Config, Message Bus, Agent Protocol, Agent Backends, Runner Orchestration, API Server, Frontend UI, Webhook, CLI (List, Output, Watch), API (Delete Run, Task), UI (Search, Stats).
 
-[2026-02-24 08:30:00] [tags: reconciliation, status]
-*   **Confirmed:** `FACTS-architecture.md` (host binding), `FACTS-user-docs.md` (Go version, config path, iterate cmd), and `FACTS-runner-storage.md` (ID precision) have been updated to reflect these reconciled truths.
+## Message Type Defaults
+[2026-02-24 10:05:00] [tags: reconciliation, messagebus]
+*   **CLI Default:** `INFO` (Source: `cmd/run-agent/bus.go`)
+*   **API Default:** `USER` (Source: `internal/api/handlers.go`)
+*   **Action:** Note the inconsistency; prefer explicit `--type` in automation.
+
+[2026-02-24 10:05:00] [tags: reconciliation, status]
+*   **Confirmed:** `FACTS-architecture.md` (host binding), `FACTS-user-docs.md` (Go version, config path, iterate cmd), and `FACTS-runner-storage.md` (ID precision and literal 0000 suffix) have been updated to reflect these reconciled truths.

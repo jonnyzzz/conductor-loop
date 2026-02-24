@@ -1686,7 +1686,7 @@ if err := os.Rename(tmpName, path); err != nil {
 
 **Example Docker Setup:**
 ```dockerfile
-FROM golang:1.21-alpine
+FROM golang:1.24-alpine
 WORKDIR /app
 COPY . .
 RUN go build -o conductor-loop
