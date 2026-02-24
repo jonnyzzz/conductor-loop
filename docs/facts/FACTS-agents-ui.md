@@ -135,7 +135,9 @@ Perplexity output.md: runner generates `output.md` from stdout (generic logic on
 ## xAI / Grok Agent Backend
 
 [2026-02-04 23:03:05] [tags: agent-backend, xai]
-xAI backend (legacy spec): placeholder/deferred post-MVP. Planned: use OpenCode agent configured to target xAI models. Only enabled when xAI token provided. Default to best available xAI model.
+xAI backend (legacy spec): Originally deferred.
+[2026-02-24 09:45:00] [tags: agent-backend, xai]
+xAI backend is fully implemented as a REST adapter (`internal/agent/xai`). Default base URL: `https://api.x.ai`. Default endpoint: `/v1/chat/completions`. Default model: `grok-4`. Streaming enabled.
 
 [2026-02-04 23:03:05] [tags: agent-backend, xai]
 xAI backend (current spec): REST API adapter (not CLI). Default base URL: `https://api.x.ai`. Default endpoint: `/v1/chat/completions`. Default model: `grok-4`. Streaming enabled; tokens emitted to stdout as they arrive.
@@ -227,7 +229,7 @@ UI Status indicators: semaphore-style badges per run. Stuck detection: warn afte
 UI state management: React Context + hooks (no Redux/Zustand in MVP). Build: npm/webpack. Dev: webpack-dev-server with proxy to Go backend.
 
 [2026-02-04 23:03:05] [tags: ui, monitoring]
-UI served by `run-agent serve` command. Defaults: host 127.0.0.1, port 14355. (Legacy spec had port 8080 as default.)
+UI served by `run-agent serve` command. Defaults: host 0.0.0.0 (all interfaces), port 14355. (Legacy spec had port 8080 as default.)
 [2026-02-24 08:30:00] [tags: ui, monitoring, correction]
 Host default is `0.0.0.0` (all interfaces), not `127.0.0.1`. Port `14355` is confirmed.
 

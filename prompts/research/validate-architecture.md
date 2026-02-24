@@ -35,7 +35,7 @@ cat cmd/run-agent/main.go | head -30
 cat cmd/conductor/main.go | head -20
 
 # Check git log for architecture files
-git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/workflow/THE_PLAN_v5.md THE_PLAN_v5.md ARCHITECTURE-REVIEW-SUMMARY.md DEPENDENCY_ANALYSIS.md docs/dev/architecture.md docs/dev/ralph-loop.md | head -30
+git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/workflow/THE_PLAN_v5.md THE_PLAN_v5.md docs/dev/architecture-review.md ARCHITECTURE-REVIEW-SUMMARY.md docs/dev/dependency-analysis.md DEPENDENCY_ANALYSIS.md docs/dev/architecture.md docs/dev/ralph-loop.md | head -30
 
 # Read the architecture doc
 cat docs/dev/architecture.md
@@ -47,8 +47,8 @@ cat docs/dev/ralph-loop.md
 git log --format="%H %ad" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/workflow/THE_PLAN_v5.md THE_PLAN_v5.md | head -10
 # Then read first and latest revisions
 
-# Check ARCHITECTURE-REVIEW-SUMMARY.md
-cat ARCHITECTURE-REVIEW-SUMMARY.md
+# Check docs/dev/architecture-review.md
+cat docs/dev/architecture-review.md
 
 # Check subsystems doc
 cat docs/dev/subsystems.md
@@ -74,14 +74,14 @@ git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- swarm/docs/leg
 ## Step 4: Check all revisions of key files
 ```bash
 cd /Users/jonnyzzz/Work/conductor-loop
-# Get all revisions of DEPENDENCY_ANALYSIS.md
-git log --format="%H %ad" --date=format:"%Y-%m-%d %H:%M:%S" -- DEPENDENCY_ANALYSIS.md
+# Get all revisions of dependency analysis doc (pre/post move)
+git log --format="%H %ad" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/dev/dependency-analysis.md DEPENDENCY_ANALYSIS.md
 # Read first revision
-FIRST=$(git log --format="%H" -- DEPENDENCY_ANALYSIS.md | tail -1)
-git show $FIRST:DEPENDENCY_ANALYSIS.md | head -50
+FIRST=$(git log --format="%H" -- docs/dev/dependency-analysis.md DEPENDENCY_ANALYSIS.md | tail -1)
+git show "$FIRST:docs/dev/dependency-analysis.md" 2>/dev/null | head -50 || git show "$FIRST:DEPENDENCY_ANALYSIS.md" | head -50
 
-# Check ARCHITECTURE-REVIEW-SUMMARY.md history
-git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- ARCHITECTURE-REVIEW-SUMMARY.md
+# Check architecture review history (pre/post move)
+git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/dev/architecture-review.md ARCHITECTURE-REVIEW-SUMMARY.md
 ```
 
 ## Step 5: Fix and extend, then write output

@@ -1,3 +1,7 @@
+> **NOTE:** This file is a historical log of facts extracted from the codebase.
+> For the most up-to-date and reconciled information, please refer to [FACTS-reconciled.md](FACTS-reconciled.md).
+> Entries marked with `[corrected]` or `[outdated]` have been superseded.
+
 # FACTS: Runner, Storage & Environment Contract
 
 Extracted from specification documents and git history.
@@ -39,8 +43,9 @@ Symlinks and hardlinks inside the storage tree are not allowed.
 
 ## Naming Conventions
 
-[2026-02-04 23:03:05] [tags: runner, storage, naming]
-Canonical timestamp format: UTC `YYYYMMDD-HHMMSSMMMM-PID` (lexically sortable). Go time layout: `20060102-1504050000` (4 fractional-second digits). This is the format for `run_id`, task folder timestamps, and fact file timestamps.
+[2026-02-04 23:03:05] [tags: runner, storage, naming, corrected]
+Canonical timestamp format: UTC `YYYYMMDD-HHMMSS0000-PID` (lexically sortable). Go time layout: `20060102-1504050000` (literal 0000 suffix). This is the format for `run_id`, task folder timestamps, and fact file timestamps.
+*Correction: Run IDs use `YYYYMMDD-HHMMSS0000-<pid>-<seq>`. See FACTS-reconciled.md.*
 
 [2026-02-20 12:31:03] [tags: runner, storage, naming]
 Storage Q1 answered: run_id timestamp precision is 4-digit fractional seconds (`20060102-1504050000`). Previous code in `internal/storage` used only 3 digits; answer is 4 digits.
@@ -64,7 +69,7 @@ FACT files: `FACT-<timestamp>-<name>.md`. Task facts: `TASK-FACTS-<timestamp>.md
 Storage Q5 answered: Task fact filenames do NOT include a `<name>` suffix in this release; deferred to backlog. Use same timestamp format as task_id/run_id.
 
 [2026-02-04 23:03:05] [tags: runner, storage, naming]
-Attachments: `ATTACH-<timestamp>-<name>.<ext>` stored in the task folder. `attachment_path` in message bus entries is relative to the task folder.
+Attachments: Stored in the task folder. `attachment_path` field does NOT exist in the Message struct; use `Links` or `Meta` for references. See FACTS-reconciled.md.
 
 ---
 
@@ -340,11 +345,11 @@ Termination events (STOP, CRASH) are logged to the message bus by run-agent.
 ## Configuration Schema (config.hcl)
 
 [2026-02-04 23:03:05] [tags: runner, config, schema]
-Config file format: HCL (HashiCorp Configuration Language) version 2. File location: `~/run-agent/config.hcl` (global only in MVP). Encoding: UTF-8 without BOM.
+Config file format: YAML is primary (`config.yaml`), HCL (`config.hcl`) is supported for backward compatibility. File location: `~/.config/conductor/` or `~/run-agent/config.*`. Encoding: UTF-8 without BOM.
 
-[2026-02-20 12:31:03] [tags: runner, config, schema, superseded]
-Q3 answered: HCL is the single source of truth. YAML config files are deprecated. `run-agent` defaults to `~/run-agent/config.hcl` when `--config` is omitted.
-*Update 2026-02-23*: This decision was reversed. YAML is now the primary format and takes precedence over HCL. HCL remains supported for backward compatibility.
+[2026-02-20 12:31:03] [tags: runner, config, schema, superseded, corrected]
+Q3 answered: YAML is the single source of truth. HCL config files are deprecated but supported. `run-agent` defaults to `~/.config/conductor/config.yaml`.
+*Update 2026-02-23: This decision was reversed. YAML is now the primary format and takes precedence over HCL. HCL remains supported for backward compatibility.*
 
 [2026-02-04 23:03:05] [tags: runner, config, schema]
 Required top-level blocks: `ralph`, `agent_selection`, `monitoring`, `delegation`. At least one `agent` block required.

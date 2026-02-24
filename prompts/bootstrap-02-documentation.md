@@ -6,7 +6,7 @@
 **Project Root**: ~/Work/conductor-loop
 
 ## Objective
-Set up project documentation following THE_PROMPT_v5.md conventions.
+Set up project documentation following `docs/workflow/THE_PROMPT_v5.md` conventions.
 
 ## Required Actions
 
@@ -17,7 +17,7 @@ Set up project documentation following THE_PROMPT_v5.md conventions.
    - Permissions (file access, tool access)
    - Subsystem ownership
 
-2. **Create Instructions.md**
+2. **Create docs/dev/instructions.md**
    Document:
    - Repository structure
    - Build commands
@@ -25,29 +25,29 @@ Set up project documentation following THE_PROMPT_v5.md conventions.
    - Tool paths (go, docker, make)
    - Environment setup
 
-3. **Create Role Prompt Files**
-   Copy from THE_PROMPT_v5.md template and adapt:
-   - THE_PROMPT_v5_orchestrator.md
-   - THE_PROMPT_v5_research.md
-   - THE_PROMPT_v5_implementation.md
-   - THE_PROMPT_v5_review.md
-   - THE_PROMPT_v5_test.md
-   - THE_PROMPT_v5_debug.md
+3. **Create Role Prompt Files** in `docs/workflow/`
+   Copy from `docs/workflow/THE_PROMPT_v5.md` template and adapt:
+   - docs/workflow/THE_PROMPT_v5_orchestrator.md
+   - docs/workflow/THE_PROMPT_v5_research.md
+   - docs/workflow/THE_PROMPT_v5_implementation.md
+   - docs/workflow/THE_PROMPT_v5_review.md
+   - docs/workflow/THE_PROMPT_v5_test.md
+   - docs/workflow/THE_PROMPT_v5_debug.md
 
-4. **Create DEVELOPMENT.md**
+4. **Create docs/dev/development.md**
    - Local development setup
    - Running tests
    - Debugging tips
    - Contributing guidelines
 
 ## Success Criteria
-- All role prompt files exist
+- All role prompt files exist in `docs/workflow/`
 - AGENTS.md defines clear conventions
-- Instructions.md has all tool paths
+- docs/dev/instructions.md has all tool paths
 
 ## References
-- THE_PROMPT_v5.md: Role-Specific Prompts section
-- docs/specifications/ for technical details
+- `docs/workflow/THE_PROMPT_v5.md`: Role-Specific Prompts section
+- `docs/specifications/` for technical details
 
 ## Output
 Log to MESSAGE-BUS.md:

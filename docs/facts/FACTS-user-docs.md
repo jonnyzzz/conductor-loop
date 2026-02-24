@@ -1,3 +1,7 @@
+> **NOTE:** This file is a historical log of facts extracted from the codebase.
+> For the most up-to-date and reconciled information, please refer to [FACTS-reconciled.md](FACTS-reconciled.md).
+> Entries marked with `[corrected]` or `[outdated]` have been superseded.
+
 # FACTS: User & Developer Documentation
 
 ## Validation Round 2 (codex)
@@ -208,8 +212,8 @@ Stale CLI code references fixed (iteration 4): `internal/runner/orchestrator.go`
 Current documentation layout verified:
 - **docs/workflow/**: \`THE_PLAN_v5.md\`, \`THE_PROMPT_v5.md\`, \`THE_PROMPT_v5_*.md\` (role prompts).
 - **docs/dev/**:
-  - \`development.md\` (General guide)
-  - \`architecture.md\`, \`architecture-review.md\`, \`dependency-analysis.md\` (Design)
+  - \`docs/dev/development.md\` (General guide; migrated from historical root `DEVELOPMENT.md`)
+  - \`docs/dev/architecture.md\`, \`docs/dev/architecture-review.md\`, \`docs/dev/dependency-analysis.md\` (Design; includes historical root docs `ARCHITECTURE-REVIEW-SUMMARY.md` and `DEPENDENCY_ANALYSIS.md`)
   - \`issues.md\`, \`questions.md\`, \`todos.md\`, \`implementation-status.md\` (Tracking)
   - \`instructions.md\` (Tooling paths)
   - \`output-examples.md\` (Artifact references)

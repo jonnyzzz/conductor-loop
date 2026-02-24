@@ -67,18 +67,20 @@ type FileStorage struct {
 
 **RunID Generation:**
 
-Reference: `internal/storage/storage.go:186-190`
+Reference: `internal/storage/storage.go`
 
 ```go
 func (s *FileStorage) newRunID() string {
     now := s.now().UTC()
-    stamp := now.Format("20060102-150405000")  // YYYYMMDDHHMMSSmmm
-    return fmt.Sprintf("%s-%d", stamp, s.pid())
+    // Format: YYYYMMDD-HHMMSS0000 (seconds precision + literal 0000 suffix)
+    stamp := now.Format("20060102-1504050000")
+    seq := atomic.AddUint64(&s.seq, 1)
+    return fmt.Sprintf("%s-%d-%d", stamp, s.pid(), seq)
 }
 ```
 
-Format: `{YYYYMMDD-HHMMSSmmm}-{PID}`
-Example: `20260205-150405123-12345`
+Format: `{YYYYMMDD-HHMMSS0000}-{PID}-{SEQ}`
+Example: `20260205-1504050000-12345-1`
 
 **Run Creation Flow:**
 

@@ -25,12 +25,13 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
 [2026-02-24 07:45:00] [tags: reconciliation, naming]
 *   **Task ID:** `task-<YYYYMMDD>-<HHMMSS>-<slug>` (Seconds precision).
 *   **Run ID:** `YYYYMMDD-HHMMSS0000-<pid>-<seq>` (Seconds precision in timestamp with literal `0000` suffix, uniqueness via PID and process-local atomic sequence).
-*   **Correction:** Earlier claims of millisecond/nanosecond precision in the timestamp part were imprecise.
+*   **Correction:** Earlier claims of millisecond/nanosecond precision in the timestamp part were imprecise. Implementation uses `20060102-1504050000` format string.
 
-## Configuration Path
+## Configuration Path & Format
 [2026-02-24 07:45:00] [tags: reconciliation, config]
-*   **Canonical:** `~/.config/conductor/` (Standard XDG-like path) or `./config.*`.
+*   **Canonical Path:** `~/.config/conductor/` (Standard XDG-like path) or `./config.*`.
 *   **Legacy/Drift:** `~/.conductor/` found in some user docs is outdated.
+*   **Format Priority:** YAML (`config.yaml`, `config.yml`) takes precedence over HCL (`config.hcl`). HCL is supported but secondary.
 
 ## Runtime Versions
 [2026-02-24 07:45:00] [tags: reconciliation, env]
@@ -42,6 +43,23 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
 *   **Workflow Prompts:** `THE_PROMPT_v5*.md` and `THE_PLAN_v5.md` are located in `docs/workflow/`.
 *   **Legacy References:** CLI code may still reference root paths (drift).
 *   **User Docs:** `docs/dev/` contains developer guides; `docs/workflow/` contains orchestration prompts.
+
+## Agent Backends
+[2026-02-24 09:45:00] [tags: reconciliation, agents]
+*   **Gemini:** Runner uses CLI implementation (`gemini` command). A REST implementation exists in code (`internal/agent/gemini/gemini.go`) but is **unused** by the runner.
+*   **xAI:** Implemented as a REST adapter (`internal/agent/xai`).
+*   **Perplexity:** Implemented as a REST adapter.
+*   **Claude/Codex:** Implemented as CLI wrappers.
+
+## Message Bus Schema
+[2026-02-24 09:45:00] [tags: reconciliation, messagebus]
+*   **Attachments:** The `Message` struct in Go does NOT have `attachment_path` or `attachments` fields. `FACTS-runner-storage.md` claim is drift.
+*   **Links:** `parents` field supports linking. `Links` field exists for external references.
+
+## Architecture
+[2026-02-24 09:45:00] [tags: reconciliation, architecture]
+*   **Subsystems:** 16 verified subsystems documented in `docs/dev/subsystems.md`, superseding the original 8.
+*   **Subsystem List:** Storage, Config, Message Bus, Agent Protocol, Agent Backends, Runner Orchestration, API Server, Frontend UI, Webhook, CLI (List, Output, Watch), API (Delete Run, Task), UI (Search, Stats).
 
 [2026-02-24 08:30:00] [tags: reconciliation, status]
 *   **Confirmed:** `FACTS-architecture.md` (host binding), `FACTS-user-docs.md` (Go version, config path, iterate cmd), and `FACTS-runner-storage.md` (ID precision) have been updated to reflect these reconciled truths.

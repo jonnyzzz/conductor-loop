@@ -867,17 +867,17 @@ RunID is a unique identifier for each agent execution, designed for lexical sort
 ### Format Specification
 
 ```
-{YYYYMMDD-HHMMSSMMMM}-{PID}-{SEQ}
+{YYYYMMDD-HHMMSS0000}-{PID}-{SEQ}
 ```
 
 **Components:**
 - `YYYYMMDD`: Year, month, day (UTC)
 - `HHMMSS`: Hour, minute, second (UTC)
-- `MMMM`: Sub-second digits (4 digits, tenths of milliseconds)
+- `0000`: Literal suffix (fixed width, for legacy compatibility/sorting)
 - `PID`: Process ID of the run-agent process
 - `SEQ`: Process-local atomic counter (starts at 0, increments per run)
 
-**Example:** `20260205-1030451234-12345-0`
+**Example:** `20260205-1030450000-12345-0`
 
 ### Implementation
 
@@ -885,14 +885,14 @@ RunID is a unique identifier for each agent execution, designed for lexical sort
 
 ```go
 func newRunID(now time.Time, pid int) string {
-    stamp := now.UTC().Format("20060102-1504050000")  // 4-digit sub-second
+    stamp := now.UTC().Format("20060102-1504050000")  // Seconds + literal 0000
     // + atomic seq counter appended
 }
 ```
 
-**Go time format:** `20060102-1504050000` produces `YYYYMMDD-HHMMSSMMMM` (4 fractional-second digits).
+**Go time format:** `20060102-1504050000` (where `0000` is literal text, not fractional seconds format token).
 
-**Collision protection:** A process-local atomic counter (`SEQ`) ensures same-millisecond runs within the same process get unique IDs. Fix introduced in commit `28b6ca1`.
+**Collision protection:** A process-local atomic counter (`SEQ`) ensures same-second runs within the same process get unique IDs.
 
 ### Properties
 

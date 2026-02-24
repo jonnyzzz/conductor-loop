@@ -108,7 +108,7 @@ Child liveness checks use `kill(-pgid, 0)` semantics (`ESRCH` dead, `EPERM` trea
 Windows has dedicated process-group and stop implementations (`pgid_windows.go`, `stop_windows.go`, `wait_windows.go`); Unix PGID behavior is not assumed identical cross-platform.
 
 [2026-02-23 18:23:00] [tags: architecture, config]
-Configuration supports YAML and HCL, with sections for `agents`, `defaults`, `api`, `storage`, and optional `webhook`.
+Configuration supports YAML (primary) and HCL (legacy), with sections for `agents`, `defaults`, `api`, `storage`, and optional `webhook`.
 
 [2026-02-23 18:23:00] [tags: architecture, config, tokens]
 Per-agent token env override keys are derived from configured agent names: `CONDUCTOR_AGENT_<AGENT_NAME>_TOKEN`.
@@ -219,3 +219,6 @@ Host Binding: `run-agent serve` source code (`cmd/run-agent/serve.go`) defaults 
 
 [2026-02-24 08:55:00] [tags: reconciliation, architecture, subsystems]
 Subsystem Count: The current architecture consists of 16 documented subsystems (as detailed in `docs/dev/subsystems.md`), including core layers (Storage, Config, Message Bus, Agent Protocol/Backends, Runner), API/UI components, and specific CLI command implementations.
+
+[2026-02-24 10:00:00] [tags: architecture, docs-drift, resolved]
+Reconciliation complete: docs/dev/architecture.md and docs/dev/subsystems.md have been updated to match the current codebase (binary status, code counts, subsystem list). The previous "stale claims" warning is no longer applicable.

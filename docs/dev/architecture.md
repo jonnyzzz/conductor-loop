@@ -36,7 +36,7 @@ Conductor Loop is an AI agent orchestration system that manages multi-agent work
 - **`conductor`** — independent binary with its own Cobra command tree; starts the API server directly from its root command.
 
 **Key Statistics:**
-- Backend: ~31,000 lines of Go code (non-test); ~59,000 total including tests
+- Backend: ~59,000 total lines of Go code (including tests)
 - 111 test files
 - Frontend (primary): React 18 + TypeScript (`frontend/`, requires `npm run build`)
 - Frontend (fallback): Vanilla JavaScript, no build step (`web/src/`)
