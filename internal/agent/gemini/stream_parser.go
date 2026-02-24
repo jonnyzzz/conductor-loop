@@ -125,6 +125,27 @@ func geminiTextField(raw json.RawMessage) string {
 	return ""
 }
 
+// WriteOutputMDFromPlainStdout writes output.md from raw (non-stream-json) stdout content.
+// This is the fallback path used when an older Gemini CLI rejects --output-format stream-json.
+func WriteOutputMDFromPlainStdout(runDir, stdoutPath string) error {
+	outputPath := filepath.Join(runDir, "output.md")
+	if _, err := os.Stat(outputPath); err == nil {
+		return nil
+	}
+	data, err := os.ReadFile(stdoutPath)
+	if err != nil {
+		return errors.Wrap(err, "read stdout for plain output")
+	}
+	text := strings.TrimSpace(string(data))
+	if text == "" {
+		return errors.New("stdout is empty")
+	}
+	if err := os.WriteFile(outputPath, []byte(text), 0o644); err != nil {
+		return errors.Wrap(err, "write output.md from plain stdout")
+	}
+	return nil
+}
+
 // WriteOutputMDFromStream parses Gemini stream-json stdout and writes output.md.
 // It is a no-op when output.md already exists.
 func WriteOutputMDFromStream(runDir, stdoutPath string) error {

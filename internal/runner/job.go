@@ -604,7 +604,17 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 	case "codex":
 		_ = codex.WriteOutputMDFromStream(runDir, info.StdoutPath)
 	case "gemini":
-		_ = gemini.WriteOutputMDFromStream(runDir, info.StdoutPath)
+		if parseErr := gemini.WriteOutputMDFromStream(runDir, info.StdoutPath); parseErr != nil {
+			// stream-json parse failed — check if the Gemini CLI rejected the flag.
+			// If so, log a compatibility warning and fall back to plain stdout.
+			if isGeminiStreamJSONFlagError(info.StderrPath) {
+				obslog.Log(log.Default(), "WARN", "runner", "gemini_stream_json_fallback",
+					obslog.F("run_id", info.RunID),
+					obslog.F("reason", "gemini CLI rejected --output-format stream-json; using plain stdout"),
+				)
+				_ = gemini.WriteOutputMDFromPlainStdout(runDir, info.StdoutPath)
+			}
+		}
 	}
 	if _, err := agent.CreateOutputMD(runDir, ""); err != nil {
 		return idleTimedOut, errors.Wrap(err, "ensure output.md")
@@ -847,6 +857,26 @@ func postRunEvent(busPath string, info *storage.RunInfo, msgType, body string) e
 	return nil
 }
 
+// isGeminiStreamJSONFlagError checks whether a Gemini stderr file contains
+// a flag-rejection message indicating the CLI version does not support
+// --output-format stream-json.
+func isGeminiStreamJSONFlagError(stderrPath string) bool {
+	if stderrPath == "" {
+		return false
+	}
+	data, err := os.ReadFile(stderrPath)
+	if err != nil {
+		return false
+	}
+	lower := strings.ToLower(string(data))
+	for _, keyword := range []string{"unknown flag", "unrecognized option", "output-format", "stream-json", "invalid flag"} {
+		if strings.Contains(lower, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
 // commandForAgent returns the CLI command and arguments for the given agent type.
 // Working directory is handled by SpawnOptions.Dir, not by CLI flags.
 func commandForAgent(agentType string) (string, []string, error) {
@@ -865,6 +895,7 @@ func commandForAgent(agentType string) (string, []string, error) {
 		}
 		return "claude", args, nil
 	case "gemini":
+		// stream-json is preferred; callers may retry without it for older Gemini CLI versions.
 		args := []string{"--screen-reader", "true", "--approval-mode", "yolo", "--output-format", "stream-json"}
 		return "gemini", args, nil
 	default:
