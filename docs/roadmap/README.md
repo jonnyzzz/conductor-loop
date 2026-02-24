@@ -1,15 +1,16 @@
-# Project Roadmap & Planning
+# Project Roadmap and Planning
 
-This directory contains the strategic roadmap and detailed planning documents for the **Conductor Loop** project.
+This folder contains the current project-evolution planning artifacts generated in the 2026-02-24 roadmap iterations.
 
-## Documents
+## Roadmap Docs
 
-- **[ROADMAP.md](ROADMAP.md)**: High-level schedule of tasks categorized by quarter and workstream.
-- **[gap-analysis.md](gap-analysis.md)**: Analysis of discrepancies between documentation/plans and actual implementation.
-- **[evolution-opportunities.md](evolution-opportunities.md)**: Strategic opportunities for project evolution and workflow optimization.
-- **[technical-debt.md](technical-debt.md)**: Map of technical debt, code inconsistencies, and coverage gaps.
-- **[quick-wins.md](quick-wins.md)**: List of high-value, low-effort tasks suitable for single sessions.
+- `ROADMAP.md`: quarter-based priority plan (P0 -> Q1, P1 -> Q2, architecture -> Q3, long-term ideas).
+- `gap-analysis.md`: documented feature/coverage/issue gaps versus current code and binaries.
+- `evolution-opportunities.md`: feasible product/workflow opportunities from swarm and run-history signals.
+- `technical-debt.md`: deferred issues, spec drift, and coverage debt inventory.
+- `quick-wins.md`: high-value slices that should fit in one run-agent session.
 
-## Task Prompts
+## Prompt Inventory
 
-Detailed task prompts generated from this planning phase are located in `prompts/tasks/`.
+Execution-ready task prompts are in `prompts/tasks/` and are referenced by `prompt-file` in roadmap and facts docs.
+

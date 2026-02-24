@@ -1,40 +1,53 @@
 # Product Roadmap: Project Evolution
 
 Generated: 2026-02-24
-Status: Draft
+Status: Iteration 5 synthesis
 
-## Q1 2026 (Reliability & Fixes)
-**Theme**: Stability, correctness, and release readiness.
+## Prioritization Policy
 
-| Workstream | Task | Complexity | Prompt File |
+- Q1 2026: P0 reliability only
+- Q2 2026: P1 correctness, security, release, UX
+- Q3 2026: architecture and platform evolution
+- Long-term: ideas requiring additional design/prototyping
+
+## Q1 2026 (P0 Reliability)
+
+| Priority | Task | Complexity | prompt-file |
 | :--- | :--- | :--- | :--- |
-| **Reliability** | Fix Conductor Binary Port (8080 vs 14355) | S | `prompts/tasks/fix-conductor-binary-port.md` |
-| **Reliability** | Fix Monitor Process Cap | M | `prompts/tasks/fix-monitor-process-cap.md` |
-| **Reliability** | Fix SSE Stream CPU Hotspot | M | `prompts/tasks/fix-sse-cpu-hotspot.md` |
-| **Correctness** | Implement `output synthesize` | M | `prompts/tasks/implement-output-synthesize.md` |
-| **Correctness** | Implement `review quorum` | S | `prompts/tasks/implement-review-quorum.md` |
-| **Correctness** | Implement `iterate` | M | `prompts/tasks/implement-iterate.md` |
-| **Security** | Repository Token Leak Audit | L | `prompts/tasks/token-leak-audit.md` |
-| **Release** | First Release Readiness Gate | M | `prompts/tasks/release-readiness-gate.md` |
-| **Release** | Unified Bootstrap Script | M | `prompts/tasks/unified-bootstrap.md` |
-| **UX** | Fix Web UI Latency | M | `prompts/tasks/ui-latency-fix.md` |
-| **UX** | Add Regression Test Suite for UI Task Tree | M | `prompts/tasks/ui-task-tree-guardrails.md` |
-| **Compat** | Implement Gemini Stream JSON Fallback | S | `prompts/tasks/gemini-stream-json-fallback.md` |
+| P0 | Reconcile conductor binary default port (8080 vs 14355) | S | `prompts/tasks/fix-conductor-binary-port.md` |
+| P0 | Reduce SSE CPU hotspot and full-bus reparse pressure | M | `prompts/tasks/fix-sse-cpu-hotspot.md` |
+| P0 | Enforce monitor process cap/single ownership | M | `prompts/tasks/fix-monitor-process-cap.md` |
 
-## Q2 2026 (Evolution & Architecture)
-**Theme**: Architectural cleanup, Windows support, and scaling.
+## Q2 2026 (P1 Correctness, Security, UX)
 
-| Workstream | Task | Complexity | Prompt File |
+| Priority | Task | Complexity | prompt-file |
 | :--- | :--- | :--- | :--- |
-| **Architecture** | Merge `conductor` and `run-agent` Binaries | M | `prompts/tasks/merge-conductor-run-agent.md` |
-| **Architecture** | Deprecate HCL Config Support | S | `prompts/tasks/hcl-config-deprecation.md` |
-| **Architecture** | Implement Environment Sanitization | M | `prompts/tasks/env-sanitization.md` |
-| **Windows** | Implement Windows File Locking | L | `prompts/tasks/windows-file-locking.md` |
-| **Windows** | Implement Windows Process Groups | L | `prompts/tasks/windows-process-groups.md` |
+| P1 | Implement `run-agent output synthesize` | M | `prompts/tasks/implement-output-synthesize.md` |
+| P1 | Implement `run-agent review quorum` | M | `prompts/tasks/implement-review-quorum.md` |
+| P1 | Implement `run-agent iterate` | M | `prompts/tasks/implement-iterate.md` |
+| P1 | Add Gemini stream-json compatibility fallback | S | `prompts/tasks/gemini-stream-json-fallback.md` |
+| P1 | Fix Web UI update latency | M | `prompts/tasks/ui-latency-fix.md` |
+| P1 | Add UI task-tree regression guardrails | M | `prompts/tasks/ui-task-tree-guardrails.md` |
+| P1 | Run repository token leak audit and guardrails | L | `prompts/tasks/token-leak-audit.md` |
+| P1 | Create release readiness gate script and policy | M | `prompts/tasks/release-readiness-gate.md` |
+| P1 | Unify bootstrap/update scripts | M | `prompts/tasks/unified-bootstrap.md` |
 
-## Q3 2026 (Innovation)
-**Theme**: Advanced orchestration and knowledge management.
+## Q3 2026 (Architecture and Platform)
 
-| Workstream | Task | Complexity | Prompt File |
+| Priority | Task | Complexity | prompt-file |
 | :--- | :--- | :--- | :--- |
-| **Architecture** | Global Fact Storage & Promotion | L | `prompts/tasks/global-fact-storage.md` |
+| Architecture | Merge/clarify `conductor` vs `run-agent` binary split | M | `prompts/tasks/merge-conductor-run-agent.md` |
+| Architecture | Deprecate HCL config surface (YAML-only policy) | S | `prompts/tasks/hcl-config-deprecation.md` |
+| Architecture | Sanitize child env to agent-specific secrets | M | `prompts/tasks/env-sanitization.md` |
+| Architecture | Promote facts across task/project scopes | L | `prompts/tasks/global-fact-storage.md` |
+| Platform (Windows) | Add shared-lock reader behavior | L | `prompts/tasks/windows-file-locking.md` |
+| Platform (Windows) | Implement Job Object process-group control | L | `prompts/tasks/windows-process-groups.md` |
+
+## Long-Term Ideas (Design Required)
+
+- Beads-style dependency semantics for message bus parents and readiness queries.
+- Multi-host monitoring UI support.
+- Explicit pause/resume semantics beyond stop/restart.
+- xAI model policy and coding-agent mode completion.
+- Automated fact curation/librarian process beyond baseline promotion.
+
