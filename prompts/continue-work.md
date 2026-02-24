@@ -41,7 +41,7 @@ This is the single most important goal. We build our tool by using our tool. Eve
 1. Build the binaries: `go build -o bin/conductor ./cmd/conductor && go build -o bin/run-agent ./cmd/run-agent`
 2. Create a minimal `config.yaml` that points to your local Claude/Codex/Gemini CLIs
 3. Start the conductor server: `./bin/conductor --config config.yaml --root $(pwd)`
-4. Verify the REST API responds: `curl http://localhost:8080/api/v1/health`
+4. Verify the REST API responds: `curl http://localhost:14355/api/v1/health`
 5. Run your FIRST real task through the built `./bin/run-agent task` command instead of the shell script
 6. If it works — switch ALL subsequent orchestration to use the built binary. Stop using `run-agent.sh` for everything you can route through `./bin/run-agent`.
 7. If it breaks — that is your highest priority fix. Log it to docs/dev/issues.md as CRITICAL, fix it, rebuild, retry.
@@ -125,7 +125,7 @@ When you fall back to the shell script, immediately file an issue explaining wha
 Each run creates `<project-root>/runs/run_YYYYMMDD-HHMMSS-PID/` with prompt.md, agent-stdout.txt, agent-stderr.txt, cwd.txt.
 
 Monitor agents: `uv run python <project-root>/monitor-agents.py`
-Or use the conductor REST API: `curl http://localhost:8080/api/v1/runs`
+Or use the conductor REST API: `curl http://localhost:14355/api/v1/runs`
 
 ## Quality Gates (Required Before Completion)
 
