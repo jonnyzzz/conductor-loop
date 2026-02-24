@@ -389,6 +389,25 @@ func (mb *MessageBus) tryAppend(data []byte) error {
 	return nil
 }
 
+// readBusFileShared reads the bus file content after acquiring a shared lock (Windows) or
+// directly (Unix, where flock is advisory and readers are always lock-free).
+// On failure to acquire the lock within the timeout, returns ErrLockTimeout.
+func readBusFileShared(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close() //nolint:errcheck
+	if err := LockShared(f, 5*time.Second); err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(f)
+	if uerr := Unlock(f); uerr != nil && err == nil {
+		err = uerr
+	}
+	return data, err
+}
+
 // ReadMessages reads messages after sinceID. If sinceID is empty, returns all messages.
 // On parse failure, falls back to returning all partially-parseable messages from the
 // beginning of the file rather than returning an empty result (partial recovery).
@@ -399,7 +418,10 @@ func (mb *MessageBus) ReadMessages(sinceID string) ([]*Message, error) {
 	if err := validateBusPath(mb.path); err != nil {
 		return nil, errors.Wrap(err, "validate message bus path")
 	}
-	data, err := os.ReadFile(mb.path)
+	// On Windows, acquire a shared lock before reading to avoid reading while
+	// a writer holds an exclusive mandatory lock. On Unix, tryFlockShared is a
+	// no-op so this adds negligible overhead.
+	data, err := readBusFileShared(mb.path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []*Message{}, nil
