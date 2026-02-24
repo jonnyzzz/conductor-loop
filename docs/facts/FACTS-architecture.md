@@ -1,8 +1,8 @@
 # Architecture & Core Design Facts
 
 Validated against source code and git history in:
-`cmd/`, `internal/`, `docs/dev/`, `THE_PLAN_v5.md`, `ARCHITECTURE-REVIEW-SUMMARY.md`,
-`DEPENDENCY_ANALYSIS.md`, and `docs/swarm/docs/legacy/*`.
+`cmd/`, `internal/`, `docs/dev/`, `THE_PLAN_v5.md`, `docs/dev/architecture-review.md`,
+`docs/dev/dependency-analysis.md`, and `docs/swarm/docs/legacy/*`.
 
 ---
 
@@ -198,10 +198,10 @@ Optional webhook notifications are implemented for `run_stop` events with async 
 `THE_PLAN_v5.md` has two revisions in this repository (`2026-02-04` and `2026-02-20`), with the document still representing planning-phase architecture context.
 
 [2026-02-04 23:17:00] [tags: architecture, history, dependencies]
-`DEPENDENCY_ANALYSIS.md` has a single revision and documents the original 8-subsystem DAG and critical path rationale from planning.
+`docs/dev/dependency-analysis.md` has a single revision and documents the original 8-subsystem DAG and critical path rationale from planning.
 
 [2026-02-04 23:34:11] [tags: architecture, history, review]
-`ARCHITECTURE-REVIEW-SUMMARY.md` has a single revision and records phase-ordering corrections and risk analysis from bootstrap review.
+`docs/dev/architecture-review.md` has a single revision and records phase-ordering corrections and risk analysis from bootstrap review.
 
 [2026-02-21 17:36:06] [tags: architecture, legacy, swarm]
 Legacy swarm planning docs (`SUBSYSTEMS.md`, `PLANNING-COMPLETE.md`) were imported/deprecated under `docs/swarm/docs/legacy/` in this repository.

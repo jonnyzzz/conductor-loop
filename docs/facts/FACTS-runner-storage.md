@@ -579,3 +579,8 @@ Ralph loop defaults confirmed: `waitTimeout` 300s, `pollInterval` 1s, `maxRestar
 
 [2026-02-23 19:25:00] [tags: runner, storage, gc]
 GC command confirmed: `run-agent gc` supports `--older-than`, `--root`, `--dry-run`, `--project`, `--keep-failed`, `--rotate-bus`, `--bus-max-size`, `--delete-done-tasks`.
+
+## Reconciliation (2026-02-24)
+
+[2026-02-24 07:45:00] [tags: reconciliation, naming, task-id]
+Task ID Precision: Practical usage in `run-agent` (CLI and logs) uses second-level precision `task-YYYYMMDD-HHMMSS-<slug>`. Run ID uses millisecond/nanosecond precision. The earlier statement "This is the format for run_id, task folder timestamps" is corrected: Task folder timestamps are second-precision.

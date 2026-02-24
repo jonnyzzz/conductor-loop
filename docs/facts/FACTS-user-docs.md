@@ -182,3 +182,16 @@ Current docs drift example: `docs/user/installation.md` states Go `1.21+`, but r
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, docs, git-history]
 Latest docs-related commit in sampled history is `493ab3832d9e2c40bee1c0922cd2bd5441f6fd31` at `2026-02-23 14:50:19` (`feat(cli): add TODO-driven monitor commands`).
 
+## Reconciliation (2026-02-24)
+
+[2026-02-24 07:45:00] [tags: reconciliation, user-docs, port]
+Server Port: `run-agent serve` source defaults to `14355`. `bin/conductor` help currently shows default `8080`, which is a known drift in the binary build or help text generation. `14355` is the correct canonical default.
+
+[2026-02-24 07:45:00] [tags: reconciliation, user-docs, iterate]
+`run-agent iterate`: Command is missing from `bin/run-agent` ("unknown command") despite task logs claiming implementation. This is a known discrepancy; the command is effectively unavailable in the current binary.
+
+[2026-02-24 07:45:00] [tags: reconciliation, user-docs, go-version]
+Go Version: Repository `go.mod` requires `go 1.24.0`. Documentation referencing `1.21+` is outdated.
+
+[2026-02-24 07:45:00] [tags: reconciliation, user-docs, config-path]
+Config Path: Runtime code uses `~/.config/conductor/` (and local `./config.*`). Documentation referencing `~/.conductor/` is outdated.
