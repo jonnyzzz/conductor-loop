@@ -108,6 +108,7 @@ func newTaskCmd() *cobra.Command {
 
 	cmd.AddCommand(newTaskResumeCmd())
 	cmd.AddCommand(newTaskDeleteCmd())
+	cmd.AddCommand(newTaskCancelCmd())
 
 	return cmd
 }

@@ -163,6 +163,9 @@ func listTasksWithOptions(out io.Writer, root, projectID, statusFilter string, j
 		if _, err := os.Stat(filepath.Join(taskDir, "DONE")); err == nil {
 			row.Done = true
 		}
+		if _, err := os.Stat(filepath.Join(taskDir, cancelledFile)); err == nil {
+			row.LatestStatus = "cancelled"
+		}
 
 		// Record task dir modification time as last activity
 		if info, err := e.Info(); err == nil {
@@ -394,8 +397,8 @@ func listRuns(out io.Writer, root, projectID, taskID string, jsonOut bool) error
 	return w.Flush()
 }
 
-// filterRowsByStatus filters task rows by status. Supported values: "running"/"active", "done", "failed", "blocked".
-// Unknown values log a warning and return all rows unchanged.
+// filterRowsByStatus filters task rows by status. Supported values: "running"/"active", "done"/"all_finished",
+// "failed", "blocked", "queued", "partial_failure". Unknown values log a warning and return all rows unchanged.
 func filterRowsByStatus(rows []taskRow, filter string) []taskRow {
 	switch strings.ToLower(filter) {
 	case "":
@@ -408,7 +411,7 @@ func filterRowsByStatus(rows []taskRow, filter string) []taskRow {
 			}
 		}
 		return out
-	case "done":
+	case "done", "all_finished":
 		var out []taskRow
 		for _, r := range rows {
 			if r.Done {
@@ -428,6 +431,22 @@ func filterRowsByStatus(rows []taskRow, filter string) []taskRow {
 		var out []taskRow
 		for _, r := range rows {
 			if r.LatestStatus == "blocked" {
+				out = append(out, r)
+			}
+		}
+		return out
+	case "queued":
+		var out []taskRow
+		for _, r := range rows {
+			if r.LatestStatus == "queued" {
+				out = append(out, r)
+			}
+		}
+		return out
+	case "partial_failure":
+		var out []taskRow
+		for _, r := range rows {
+			if r.LatestStatus == "partial_failure" {
 				out = append(out, r)
 			}
 		}
