@@ -232,10 +232,9 @@ UI Status indicators: semaphore-style badges per run. Stuck detection: warn afte
 [2026-02-04 23:03:05] [tags: ui, monitoring]
 UI state management: React Context + hooks (no Redux/Zustand in MVP). Build: npm/webpack. Dev: webpack-dev-server with proxy to Go backend.
 
-[2026-02-04 23:03:05] [tags: ui, monitoring]
+[2026-02-04 23:03:05] [tags: ui, monitoring, corrected]
 UI served by `run-agent serve` command. Defaults: host 0.0.0.0 (all interfaces), port 14355.
-[2026-02-24 08:30:00] [tags: ui, monitoring, correction]
-Host default is `0.0.0.0` (all interfaces), not `127.0.0.1`. Port `14355` is confirmed.
+*Correction: Host default is `0.0.0.0` (all interfaces), not `127.0.0.1`. Port `14355` is confirmed. See FACTS-reconciled.md.*
 
 [2026-02-04 23:03:05] [tags: ui, monitoring]
 UI non-goals MVP: no remote multi-user access, no auth, no direct file editing, no full-text search across projects/tasks, no cross-host aggregation.
