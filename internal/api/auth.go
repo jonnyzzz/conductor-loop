@@ -56,5 +56,6 @@ func isAuthExemptPath(path string) bool {
 	return path == "/api/v1/health" ||
 		path == "/api/v1/version" ||
 		path == "/metrics" ||
+		path == "/healthz" ||
 		strings.HasPrefix(path, "/ui/")
 }

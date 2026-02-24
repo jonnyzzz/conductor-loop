@@ -22,12 +22,14 @@ import (
 
 func newServeCmd() *cobra.Command {
 	var (
-		host             string
-		port             int
-		rootDir          string
-		configPath       string
-		disableTaskStart bool
-		apiKey           string
+		host                string
+		port                int
+		rootDir             string
+		configPath          string
+		disableTaskStart    bool
+		apiKey              string
+		watchdogInterval    time.Duration
+		watchdogMaxFailures int
 	)
 
 	cmd := &cobra.Command{
@@ -43,7 +45,7 @@ func newServeCmd() *cobra.Command {
 			if explicitPort {
 				cliPort = port
 			}
-			return runServe(configPath, rootDir, disableTaskStart, cliHost, cliPort, explicitPort, apiKey)
+			return runServe(configPath, rootDir, disableTaskStart, cliHost, cliPort, explicitPort, apiKey, watchdogInterval, watchdogMaxFailures)
 		},
 	}
 
@@ -53,11 +55,13 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&configPath, "config", "", "config file path")
 	cmd.Flags().BoolVar(&disableTaskStart, "disable-task-start", false, "disable task execution (monitoring-only mode)")
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key for authentication (enables auth when set)")
+	cmd.Flags().DurationVar(&watchdogInterval, "watchdog-interval", 30*time.Second, "interval between server health probe attempts")
+	cmd.Flags().IntVar(&watchdogMaxFailures, "watchdog-max-failures", 3, "consecutive health probe failures before exiting")
 
 	return cmd
 }
 
-func runServe(configPath, rootDir string, disableTaskStart bool, cliHost string, cliPort int, explicitPort bool, cliAPIKey string) error {
+func runServe(configPath, rootDir string, disableTaskStart bool, cliHost string, cliPort int, explicitPort bool, cliAPIKey string, watchdogInterval time.Duration, watchdogMaxFailures int) error {
 	logger := log.New(os.Stdout, "run-agent serve ", log.LstdFlags)
 
 	configPath = strings.TrimSpace(configPath)
@@ -185,7 +189,19 @@ func runServe(configPath, rootDir string, disableTaskStart bool, cliHost string,
 		obslog.F("port", apiCfg.Port),
 		obslog.F("task_start_enabled", !disableTaskStart),
 		obslog.F("auth_enabled", apiCfg.AuthEnabled),
+		obslog.F("watchdog_interval", watchdogInterval),
+		obslog.F("watchdog_max_failures", watchdogMaxFailures),
 	)
+
+	// Start watchdog health probe.
+	watchdog := &api.Watchdog{
+		Server:      server,
+		Host:        loopbackHost(apiCfg.Host),
+		Interval:    watchdogInterval,
+		MaxFailures: watchdogMaxFailures,
+		Logger:      log.New(os.Stderr, "run-agent watchdog ", log.LstdFlags),
+	}
+	go watchdog.Run()
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -220,6 +236,16 @@ func runServe(configPath, rootDir string, disableTaskStart bool, cliHost string,
 		obslog.Log(logger, "INFO", "startup", "server_shutdown_completed")
 		return nil
 	}
+}
+
+// loopbackHost returns "127.0.0.1" when host is an unspecified address (0.0.0.0 or ::),
+// and the host value itself otherwise.
+func loopbackHost(host string) string {
+	host = strings.TrimSpace(host)
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		return "127.0.0.1"
+	}
+	return host
 }
 
 func parseBool(value string) bool {

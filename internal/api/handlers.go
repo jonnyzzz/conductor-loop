@@ -123,6 +123,19 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) *apiError 
 	return writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// handleHealthz serves GET /healthz — a lightweight liveness probe with no auth requirement.
+// Returns {"status":"ok","uptime":"<duration>"}.
+func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	uptime := s.now().Sub(s.startTime).Round(time.Second).String()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, `{"status":"ok","uptime":%q}`, uptime)
+}
+
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) *apiError {
 	if r.Method != http.MethodGet {
 		return apiErrorMethodNotAllowed()
