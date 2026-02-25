@@ -220,7 +220,7 @@ func newJobCmd() *cobra.Command {
 			projectID = strings.TrimSpace(projectID)
 			originalTaskID := strings.TrimSpace(taskID)
 			if projectID == "" {
-				return fmt.Errorf("--project is required (or set JRUN_PROJECT_ID env var)")
+				return fmt.Errorf("--project is required (or run from inside a task directory)")
 			}
 			var err error
 			taskID, err = resolveTaskID(originalTaskID)
