@@ -238,7 +238,6 @@ func (m *selfUpdateManager) runDeferredWorker() {
 			m.mu.Unlock()
 			return
 		}
-		candidate := m.state.BinaryPath
 		m.mu.Unlock()
 
 		active, err := m.countActive()
@@ -257,7 +256,7 @@ func (m *selfUpdateManager) runDeferredWorker() {
 			m.mu.Unlock()
 			return
 		}
-		candidate = m.state.BinaryPath
+		candidate := m.state.BinaryPath
 		m.state.State = selfUpdateStateApplying
 		m.state.StartedAt = m.now().UTC()
 		m.state.LastError = ""
