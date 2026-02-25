@@ -97,6 +97,21 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
 *   Run: `RUN_LOCAL_AGENT_TESTS=1 go test ./test/local/... -v -timeout 15m`
 *   Optional fixed output dir: `RUN_LOCAL_ROOT=/tmp/my-runs` (overrides `t.TempDir()`).
 
+## Runs Root Directory (Canonical Path)
+[2026-02-25] [tags: reconciliation, storage, runs-dir]
+*   **Canonical default:** `~/.run-agent/runs`
+*   **Override mechanism:** `storage.runs_dir` field in `~/.run-agent/conductor-loop.hcl`:
+    ```hcl
+    storage {
+      runs_dir = "~/my-custom-runs"
+    }
+    ```
+*   **No environment variable override:** `RUNS_DIR` env var has been removed from all subcommands. There is no other supported way to change the runs directory outside the config file.
+*   **`--root` flag:** retained on CLI commands as an explicit override for tests and development only; not intended for production use.
+*   **Shared logic:** All commands (`list`, `status`, `watch`, `gc`, `output`, `bus`, `facts`, `task`, `job`, monitor, etc.) call `config.ResolveRunsDir(explicit)` — the same function — to resolve the path.
+*   **Config error = hard fail:** if the config file exists but is malformed, all commands fail immediately with an error. No silent fallback to a wrong directory.
+*   **Implementation:** `internal/config/runs_dir.go` — `ResolveRunsDir(explicit string) (string, error)`
+
 ## Message Bus Schema
 [2026-02-24 09:45:00] [tags: reconciliation, messagebus]
 *   **Attachments:** The `Message` struct in Go does NOT have `attachment_path` or `attachments` fields. `FACTS-runner-storage.md` claim is drift.

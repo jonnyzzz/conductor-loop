@@ -270,7 +270,7 @@ func resolveRootDir(root string) (string, error) {
 		if err != nil {
 			return "", errors.Wrap(err, "resolve home dir")
 		}
-		trimmed = filepath.Join(home, "run-agent")
+		trimmed = filepath.Join(home, ".run-agent", "runs")
 	}
 	abs, err := filepath.Abs(trimmed)
 	if err != nil {

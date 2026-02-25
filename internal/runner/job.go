@@ -53,6 +53,11 @@ func RunJob(projectID, taskID string, opts JobOptions) error {
 		return err
 	}
 
+	// Apply storage.runs_dir from config when --root is not explicitly set.
+	if strings.TrimSpace(opts.RootDir) == "" && cfg != nil && strings.TrimSpace(cfg.Storage.RunsDir) != "" {
+		opts.RootDir = cfg.Storage.RunsDir
+	}
+
 	policy, policyErr := NewDiversificationPolicy(
 		diversificationCfgFrom(cfg),
 		cfg,

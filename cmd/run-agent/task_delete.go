@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -27,7 +28,7 @@ func newTaskDeleteCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&projectID, "project", "", "project id (required)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id (required)")
-	cmd.Flags().StringVar(&root, "root", "", "run-agent root directory (default: $RUNS_DIR or ./runs)")
+	cmd.Flags().StringVar(&root, "root", "", "run-agent root directory (default: storage.runs_dir from config, then ~/.run-agent/runs)")
 	cmd.Flags().BoolVar(&force, "force", false, "delete even if task has running runs")
 
 	return cmd
@@ -41,7 +42,10 @@ func runTaskDelete(projectID, taskID, root string, force bool) error {
 		return fmt.Errorf("--task is required")
 	}
 
-	rootDir := resolveRootDir(root)
+	rootDir, err := config.ResolveRunsDir(root)
+	if err != nil {
+		return fmt.Errorf("resolve runs dir: %w", err)
+	}
 
 	taskDir := filepath.Join(rootDir, projectID, taskID)
 	if _, err := os.Stat(taskDir); err != nil {
@@ -79,15 +83,4 @@ func runTaskDelete(projectID, taskID, root string, force bool) error {
 
 	fmt.Printf("Deleted task: %s\n", taskID)
 	return nil
-}
-
-// resolveRootDir returns the root directory from the flag, $RUNS_DIR env var, or "./runs".
-func resolveRootDir(root string) string {
-	if root != "" {
-		return root
-	}
-	if env := os.Getenv("RUNS_DIR"); env != "" {
-		return env
-	}
-	return "runs"
 }

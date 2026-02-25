@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -28,12 +29,10 @@ func newGCCmd() *cobra.Command {
 		Use:   "gc",
 		Short: "Clean up old run directories",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if root == "" {
-				if v := os.Getenv("RUNS_DIR"); v != "" {
-					root = v
-				} else {
-					root = "./runs"
-				}
+			var err error
+			root, err = config.ResolveRunsDir(root)
+			if err != nil {
+				return fmt.Errorf("resolve runs dir: %w", err)
 			}
 			maxBytes, err := parseSizeBytes(busMaxSize)
 			if err != nil {
@@ -43,7 +42,7 @@ func newGCCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&root, "root", "", "root directory (default: ./runs or RUNS_DIR env)")
+	cmd.Flags().StringVar(&root, "root", "", "root directory (default: ~/.run-agent/runs)")
 	cmd.Flags().DurationVar(&olderThan, "older-than", 168*time.Hour, "delete runs older than this duration")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print what would be deleted without deleting")
 	cmd.Flags().StringVar(&project, "project", "", "limit gc to a specific project (optional)")

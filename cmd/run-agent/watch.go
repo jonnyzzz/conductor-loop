@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/runstate"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/jonnyzzz/conductor-loop/internal/taskdeps"
@@ -31,12 +32,10 @@ func newWatchCmd() *cobra.Command {
 		Use:   "watch",
 		Short: "Watch tasks until completion",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if rootDir == "" {
-				if v := os.Getenv("RUNS_DIR"); v != "" {
-					rootDir = v
-				} else {
-					rootDir = "./runs"
-				}
+			var err error
+			rootDir, err = config.ResolveRunsDir(rootDir)
+			if err != nil {
+				return fmt.Errorf("resolve runs dir: %w", err)
 			}
 			return runWatch(cmd.OutOrStdout(), rootDir, projectID, taskIDs, timeout, jsonOutput)
 		},
@@ -44,7 +43,7 @@ func newWatchCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&projectID, "project", "", "project id (required)")
 	cmd.Flags().StringArrayVar(&taskIDs, "task", nil, "task id(s) to watch (can repeat)")
-	cmd.Flags().StringVar(&rootDir, "root", "", "runs root directory (default: ./runs or RUNS_DIR env)")
+	cmd.Flags().StringVar(&rootDir, "root", "", "runs root directory (default: ~/.run-agent/runs)")
 	cmd.Flags().DurationVar(&timeout, "timeout", 30*time.Minute, "max wait time (exit code 1 on timeout)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	_ = cmd.MarkFlagRequired("project")

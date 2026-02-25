@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 	"github.com/spf13/cobra"
 )
@@ -41,19 +42,17 @@ func normalizeInferredIdentifier(value string) string {
 // resolveBusFilePath computes the message bus file path from the project/task hierarchy.
 // If taskID is non-empty, returns <root>/<project>/<task>/TASK-MESSAGE-BUS.md.
 // Otherwise, returns <root>/<project>/PROJECT-MESSAGE-BUS.md.
-// root defaults to RUNS_DIR env var, then "./runs" when empty.
-func resolveBusFilePath(root, projectID, taskID string) string {
-	if root == "" {
-		if v := os.Getenv("RUNS_DIR"); v != "" {
-			root = v
-		} else {
-			root = "./runs"
-		}
+// root defaults to storage.runs_dir from config, then ~/.run-agent/runs when empty.
+func resolveBusFilePath(root, projectID, taskID string) (string, error) {
+	var err error
+	root, err = config.ResolveRunsDir(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve runs dir: %w", err)
 	}
 	if taskID != "" {
-		return filepath.Join(root, projectID, taskID, "TASK-MESSAGE-BUS.md")
+		return filepath.Join(root, projectID, taskID, "TASK-MESSAGE-BUS.md"), nil
 	}
-	return filepath.Join(root, projectID, "PROJECT-MESSAGE-BUS.md")
+	return filepath.Join(root, projectID, "PROJECT-MESSAGE-BUS.md"), nil
 }
 
 // discoverBusFilePath searches upward from startDir (or CWD when empty) and
@@ -167,7 +166,11 @@ func resolveBusPostPath(busPath, root, projectID, taskID string) (string, error)
 		path = strings.TrimSpace(os.Getenv("MESSAGE_BUS"))
 	}
 	if path == "" && strings.TrimSpace(projectID) != "" {
-		path = resolveBusFilePath(root, projectID, taskID)
+		resolved, err := resolveBusFilePath(root, projectID, taskID)
+		if err != nil {
+			return "", err
+		}
+		path = resolved
 	}
 	if path != "" {
 		return path, nil
@@ -292,7 +295,7 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 	}
 
 	cmd.Flags().StringVar(&busPath, "bus", "", "path to message bus file (uses MESSAGE_BUS env var if not set)")
-	cmd.Flags().StringVar(&root, "root", "", "root directory for project/task bus resolution (default: RUNS_DIR env var, then ./runs)")
+	cmd.Flags().StringVar(&root, "root", "", "root directory for project/task bus resolution (default: ~/.run-agent/runs)")
 	cmd.Flags().StringVar(&msgType, "type", "INFO", "message type")
 	cmd.Flags().StringVar(&projectID, "project", "", "project ID (optional; inferred from context if omitted)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task ID (optional; inferred from context if omitted)")
@@ -337,7 +340,11 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 				if busPath != "" {
 					return fmt.Errorf("cannot specify both --bus and --project")
 				}
-				busPath = resolveBusFilePath(root, projectID, taskID)
+				resolved, resolveErr := resolveBusFilePath(root, projectID, taskID)
+				if resolveErr != nil {
+					return resolveErr
+				}
+				busPath = resolved
 			}
 			if busPath == "" {
 				busPath = os.Getenv("MESSAGE_BUS")
@@ -391,7 +398,7 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 	}
 
 	cmd.Flags().StringVar(&busPath, "bus", "", "path to message bus file (uses MESSAGE_BUS env var if not set)")
-	cmd.Flags().StringVar(&root, "root", "", "root directory for project/task bus resolution (default: RUNS_DIR env var, then ./runs)")
+	cmd.Flags().StringVar(&root, "root", "", "root directory for project/task bus resolution (default: ~/.run-agent/runs)")
 	cmd.Flags().StringVar(&projectID, "project", "", "project ID (with --root to resolve bus path; without --task reads project-level bus)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task ID (requires --project; resolves task-level bus)")
 	cmd.Flags().IntVar(&tail, "tail", 20, "print last N messages")

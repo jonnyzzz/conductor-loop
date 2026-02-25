@@ -256,12 +256,10 @@ Omit --once (default) to run as a daemon polling every --interval.
 Use --dry-run to see planned actions without executing them.`,
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if opts.RootDir == "" {
-				if v := os.Getenv("RUNS_DIR"); v != "" {
-					opts.RootDir = v
-				} else {
-					opts.RootDir = "./runs"
-				}
+			var rootErr error
+			opts.RootDir, rootErr = config.ResolveRunsDir(opts.RootDir)
+			if rootErr != nil {
+				return fmt.Errorf("resolve runs dir: %w", rootErr)
 			}
 			if opts.TODOFile == "" {
 				opts.TODOFile = "TODOs.md"
@@ -282,7 +280,7 @@ Use --dry-run to see planned actions without executing them.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.RootDir, "root", "", "run-agent root directory (default: ./runs or RUNS_DIR env)")
+	cmd.Flags().StringVar(&opts.RootDir, "root", "", "run-agent root directory (default: ~/.run-agent/runs)")
 	cmd.Flags().StringVar(&opts.ProjectID, "project", "", "project id (required)")
 	cmd.Flags().StringVar(&opts.TODOFile, "todo", "TODOs.md", "path to TODOs.md file")
 	cmd.Flags().StringVar(&opts.Agent, "agent", "", "agent type for starting/resuming tasks (e.g. claude)")

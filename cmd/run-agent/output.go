@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -48,7 +49,7 @@ func newOutputCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&runDir, "run-dir", "", "direct path to run directory (overrides --project/--task/--run)")
-	cmd.Flags().StringVar(&root, "root", "", "root directory (default: ./runs or RUNS_DIR env)")
+	cmd.Flags().StringVar(&root, "root", "", "root directory (default: ~/.run-agent/runs)")
 	cmd.Flags().StringVar(&projectID, "project", "", "project id")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id")
 	cmd.Flags().StringVar(&runID, "run", "", "run id (uses most recent if omitted)")
@@ -93,12 +94,10 @@ func resolveOutputRunDir(runDir, root, projectID, taskID, runID string) (string,
 		return runDir, nil
 	}
 
-	if root == "" {
-		if v := os.Getenv("RUNS_DIR"); v != "" {
-			root = v
-		} else {
-			root = "./runs"
-		}
+	var rootErr error
+	root, rootErr = config.ResolveRunsDir(root)
+	if rootErr != nil {
+		return "", fmt.Errorf("resolve runs dir: %w", rootErr)
 	}
 
 	if projectID == "" {

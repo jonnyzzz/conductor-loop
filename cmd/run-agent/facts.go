@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/facts"
 	"github.com/spf13/cobra"
 )
@@ -50,12 +51,10 @@ Example:
 				return fmt.Errorf("--project is required (or set JRUN_PROJECT_ID env var)")
 			}
 
-			if root == "" {
-				if v := os.Getenv("RUNS_DIR"); v != "" {
-					root = v
-				} else {
-					root = "./runs"
-				}
+			var rootErr error
+			root, rootErr = config.ResolveRunsDir(root)
+			if rootErr != nil {
+				return fmt.Errorf("resolve runs dir: %w", rootErr)
 			}
 
 			var since time.Time
@@ -94,7 +93,7 @@ Example:
 	}
 
 	cmd.Flags().StringVar(&projectID, "project", "", "project ID (or set JRUN_PROJECT_ID env var)")
-	cmd.Flags().StringVar(&root, "root", "", "root directory for projects (default: RUNS_DIR env var, then ./runs)")
+	cmd.Flags().StringVar(&root, "root", "", "root directory for projects (default: ~/.run-agent/runs)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be promoted without writing the file")
 	cmd.Flags().StringVar(&filterType, "filter-type", "FACT", "message type to promote (default: FACT)")
 	cmd.Flags().StringVar(&sinceStr, "since", "", "only promote messages after this time (RFC3339, e.g. 2026-01-01T00:00:00Z)")

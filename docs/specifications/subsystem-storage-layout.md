@@ -1,7 +1,22 @@
 # Storage & Data Layout Subsystem
 
 ## Overview
-Defines the on-disk layout under ~/run-agent (default) for projects, tasks, and individual agent runs. This layout is the source of truth for monitoring, recovery, and auditability.
+Defines the on-disk layout under `~/.run-agent/runs` (default) for projects, tasks, and individual agent runs. This layout is the source of truth for monitoring, recovery, and auditability.
+
+## Runs Root Directory
+
+The runs root directory is determined by the following resolution order:
+
+1. **`--root` flag** — explicit override for testing / development only.
+2. **`storage.runs_dir` in config** — canonical override via `~/.run-agent/conductor-loop.hcl`:
+   ```hcl
+   storage {
+     runs_dir = "~/my-runs"
+   }
+   ```
+3. **Default:** `~/.run-agent/runs`
+
+All CLI subcommands (`list`, `status`, `watch`, `gc`, `output`, `bus`, `facts`, `task`, `job`, etc.) use the same resolution logic implemented in `config.ResolveRunsDir`. If the config file exists but is malformed, all commands fail with an error — there is no silent fallback.
 
 ## Goals
 - Provide a predictable, human-readable structure.
@@ -20,10 +35,13 @@ Defines the on-disk layout under ~/run-agent (default) for projects, tasks, and 
 - Clarify that config.hcl is global only (no per-project/task config files).
 
 ## Directory Layout
-Base root:
+Base root (`~/.run-agent/runs` by default):
 
-~/run-agent/
-  config.hcl
+~/.run-agent/
+  conductor-loop.hcl      ← user home config (not inside runs/)
+  runs/                   ← default runs root (configurable via storage.runs_dir)
+  binaries/               ← versioned binary cache
+<runs_root>/
   <project>/
     PROJECT-MESSAGE-BUS.md
     home-folders.md

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 )
 
@@ -415,38 +416,35 @@ func TestBusPostPrefersBusPathContextOverJRunEnv(t *testing.T) {
 	}
 }
 
-// TestBusRootDefaultsToRunsDir verifies that resolveBusFilePath defaults root to
-// "./runs" when neither RUNS_DIR env var nor an explicit root is provided.
-func TestBusRootDefaultsToRunsDir(t *testing.T) {
-	t.Setenv("RUNS_DIR", "")
+// TestBusRootDefaultsToHomeRunsDir verifies that resolveBusFilePath defaults root to
+// ~/.run-agent/runs (or storage.runs_dir from config) when no explicit root is provided.
+func TestBusRootDefaultsToHomeRunsDir(t *testing.T) {
+	defaultRoot, err := config.ResolveRunsDir("")
+	if err != nil {
+		t.Fatalf("resolve default runs dir: %v", err)
+	}
 
 	// Project-level bus path
-	got := resolveBusFilePath("", "my-project", "")
-	want := filepath.Join("./runs", "my-project", "PROJECT-MESSAGE-BUS.md")
+	got, err := resolveBusFilePath("", "my-project", "")
+	if err != nil {
+		t.Fatalf("resolveBusFilePath: %v", err)
+	}
+	want := filepath.Join(defaultRoot, "my-project", "PROJECT-MESSAGE-BUS.md")
 	if got != want {
 		t.Errorf("project bus: got %q, want %q", got, want)
 	}
 
 	// Task-level bus path
-	got = resolveBusFilePath("", "my-project", "task-20260101-000001-aa")
-	want = filepath.Join("./runs", "my-project", "task-20260101-000001-aa", "TASK-MESSAGE-BUS.md")
+	got, err = resolveBusFilePath("", "my-project", "task-20260101-000001-aa")
+	if err != nil {
+		t.Fatalf("resolveBusFilePath: %v", err)
+	}
+	want = filepath.Join(defaultRoot, "my-project", "task-20260101-000001-aa", "TASK-MESSAGE-BUS.md")
 	if got != want {
 		t.Errorf("task bus: got %q, want %q", got, want)
 	}
 }
 
-// TestBusRootUsesRunsDirEnvVar verifies that resolveBusFilePath uses the RUNS_DIR
-// env var when no explicit root is provided.
-func TestBusRootUsesRunsDirEnvVar(t *testing.T) {
-	envRoot := t.TempDir()
-	t.Setenv("RUNS_DIR", envRoot)
-
-	got := resolveBusFilePath("", "my-project", "")
-	want := filepath.Join(envRoot, "my-project", "PROJECT-MESSAGE-BUS.md")
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}
 
 // TestBusReadProjectLevelVsTaskLevel verifies that bus read reads from the correct
 // bus file depending on whether --task is specified.

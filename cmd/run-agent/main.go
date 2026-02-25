@@ -146,13 +146,9 @@ func newTaskResumeCmd() *cobra.Command {
 				opts.ConfigPath = found
 			}
 			// Resolve root dir to validate task directory existence
-			rootDir := strings.TrimSpace(opts.RootDir)
-			if rootDir == "" {
-				var err error
-				rootDir, err = os.Getwd()
-				if err != nil {
-					return fmt.Errorf("resolve root dir: %w", err)
-				}
+			rootDir, err := config.ResolveRunsDir(strings.TrimSpace(opts.RootDir))
+			if err != nil {
+				return fmt.Errorf("resolve runs dir: %w", err)
 			}
 			taskDir := filepath.Join(rootDir, projectID, taskID)
 			if _, err := os.Stat(taskDir); err != nil {
@@ -349,13 +345,9 @@ func runSingleJob(projectID, taskID string, opts runner.JobOptions, follow bool)
 		return runner.RunJob(projectID, taskID, opts)
 	}
 	// Pre-allocate run directory so we can follow output immediately.
-	rootDir := opts.RootDir
-	if rootDir == "" {
-		if v := os.Getenv("RUNS_DIR"); v != "" {
-			rootDir = v
-		} else {
-			rootDir = "./runs"
-		}
+	rootDir, err := config.ResolveRunsDir(opts.RootDir)
+	if err != nil {
+		return fmt.Errorf("resolve runs dir: %w", err)
 	}
 	runsDir := filepath.Join(rootDir, projectID, taskID, "runs")
 	if err := os.MkdirAll(runsDir, 0o755); err != nil {

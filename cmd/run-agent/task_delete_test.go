@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 )
 
@@ -103,25 +104,27 @@ func TestRunTaskDelete_RunningRunWithForce(t *testing.T) {
 	}
 }
 
-func TestResolveRootDir_Flag(t *testing.T) {
-	got := resolveRootDir("/my/root")
+func TestResolveRunsDir_Flag(t *testing.T) {
+	got, err := config.ResolveRunsDir("/my/root")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "/my/root" {
 		t.Errorf("expected /my/root, got %q", got)
 	}
 }
 
-func TestResolveRootDir_EnvVar(t *testing.T) {
-	t.Setenv("RUNS_DIR", "/env/runs")
-	got := resolveRootDir("")
-	if got != "/env/runs" {
-		t.Errorf("expected /env/runs, got %q", got)
+func TestResolveRunsDir_Default(t *testing.T) {
+	got, err := config.ResolveRunsDir("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-}
-
-func TestResolveRootDir_Default(t *testing.T) {
-	t.Setenv("RUNS_DIR", "") // clear env var
-	got := resolveRootDir("")
-	if got != "runs" {
-		t.Errorf("expected 'runs', got %q", got)
+	home, homeErr := os.UserHomeDir()
+	if homeErr != nil {
+		t.Fatalf("get home dir: %v", homeErr)
+	}
+	want := filepath.Join(home, ".run-agent", "runs")
+	if got != want {
+		t.Errorf("expected %q, got %q", want, got)
 	}
 }

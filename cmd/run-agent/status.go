@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/runner"
 	"github.com/jonnyzzz/conductor-loop/internal/runstate"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
@@ -34,12 +35,10 @@ func newStatusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show latest task run status for a project",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if root == "" {
-				if v := os.Getenv("RUNS_DIR"); v != "" {
-					root = v
-				} else {
-					root = "./runs"
-				}
+			var err error
+			root, err = config.ResolveRunsDir(root)
+			if err != nil {
+				return fmt.Errorf("resolve runs dir: %w", err)
 			}
 			return runStatusWithOptions(
 				cmd.OutOrStdout(),
@@ -57,7 +56,7 @@ func newStatusCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&root, "root", "", "root directory (default: ./runs or RUNS_DIR env)")
+	cmd.Flags().StringVar(&root, "root", "", "root directory (default: ~/.run-agent/runs)")
 	cmd.Flags().StringVar(&projectID, "project", "", "project id (required)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id (optional; defaults to all tasks in project)")
 	cmd.Flags().StringVar(&statusFilter, "status", "", "filter rows by status: running, active, completed, failed, blocked, done, pending")

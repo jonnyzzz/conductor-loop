@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 	"github.com/spf13/cobra"
 )
@@ -61,15 +62,17 @@ Exit 1 otherwise.`,
 			if required <= 0 {
 				required = 2
 			}
-			if root == "" {
-				root = resolveRootDir("")
+			var rootErr error
+			root, rootErr = config.ResolveRunsDir(root)
+			if rootErr != nil {
+				return fmt.Errorf("resolve runs dir: %w", rootErr)
 			}
 
 			return runReviewQuorum(cmd.OutOrStdout(), root, projectID, taskID, runIDs, required)
 		},
 	}
 
-	cmd.Flags().StringVar(&root, "root", "", "run-agent root directory (default: ./runs or RUNS_DIR)")
+	cmd.Flags().StringVar(&root, "root", "", "run-agent root directory (default: ~/.run-agent/runs)")
 	cmd.Flags().StringVar(&projectID, "project", "", "project id (required)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id (optional, scopes to task bus)")
 	cmd.Flags().StringVar(&runs, "runs", "", "comma-separated run IDs to consider")
