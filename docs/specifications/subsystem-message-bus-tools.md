@@ -87,11 +87,16 @@ There is no `run-agent bus watch` command; streaming is `read --follow`.
 Path resolution order:
 1. `MESSAGE_BUS` env var (set by runners for child agents — takes priority so agents work without extra flags)
 2. `--project` (+ optional `--task`) path resolution
-3. Upward auto-discovery
+3. CWD `run-info.yaml` inference: walk upward from CWD; when found inside `<root>/<project>/<task>/runs/<runID>/`, infer project, task, and root
+4. CWD project home inference: if CWD contains subdirs matching `task-<YYYYMMDD>-<HHMMSS>-<slug>`, infer project from directory name
+5. Upward auto-discovery (searches for `TASK-MESSAGE-BUS.md`, `PROJECT-MESSAGE-BUS.md`, `MESSAGE-BUS.md`)
+6. Error
+
+Both `--project` and `--task` are optional when any of steps 1–4 can resolve the path.
 
 Context resolution for message fields (`project_id/task_id/run_id`):
 1. Explicit flags
-2. Inference from resolved bus path, `RUN_FOLDER`, `TASK_FOLDER`
+2. Inference from resolved bus path, `RUN_FOLDER`, `TASK_FOLDER`, CWD `run-info.yaml`
 3. `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`
 
 Defaults:
@@ -102,7 +107,12 @@ Defaults:
 Path resolution order:
 1. `--project` (+ optional `--task`) path resolution
 2. `MESSAGE_BUS` env var
-3. Upward auto-discovery
+3. CWD `run-info.yaml` inference: walk upward from CWD; when found inside `<root>/<project>/<task>/runs/<runID>/`, infer project, task, and root
+4. CWD project home inference: if CWD contains subdirs matching `task-<YYYYMMDD>-<HHMMSS>-<slug>`, infer project from directory name
+5. Upward auto-discovery (searches for `TASK-MESSAGE-BUS.md`, `PROJECT-MESSAGE-BUS.md`, `MESSAGE-BUS.md`)
+6. Error
+
+Both `--project` and `--task` are optional when any of steps 1–4 can resolve the path.
 
 Rules:
 - Default tail is `--tail 20`.

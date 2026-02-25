@@ -232,10 +232,14 @@ Bus path resolution order:
 
 1. `MESSAGE_BUS` env (set by runners — canonical path for child agents)
 2. `--project` (+ optional `--task`) path resolution
-3. upward auto-discover from current directory
-4. error
+3. CWD `run-info.yaml` inference (inside an agent run directory)
+4. CWD project home inference (directory contains task-ID-formatted subdirs)
+5. upward auto-discover from current directory
+6. error
 
 Note: `MESSAGE_BUS` precedes `--project` here because agents running inside a task inherit this env var from the runner and should use it automatically.
+
+CWD inference: when neither `MESSAGE_BUS` nor `--project` is set, `bus post` reads `run-info.yaml` walking upward from CWD. When found inside a canonical `<root>/<project>/<task>/runs/<runID>/` layout, project, task, and run IDs are inferred automatically. If CWD is a project home (contains subdirectories named in `task-<YYYYMMDD>-<HHMMSS>-<slug>` format), the project is inferred from the directory name.
 
 #### `run-agent bus read`
 
@@ -257,8 +261,10 @@ Bus path resolution order:
 
 1. `--project` (+ optional `--task`) path resolution
 2. `MESSAGE_BUS` env
-3. upward auto-discover from current directory
-4. error
+3. CWD `run-info.yaml` inference (inside an agent run directory)
+4. CWD project home inference (directory contains task-ID-formatted subdirs)
+5. upward auto-discover from current directory
+6. error
 
 #### `run-agent bus discover`
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
+	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -150,6 +151,69 @@ func inferMessageScopeFromRunFolder(path string) (projectID, taskID, runID strin
 	return projectID, taskID, runID
 }
 
+// inferScopeFromCWDRunInfo walks upward from the current working directory looking
+// for run-info.yaml. When found inside a canonical run directory structure
+// (<root>/<project>/<task>/runs/<runID>/), it returns the project, task, run IDs
+// and the inferred root. The inferred root is empty when the layout does not match
+// the canonical structure.
+func inferScopeFromCWDRunInfo() (projectID, taskID, runID, inferredRoot string) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", "", "", ""
+	}
+
+	dir := filepath.Clean(cwd)
+	for {
+		fi, statErr := os.Stat(filepath.Join(dir, "run-info.yaml"))
+		if statErr == nil && fi.Mode().IsRegular() {
+			runInfo, readErr := storage.ReadRunInfo(filepath.Join(dir, "run-info.yaml"))
+			if readErr == nil && runInfo.ProjectID != "" && runInfo.TaskID != "" {
+				// Try to infer root from canonical layout:
+				// <root>/<project>/<task>/runs/<runID>/run-info.yaml
+				// dir/../    = "runs"
+				// dir/../..  = <task>
+				// dir/../../.. = <project>
+				// dir/../../../.. = <root>
+				runsParent := filepath.Dir(dir)
+				var root string
+				if filepath.Base(runsParent) == "runs" {
+					taskDir := filepath.Dir(runsParent)
+					projectDir := filepath.Dir(taskDir)
+					root = filepath.Dir(projectDir)
+				}
+				return runInfo.ProjectID, runInfo.TaskID, runInfo.RunID, root
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return "", "", "", ""
+}
+
+// inferProjectFromCWD checks whether the current working directory looks like a
+// project home by scanning for at least one subdirectory whose name matches the
+// task-ID format (task-<YYYYMMDD>-<HHMMSS>-<slug>). Returns the project ID
+// (the current directory name) when detected, or empty string otherwise.
+func inferProjectFromCWD() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	entries, err := os.ReadDir(cwd)
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if e.IsDir() && storage.ValidateTaskID(e.Name()) == nil {
+			return filepath.Base(cwd)
+		}
+	}
+	return ""
+}
+
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)
@@ -161,8 +225,10 @@ func firstNonEmpty(values ...string) string {
 }
 
 func resolveBusPostPath(root, projectID, taskID string) (string, error) {
+	// 1. MESSAGE_BUS env var (set by runners for child agents — takes priority).
 	path := strings.TrimSpace(os.Getenv("MESSAGE_BUS"))
 	if path == "" && strings.TrimSpace(projectID) != "" {
+		// 2. --project (+ optional --task) hierarchy resolution.
 		resolved, err := resolveBusFilePath(root, projectID, taskID)
 		if err != nil {
 			return "", err
@@ -173,6 +239,25 @@ func resolveBusPostPath(root, projectID, taskID string) (string, error) {
 		return path, nil
 	}
 
+	// 3. CWD run-info.yaml inference: running inside an agent run directory.
+	if cwdProject, cwdTask, _, cwdRoot := inferScopeFromCWDRunInfo(); cwdProject != "" {
+		useRoot := root
+		if useRoot == "" {
+			useRoot = cwdRoot // may be empty; resolveBusFilePath falls back to config
+		}
+		if resolved, err := resolveBusFilePath(useRoot, cwdProject, cwdTask); err == nil {
+			return resolved, nil
+		}
+	}
+
+	// 4. CWD project home inference: directory contains task-ID-formatted subdirs.
+	if cwdProject := inferProjectFromCWD(); cwdProject != "" {
+		if resolved, err := resolveBusFilePath(root, cwdProject, ""); err == nil {
+			return resolved, nil
+		}
+	}
+
+	// 5. Auto-discover nearest known bus file by walking upward from CWD.
 	discovered, err := discoverBusFilePath("")
 	if err != nil {
 		return "", fmt.Errorf("--project is required (or set MESSAGE_BUS env var, or run from a directory with MESSAGE-BUS.md/PROJECT-MESSAGE-BUS.md/TASK-MESSAGE-BUS.md): %w", err)
@@ -188,12 +273,14 @@ func resolveBusPostMessageContext(projectID, taskID, runID, busPath string) (res
 	busProjectID, busTaskID := inferMessageScopeFromBusPath(busPath)
 	runProjectID, runTaskID, runRunID := inferMessageScopeFromRunFolder(os.Getenv("RUN_FOLDER"))
 	taskProjectID, taskTaskID := inferMessageScopeFromTaskFolder(os.Getenv("TASK_FOLDER"))
+	cwdProjectID, cwdTaskID, cwdRunID, _ := inferScopeFromCWDRunInfo()
 
 	if resolvedProjectID == "" {
 		resolvedProjectID = firstNonEmpty(
 			busProjectID,
 			runProjectID,
 			taskProjectID,
+			cwdProjectID,
 			os.Getenv("JRUN_PROJECT_ID"),
 		)
 	}
@@ -202,12 +289,14 @@ func resolveBusPostMessageContext(projectID, taskID, runID, busPath string) (res
 			busTaskID,
 			runTaskID,
 			taskTaskID,
+			cwdTaskID,
 			os.Getenv("JRUN_TASK_ID"),
 		)
 	}
 	if resolvedRunID == "" {
 		resolvedRunID = firstNonEmpty(
 			runRunID,
+			cwdRunID,
 			os.Getenv("JRUN_ID"),
 		)
 	}
@@ -231,10 +320,12 @@ func newBusPostCmd() *cobra.Command {
 		Long: `Post a message to the message bus.
 
 The bus file path is resolved in this order:
-  1. MESSAGE_BUS environment variable
+  1. MESSAGE_BUS environment variable (set by runners for child agents)
   2. --project (+ optional --task) auto-resolve from project/task hierarchy
-  3. Auto-discover nearest bus file from current directory
-  4. Error
+  3. CWD run-info.yaml: infer project/task when inside an agent run directory
+  4. CWD project home: infer project when CWD contains task-ID-formatted subdirs
+  5. Auto-discover nearest bus file by walking upward from current directory
+  6. Error
 
 When --project is specified, the path is auto-resolved:
   - With --task:    <root>/<project>/<task>/TASK-MESSAGE-BUS.md
@@ -242,7 +333,7 @@ When --project is specified, the path is auto-resolved:
 
 Message project/task/run values are resolved in this order:
   1. Explicit flags (--project/--task/--run)
-  2. Context inference (resolved bus path, RUN_FOLDER, TASK_FOLDER)
+  2. Context inference (resolved bus path, RUN_FOLDER, TASK_FOLDER, CWD run-info.yaml)
   3. JRUN_PROJECT_ID/JRUN_TASK_ID/JRUN_ID environment variables
   4. Error (project_id required)
 
@@ -315,8 +406,10 @@ func newBusReadCmd() *cobra.Command {
 The bus file path is resolved in this order:
   1. --project (+ optional --task) auto-resolve from project/task hierarchy
   2. MESSAGE_BUS environment variable
-  3. Auto-discover nearest bus file from current directory
-  4. Error
+  3. CWD run-info.yaml: infer project/task when inside an agent run directory
+  4. CWD project home: infer project when CWD contains task-ID-formatted subdirs
+  5. Auto-discover nearest bus file by walking upward from current directory
+  6. Error
 
 When --project is specified, the path is auto-resolved:
   - With --task:    <root>/<project>/<task>/TASK-MESSAGE-BUS.md
@@ -324,7 +417,7 @@ When --project is specified, the path is auto-resolved:
 
 Use "run-agent bus discover" to preview auto-discovery from your current directory.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Resolve bus path: project/task hierarchy > MESSAGE_BUS env > auto-discover
+			// Resolve bus path: --project/--task > MESSAGE_BUS env > CWD run-info > CWD project > auto-discover
 			var busPath string
 			if projectID != "" {
 				resolved, resolveErr := resolveBusFilePath(root, projectID, taskID)
@@ -335,6 +428,26 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 			}
 			if busPath == "" {
 				busPath = os.Getenv("MESSAGE_BUS")
+			}
+			if busPath == "" {
+				// CWD run-info.yaml inference: running inside an agent run directory.
+				if cwdProject, cwdTask, _, cwdRoot := inferScopeFromCWDRunInfo(); cwdProject != "" {
+					useRoot := root
+					if useRoot == "" {
+						useRoot = cwdRoot
+					}
+					if resolved, err := resolveBusFilePath(useRoot, cwdProject, cwdTask); err == nil {
+						busPath = resolved
+					}
+				}
+			}
+			if busPath == "" {
+				// CWD project home inference: directory contains task-ID-formatted subdirs.
+				if cwdProject := inferProjectFromCWD(); cwdProject != "" {
+					if resolved, err := resolveBusFilePath(root, cwdProject, ""); err == nil {
+						busPath = resolved
+					}
+				}
 			}
 			if busPath == "" {
 				discovered, err := discoverBusFilePath("")

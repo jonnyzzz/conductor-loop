@@ -8,6 +8,7 @@ import (
 
 	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
+	"github.com/jonnyzzz/conductor-loop/internal/storage"
 )
 
 // TestBusReadWithProject verifies that bus read resolves the project-level bus
@@ -633,5 +634,300 @@ func TestBusPostAutoDiscoversLegacyBusAndInfersProject(t *testing.T) {
 	}
 	if last.ProjectID != filepath.Base(root) {
 		t.Fatalf("last project_id=%q, want %q", last.ProjectID, filepath.Base(root))
+	}
+}
+
+// --- CWD scope inference unit tests ---
+
+// TestInferScopeFromCWDRunInfo_CWDIsRunDir verifies that run-info.yaml in CWD is
+// discovered and the project/task/run/root are correctly extracted.
+func TestInferScopeFromCWDRunInfo_CWDIsRunDir(t *testing.T) {
+	root := t.TempDir()
+	runDir := filepath.Join(root, "my-project", "task-20260101-120000-test", "runs", "20260101-1200000000-9999-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	info := &storage.RunInfo{
+		ProjectID: "my-project",
+		TaskID:    "task-20260101-120000-test",
+		RunID:     "20260101-1200000000-9999-1",
+		Status:    "running",
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	t.Chdir(runDir)
+
+	project, task, runID, inferredRoot := inferScopeFromCWDRunInfo()
+	if project != "my-project" {
+		t.Errorf("project=%q, want %q", project, "my-project")
+	}
+	if task != "task-20260101-120000-test" {
+		t.Errorf("task=%q, want %q", task, "task-20260101-120000-test")
+	}
+	if runID != "20260101-1200000000-9999-1" {
+		t.Errorf("runID=%q, want %q", runID, "20260101-1200000000-9999-1")
+	}
+	if inferredRoot != root {
+		t.Errorf("inferredRoot=%q, want %q", inferredRoot, root)
+	}
+}
+
+// TestInferScopeFromCWDRunInfo_NestedInsideRunDir verifies that run-info.yaml is
+// found when CWD is nested inside a run directory.
+func TestInferScopeFromCWDRunInfo_NestedInsideRunDir(t *testing.T) {
+	root := t.TempDir()
+	runDir := filepath.Join(root, "proj", "task-20260101-120000-nested", "runs", "20260101-0000000000-1111-1")
+	nestedDir := filepath.Join(runDir, "workspace", "subdir")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	info := &storage.RunInfo{
+		ProjectID: "proj",
+		TaskID:    "task-20260101-120000-nested",
+		RunID:     "20260101-0000000000-1111-1",
+		Status:    "running",
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	t.Chdir(nestedDir)
+
+	project, task, runID, _ := inferScopeFromCWDRunInfo()
+	if project != "proj" {
+		t.Errorf("project=%q, want %q", project, "proj")
+	}
+	if task != "task-20260101-120000-nested" {
+		t.Errorf("task=%q, want %q", task, "task-20260101-120000-nested")
+	}
+	if runID != "20260101-0000000000-1111-1" {
+		t.Errorf("runID=%q, want %q", runID, "20260101-0000000000-1111-1")
+	}
+}
+
+// TestInferScopeFromCWDRunInfo_NoRunInfo verifies empty results when no run-info.yaml
+// exists in the CWD or any parent directory.
+func TestInferScopeFromCWDRunInfo_NoRunInfo(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	project, task, runID, inferredRoot := inferScopeFromCWDRunInfo()
+	if project != "" || task != "" || runID != "" || inferredRoot != "" {
+		t.Errorf("expected empty scope, got project=%q task=%q runID=%q root=%q", project, task, runID, inferredRoot)
+	}
+}
+
+// TestInferProjectFromCWD_HasTaskSubdirs verifies that a directory with task-ID
+// subdirectories is identified as a project home.
+func TestInferProjectFromCWD_HasTaskSubdirs(t *testing.T) {
+	dir := t.TempDir()
+	taskDir := filepath.Join(dir, "task-20260101-120000-myfeature")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// non-task subdir should not trigger inference
+	if err := os.MkdirAll(filepath.Join(dir, "not-a-task"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(dir)
+
+	projectID := inferProjectFromCWD()
+	if projectID != filepath.Base(dir) {
+		t.Errorf("projectID=%q, want %q", projectID, filepath.Base(dir))
+	}
+}
+
+// TestInferProjectFromCWD_NoTaskSubdirs verifies that a directory without
+// task-ID-formatted subdirectories returns empty string.
+func TestInferProjectFromCWD_NoTaskSubdirs(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(dir)
+
+	projectID := inferProjectFromCWD()
+	if projectID != "" {
+		t.Errorf("expected empty projectID, got %q", projectID)
+	}
+}
+
+// --- CWD inference integration tests ---
+
+// TestBusPostInfersFromRunInfoCWD verifies that bus post resolves project/task/bus
+// from run-info.yaml when the command is executed inside a run directory.
+func TestBusPostInfersFromRunInfoCWD(t *testing.T) {
+	t.Setenv("MESSAGE_BUS", "")
+	t.Setenv("RUN_FOLDER", "")
+	t.Setenv("TASK_FOLDER", "")
+	t.Setenv("JRUN_PROJECT_ID", "")
+	t.Setenv("JRUN_TASK_ID", "")
+	t.Setenv("JRUN_ID", "")
+
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "cwd-project", "task-20260101-120000-cwdtest")
+	runDir := filepath.Join(taskDir, "runs", "20260101-1200000000-7777-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	info := &storage.RunInfo{
+		ProjectID: "cwd-project",
+		TaskID:    "task-20260101-120000-cwdtest",
+		RunID:     "20260101-1200000000-7777-1",
+		Status:    "running",
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	t.Chdir(runDir)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"bus", "post",
+		"--root", root,
+		"--type", "FACT",
+		"--body", "posted from run dir without flags",
+	})
+
+	var runErr error
+	captureStdout(t, func() { runErr = cmd.Execute() })
+	if runErr != nil {
+		t.Fatalf("bus post failed: %v", runErr)
+	}
+
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("open bus: %v", err)
+	}
+	messages, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	msg := messages[0]
+	if msg.Body != "posted from run dir without flags" {
+		t.Errorf("body=%q, want %q", msg.Body, "posted from run dir without flags")
+	}
+	if msg.ProjectID != "cwd-project" {
+		t.Errorf("project_id=%q, want %q", msg.ProjectID, "cwd-project")
+	}
+	if msg.TaskID != "task-20260101-120000-cwdtest" {
+		t.Errorf("task_id=%q, want %q", msg.TaskID, "task-20260101-120000-cwdtest")
+	}
+	if msg.RunID != "20260101-1200000000-7777-1" {
+		t.Errorf("run_id=%q, want %q", msg.RunID, "20260101-1200000000-7777-1")
+	}
+}
+
+// TestBusReadInfersFromRunInfoCWD verifies that bus read resolves the task bus
+// from run-info.yaml when executed inside a run directory (no --project/--task flags).
+func TestBusReadInfersFromRunInfoCWD(t *testing.T) {
+	t.Setenv("MESSAGE_BUS", "")
+
+	root := t.TempDir()
+	taskDir := filepath.Join(root, "read-project", "task-20260101-120000-readtest")
+	runDir := filepath.Join(taskDir, "runs", "20260101-1200000000-8888-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	info := &storage.RunInfo{
+		ProjectID: "read-project",
+		TaskID:    "task-20260101-120000-readtest",
+		RunID:     "20260101-1200000000-8888-1",
+		Status:    "running",
+	}
+	if err := storage.WriteRunInfo(filepath.Join(runDir, "run-info.yaml"), info); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("create bus: %v", err)
+	}
+	if _, err := bus.AppendMessage(&messagebus.Message{
+		Type:      "INFO",
+		ProjectID: "read-project",
+		Body:      "message in task bus",
+	}); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+
+	t.Chdir(runDir)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"bus", "read", "--root", root})
+
+	output := captureStdout(t, func() {
+		if runErr := cmd.Execute(); runErr != nil {
+			t.Fatalf("bus read failed: %v", runErr)
+		}
+	})
+	if !strings.Contains(output, "message in task bus") {
+		t.Errorf("expected 'message in task bus' in output, got: %q", output)
+	}
+}
+
+// TestBusPostInfersFromProjectHomeCWD verifies that bus post resolves the project
+// bus when executed from a project home directory (contains task-ID subdirs).
+func TestBusPostInfersFromProjectHomeCWD(t *testing.T) {
+	t.Setenv("MESSAGE_BUS", "")
+	t.Setenv("RUN_FOLDER", "")
+	t.Setenv("TASK_FOLDER", "")
+	t.Setenv("JRUN_PROJECT_ID", "")
+	t.Setenv("JRUN_TASK_ID", "")
+	t.Setenv("JRUN_ID", "")
+
+	root := t.TempDir()
+	projDir := filepath.Join(root, "home-project")
+	taskSubDir := filepath.Join(projDir, "task-20260101-120000-subtask")
+	if err := os.MkdirAll(taskSubDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(projDir)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"bus", "post",
+		"--root", root,
+		"--type", "FACT",
+		"--body", "posted from project home",
+	})
+
+	var runErr error
+	captureStdout(t, func() { runErr = cmd.Execute() })
+	if runErr != nil {
+		t.Fatalf("bus post failed: %v", runErr)
+	}
+
+	busPath := filepath.Join(projDir, "PROJECT-MESSAGE-BUS.md")
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("open bus: %v", err)
+	}
+	messages, err := bus.ReadMessages("")
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	if messages[0].Body != "posted from project home" {
+		t.Errorf("body=%q, want %q", messages[0].Body, "posted from project home")
+	}
+	if messages[0].ProjectID != "home-project" {
+		t.Errorf("project_id=%q, want %q", messages[0].ProjectID, "home-project")
 	}
 }
