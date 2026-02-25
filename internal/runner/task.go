@@ -29,7 +29,6 @@ type TaskOptions struct {
 	Prompt         string
 	PromptPath     string // path to a file containing the prompt
 	WorkingDir     string
-	MessageBusPath string
 	MaxRestarts    int
 	MaxRestartsSet bool
 	WaitTimeout    time.Duration
@@ -101,10 +100,7 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 		}
 	}
 
-	busPath := strings.TrimSpace(opts.MessageBusPath)
-	if busPath == "" {
-		busPath = filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
-	}
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
 	bus, err := messagebus.NewMessageBus(busPath)
 	if err != nil {
 		return errors.Wrap(err, "new message bus")
@@ -138,13 +134,12 @@ func RunTask(projectID, taskID string, opts TaskOptions) error {
 			jobPrompt = restartPrefix + prompt
 		}
 		jobOpts := JobOptions{
-			RootDir:        opts.RootDir,
-			ConfigPath:     opts.ConfigPath,
-			Agent:          opts.Agent,
-			Prompt:         jobPrompt,
-			WorkingDir:     opts.WorkingDir,
-			MessageBusPath: busPath,
-			ParentRunID:    opts.ParentRunID,
+			RootDir:       opts.RootDir,
+			ConfigPath:    opts.ConfigPath,
+			Agent:         opts.Agent,
+			Prompt:        jobPrompt,
+			WorkingDir:    opts.WorkingDir,
+			ParentRunID:   opts.ParentRunID,
 			PreviousRunID:  previousRunID,
 			Environment:    opts.Environment,
 			Timeout:        opts.Timeout,

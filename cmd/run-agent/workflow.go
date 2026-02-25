@@ -80,7 +80,6 @@ func newWorkflowRunCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "config file path")
 	cmd.Flags().StringVar(&opts.Agent, "agent", "", "agent type")
 	cmd.Flags().StringVar(&opts.WorkingDir, "cwd", "", "working directory")
-	cmd.Flags().StringVar(&opts.MessageBusPath, "message-bus", "", "message bus path")
 	cmd.Flags().StringVar(&opts.Template, "template", runner.WorkflowTemplatePromptV5, "workflow template")
 	cmd.Flags().IntVar(&opts.FromStage, "from-stage", 0, "first stage to execute")
 	cmd.Flags().IntVar(&opts.ToStage, "to-stage", 12, "last stage to execute")

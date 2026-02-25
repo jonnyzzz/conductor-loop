@@ -301,11 +301,10 @@ func TestRunJobMessageBusEventOrdering(t *testing.T) {
 
 	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
 	opts := runner.JobOptions{
-		RootDir:        root,
-		Agent:          "codex",
-		Prompt:         "test ordering",
-		WorkingDir:     taskDir,
-		MessageBusPath: busPath,
+		RootDir:    root,
+		Agent:      "codex",
+		Prompt:     "test ordering",
+		WorkingDir: taskDir,
 		Environment: map[string]string{
 			envOrchStubStdout: "ordering output",
 		},

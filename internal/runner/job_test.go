@@ -658,12 +658,11 @@ func TestRunJobCLIEmitsRunStop(t *testing.T) {
 	createFakeCLI(t, binDir, "codex")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	busPath := filepath.Join(root, "TASK-MESSAGE-BUS.md")
+	busPath := filepath.Join(root, "project", "task", "TASK-MESSAGE-BUS.md")
 	_, err := runJob("project", "task", JobOptions{
-		RootDir:        root,
-		Agent:          "codex",
-		Prompt:         "hello",
-		MessageBusPath: busPath,
+		RootDir: root,
+		Agent:   "codex",
+		Prompt:  "hello",
 	})
 	if err != nil {
 		t.Fatalf("runJob: %v", err)
@@ -685,12 +684,11 @@ func TestRunJobCLIEmitsRunCrash(t *testing.T) {
 	createFailingCLI(t, binDir, "codex")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	busPath := filepath.Join(root, "TASK-MESSAGE-BUS.md")
+	busPath := filepath.Join(root, "project", "task", "TASK-MESSAGE-BUS.md")
 	_, err := runJob("project", "task", JobOptions{
-		RootDir:        root,
-		Agent:          "codex",
-		Prompt:         "hello",
-		MessageBusPath: busPath,
+		RootDir: root,
+		Agent:   "codex",
+		Prompt:  "hello",
 	})
 	// Non-zero exit is expected to return an error.
 	if err == nil {
@@ -744,14 +742,13 @@ func TestRunJobTimeout(t *testing.T) {
 	createSlowCLI(t, binDir, "codex", 60)
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	busPath := filepath.Join(root, "TASK-MESSAGE-BUS.md")
+	busPath := filepath.Join(root, "project", "task", "TASK-MESSAGE-BUS.md")
 	start := time.Now()
 	info, err := runJob("project", "task", JobOptions{
-		RootDir:        root,
-		Agent:          "codex",
-		Prompt:         "hello",
-		MessageBusPath: busPath,
-		Timeout:        200 * time.Millisecond,
+		RootDir: root,
+		Agent:   "codex",
+		Prompt:  "hello",
+		Timeout: 200 * time.Millisecond,
 	})
 	elapsed := time.Since(start)
 

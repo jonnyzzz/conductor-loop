@@ -53,7 +53,6 @@ func newWrapCmd() *cobra.Command {
 	cmd.Flags().StringVar(&agentType, "agent", "", "agent command to execute (e.g. claude, codex, gemini)")
 	cmd.Flags().StringVar(&opts.RootDir, "root", "", "run-agent root directory")
 	cmd.Flags().StringVar(&opts.WorkingDir, "cwd", "", "working directory (default: current working directory)")
-	cmd.Flags().StringVar(&opts.MessageBusPath, "message-bus", "", "message bus path")
 	cmd.Flags().StringVar(&opts.ParentRunID, "parent-run-id", "", "parent run id (defaults to JRUN_ID if set)")
 	cmd.Flags().StringVar(&opts.PreviousRunID, "previous-run-id", "", "previous run id")
 	cmd.Flags().DurationVar(&opts.Timeout, "timeout", 0, "maximum wrapped command duration (e.g. 30m, 2h); 0 means no limit")

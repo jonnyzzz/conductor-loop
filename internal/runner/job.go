@@ -31,7 +31,6 @@ type JobOptions struct {
 	Prompt             string
 	PromptPath         string
 	WorkingDir         string
-	MessageBusPath     string
 	ParentRunID        string
 	PreviousRunID      string
 	Environment        map[string]string
@@ -171,10 +170,7 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		return nil, errors.Wrap(err, "resolve working dir")
 	}
 
-	busPath := strings.TrimSpace(opts.MessageBusPath)
-	if busPath == "" {
-		busPath = filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
-	}
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
 
 	runsDir := filepath.Join(taskDir, "runs")
 	if err := ensureDir(runsDir); err != nil {

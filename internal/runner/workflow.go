@@ -45,12 +45,11 @@ var workflowStageTitles = map[int]string{
 
 // WorkflowOptions controls staged workflow execution.
 type WorkflowOptions struct {
-	RootDir        string
-	ConfigPath     string
-	Agent          string
-	WorkingDir     string
-	MessageBusPath string
-	Template       string
+	RootDir    string
+	ConfigPath string
+	Agent      string
+	WorkingDir string
+	Template   string
 	FromStage      int
 	ToStage        int
 	Resume         bool
@@ -138,10 +137,7 @@ func RunWorkflow(projectID, taskID string, opts WorkflowOptions) (*WorkflowResul
 		return nil, errors.Wrap(err, "ensure task dir")
 	}
 
-	busPath := strings.TrimSpace(opts.MessageBusPath)
-	if busPath == "" {
-		busPath = filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
-	}
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
 
 	statePath := strings.TrimSpace(opts.StatePath)
 	if statePath == "" {
@@ -269,13 +265,12 @@ func WorkflowResultJSON(result *WorkflowResult) ([]byte, error) {
 
 func runWorkflowStage(projectID, taskID string, stage int, prompt string, opts WorkflowOptions) (*storage.RunInfo, error) {
 	jobOpts := JobOptions{
-		RootDir:        opts.RootDir,
-		ConfigPath:     opts.ConfigPath,
-		Agent:          opts.Agent,
-		Prompt:         prompt,
-		WorkingDir:     opts.WorkingDir,
-		MessageBusPath: opts.MessageBusPath,
-		Timeout:        opts.Timeout,
+		RootDir:    opts.RootDir,
+		ConfigPath: opts.ConfigPath,
+		Agent:      opts.Agent,
+		Prompt:     prompt,
+		WorkingDir: opts.WorkingDir,
+		Timeout:    opts.Timeout,
 	}
 	return runJob(projectID, taskID, jobOpts)
 }

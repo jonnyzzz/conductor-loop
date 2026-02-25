@@ -160,11 +160,8 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func resolveBusPostPath(busPath, root, projectID, taskID string) (string, error) {
-	path := strings.TrimSpace(busPath)
-	if path == "" {
-		path = strings.TrimSpace(os.Getenv("MESSAGE_BUS"))
-	}
+func resolveBusPostPath(root, projectID, taskID string) (string, error) {
+	path := strings.TrimSpace(os.Getenv("MESSAGE_BUS"))
 	if path == "" && strings.TrimSpace(projectID) != "" {
 		resolved, err := resolveBusFilePath(root, projectID, taskID)
 		if err != nil {
@@ -178,7 +175,7 @@ func resolveBusPostPath(busPath, root, projectID, taskID string) (string, error)
 
 	discovered, err := discoverBusFilePath("")
 	if err != nil {
-		return "", fmt.Errorf("--bus or --project is required (or set MESSAGE_BUS env var, or run from a directory with MESSAGE-BUS.md/PROJECT-MESSAGE-BUS.md/TASK-MESSAGE-BUS.md): %w", err)
+		return "", fmt.Errorf("--project is required (or set MESSAGE_BUS env var, or run from a directory with MESSAGE-BUS.md/PROJECT-MESSAGE-BUS.md/TASK-MESSAGE-BUS.md): %w", err)
 	}
 	return discovered, nil
 }
@@ -220,7 +217,6 @@ func resolveBusPostMessageContext(projectID, taskID, runID, busPath string) (res
 
 func newBusPostCmd() *cobra.Command {
 	var (
-		busPath   string
 		root      string
 		msgType   string
 		projectID string
@@ -235,13 +231,12 @@ func newBusPostCmd() *cobra.Command {
 		Long: `Post a message to the message bus.
 
 The bus file path is resolved in this order:
-  1. --bus flag
-  2. MESSAGE_BUS environment variable
-  3. --project (+ optional --task) auto-resolve from project/task hierarchy
-  4. Auto-discover nearest bus file from current directory
-  5. Error
+  1. MESSAGE_BUS environment variable
+  2. --project (+ optional --task) auto-resolve from project/task hierarchy
+  3. Auto-discover nearest bus file from current directory
+  4. Error
 
-When --project is specified without --bus, the path is auto-resolved:
+When --project is specified, the path is auto-resolved:
   - With --task:    <root>/<project>/<task>/TASK-MESSAGE-BUS.md
   - Without --task: <root>/<project>/PROJECT-MESSAGE-BUS.md
 
@@ -253,11 +248,10 @@ Message project/task/run values are resolved in this order:
 
 Use "run-agent bus discover" to preview auto-discovery from your current directory.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolvedBusPath, err := resolveBusPostPath(busPath, root, projectID, taskID)
+			busPath, err := resolveBusPostPath(root, projectID, taskID)
 			if err != nil {
 				return err
 			}
-			busPath = resolvedBusPath
 
 			projectID, taskID, runID = resolveBusPostMessageContext(projectID, taskID, runID, busPath)
 			if projectID == "" {
@@ -294,7 +288,6 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 		},
 	}
 
-	cmd.Flags().StringVar(&busPath, "bus", "", "path to message bus file (uses MESSAGE_BUS env var if not set)")
 	cmd.Flags().StringVar(&root, "root", "", "root directory for project/task bus resolution (default: ~/.run-agent/runs)")
 	cmd.Flags().StringVar(&msgType, "type", "INFO", "message type")
 	cmd.Flags().StringVar(&projectID, "project", "", "project ID (optional; inferred from context if omitted)")
@@ -307,7 +300,6 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 
 func newBusReadCmd() *cobra.Command {
 	var (
-		busPath   string
 		root      string
 		projectID string
 		taskID    string
@@ -322,24 +314,19 @@ func newBusReadCmd() *cobra.Command {
 
 The bus file path is resolved in this order:
   1. --project (+ optional --task) auto-resolve from project/task hierarchy
-  2. --bus flag
-  3. MESSAGE_BUS environment variable
-  4. Auto-discover nearest bus file from current directory
-  5. Error
+  2. MESSAGE_BUS environment variable
+  3. Auto-discover nearest bus file from current directory
+  4. Error
 
 When --project is specified, the path is auto-resolved:
   - With --task:    <root>/<project>/<task>/TASK-MESSAGE-BUS.md
   - Without --task: <root>/<project>/PROJECT-MESSAGE-BUS.md
 
-Specifying both --bus and --project is an error.
-
 Use "run-agent bus discover" to preview auto-discovery from your current directory.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Resolve bus path: project/task hierarchy > --bus > MESSAGE_BUS env
+			// Resolve bus path: project/task hierarchy > MESSAGE_BUS env > auto-discover
+			var busPath string
 			if projectID != "" {
-				if busPath != "" {
-					return fmt.Errorf("cannot specify both --bus and --project")
-				}
 				resolved, resolveErr := resolveBusFilePath(root, projectID, taskID)
 				if resolveErr != nil {
 					return resolveErr
@@ -352,7 +339,7 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 			if busPath == "" {
 				discovered, err := discoverBusFilePath("")
 				if err != nil {
-					return fmt.Errorf("--bus or --project is required (or set MESSAGE_BUS env var, or run from a directory with MESSAGE-BUS.md/PROJECT-MESSAGE-BUS.md/TASK-MESSAGE-BUS.md): %w", err)
+					return fmt.Errorf("--project is required (or set MESSAGE_BUS env var, or run from a directory with MESSAGE-BUS.md/PROJECT-MESSAGE-BUS.md/TASK-MESSAGE-BUS.md): %w", err)
 				}
 				busPath = discovered
 			}
@@ -397,7 +384,6 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 		},
 	}
 
-	cmd.Flags().StringVar(&busPath, "bus", "", "path to message bus file (uses MESSAGE_BUS env var if not set)")
 	cmd.Flags().StringVar(&root, "root", "", "root directory for project/task bus resolution (default: ~/.run-agent/runs)")
 	cmd.Flags().StringVar(&projectID, "project", "", "project ID (with --root to resolve bus path; without --task reads project-level bus)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task ID (requires --project; resolves task-level bus)")

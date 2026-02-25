@@ -20,10 +20,9 @@ const wrapStdioNotice = "run-agent wrap used terminal passthrough stdio to prese
 
 // WrapOptions controls execution for a wrapped CLI invocation.
 type WrapOptions struct {
-	RootDir        string
-	WorkingDir     string
-	MessageBusPath string
-	ParentRunID    string
+	RootDir       string
+	WorkingDir    string
+	ParentRunID   string
 	PreviousRunID  string
 	Environment    map[string]string
 	Timeout        time.Duration // hard timeout for wrapped process; 0 means no limit
@@ -71,10 +70,7 @@ func runWrap(projectID, taskID, agentType string, forwardedArgs []string, opts W
 		return nil, err
 	}
 
-	busPath := strings.TrimSpace(opts.MessageBusPath)
-	if busPath == "" {
-		busPath = filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
-	}
+	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
 
 	runsDir := filepath.Join(taskDir, "runs")
 	if err := ensureDir(runsDir); err != nil {

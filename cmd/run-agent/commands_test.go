@@ -91,11 +91,11 @@ func TestServeCmd_StartsServer(t *testing.T) {
 
 func TestBusPostCmd_PostsMessage(t *testing.T) {
 	busPath := filepath.Join(t.TempDir(), "bus.yaml")
+	t.Setenv("MESSAGE_BUS", busPath)
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
 		"bus", "post",
-		"--bus", busPath,
 		"--project", "my-project",
 		"--task", "my-task",
 		"--type", "INFO",
@@ -193,7 +193,26 @@ func TestBusPostCmd_FailsWithoutBusOrEnvVar(t *testing.T) {
 		runErr = cmd.Execute()
 	})
 	if runErr == nil {
-		t.Fatal("expected error when neither --bus nor MESSAGE_BUS is set")
+		t.Fatal("expected error when MESSAGE_BUS is not set")
+	}
+	if !strings.Contains(runErr.Error(), "MESSAGE_BUS") {
+		t.Errorf("expected error to mention MESSAGE_BUS, got: %v", runErr)
+	}
+}
+
+func TestBusReadCmd_FailsWithoutProjectOrEnvVar(t *testing.T) {
+	t.Setenv("MESSAGE_BUS", "")
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"bus", "read"})
+
+	var runErr error
+	captureStdout(t, func() {
+		runErr = cmd.Execute()
+	})
+	if runErr == nil {
+		t.Fatal("expected error when MESSAGE_BUS is not set and no --project given")
 	}
 	if !strings.Contains(runErr.Error(), "MESSAGE_BUS") {
 		t.Errorf("expected error to mention MESSAGE_BUS, got: %v", runErr)
@@ -232,6 +251,7 @@ func TestBusReadCmd_UsesMessageBusEnvVar(t *testing.T) {
 
 func TestBusReadCmd_ReadMessages(t *testing.T) {
 	busPath := filepath.Join(t.TempDir(), "bus.yaml")
+	t.Setenv("MESSAGE_BUS", busPath)
 
 	bus, err := messagebus.NewMessageBus(busPath)
 	if err != nil {
@@ -252,7 +272,6 @@ func TestBusReadCmd_ReadMessages(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
 		"bus", "read",
-		"--bus", busPath,
 		"--tail", "5",
 	})
 

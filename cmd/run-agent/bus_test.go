@@ -96,30 +96,6 @@ func TestBusReadWithProjectAndTask(t *testing.T) {
 	}
 }
 
-// TestBusReadBusFlagAndProjectError verifies that bus read returns an error when
-// both --bus and --project are specified.
-func TestBusReadBusFlagAndProjectError(t *testing.T) {
-	root := t.TempDir()
-	busPath := filepath.Join(root, "bus.md")
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{
-		"bus", "read",
-		"--bus", busPath,
-		"--project", "my-project",
-	})
-
-	var runErr error
-	captureStdout(t, func() {
-		runErr = cmd.Execute()
-	})
-	if runErr == nil {
-		t.Fatal("expected error when both --bus and --project are specified")
-	}
-	if !strings.Contains(runErr.Error(), "cannot specify both") {
-		t.Errorf("expected 'cannot specify both' in error, got: %v", runErr)
-	}
-}
 
 // TestBusPostWithProject verifies that bus post auto-resolves the project-level bus
 // (PROJECT-MESSAGE-BUS.md) when --project is given without --bus.
