@@ -460,6 +460,21 @@ func (p *rootTaskPlanner) reconcileLocked(state *rootTaskPlannerState) (bool, er
 			}
 			return changed, errors.Wrapf(err, "read planner run-info for %s/%s", entry.ProjectID, entry.TaskID)
 		}
+		if strings.TrimSpace(runInfo.Status) == storage.StatusUnknown {
+			if entry.State == rootTaskPlannerEntryRunning {
+				if entry.StartedAt.IsZero() || now.Sub(entry.StartedAt) > rootTaskPlannerRunInfoGraceFor {
+					entry.State = rootTaskPlannerEntryQueued
+					entry.StartedAt = time.Time{}
+					changed = true
+					if done {
+						changed = true
+						continue
+					}
+				}
+			}
+			normalized = append(normalized, entry)
+			continue
+		}
 
 		if isRunningRootRun(runInfo) {
 			if entry.State != rootTaskPlannerEntryRunning {

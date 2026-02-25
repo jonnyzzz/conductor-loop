@@ -911,7 +911,8 @@ func (s *Server) scanProjectRunInfos(projectID string) ([]*storage.RunInfo, erro
 				continue
 			}
 			dir := filepath.Join(runsDir, entry.Name())
-			if info, err := runstate.ReadRunInfo(filepath.Join(dir, "run-info.yaml")); err == nil {
+			runInfoPath := filepath.Join(dir, "run-info.yaml")
+			if info, present, err := readRunInfoIfPresent(runInfoPath); err == nil && present {
 				if info.ProjectID == projectID {
 					runs = append(runs, info)
 				}
@@ -1931,7 +1932,8 @@ func (s *Server) allRunInfos() ([]*storage.RunInfo, error) {
 				continue
 			}
 			dir := filepath.Join(runsDir, entry.Name())
-			if info, err := runstate.ReadRunInfo(filepath.Join(dir, "run-info.yaml")); err == nil {
+			runInfoPath := filepath.Join(dir, "run-info.yaml")
+			if info, present, err := readRunInfoIfPresent(runInfoPath); err == nil && present {
 				all = append(all, info)
 				continue
 			}
@@ -2636,8 +2638,8 @@ func (s *Server) handleProjectStats(w http.ResponseWriter, r *http.Request) *api
 			}
 			stats.TotalRuns++
 			runInfoPath := filepath.Join(runsDir, runEntry.Name(), "run-info.yaml")
-			runInfo, err := runstate.ReadRunInfo(runInfoPath)
-			if err != nil {
+			runInfo, present, err := readRunInfoIfPresent(runInfoPath)
+			if err != nil || !present {
 				continue
 			}
 			switch runInfo.Status {

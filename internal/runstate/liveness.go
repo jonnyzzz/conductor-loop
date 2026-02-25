@@ -2,6 +2,7 @@
 package runstate
 
 import (
+	stderrors "errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +28,13 @@ func ReadRunInfoWithClock(path string, now func() time.Time) (*storage.RunInfo, 
 
 	info, err := storage.ReadRunInfo(path)
 	if err != nil {
+		if stderrors.Is(err, os.ErrNotExist) {
+			return synthesizeRunInfo(path), nil
+		}
 		return nil, err
+	}
+	if strings.TrimSpace(info.Status) == "" {
+		info.Status = storage.StatusUnknown
 	}
 
 	if !shouldCheckLiveness(info) && !shouldPromoteDoneCompletion(info, path) {
@@ -144,8 +151,52 @@ func shouldCheckLiveness(info *storage.RunInfo) bool {
 	if strings.TrimSpace(info.Status) != storage.StatusRunning {
 		return false
 	}
+	if info.PID == 0 && info.PGID == 0 {
+		return false
+	}
 	// When PID/PGID is unknown, keep the persisted status unchanged.
 	return info.PID > 0 || info.PGID > 0
+}
+
+func synthesizeRunInfo(path string) *storage.RunInfo {
+	runID := strings.TrimSpace(filepath.Base(filepath.Dir(path)))
+	if runID == "." || runID == string(filepath.Separator) {
+		runID = ""
+	}
+	projectID, taskID := inferRunScopeFromRunInfoPath(path)
+	return &storage.RunInfo{
+		RunID:     runID,
+		ProjectID: projectID,
+		TaskID:    taskID,
+		Status:    storage.StatusUnknown,
+		Version:   0,
+	}
+}
+
+func inferRunScopeFromRunInfoPath(path string) (projectID, taskID string) {
+	clean := filepath.Clean(strings.TrimSpace(path))
+	if clean == "." || clean == "" {
+		return "", ""
+	}
+	runDir := filepath.Dir(clean)
+	if runDir == "." || runDir == "" {
+		return "", ""
+	}
+	runsDir := filepath.Dir(runDir)
+	if filepath.Base(runsDir) != "runs" {
+		return "", ""
+	}
+	taskDir := filepath.Dir(runsDir)
+	projectDir := filepath.Dir(taskDir)
+	taskID = strings.TrimSpace(filepath.Base(taskDir))
+	projectID = strings.TrimSpace(filepath.Base(projectDir))
+	if taskID == "." || taskID == string(filepath.Separator) {
+		taskID = ""
+	}
+	if projectID == "." || projectID == string(filepath.Separator) {
+		projectID = ""
+	}
+	return projectID, taskID
 }
 
 func runAlive(info *storage.RunInfo) bool {

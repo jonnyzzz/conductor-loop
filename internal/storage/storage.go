@@ -3,6 +3,7 @@ package storage
 import (
 	stderrors "errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -11,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jonnyzzz/conductor-loop/internal/obslog"
 	"github.com/pkg/errors"
 )
 
@@ -144,8 +146,22 @@ func (s *FileStorage) ListRuns(projectID, taskID string) ([]*RunInfo, error) {
 		info, err := ReadRunInfo(path)
 		if err != nil {
 			if stderrors.Is(err, os.ErrNotExist) {
-				// Synthesize a minimal RunInfo with unknown status when run-info.yaml is absent.
-				runs = append(runs, &RunInfo{RunID: entry.Name(), Status: StatusUnknown})
+				obslog.Log(log.Default(), "DEBUG", "storage", "run_info_missing_synthesized",
+					obslog.F("run_info_path", path),
+					obslog.F("run_id", entry.Name()),
+					obslog.F("project_id", projectID),
+					obslog.F("task_id", taskID),
+				)
+				// When run-info.yaml is absent, synthesize minimal RunInfo from directory name.
+				// This happens for older run directories created before run-info.yaml was introduced.
+				info = &RunInfo{
+					RunID:     entry.Name(),
+					ProjectID: projectID,
+					TaskID:    taskID,
+					Status:    StatusUnknown,
+					Version:   0,
+				}
+				runs = append(runs, info)
 				continue
 			}
 			return nil, errors.Wrapf(err, "read run-info for run %s", entry.Name())

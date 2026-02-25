@@ -181,3 +181,36 @@ func TestReadRunInfoWithClock_HealsPreviouslyReconciledFailedRunWhenDONEExists(t
 		t.Fatalf("exit_code: got %d want 0", got.ExitCode)
 	}
 }
+
+func TestReadRunInfoWithClock_MissingFileSynthesizesUnknown(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "project", "task", "runs", "run-1", "run-info.yaml")
+
+	got, err := ReadRunInfoWithClock(path, time.Now)
+	if err != nil {
+		t.Fatalf("ReadRunInfoWithClock: %v", err)
+	}
+	if got.RunID != "run-1" {
+		t.Fatalf("run id: got %q want %q", got.RunID, "run-1")
+	}
+	if got.ProjectID != "project" {
+		t.Fatalf("project id: got %q want %q", got.ProjectID, "project")
+	}
+	if got.TaskID != "task" {
+		t.Fatalf("task id: got %q want %q", got.TaskID, "task")
+	}
+	if got.Status != storage.StatusUnknown {
+		t.Fatalf("status: got %q want %q", got.Status, storage.StatusUnknown)
+	}
+}
+
+func TestLiveness_ZeroPID(t *testing.T) {
+	info := &storage.RunInfo{
+		Status: storage.StatusRunning,
+		PID:    0,
+		PGID:   0,
+	}
+	if shouldCheckLiveness(info) {
+		t.Fatalf("expected shouldCheckLiveness=false when pid and pgid are zero")
+	}
+}

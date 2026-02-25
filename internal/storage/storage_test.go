@@ -1,8 +1,12 @@
 package storage
 
 import (
+	"bytes"
+	stderrors "errors"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -283,9 +287,70 @@ func TestReadRunInfoInvalidYAML(t *testing.T) {
 	}
 }
 
-// TestListRunsMissingRunInfo verifies that ListRuns synthesizes a RunInfo with
+func TestReadRunInfo_MissingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "missing-run", "run-info.yaml")
+
+	oldWriter := log.Writer()
+	oldFlags := log.Flags()
+	oldPrefix := log.Prefix()
+	var logs bytes.Buffer
+	log.SetOutput(&logs)
+	log.SetFlags(0)
+	log.SetPrefix("")
+	t.Cleanup(func() {
+		log.SetOutput(oldWriter)
+		log.SetFlags(oldFlags)
+		log.SetPrefix(oldPrefix)
+	})
+
+	_, err := ReadRunInfo(path)
+	if err == nil {
+		t.Fatalf("expected missing file error")
+	}
+	if !stderrors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected os.ErrNotExist, got: %v", err)
+	}
+	if strings.Contains(logs.String(), "level=ERROR") {
+		t.Fatalf("expected no ERROR log for missing run-info, got logs: %s", logs.String())
+	}
+}
+
+func TestReadRunInfo_PartialYAML(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "project", "task", "runs", "run-123", "run-info.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("run_id: run-123\n"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	got, err := ReadRunInfo(path)
+	if err != nil {
+		t.Fatalf("ReadRunInfo: %v", err)
+	}
+	if got.RunID != "run-123" {
+		t.Fatalf("run id: got %q want %q", got.RunID, "run-123")
+	}
+	if got.ProjectID != "project" {
+		t.Fatalf("project id: got %q want %q", got.ProjectID, "project")
+	}
+	if got.TaskID != "task" {
+		t.Fatalf("task id: got %q want %q", got.TaskID, "task")
+	}
+	if got.Status != StatusUnknown {
+		t.Fatalf("status: got %q want %q", got.Status, StatusUnknown)
+	}
+	if got.PID != 0 || got.PGID != 0 {
+		t.Fatalf("expected zero pid/pgid, got pid=%d pgid=%d", got.PID, got.PGID)
+	}
+	if got.Version != 0 {
+		t.Fatalf("expected version 0, got %d", got.Version)
+	}
+}
+
+// TestListRuns_MissingRunInfo verifies that ListRuns synthesizes a RunInfo with
 // StatusUnknown when a run directory exists but run-info.yaml is absent.
-func TestListRunsMissingRunInfo(t *testing.T) {
+func TestListRuns_MissingRunInfo(t *testing.T) {
 	root := t.TempDir()
 	st, err := NewStorage(root)
 	if err != nil {
@@ -325,6 +390,15 @@ func TestListRunsMissingRunInfo(t *testing.T) {
 	}
 	if orphan.Status != StatusUnknown {
 		t.Fatalf("expected orphan status=%q, got %q", StatusUnknown, orphan.Status)
+	}
+	if orphan.ProjectID != "project" {
+		t.Fatalf("expected orphan project id=%q, got %q", "project", orphan.ProjectID)
+	}
+	if orphan.TaskID != "task" {
+		t.Fatalf("expected orphan task id=%q, got %q", "task", orphan.TaskID)
+	}
+	if orphan.Version != 0 {
+		t.Fatalf("expected orphan version=0, got %d", orphan.Version)
 	}
 }
 

@@ -1213,6 +1213,24 @@ func pathSegments(path, prefix string) []string {
 	return filtered
 }
 
+func readRunInfoIfPresent(path string) (*storage.RunInfo, bool, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, errors.Wrapf(err, "stat %s", path)
+	}
+	if info.IsDir() {
+		return nil, false, nil
+	}
+	runInfo, err := runstate.ReadRunInfo(path)
+	if err != nil {
+		return nil, false, errors.Wrapf(err, "read %s", path)
+	}
+	return runInfo, true, nil
+}
+
 // storage helpers
 
 type taskInfo struct {
@@ -1434,13 +1452,13 @@ func listTaskRuns(taskPath string) ([]RunResponse, error) {
 			continue
 		}
 		path := filepath.Join(runsDir, entry.Name(), "run-info.yaml")
-		info, err := runstate.ReadRunInfo(path)
+		info, present, err := readRunInfoIfPresent(path)
 		if err != nil {
-			if os.IsNotExist(errors.Cause(err)) || os.IsNotExist(err) {
-				// Pre-allocated run directory without run-info.yaml yet; skip it.
-				continue
-			}
 			return nil, errors.Wrapf(err, "read run-info for run %s", entry.Name())
+		}
+		if !present {
+			// Pre-allocated run directory without run-info.yaml yet; skip it.
+			continue
 		}
 		responses = append(responses, runInfoToResponse(info))
 	}
@@ -1586,8 +1604,9 @@ func listRunResponsesFlat(root string) ([]RunResponse, error) {
 			continue
 		}
 		dir := filepath.Join(runsDir, entry.Name())
+		runInfoPath := filepath.Join(dir, "run-info.yaml")
 		// prefer run-info.yaml
-		if info, err := runstate.ReadRunInfo(filepath.Join(dir, "run-info.yaml")); err == nil {
+		if info, present, err := readRunInfoIfPresent(runInfoPath); err == nil && present {
 			runs = append(runs, runInfoToResponse(info))
 			continue
 		}
@@ -1617,13 +1636,13 @@ func listTaskRunInfos(taskPath string) ([]*storage.RunInfo, error) {
 			continue
 		}
 		path := filepath.Join(runsDir, entry.Name(), "run-info.yaml")
-		info, err := runstate.ReadRunInfo(path)
+		info, present, err := readRunInfoIfPresent(path)
 		if err != nil {
-			if os.IsNotExist(errors.Cause(err)) || os.IsNotExist(err) {
-				// Pre-allocated run directory without run-info.yaml yet; skip it.
-				continue
-			}
 			return nil, errors.Wrapf(err, "read run-info for run %s", entry.Name())
+		}
+		if !present {
+			// Pre-allocated run directory without run-info.yaml yet; skip it.
+			continue
 		}
 		infos = append(infos, info)
 	}

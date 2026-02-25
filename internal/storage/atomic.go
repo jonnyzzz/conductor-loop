@@ -51,6 +51,13 @@ func ReadRunInfo(path string) (*RunInfo, error) {
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			obslog.Log(log.Default(), "DEBUG", "storage", "run_info_read_missing",
+				obslog.F("run_info_path", path),
+				obslog.F("run_id", runIDFromRunInfoPath(path)),
+			)
+			return nil, errors.Wrap(err, "read run-info")
+		}
 		obslog.Log(log.Default(), "ERROR", "storage", "run_info_read_failed",
 			obslog.F("run_info_path", path),
 			obslog.F("run_id", runIDFromRunInfoPath(path)),
@@ -60,13 +67,14 @@ func ReadRunInfo(path string) (*RunInfo, error) {
 	}
 	var info RunInfo
 	if err := yaml.Unmarshal(data, &info); err != nil {
-		obslog.Log(log.Default(), "ERROR", "storage", "run_info_unmarshal_failed",
+		obslog.Log(log.Default(), "WARN", "storage", "run_info_unmarshal_failed",
 			obslog.F("run_info_path", path),
 			obslog.F("run_id", runIDFromRunInfoPath(path)),
 			obslog.F("error", err),
 		)
 		return nil, errors.Wrap(err, "unmarshal run-info")
 	}
+	hydrateRunInfoDefaults(&info, path)
 	return &info, nil
 }
 
@@ -152,6 +160,56 @@ func runIDFromRunInfoPath(path string) string {
 		return ""
 	}
 	return parent
+}
+
+func hydrateRunInfoDefaults(info *RunInfo, path string) {
+	if info == nil {
+		return
+	}
+	info.RunID = strings.TrimSpace(info.RunID)
+	if info.RunID == "" {
+		info.RunID = runIDFromRunInfoPath(path)
+	}
+
+	info.ProjectID = strings.TrimSpace(info.ProjectID)
+	info.TaskID = strings.TrimSpace(info.TaskID)
+	inferredProjectID, inferredTaskID := runScopeFromRunInfoPath(path)
+	if info.ProjectID == "" {
+		info.ProjectID = inferredProjectID
+	}
+	if info.TaskID == "" {
+		info.TaskID = inferredTaskID
+	}
+
+	if strings.TrimSpace(info.Status) == "" {
+		info.Status = StatusUnknown
+	}
+}
+
+func runScopeFromRunInfoPath(path string) (projectID, taskID string) {
+	clean := filepath.Clean(strings.TrimSpace(path))
+	if clean == "." || clean == "" {
+		return "", ""
+	}
+	runDir := filepath.Dir(clean)
+	if runDir == "." || runDir == "" {
+		return "", ""
+	}
+	runsDir := filepath.Dir(runDir)
+	if filepath.Base(runsDir) != "runs" {
+		return "", ""
+	}
+	taskDir := filepath.Dir(runsDir)
+	projectDir := filepath.Dir(taskDir)
+	taskID = strings.TrimSpace(filepath.Base(taskDir))
+	projectID = strings.TrimSpace(filepath.Base(projectDir))
+	if taskID == "." || taskID == string(filepath.Separator) {
+		taskID = ""
+	}
+	if projectID == "." || projectID == string(filepath.Separator) {
+		projectID = ""
+	}
+	return projectID, taskID
 }
 
 func writeFileAtomic(path string, data []byte) error {
