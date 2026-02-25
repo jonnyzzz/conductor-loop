@@ -186,44 +186,61 @@ func newTaskResumeCmd() *cobra.Command {
 
 func newJobCmd() *cobra.Command {
 	var (
-		projectID string
-		taskID    string
-		opts      runner.JobOptions
-		follow    bool
+		opts   runner.JobOptions
+		follow bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "job",
 		Short: "Run a single agent job",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Environment variables set by the parent runner take priority over CLI flags.
-			// JRUN_PROJECT_ID / JRUN_TASK_ID identify the current task scope.
-			if envProj := strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID")); envProj != "" {
-				projectID = envProj
-			}
-			if envTask := strings.TrimSpace(os.Getenv("JRUN_TASK_ID")); envTask != "" {
-				taskID = envTask
-			}
-			// TASK_FOLDER = <root>/<project>/<task>; go up two levels to get root.
+			// Infer project, task, root, and parent-run-id from the runner
+			// environment and the current working directory. No CLI flags are
+			// accepted for these — they must come from context.
+			//
+			// Priority: runner env (TASK_FOLDER / RUN_FOLDER / JRUN_*) → CWD
+			// run-info.yaml (walk upward) → CWD project dir (contains task subdirs).
+			taskFolderProject, taskFolderTask := inferMessageScopeFromTaskFolder(os.Getenv("TASK_FOLDER"))
+			runFolderProject, runFolderTask, _ := inferMessageScopeFromRunFolder(os.Getenv("RUN_FOLDER"))
+			cwdProject, cwdTask, cwdRunID, cwdRoot := inferScopeFromCWDRunInfo()
+
+			projectID := firstNonEmpty(
+				runFolderProject,
+				taskFolderProject,
+				strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID")),
+				cwdProject,
+				inferProjectFromCWD(),
+			)
+			taskID := firstNonEmpty(
+				runFolderTask,
+				taskFolderTask,
+				strings.TrimSpace(os.Getenv("JRUN_TASK_ID")),
+				cwdTask,
+			)
+
+			// Root: derive from TASK_FOLDER first, then CWD inference, then --root flag.
 			if strings.TrimSpace(opts.RootDir) == "" {
 				if envFolder := strings.TrimSpace(os.Getenv("TASK_FOLDER")); envFolder != "" {
 					opts.RootDir = filepath.Dir(filepath.Dir(envFolder))
-				}
-			}
-			// JRUN_ID is the parent run's ID when called from inside an agent run.
-			if strings.TrimSpace(opts.ParentRunID) == "" {
-				if envRunID := strings.TrimSpace(os.Getenv("JRUN_ID")); envRunID != "" {
-					opts.ParentRunID = envRunID
+				} else if cwdRoot != "" {
+					opts.RootDir = cwdRoot
 				}
 			}
 
-			projectID = strings.TrimSpace(projectID)
-			originalTaskID := strings.TrimSpace(taskID)
-			if projectID == "" {
-				return fmt.Errorf("--project is required (or run from inside a task directory)")
+			// Parent run ID: JRUN_ID is the current run in the parent context.
+			if strings.TrimSpace(opts.ParentRunID) == "" {
+				opts.ParentRunID = firstNonEmpty(
+					strings.TrimSpace(os.Getenv("JRUN_ID")),
+					cwdRunID,
+				)
 			}
+
+			if projectID == "" {
+				return fmt.Errorf("cannot infer project: run from inside a task or project directory")
+			}
+			originalTaskID := taskID
 			var err error
-			taskID, err = resolveTaskID(originalTaskID)
+			taskID, err = resolveTaskID(taskID)
 			if err != nil {
 				return err
 			}
@@ -241,8 +258,6 @@ func newJobCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&projectID, "project", "", "project id")
-	cmd.Flags().StringVar(&taskID, "task", "", "task id")
 	cmd.Flags().StringVar(&opts.RootDir, "root", "", "run-agent root directory")
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "config file path")
 	cmd.Flags().StringVar(&opts.Agent, "agent", "", "agent type")

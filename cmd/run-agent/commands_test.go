@@ -195,8 +195,8 @@ func TestBusPostCmd_FailsWithoutBusOrEnvVar(t *testing.T) {
 	if runErr == nil {
 		t.Fatal("expected error when MESSAGE_BUS is not set")
 	}
-	if !strings.Contains(runErr.Error(), "MESSAGE_BUS") {
-		t.Errorf("expected error to mention MESSAGE_BUS, got: %v", runErr)
+	if !strings.Contains(runErr.Error(), "cannot find message bus") {
+		t.Errorf("expected error to mention cannot find message bus, got: %v", runErr)
 	}
 }
 
@@ -214,8 +214,8 @@ func TestBusReadCmd_FailsWithoutProjectOrEnvVar(t *testing.T) {
 	if runErr == nil {
 		t.Fatal("expected error when MESSAGE_BUS is not set and no --project given")
 	}
-	if !strings.Contains(runErr.Error(), "MESSAGE_BUS") {
-		t.Errorf("expected error to mention MESSAGE_BUS, got: %v", runErr)
+	if !strings.Contains(runErr.Error(), "cannot find message bus") {
+		t.Errorf("expected error to mention cannot find message bus, got: %v", runErr)
 	}
 }
 

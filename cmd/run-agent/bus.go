@@ -260,7 +260,7 @@ func resolveBusPostPath(root, projectID, taskID string) (string, error) {
 	// 5. Auto-discover nearest known bus file by walking upward from CWD.
 	discovered, err := discoverBusFilePath("")
 	if err != nil {
-		return "", fmt.Errorf("--project is required (or set MESSAGE_BUS env var, or run from a directory with MESSAGE-BUS.md/PROJECT-MESSAGE-BUS.md/TASK-MESSAGE-BUS.md): %w", err)
+		return "", fmt.Errorf("cannot find message bus: run from inside a task or project directory: %w", err)
 	}
 	return discovered, nil
 }
@@ -346,7 +346,7 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 
 			projectID, taskID, runID = resolveBusPostMessageContext(projectID, taskID, runID, busPath)
 			if projectID == "" {
-				return fmt.Errorf("project id is empty and could not be inferred; provide --project, set JRUN_PROJECT_ID, or use a scoped bus path (TASK-MESSAGE-BUS.md/PROJECT-MESSAGE-BUS.md)")
+				return fmt.Errorf("cannot infer project: run from inside a task or project directory")
 			}
 
 			if body == "" {
@@ -452,7 +452,7 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 			if busPath == "" {
 				discovered, err := discoverBusFilePath("")
 				if err != nil {
-					return fmt.Errorf("--project is required (or set MESSAGE_BUS env var, or run from a directory with MESSAGE-BUS.md/PROJECT-MESSAGE-BUS.md/TASK-MESSAGE-BUS.md): %w", err)
+					return fmt.Errorf("cannot find message bus: run from inside a task or project directory: %w", err)
 				}
 				busPath = discovered
 			}

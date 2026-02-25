@@ -331,11 +331,8 @@ func TestBusPostMissingContextReturnsActionableError(t *testing.T) {
 	if runErr == nil {
 		t.Fatal("expected bus post to fail when project context is missing")
 	}
-	if !strings.Contains(runErr.Error(), "project id is empty and could not be inferred") {
+	if !strings.Contains(runErr.Error(), "cannot infer project") {
 		t.Fatalf("unexpected error: %v", runErr)
-	}
-	if !strings.Contains(runErr.Error(), "--project") {
-		t.Fatalf("error should mention --project guidance: %v", runErr)
 	}
 }
 
