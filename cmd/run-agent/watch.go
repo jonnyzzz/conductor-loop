@@ -145,6 +145,11 @@ func latestReadableWatchRunInfo(runsDir string, runNames []string) *storage.RunI
 		if err != nil {
 			continue
 		}
+		// Skip synthesized placeholder entries (no real run-info.yaml was found).
+		// The caller falls back to the DONE marker or prior runs when all are orphaned.
+		if info.Status == storage.StatusUnknown {
+			continue
+		}
 		return info
 	}
 	return nil
