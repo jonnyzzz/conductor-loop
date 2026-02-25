@@ -5,7 +5,7 @@ This reference is verified against live help output from:
 - `./bin/run-agent`
 - `./bin/conductor`
 
-Validation timestamp: 2026-02-24.
+Validation timestamp: 2026-02-25.
 
 ## Command Sets
 
@@ -62,7 +62,6 @@ Flags:
 - `--dependency-poll-interval duration` (default `2s`)
 - `--depends-on stringArray`
 - `--max-restarts int`
-- `--message-bus string`
 - `--project string`
 - `--prompt string`
 - `--prompt-file string`
@@ -102,7 +101,6 @@ Flags:
 - `--config string`
 - `--cwd string`
 - `--max-restarts int` (default `3`)
-- `--message-bus string`
 - `--project string`
 - `--restart-delay duration` (default `1s`)
 - `--root string`
@@ -146,7 +144,6 @@ Flags:
 - `--config string`
 - `--cwd string`
 - `-f, --follow`
-- `--message-bus string`
 - `--parent-run-id string`
 - `--previous-run-id string`
 - `--project string`
@@ -172,7 +169,6 @@ Flags:
 - `--continue-on-fail`
 - `--cwd string`
 - `-f, --follow`
-- `--message-bus string`
 - `--parent-run-id string`
 - `--project string`
 - `--prompt stringArray`
@@ -193,7 +189,6 @@ Flags:
 
 - `--agent string`
 - `--cwd string`
-- `--message-bus string`
 - `--parent-run-id string`
 - `--previous-run-id string`
 - `--project string`
@@ -227,20 +222,20 @@ run-agent bus post [flags]
 Flags:
 
 - `--body string`
-- `--bus string`
 - `--project string`
-- `--root string` (default: `$RUNS_DIR`, then `./runs`)
+- `--root string` (default: `storage.runs_dir` from config, then `~/.run-agent/runs`)
 - `--run string`
 - `--task string`
 - `--type string` (default `INFO`)
 
 Bus path resolution order:
 
-1. `--bus`
-2. `MESSAGE_BUS` env
-3. `--project` (+ optional `--task`) path resolution
-4. auto-discover from current directory
-5. error
+1. `MESSAGE_BUS` env (set by runners — canonical path for child agents)
+2. `--project` (+ optional `--task`) path resolution
+3. upward auto-discover from current directory
+4. error
+
+Note: `MESSAGE_BUS` precedes `--project` here because agents running inside a task inherit this env var from the runner and should use it automatically.
 
 #### `run-agent bus read`
 
@@ -252,24 +247,30 @@ run-agent bus read [flags]
 
 Flags:
 
-- `--bus string`
 - `--follow`
 - `--project string`
-- `--root string` (default: `$RUNS_DIR`, then `./runs`)
+- `--root string` (default: `storage.runs_dir` from config, then `~/.run-agent/runs`)
 - `--tail int` (default `20`)
 - `--task string`
 
 Bus path resolution order:
 
 1. `--project` (+ optional `--task`) path resolution
-2. `--bus`
-3. `MESSAGE_BUS` env
-4. auto-discover from current directory
-5. error
-
-`--bus` + `--project` together is an error.
+2. `MESSAGE_BUS` env
+3. upward auto-discover from current directory
+4. error
 
 #### `run-agent bus discover`
+
+Usage:
+
+```bash
+run-agent bus discover [flags]
+```
+
+Flags:
+
+- `--from string` (start directory; defaults to current working directory)
 
 Search order per directory:
 
@@ -617,7 +618,6 @@ Flags:
 - `--dry-run`
 - `--from-stage int`
 - `--json`
-- `--message-bus string`
 - `--project string`
 - `--resume`
 - `--root string`

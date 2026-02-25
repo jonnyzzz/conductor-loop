@@ -85,10 +85,9 @@ There is no `run-agent bus watch` command; streaming is `read --follow`.
 
 ### `bus post`
 Path resolution order:
-1. `--bus`
-2. `MESSAGE_BUS` env var
-3. `--project` / `--task` path resolution
-4. Upward auto-discovery
+1. `MESSAGE_BUS` env var (set by runners for child agents — takes priority so agents work without extra flags)
+2. `--project` (+ optional `--task`) path resolution
+3. Upward auto-discovery
 
 Context resolution for message fields (`project_id/task_id/run_id`):
 1. Explicit flags
@@ -101,13 +100,11 @@ Defaults:
 
 ### `bus read`
 Path resolution order:
-1. `--project` / `--task` path resolution
-2. `--bus`
-3. `MESSAGE_BUS` env var
-4. Upward auto-discovery
+1. `--project` (+ optional `--task`) path resolution
+2. `MESSAGE_BUS` env var
+3. Upward auto-discovery
 
 Rules:
-- `--bus` and `--project` together are invalid.
 - Default tail is `--tail 20`.
 - `--tail <= 0` reads full bus.
 - `--follow` polls every `500ms`.
