@@ -49,8 +49,8 @@ func NewStorage(root string) (*FileStorage, error) {
 
 // CreateRun creates a new run directory and persists run-info.yaml.
 func (s *FileStorage) CreateRun(projectID, taskID, agentType string) (*RunInfo, error) {
-	if strings.TrimSpace(projectID) == "" {
-		return nil, errors.New("project id is empty")
+	if err := ValidateProjectID(projectID); err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(taskID) == "" {
 		return nil, errors.New("task id is empty")

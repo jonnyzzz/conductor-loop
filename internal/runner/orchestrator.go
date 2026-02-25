@@ -13,6 +13,7 @@ import (
 
 	"github.com/jonnyzzz/conductor-loop/internal/config"
 	"github.com/jonnyzzz/conductor-loop/internal/obslog"
+	"github.com/jonnyzzz/conductor-loop/internal/storage"
 	"github.com/pkg/errors"
 )
 
@@ -41,8 +42,8 @@ func resolveRootDir(root string) (string, error) {
 }
 
 func resolveTaskDir(rootDir, projectID, taskID string) (string, error) {
-	if strings.TrimSpace(projectID) == "" {
-		return "", errors.New("project id is empty")
+	if err := storage.ValidateProjectID(projectID); err != nil {
+		return "", err
 	}
 	if strings.TrimSpace(taskID) == "" {
 		return "", errors.New("task id is empty")

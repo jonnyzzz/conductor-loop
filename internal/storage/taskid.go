@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -12,6 +13,32 @@ import (
 var taskIDPattern = regexp.MustCompile(`^task-\d{8}-\d{6}-[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$`)
 
 const randomSlugChars = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+// projectIDPattern matches a valid project ID: one or more lowercase
+// alphanumeric characters or hyphens, no path separators or dots.
+var projectIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$`)
+
+// ValidateProjectID returns an error if the project ID is not a safe, flat
+// directory name. Project IDs must not contain path separators, preventing a
+// project from being nested under another project folder.
+func ValidateProjectID(projectID string) error {
+	if strings.TrimSpace(projectID) == "" {
+		return fmt.Errorf("project ID is empty")
+	}
+	if strings.ContainsAny(projectID, "/\\") {
+		return fmt.Errorf("invalid project ID %q: must not contain path separators (projects cannot be nested)", projectID)
+	}
+	if projectID == "." || projectID == ".." {
+		return fmt.Errorf("invalid project ID %q: must not be a relative path reference", projectID)
+	}
+	if strings.Contains(projectID, "\x00") {
+		return fmt.Errorf("invalid project ID %q: must not contain null bytes", projectID)
+	}
+	if !projectIDPattern.MatchString(projectID) {
+		return fmt.Errorf("invalid project ID %q: must contain only lowercase letters, digits, and hyphens (e.g. my-project)", projectID)
+	}
+	return nil
+}
 
 // ValidateTaskID returns an error if the task ID does not match the required
 // format task-<YYYYMMDD>-<HHMMSS>-<slug>.

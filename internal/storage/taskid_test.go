@@ -6,6 +6,41 @@ import (
 	"time"
 )
 
+func TestValidateProjectID(t *testing.T) {
+	valid := []string{
+		"my-project",
+		"myproject",
+		"a",
+		"project-123",
+		"my-long-project-name-with-many-hyphens",
+	}
+	for _, id := range valid {
+		if err := ValidateProjectID(id); err != nil {
+			t.Errorf("expected valid project ID %q, got error: %v", id, err)
+		}
+	}
+
+	invalid := []string{
+		"",
+		"   ",
+		"project/nested",         // path separator — would nest under another project
+		"project\\nested",        // Windows path separator
+		"../escape",              // path traversal
+		".",                      // relative reference
+		"..",                     // relative reference
+		"Project",                // uppercase not allowed
+		"my_project",             // underscore not allowed
+		"my project",             // space not allowed
+		"-leading-hyphen",        // leading hyphen
+		"trailing-hyphen-",       // trailing hyphen
+	}
+	for _, id := range invalid {
+		if err := ValidateProjectID(id); err == nil {
+			t.Errorf("expected invalid project ID %q to fail validation", id)
+		}
+	}
+}
+
 func TestValidateTaskID(t *testing.T) {
 	valid := []string{
 		"task-20260220-153045-my-feature",
