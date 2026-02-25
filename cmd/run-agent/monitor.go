@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -36,9 +37,14 @@ func parseTodoEntries(path string) ([]todoEntry, error) {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
 	defer f.Close()
+	return parseTodoEntriesFromReader(f)
+}
 
+// parseTodoEntriesFromReader parses unchecked TODO items containing a task ID
+// from an already-open reader. Used when a persistent file handle is available.
+func parseTodoEntriesFromReader(r io.Reader) ([]todoEntry, error) {
 	var entries []todoEntry
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimLeft(line, " \t")
@@ -53,7 +59,7 @@ func parseTodoEntries(path string) ([]todoEntry, error) {
 		entries = append(entries, todoEntry{TaskID: taskID, Text: text})
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan %s: %w", path, err)
+		return nil, fmt.Errorf("scan reader: %w", err)
 	}
 	return entries, nil
 }
@@ -234,6 +240,11 @@ type monitorOpts struct {
 	RateLimit  time.Duration
 	DryRun     bool
 	Once       bool
+
+	// todoReader is an optional persistent file handle for the TODOs file.
+	// Set by runMonitor in daemon mode to avoid repeated open/close cycles.
+	// When nil, parseTodoEntries opens the file fresh on each call.
+	todoReader *runstate.FileReader
 }
 
 func newMonitorCmd() *cobra.Command {
@@ -317,22 +328,74 @@ func runMonitor(out io.Writer, opts monitorOpts) error {
 		return err
 	}
 
-	// Daemon: first pass immediately, then on every tick.
+	// Daemon mode: use fsnotify for responsive detection with a ticker as
+	// fallback for cases where filesystem events are missed.
+
+	// Open a persistent file handle for TODOs.md to avoid repeated
+	// open/close cycles. If the file does not exist yet, skip it and
+	// open fresh each cycle via the nil-reader code path.
+	if todoReader, readerErr := runstate.NewFileReader(opts.TODOFile); readerErr == nil {
+		opts.todoReader = todoReader
+		defer todoReader.Close()
+	}
+
+	// Watch the project runs directory and the TODOs file's directory for
+	// filesystem changes. New subdirectories (task dirs, run dirs) are
+	// auto-added to the watch set as they are created.
+	projectDir := filepath.Join(opts.RootDir, opts.ProjectID)
+	_ = os.MkdirAll(projectDir, 0o755)
+
+	watchPaths := []string{projectDir}
+	todoDir := filepath.Dir(opts.TODOFile)
+	if todoDir != "" && todoDir != projectDir {
+		watchPaths = append(watchPaths, todoDir)
+	}
+
+	var changes <-chan struct{}
+	if watcher, watchErr := runstate.NewDirWatcher(watchPaths...); watchErr == nil {
+		defer watcher.Close()
+		changes = watcher.Changes()
+	} else {
+		fmt.Fprintf(out, "monitor: fsnotify unavailable (%v), using ticker only\n", watchErr)
+	}
+
 	var wg sync.WaitGroup
 	ticker := time.NewTicker(opts.Interval)
 	defer ticker.Stop()
 
 	_ = monitorPass(out, opts, &wg, time.Now())
-	for range ticker.C {
-		_ = monitorPass(out, opts, &wg, time.Now())
+	for {
+		select {
+		case _, ok := <-changes:
+			if !ok {
+				// Watcher stopped; fall back to ticker-only mode.
+				changes = nil
+				continue
+			}
+			_ = monitorPass(out, opts, &wg, time.Now())
+		case <-ticker.C:
+			_ = monitorPass(out, opts, &wg, time.Now())
+		}
 	}
-	return nil
 }
 
 // monitorPass runs one monitoring cycle: read todos, assess each task, take actions.
 // Start/resume/recover actions dispatch goroutines tracked by wg.
 func monitorPass(out io.Writer, opts monitorOpts, wg *sync.WaitGroup, now time.Time) error {
-	todos, err := parseTodoEntries(opts.TODOFile)
+	var (
+		todos []todoEntry
+		err   error
+	)
+	if opts.todoReader != nil {
+		// Use the persistent file handle: seek to start and re-read.
+		data, readErr := opts.todoReader.ReadAll()
+		if readErr != nil {
+			return fmt.Errorf("parse TODOs: %w", readErr)
+		}
+		todos, err = parseTodoEntriesFromReader(bytes.NewReader(data))
+	} else {
+		todos, err = parseTodoEntries(opts.TODOFile)
+	}
 	if err != nil {
 		return fmt.Errorf("parse TODOs: %w", err)
 	}
