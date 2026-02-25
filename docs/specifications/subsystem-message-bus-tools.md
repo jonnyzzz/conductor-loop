@@ -85,7 +85,7 @@ There is no `run-agent bus watch` command; streaming is `read --follow`.
 
 ### `bus post`
 Path resolution order:
-1. `MESSAGE_BUS` env var (set by runners for child agents — takes priority so agents work without extra flags)
+1. `MESSAGE_BUS` env var (set by runners for child agents — takes priority for the bus *file path*; if set, steps 2–5 are skipped)
 2. `--project` (+ optional `--task`) path resolution
 3. CWD `run-info.yaml` inference: walk upward from CWD; when found inside `<root>/<project>/<task>/runs/<runID>/`, infer project, task, and root
 4. CWD project home inference: if CWD contains subdirs matching `task-<YYYYMMDD>-<HHMMSS>-<slug>`, infer project from directory name
@@ -95,9 +95,11 @@ Path resolution order:
 Both `--project` and `--task` are optional when any of steps 1–4 can resolve the path.
 
 Context resolution for message fields (`project_id/task_id/run_id`):
-1. Explicit flags
+1. Explicit flags (`--project`, `--task`, `--run`) — always win
 2. Inference from resolved bus path, `RUN_FOLDER`, `TASK_FOLDER`, CWD `run-info.yaml`
 3. `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`
+
+Note: message field resolution is independent of bus path resolution. Even when `MESSAGE_BUS` wins for the path, `--project`/`--task` flags still set the message's `project_id`/`task_id` fields.
 
 Defaults:
 - `--type` default: `INFO`

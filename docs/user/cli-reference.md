@@ -221,11 +221,11 @@ run-agent bus post [flags]
 
 Flags:
 
-- `--body string`
-- `--project string`
+- `--body string` (reads from stdin if omitted and stdin is a pipe)
+- `--project string` (optional; inferred from CWD or MESSAGE_BUS if omitted)
 - `--root string` (default: `storage.runs_dir` from config, then `~/.run-agent/runs`)
-- `--run string`
-- `--task string`
+- `--run string` (optional; inferred from context if omitted)
+- `--task string` (optional; inferred from CWD if omitted)
 - `--type string` (default `INFO`)
 
 Bus path resolution order:
@@ -237,7 +237,7 @@ Bus path resolution order:
 5. upward auto-discover from current directory
 6. error
 
-Note: `MESSAGE_BUS` precedes `--project` here because agents running inside a task inherit this env var from the runner and should use it automatically.
+Note: `MESSAGE_BUS` precedes `--project` for path resolution because agents inherit it from the runner. When both are set, `MESSAGE_BUS` wins for the bus file path. The message `project_id`/`task_id` fields follow a separate precedence: explicit flags → bus path inference → env vars (see `--project`/`--task` flags above).
 
 CWD inference: when neither `MESSAGE_BUS` nor `--project` is set, `bus post` reads `run-info.yaml` walking upward from CWD. When found inside a canonical `<root>/<project>/<task>/runs/<runID>/` layout, project, task, and run IDs are inferred automatically. If CWD is a project home (contains subdirectories named in `task-<YYYYMMDD>-<HHMMSS>-<slug>` format), the project is inferred from the directory name.
 
@@ -252,10 +252,10 @@ run-agent bus read [flags]
 Flags:
 
 - `--follow`
-- `--project string`
+- `--project string` (optional; inferred from CWD or MESSAGE_BUS if omitted)
 - `--root string` (default: `storage.runs_dir` from config, then `~/.run-agent/runs`)
 - `--tail int` (default `20`)
-- `--task string`
+- `--task string` (optional; inferred from CWD if omitted)
 
 Bus path resolution order:
 
@@ -685,7 +685,9 @@ Flags:
 
 ### `conductor bus`
 
-Subcommands: `read`, `post`
+API client subcommands: `read`, `post`
+
+These communicate with the `run-agent serve` API server. Path resolution is handled server-side; `--project` is always required here (no CWD inference). For file-local bus access with CWD inference, use `run-agent bus` instead.
 
 `read` flags:
 
