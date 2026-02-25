@@ -215,8 +215,8 @@ Task completion fact propagation (added post-initial-spec): after Ralph loop exi
 [2026-02-20 11:56:06] [tags: runner, orchestration, prompt]
 Runner always prepends a prompt preamble containing absolute paths:
 ```
-TASK_FOLDER=/absolute/path/to/task
-RUN_FOLDER=/absolute/path/to/run
+JRUN_TASK_FOLDER=/absolute/path/to/task
+JRUN_RUN_FOLDER=/absolute/path/to/run
 Write output.md to /absolute/path/to/run/output.md
 ```
 
@@ -300,11 +300,11 @@ Runner-internal environment variables (set by run-agent; agents must not referen
 
 [2026-02-04 23:03:05] [tags: runner, env, contract]
 Agent-visible path variables (injected via prompt preamble, NOT environment variables):
-- `TASK_FOLDER` — absolute path to task directory
-- `RUN_FOLDER` — absolute path to run directory
+- `JRUN_TASK_FOLDER` — absolute path to task directory
+- `JRUN_RUN_FOLDER` — absolute path to run directory
 
 [2026-02-20 15:55:02] [tags: runner, env, contract]
-Env Q1 answered (2026-02-20): `RUNS_DIR` and `MESSAGE_BUS` are now injected as informational env vars into agent subprocess. Do NOT block overrides — agents may need to redirect these for sub-tasks. These are "available if you need them" additions, not enforced constraints. Validated by 6 integration tests in `internal/runner/env_contract_test.go`.
+Env Q1 answered (2026-02-20): `JRUN_RUNS_DIR` and `JRUN_MESSAGE_BUS` are now injected as informational env vars into agent subprocess. Do NOT block overrides — agents may need to redirect these for sub-tasks. These are "available if you need them" additions, not enforced constraints. Validated by 6 integration tests in `internal/runner/env_contract_test.go`.
 
 [2026-02-04 23:03:05] [tags: runner, env, contract]
 Runner-owned reserved prefixes: `JRUN_` and any future `CONDUCTOR_` runner internals. These are overwritten on spawn even if present in parent environment. Callers cannot override them.
@@ -540,7 +540,7 @@ Current spec added: `scope: global` for FACT files living under `~/run-agent/glo
 Storage QUESTIONS file in legacy: "No open questions at this time." Current spec added 6 new questions (Q1–Q6) all subsequently answered. (See docs/dev/questions.md)
 
 [2026-02-20 15:55:02] [tags: runner, env, evolution]
-Current env-contract QUESTIONS file added RUNS_DIR/MESSAGE_BUS injection question (absent in legacy). Answered: inject as informational, don't block overrides. Implemented 2026-02-20.
+Current env-contract QUESTIONS file added JRUN_RUNS_DIR/JRUN_MESSAGE_BUS injection question (absent in legacy). Answered: inject as informational, don't block overrides. Implemented 2026-02-20.
 
 ---
 
@@ -583,7 +583,7 @@ Configuration file precedence: `config.yaml` > `config.yml` > `config.hcl`. This
 RunID generation confirmed: `YYYYMMDD-HHMMSSMMMM-PID` (4-digit fractional seconds) in `internal/runner/orchestrator.go`.
 
 [2026-02-23 19:25:00] [tags: runner, storage, env]
-Environment variables `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `RUNS_DIR`, `MESSAGE_BUS`, `RUN_FOLDER` are confirmed to be injected into the agent process.
+Environment variables `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `JRUN_RUNS_DIR`, `JRUN_MESSAGE_BUS`, `JRUN_RUN_FOLDER` are confirmed to be injected into the agent process.
 
 [2026-02-23 19:25:00] [tags: runner, storage, ralph]
 Ralph loop defaults confirmed: `waitTimeout` 300s, `pollInterval` 1s, `maxRestarts` 100, `restartDelay` 1s.

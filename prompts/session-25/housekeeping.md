@@ -43,7 +43,7 @@ Close ISSUE-006 (Storage-MessageBus Dependency Inversion) as a planning artifact
 - Use `go build ./...` to verify nothing is broken (but you should NOT be changing any code)
 - Read all relevant code files before updating ISSUES.md
 - Specifically verify: `grep -rn "messagebus" /Users/jonnyzzz/Work/conductor-loop/internal/storage/` to confirm the storage→messagebus dependency direction
-- When done, create a `DONE` file in the task folder: `touch $TASK_FOLDER/DONE`
+- When done, create a `DONE` file in the task folder: `touch $JRUN_TASK_FOLDER/DONE`
 
 ## Quality Gate
 

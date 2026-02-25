@@ -416,7 +416,7 @@ func TestE2E_TaskExecution(t *testing.T) {
     agentScript := filepath.Join(tmpDir, "mock-agent.sh")
     err := os.WriteFile(agentScript, []byte(`#!/bin/bash
 echo "Processing task..."
-echo "Task completed" > $RUN_FOLDER/output.md
+echo "Task completed" > $JRUN_RUN_FOLDER/output.md
 exit 0
 `), 0755)
     require.NoError(t, err)

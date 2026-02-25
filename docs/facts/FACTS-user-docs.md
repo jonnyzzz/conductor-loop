@@ -28,25 +28,25 @@
 `run-agent bus discover` upward-search order per directory is: `TASK-MESSAGE-BUS.md`, `PROJECT-MESSAGE-BUS.md`, `MESSAGE-BUS.md`.
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, run-agent-bus]
-`run-agent bus post` bus path resolution order is: `--bus` -> `MESSAGE_BUS` env -> `--project`/`--task` path resolution -> auto-discovery.
+`run-agent bus post` bus path resolution order is: `--bus` -> `JRUN_MESSAGE_BUS` env -> `--project`/`--task` path resolution -> auto-discovery.
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, run-agent-bus]
-`run-agent bus read` bus path resolution order is: `--project`/`--task` path resolution -> `--bus` -> `MESSAGE_BUS` env -> auto-discovery; using both `--bus` and `--project` is an error.
+`run-agent bus read` bus path resolution order is: `--project`/`--task` path resolution -> `--bus` -> `JRUN_MESSAGE_BUS` env -> auto-discovery; using both `--bus` and `--project` is an error.
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, run-agent-bus]
 `run-agent bus post` default message type is `INFO` (`--type` default).
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, run-agent-list]
-`run-agent list` default root is `RUNS_DIR` env when set, otherwise `./runs`.
+`run-agent list` default root is `JRUN_RUNS_DIR` env when set, otherwise `./runs`.
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, run-agent-status]
-`run-agent status` default root is `RUNS_DIR` env when set, otherwise `./runs`; `--project` is required.
+`run-agent status` default root is `JRUN_RUNS_DIR` env when set, otherwise `./runs`; `--project` is required.
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, run-agent-watch]
 `run-agent watch --help` advertises optional repeated `--task`, but current implementation (`cmd/run-agent/watch.go`) returns an error unless at least one `--task` is provided.
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, run-agent-gc]
-`run-agent gc` defaults: `--older-than 168h`, `--bus-max-size 10MB`, root from `RUNS_DIR` else `./runs`.
+`run-agent gc` defaults: `--older-than 168h`, `--bus-max-size 10MB`, root from `JRUN_RUNS_DIR` else `./runs`.
 
 [2026-02-23 19:21:02] [tags: user-docs, dev-docs, cli, run-agent-serve]
 `run-agent serve` defaults: `--host 0.0.0.0`, `--port 14355`; flags include `--api-key` and `--disable-task-start`.

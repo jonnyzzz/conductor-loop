@@ -95,7 +95,7 @@ Always create the parent directory if it doesn't exist (os.MkdirAll).
 
 ## Done File
 
-When complete, write "DONE" to the file path in the TASK_FOLDER environment variable
-(use `$TASK_FOLDER/DONE` path).
+When complete, write "DONE" to the file path in the JRUN_TASK_FOLDER environment variable
+(use `$JRUN_TASK_FOLDER/DONE` path).
 
-Example: `echo "done" > "$TASK_FOLDER/DONE"`
+Example: `echo "done" > "$JRUN_TASK_FOLDER/DONE"`

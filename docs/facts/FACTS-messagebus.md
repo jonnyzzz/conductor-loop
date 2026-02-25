@@ -42,7 +42,7 @@ Runner code emits `RUN_START` at launch and emits `RUN_STOP` for success or `RUN
 Current CLI subcommands are `run-agent bus post`, `run-agent bus read`, and `run-agent bus discover` (`cmd/run-agent/bus.go`). There is no `bus watch` subcommand in the current implementation.
 
 [2026-02-23 19:17:10] [tags: messagebus, agent-protocol, bus-cli-resolution]
-`bus post` path resolution order is: `--bus`, `MESSAGE_BUS`, `--project/--task` hierarchy, then upward auto-discovery. Message context inference uses bus path, `RUN_FOLDER`/`TASK_FOLDER`, then `JRUN_*` env vars (`cmd/run-agent/bus.go`).
+`bus post` path resolution order is: `--bus`, `JRUN_MESSAGE_BUS`, `--project/--task` hierarchy, then upward auto-discovery. Message context inference uses bus path, `JRUN_RUN_FOLDER`/`JRUN_TASK_FOLDER`, then `JRUN_*` env vars (`cmd/run-agent/bus.go`).
 
 [2026-02-23 19:17:10] [tags: messagebus, agent-protocol, bus-read]
 `bus read` supports `--tail` (default 20) and `--follow`; follow mode polls every 500ms and resets cursor on `ErrSinceIDNotFound` (`cmd/run-agent/bus.go`).
@@ -60,7 +60,7 @@ Message SSE now sets `id: <msg_id>` and emits JSON containing `msg_id`, `timesta
 Project-centric endpoints are implemented: `/api/projects/{project}/messages`, `/api/projects/{project}/messages/stream`, `/api/projects/{project}/tasks/{task}/messages`, `/api/projects/{project}/tasks/{task}/messages/stream`, with `since` and `limit` support in list handlers (`internal/api/handlers_projects_messages.go`).
 
 [2026-02-23 19:17:10] [tags: messagebus, agent-protocol, env-contract]
-Runner currently injects `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, optional `JRUN_PARENT_ID`, `TASK_FOLDER`, `RUN_FOLDER`, and `MESSAGE_BUS` into prompts/environment (`internal/runner/orchestrator.go`, `internal/runner/job.go`, `internal/runner/wrap.go`).
+Runner currently injects `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, optional `JRUN_PARENT_ID`, `JRUN_TASK_FOLDER`, `JRUN_RUN_FOLDER`, and `JRUN_MESSAGE_BUS` into prompts/environment (`internal/runner/orchestrator.go`, `internal/runner/job.go`, `internal/runner/wrap.go`).
 
 [2026-02-23 19:17:10] [tags: messagebus, agent-protocol, output-md]
 `output.md` is guaranteed by fallback logic: `agent.CreateOutputMD(runDir, "")` copies `agent-stdout.txt` to `output.md` when missing (`internal/agent/executor.go`, called from `internal/runner/job.go` and `internal/runner/wrap.go`).

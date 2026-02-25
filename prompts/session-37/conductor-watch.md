@@ -86,4 +86,4 @@ On completion, print JSON array of task statuses:
 
 ## Completion
 
-Create the DONE file at: $TASK_FOLDER/DONE
+Create the DONE file at: $JRUN_TASK_FOLDER/DONE

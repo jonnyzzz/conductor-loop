@@ -27,7 +27,7 @@
 
 1. **Implement an environment allow-list per agent type**:
    - Create a mapping in `internal/runner/` (or `internal/agent/`) that defines which environment variables each agent type is permitted to receive.
-   - The allow-list must include: system path vars (`PATH`, `HOME`, `TMPDIR`, `USER`, `SHELL`, `LANG`, `LC_ALL`, `TERM`), JRUN-internal vars (`JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `MESSAGE_BUS`, `RUN_FOLDER`, `TASK_FOLDER`), and the single API key relevant to the agent type.
+   - The allow-list must include: system path vars (`PATH`, `HOME`, `TMPDIR`, `USER`, `SHELL`, `LANG`, `LC_ALL`, `TERM`), JRUN-internal vars (`JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `JRUN_MESSAGE_BUS`, `JRUN_RUN_FOLDER`, `JRUN_TASK_FOLDER`), and the single API key relevant to the agent type.
    - All other vars (especially other agents' API keys) must be **excluded**.
 
 2. **Sanitize the child environment in the runner**:

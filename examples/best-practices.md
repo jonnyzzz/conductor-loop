@@ -561,11 +561,11 @@ readinessProbe:
 # backup-runs.sh
 
 BACKUP_DIR="/backups/conductor-runs"
-RUNS_DIR="/data/conductor-runs"
+JRUN_RUNS_DIR="/data/conductor-runs"
 
 # Create timestamped backup
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-tar -czf "$BACKUP_DIR/runs-$TIMESTAMP.tar.gz" "$RUNS_DIR"
+tar -czf "$BACKUP_DIR/runs-$TIMESTAMP.tar.gz" "$JRUN_RUNS_DIR"
 
 # Keep last 30 days
 find "$BACKUP_DIR" -name "runs-*.tar.gz" -mtime +30 -delete

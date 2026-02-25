@@ -101,5 +101,5 @@ feat(ui): add task search bar and fix pagination limit
 - Show task count when search/filter is active
 ```
 
-Write a summary of your changes to: /Users/jonnyzzz/Work/conductor-loop/runs/conductor-loop/TASK_FOLDER/DONE
-(TASK_FOLDER will be set as an env var in your runtime environment)
+Write a summary of your changes to: /Users/jonnyzzz/Work/conductor-loop/runs/conductor-loop/JRUN_TASK_FOLDER/DONE
+(JRUN_TASK_FOLDER will be set as an env var in your runtime environment)

@@ -47,7 +47,7 @@ This document collects open design questions and uncertainties identified during
 
 ### Q3: Is the DONE file convention clearly documented for agents?
 
-**Context**: The Ralph loop terminates when `DONE` file exists in the task directory (`<rootDir>/<projectID>/<taskID>/DONE`). Agents learn this via the `TASK_FOLDER=...` preamble in their prompt (from `buildPrompt()`).
+**Context**: The Ralph loop terminates when `DONE` file exists in the task directory (`<rootDir>/<projectID>/<taskID>/DONE`). Agents learn this via the `JRUN_TASK_FOLDER=...` preamble in their prompt (from `buildPrompt()`).
 
 **Questions**:
 - Is the `DONE` file convention communicated clearly enough in the prompt preamble?
@@ -87,7 +87,7 @@ This document collects open design questions and uncertainties identified during
 
 **Questions**:
 - Are these documented anywhere for agent developers?
-- Should the prompt preamble also include these values (currently only `TASK_FOLDER` and `RUN_FOLDER` are in the preamble)?
+- Should the prompt preamble also include these values (currently only `JRUN_TASK_FOLDER` and `JRUN_RUN_FOLDER` are in the preamble)?
 - Is `JRUN_PARENT_ID` ever non-empty in practice? (Would require a parent run spawning this run)
 
 **DECISION (2026-02-20)**: Per human answer in runner-orchestration-QUESTIONS.md: "the runner should set the JRUN_* variables correctly to the started agent process, agent process will start run-agent binary again for sub-agents, that is why the variables should be maintained carefully. Make sure to assert and validate consistency." Add JRUN_* values to the prompt preamble for visibility. Document them in the agent protocol spec. JRUN_PARENT_ID is non-empty when a parent task spawns child runs via `run-agent job`.

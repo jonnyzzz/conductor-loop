@@ -37,7 +37,7 @@ wc -l $(find . -name "*.go" | head -20)
 ls -lh internal/ pkg/ cmd/
 
 # Read the task description
-cat "$TASK_FOLDER/TASK.md"
+cat "$JRUN_TASK_FOLDER/TASK.md"
 ```
 
 Post what you find:

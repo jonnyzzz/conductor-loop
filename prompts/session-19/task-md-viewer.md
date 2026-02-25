@@ -69,5 +69,5 @@ and follow the same pattern.
 
 ## Completion
 
-When done, write a DONE file to the TASK_FOLDER directory.
+When done, write a DONE file to the JRUN_TASK_FOLDER directory.
 Commit all changes with message: `feat(api,ui): add task.md viewer endpoint and web UI tab`

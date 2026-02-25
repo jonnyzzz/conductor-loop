@@ -73,4 +73,4 @@ feat(ui): add task list auto-refresh and improved run display
 
 ## Output
 
-Write your output summary to `$RUN_FOLDER/output.md` and create `$TASK_FOLDER/DONE` when complete.
+Write your output summary to `$JRUN_RUN_FOLDER/output.md` and create `$JRUN_TASK_FOLDER/DONE` when complete.

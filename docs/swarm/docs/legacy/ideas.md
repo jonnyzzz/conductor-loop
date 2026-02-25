@@ -235,7 +235,7 @@ When the task is restarted, prepend to the prompt "Continue working on the follo
 
 
 Agent should not be able to manipulate our environment variables. Example from Codex is below (it chagnes MESSAGE-BUS variable, and mix messages)
-Ran RUNS_DIR=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/projects/clion/runs MESSAGE_BUS=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/projects/clion/
+Ran JRUN_RUNS_DIR=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/projects/clion/runs JRUN_MESSAGE_BUS=/Users/jonnyzzz/Work/jonnyzzz-ai-coder/projects/clion/
 │ MESSAGE-BUS.md /Users/jonnyzzz/Work/jonnyzzz-ai-coder/run-agent.sh claude /Users/jonnyzzz/Work/intellij /Users/jonnyzzz/Work/jonnyzzz-ai-coder/
 │ projects/clion/evals/prompt-intellij-analyze-testlog.md
 └ (no output)

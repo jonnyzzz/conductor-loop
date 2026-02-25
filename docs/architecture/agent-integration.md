@@ -90,11 +90,11 @@ These are injected into the job environment (CLI process env or REST `RunContext
 - `JRUN_TASK_ID`
 - `JRUN_ID`
 - `JRUN_PARENT_ID` (may be empty for root runs)
-- `RUNS_DIR`
-- `MESSAGE_BUS`
-- `TASK_FOLDER`
-- `RUN_FOLDER`
-- `CONDUCTOR_URL` (only when configured/derivable)
+- `JRUN_RUNS_DIR`
+- `JRUN_MESSAGE_BUS`
+- `JRUN_TASK_FOLDER`
+- `JRUN_RUN_FOLDER`
+- `JRUN_CONDUCTOR_URL` (only when configured/derivable)
 
 Additional behavior:
 - Agent token env var is injected when token is present in config:
@@ -109,17 +109,17 @@ Additional behavior:
 ### Variables written into prompt preamble
 
 `buildPrompt(...)` prepends these to `prompt.md`:
-- `TASK_FOLDER`
-- `RUN_FOLDER`
+- `JRUN_TASK_FOLDER`
+- `JRUN_RUN_FOLDER`
 - `JRUN_PROJECT_ID`
 - `JRUN_TASK_ID`
 - `JRUN_ID`
 - `JRUN_PARENT_ID` (only when non-empty)
-- `MESSAGE_BUS` (when non-empty)
-- `CONDUCTOR_URL` (when non-empty)
+- `JRUN_MESSAGE_BUS` (when non-empty)
+- `JRUN_CONDUCTOR_URL` (when non-empty)
 
 Important distinction:
-- `RUNS_DIR` is injected into runtime environment, but is not currently printed in the prompt preamble.
+- `JRUN_RUNS_DIR` is injected into runtime environment, but is not currently printed in the prompt preamble.
 
 ## Diversification Policy
 

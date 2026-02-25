@@ -63,5 +63,5 @@ feat(web): add OUTPUT tab for output.md in run detail view
 
 When done, create the DONE file:
 ```bash
-touch "$TASK_FOLDER/DONE"
+touch "$JRUN_TASK_FOLDER/DONE"
 ```

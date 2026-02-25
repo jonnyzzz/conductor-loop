@@ -91,5 +91,5 @@ docs: session #20 housekeeping - spec notes and doc accuracy
 
 Create a `DONE` file in the task directory:
 ```bash
-touch "$TASK_FOLDER/DONE"
+touch "$JRUN_TASK_FOLDER/DONE"
 ```

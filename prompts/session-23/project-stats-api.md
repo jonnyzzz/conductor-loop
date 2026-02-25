@@ -76,6 +76,6 @@ Add tests in `internal/api/handlers_projects_test.go`:
 
 ## When Done
 
-Create a `DONE` file in your task directory (`$TASK_FOLDER/DONE`) to signal completion.
+Create a `DONE` file in your task directory (`$JRUN_TASK_FOLDER/DONE`) to signal completion.
 
-Write your output summary to `$RUN_FOLDER/output.md`.
+Write your output summary to `$JRUN_RUN_FOLDER/output.md`.

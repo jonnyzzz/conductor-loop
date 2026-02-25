@@ -88,7 +88,7 @@ cat /Users/jonnyzzz/Work/conductor-loop/README.md | head -60
 **Agent A (claude):** Create `docs/architecture/agent-integration.md`
 - How each agent type (Claude/Codex/Gemini/Perplexity/xAI) is invoked
 - CLI vs REST distinction
-- Env vars injected (JRUN_*, MESSAGE_BUS, RUNS_DIR)
+- Env vars injected (JRUN_*, JRUN_MESSAGE_BUS, JRUN_RUNS_DIR)
 - Diversification policy and round-robin
 - Version detection and min-version enforcement
 

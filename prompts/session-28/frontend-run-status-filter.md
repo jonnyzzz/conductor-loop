@@ -75,4 +75,4 @@ After implementation:
 Use format: `feat(ui): add run status filter and task status badges to web UI`
 
 When done, create a DONE file at the task directory to signal completion:
-`touch <TASK_FOLDER>/DONE`
+`touch <JRUN_TASK_FOLDER>/DONE`

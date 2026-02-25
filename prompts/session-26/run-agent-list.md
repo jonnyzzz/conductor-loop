@@ -61,13 +61,13 @@ run-agent list --project <project-id> --task <task-id> [--root <dir>]
 ```
 
 Flags:
-- `--root string` — root directory (default: ./runs or RUNS_DIR env var)
+- `--root string` — root directory (default: ./runs or JRUN_RUNS_DIR env var)
 - `--project string` — project ID (optional, shows tasks if set)
 - `--task string` — task ID (requires --project, shows runs if set)
 - `--json` — output as JSON instead of table
 
 ### Implementation Notes:
-1. Read the RUNS_DIR env var as default root (same as gc.go does)
+1. Read the JRUN_RUNS_DIR env var as default root (same as gc.go does)
 2. Use `storage.ReadRunInfo()` to read run metadata
 3. List runs by scanning the filesystem (use filepath.Glob or os.ReadDir)
 4. Sort tasks and runs by name (alphabetical = chronological for task-YYYYMMDD-HHMMSS-* format)

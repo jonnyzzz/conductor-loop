@@ -22,9 +22,9 @@ Improve the environment contract for agent processes:
    - When config has no token but the env var is already set, it's passed through
    - When config has token_file, the file is read and injected
 
-4. **RUNS_DIR and MESSAGE_BUS env vars**: Per the env contract spec, these should be set for agent subprocesses. Check if they're being set in job.go's envOverrides. If not, add them:
-   - `RUNS_DIR` → the runs directory path
-   - `MESSAGE_BUS` → the message bus file path
+4. **JRUN_RUNS_DIR and JRUN_MESSAGE_BUS env vars**: Per the env contract spec, these should be set for agent subprocesses. Check if they're being set in job.go's envOverrides. If not, add them:
+   - `JRUN_RUNS_DIR` → the runs directory path
+   - `JRUN_MESSAGE_BUS` → the message bus file path
 
 ## Constraints
 - Follow code conventions in AGENTS.md

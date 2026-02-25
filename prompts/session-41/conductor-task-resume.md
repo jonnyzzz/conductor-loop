@@ -79,7 +79,7 @@ feat(api): add task resume endpoint and conductor task resume command
 
 ## Output
 
-Write output.md to $RUN_FOLDER/output.md with:
+Write output.md to $JRUN_RUN_FOLDER/output.md with:
 - Summary of what was implemented
 - Which files were created/modified
 - Test results

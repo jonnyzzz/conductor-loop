@@ -724,7 +724,7 @@ Each Ralph restart creates a new run directory. No cleanup mechanism means disk 
 
 **Resolution**:
 Implemented `run-agent gc` command in `cmd/run-agent/gc.go` with full flag set:
-- [x] `--root` — root runs directory (default: `./runs` or `$RUNS_DIR`)
+- [x] `--root` — root runs directory (default: `./runs` or `$JRUN_RUNS_DIR`)
 - [x] `--older-than` — duration cutoff (default: 168h / 7 days)
 - [x] `--dry-run` — print what would be deleted without deleting
 - [x] `--project` — limit gc to a specific project

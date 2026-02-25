@@ -8,7 +8,7 @@ Your task is to create `/Users/jonnyzzz/Work/conductor-loop/docs/architecture/ag
     - **CLI Agents**: Claude, Codex, Gemini. How runner invokes them, stdio capture, env injection.
     - **REST Agents**: Perplexity, xAI. In-process HTTP adapter.
 3. **Environment Contract**:
-    - `JRUN_*` vars, `CONDUCTOR_URL`, `TASK_FOLDER`.
+    - `JRUN_*` vars, `JRUN_CONDUCTOR_URL`, `JRUN_TASK_FOLDER`.
 4. **Diversification**:
     - Round-robin vs Weighted strategies.
     - Fallback on failure.

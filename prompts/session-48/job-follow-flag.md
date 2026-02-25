@@ -43,7 +43,7 @@ Use `runner.AllocateRunDir()` to pre-create the run directory BEFORE starting th
 // In the RunE func, when follow == true:
 rootDir := opts.RootDir
 if rootDir == "" {
-    if v := os.Getenv("RUNS_DIR"); v != "" {
+    if v := os.Getenv("JRUN_RUNS_DIR"); v != "" {
         rootDir = v
     } else {
         rootDir = "./runs"
@@ -109,7 +109,7 @@ Look at existing tests in `cmd/run-agent/output_follow_test.go` and `cmd/run-age
 - Read `internal/runner/job.go` for `JobOptions.PreallocatedRunDir` usage
 - The `--follow` flag should be short: `-f` is already used by `output --follow`, so use it here too
 - After `followOutput` returns, ALWAYS drain from `jobDone` channel to avoid goroutine leaks
-- Write output.md to /Users/jonnyzzz/Work/conductor-loop/runs for this task (path provided by TASK_FOLDER env)
+- Write output.md to /Users/jonnyzzz/Work/conductor-loop/runs for this task (path provided by JRUN_TASK_FOLDER env)
 
 ## Commit Format
 

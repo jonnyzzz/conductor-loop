@@ -26,10 +26,10 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 
 ## Run Folder Ownership
 - No OWNERSHIP.md file.
-- run-agent injects a RUN_FOLDER path into sub-agent prompts (prompt text, not an env var).
+- run-agent injects a JRUN_RUN_FOLDER path into sub-agent prompts (prompt text, not an env var).
 - Prompt preamble includes full path instruction: `Write output.md to /full/path/to/<run_id>/output.md`
 - This is a best-effort instruction; agents should attempt to create output.md, but if missing, the runner creates it from stdout.
-- Agents write prompts/outputs/temporary files only inside RUN_FOLDER.
+- Agents write prompts/outputs/temporary files only inside JRUN_RUN_FOLDER.
 - Ownership is conceptual (prompt-guided), not enforced by files.
 - Parents may read child output/TASK_STATE for monitoring; policy does not restrict this.
 
@@ -96,7 +96,7 @@ Defines behavioral rules for all agents in the swarm, including delegation, comm
 ## Environment Variables
 - JRUN_* variables are implementation details (agents should not reference them).
 - Error messages must not instruct agents to set env vars.
-- RUN_FOLDER is provided in the prompt preamble (not as an env var); treat it as read-only.
+- JRUN_RUN_FOLDER is provided in the prompt preamble (not as an env var); treat it as read-only.
 
 ## Protocol Versioning
 - No version negotiation or compatibility checks yet; assume backward compatibility.

@@ -96,7 +96,7 @@ go test -race ./internal/api/...
 - Add tests that cover the new pagination behavior
 - Do NOT break existing tests
 - Do NOT add frontend pagination UI controls — just make the format compatible
-- Create DONE file in TASK_FOLDER when complete
+- Create DONE file in JRUN_TASK_FOLDER when complete
 
 ## Done Criteria
 
@@ -106,4 +106,4 @@ go test -race ./internal/api/...
 - [ ] Frontend compiles and is compatible with new response format
 - [ ] New tests added and all tests pass
 - [ ] `go build ./...` passes
-- [ ] DONE file created in TASK_FOLDER
+- [ ] DONE file created in JRUN_TASK_FOLDER

@@ -37,7 +37,7 @@ cat internal/runner/job.go | grep -A5 "gemini\|claude\|codex\|isRestAgent" | hea
 grep -rn "ANTHROPIC_API_KEY\|OPENAI_API_KEY\|GEMINI_API_KEY\|PERPLEXITY_API_KEY\|XAI_API_KEY" internal/ --include="*.go" | head -20
 
 # Agent protocol: env injection
-grep -rn "RUNS_DIR\|MESSAGE_BUS\|JRUN_\|RUN_ID" internal/runner/ --include="*.go" | head -20
+grep -rn "JRUN_RUNS_DIR\|JRUN_MESSAGE_BUS\|JRUN_\|RUN_ID" internal/runner/ --include="*.go" | head -20
 
 # Adding a new agent: agent factory/registry
 cat internal/agent/factory.go 2>/dev/null | head -60
@@ -62,7 +62,7 @@ grep -rn "slog\|zerolog\|zap\|logrus\|log\." internal/ --include="*.go" | grep "
   - isRestAgent: document which agents use REST vs CLI
   - Add xAI backend status (deferred/placeholder)
 - Key fixes for agent-protocol.md:
-  - Exact env vars injected: RUNS_DIR, MESSAGE_BUS, JRUN_* — verify names
+  - Exact env vars injected: JRUN_RUNS_DIR, JRUN_MESSAGE_BUS, JRUN_* — verify names
   - output.md fallback behavior
   - Run lifecycle events
 - Do not rewrite from scratch — targeted corrections only

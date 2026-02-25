@@ -62,4 +62,4 @@ The following conductor commands are implemented but undocumented in `docs/user/
 
 ## Completion
 
-Create the DONE file at: $TASK_FOLDER/DONE
+Create the DONE file at: $JRUN_TASK_FOLDER/DONE

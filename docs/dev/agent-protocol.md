@@ -47,11 +47,11 @@ Runner injects these variables into the agent subprocess (`internal/runner/job.g
 - `JRUN_TASK_ID`
 - `JRUN_ID`
 - `JRUN_PARENT_ID` (may be empty for root runs)
-- `RUNS_DIR`
-- `MESSAGE_BUS`
-- `TASK_FOLDER`
-- `RUN_FOLDER`
-- `CONDUCTOR_URL` (when available)
+- `JRUN_RUNS_DIR`
+- `JRUN_MESSAGE_BUS`
+- `JRUN_TASK_FOLDER`
+- `JRUN_RUN_FOLDER`
+- `JRUN_CONDUCTOR_URL` (when available)
 
 Token mapping is hardcoded (`internal/runner/orchestrator.go`):
 

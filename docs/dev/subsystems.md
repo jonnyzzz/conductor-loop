@@ -1220,7 +1220,7 @@ syscall.Kill(-pgid, syscall.SIGTERM)
 **Usage:**
 ```bash
 # Inside agent script
-echo "Task completed" > $TASK_FOLDER/DONE
+echo "Task completed" > $JRUN_TASK_FOLDER/DONE
 ```
 
 **Ralph Loop Behavior:**
@@ -1684,7 +1684,7 @@ run-agent list [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--root` | Root directory (default: `./runs` or `$RUNS_DIR`) |
+| `--root` | Root directory (default: `./runs` or `$JRUN_RUNS_DIR`) |
 | `--project` | Project ID; if set, lists tasks for that project |
 | `--task` | Task ID; requires `--project`; if set, lists runs for that task |
 | `--json` | Emit JSON instead of table output |
@@ -1701,7 +1701,7 @@ run-agent list [flags]
 
 ### Implementation Notes
 
-- Root directory falls back to `RUNS_DIR` environment variable, then `./runs`.
+- Root directory falls back to `JRUN_RUNS_DIR` environment variable, then `./runs`.
 - DONE detection: `os.Stat(taskDir/DONE)`.
 - Latest status: reads `run-info.yaml` from the lexically last run directory.
 - Duration shown as `"running"` for active runs; computed from `end_time - start_time` otherwise.
@@ -1744,7 +1744,7 @@ run-agent output [flags]
 | Flag | Description |
 |------|-------------|
 | `--run-dir` | Direct path to run directory (overrides `--project/--task/--run`) |
-| `--root` | Root directory (default: `./runs` or `$RUNS_DIR`) |
+| `--root` | Root directory (default: `./runs` or `$JRUN_RUNS_DIR`) |
 | `--project` | Project ID |
 | `--task` | Task ID |
 | `--run` | Run ID (uses most recent if omitted) |
@@ -1777,7 +1777,7 @@ run-agent output [flags]
 - Poll intervals are package-level variables (`followPollInterval`, `followFileWaitTimeout`, `followNoDataTimeout`) so tests can shorten them.
 - `drainNewContent` opens the file, seeks to `offset`, copies new bytes to stdout, and returns the byte count written.
 - `--tail` is implemented with a ring-buffer over a line scanner (avoids loading the entire file into memory).
-- Root directory falls back to `RUNS_DIR` environment variable, then `./runs`.
+- Root directory falls back to `JRUN_RUNS_DIR` environment variable, then `./runs`.
 
 ### Dependencies
 
@@ -1819,7 +1819,7 @@ run-agent watch --project <id> --task <id> [--task <id> ...] [flags]
 |------|-------------|
 | `--project` | Project ID (required) |
 | `--task` | Task ID to watch; can be repeated for multiple tasks |
-| `--root` | Root directory (default: `./runs` or `$RUNS_DIR`) |
+| `--root` | Root directory (default: `./runs` or `$JRUN_RUNS_DIR`) |
 | `--timeout` | Maximum wait time (default: 30m); exits with code 1 on timeout |
 | `--json` | Output as JSON lines (one line per poll cycle) |
 
@@ -1830,7 +1830,7 @@ run-agent watch --project <id> --task <id> [--task <id> ...] [flags]
 - Both `completed` and `failed` are considered "done" (terminal).
 - Text mode prints a table of tasks with elapsed time on each poll cycle.
 - JSON mode emits `{"tasks":[...],"all_done":bool}` per poll cycle.
-- Root directory falls back to `RUNS_DIR` environment variable, then `./runs`.
+- Root directory falls back to `JRUN_RUNS_DIR` environment variable, then `./runs`.
 
 ### JSON Output Schema
 
@@ -1945,7 +1945,7 @@ A search bar in the task list panel lets users filter tasks by ID substring with
 
 `cmd/run-agent/task_delete.go` implements `run-agent task delete`:
 - `--project`, `--task` (both required)
-- `--root` (default: `$RUNS_DIR` or `./runs`)
+- `--root` (default: `$JRUN_RUNS_DIR` or `./runs`)
 - `--force` — skips the running-run check before deleting
 
 Without `--force`, the CLI scans `<taskDir>/runs/*/run-info.yaml` for `status: running` and exits with code 1 if any are found.

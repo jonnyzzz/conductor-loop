@@ -31,7 +31,7 @@ File paths (absolute):
 
 Flags:
 ```
---root string       root directory (default: ./runs or $RUNS_DIR env)
+--root string       root directory (default: ./runs or $JRUN_RUNS_DIR env)
 --project string    project ID (required unless --run-dir is given)
 --task string       task ID (required unless --run-dir is given)
 --run string        run ID (optional; if omitted, uses the most recent run)
@@ -98,7 +98,7 @@ Add a section documenting the new `output` command after the Garbage Collection 
 
 All flags:
 ```
---root string       root directory (default: ./runs or $RUNS_DIR env)
+--root string       root directory (default: ./runs or $JRUN_RUNS_DIR env)
 --project string    project ID
 --task string       task ID
 --run string        run ID (uses most recent if omitted)
@@ -126,4 +126,4 @@ Before creating the DONE file:
 Create the file `/Users/jonnyzzz/Work/conductor-loop/runs/conductor-loop/$JRUN_TASK_ID/DONE`
 to signal completion.
 
-Write a brief summary to output.md in $RUN_FOLDER describing what was implemented.
+Write a brief summary to output.md in $JRUN_RUN_FOLDER describing what was implemented.

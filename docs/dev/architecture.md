@@ -92,15 +92,15 @@ HTTP/SSE. It does not need to be running for agents to execute tasks.
 
 `run-agent serve` can be started at any time to inspect past or in-progress runs.
 
-### 4. `CONDUCTOR_URL` Is Informational
+### 4. `JRUN_CONDUCTOR_URL` Is Informational
 
-The environment variable `CONDUCTOR_URL` is injected into spawned agent processes as a
+The environment variable `JRUN_CONDUCTOR_URL` is injected into spawned agent processes as a
 *convenience* so the agent's own code can construct API URLs for posting messages or
 querying status. The runner itself **never calls back to the server**.
 
 ```
 Runner → (spawn) → Agent process
-                   env: CONDUCTOR_URL=http://localhost:14355
+                   env: JRUN_CONDUCTOR_URL=http://localhost:14355
                         (agent MAY use this for bus/post; runner does NOT)
 ```
 

@@ -95,7 +95,7 @@ Update `docs/user/cli-reference.md` to document the `--follow` flag in the `cond
 - Read `cmd/conductor/task_logs.go` to understand the `taskLogs()` function
 - The conductor server must be running for `conductor job submit` to work (this is already a requirement)
 - The `--follow` flag should NOT conflict with `--json` output: if both are set, emit JSON for the submission result and then stream logs to stdout (or just disable `--json` when `--follow` is set - pick the simpler approach)
-- Write output.md to /Users/jonnyzzz/Work/conductor-loop/runs for this task (path provided by TASK_FOLDER env)
+- Write output.md to /Users/jonnyzzz/Work/conductor-loop/runs for this task (path provided by JRUN_TASK_FOLDER env)
 
 ## Commit Format
 

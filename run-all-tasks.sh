@@ -4,12 +4,12 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
-RUNS_DIR="${PROJECT_ROOT}/runs"
-MESSAGE_BUS="${PROJECT_ROOT}/MESSAGE-BUS.md"
+JRUN_RUNS_DIR="${PROJECT_ROOT}/runs"
+JRUN_MESSAGE_BUS="${PROJECT_ROOT}/MESSAGE-BUS.md"
 ISSUES_FILE="${PROJECT_ROOT}/ISSUES.md"
 PROMPTS_DIR="${PROJECT_ROOT}/prompts"
 
-export PROJECT_ROOT RUNS_DIR MESSAGE_BUS ISSUES_FILE
+export PROJECT_ROOT JRUN_RUNS_DIR JRUN_MESSAGE_BUS ISSUES_FILE
 
 # Configuration
 MAX_PARALLEL_AGENTS=16
@@ -24,10 +24,10 @@ NC='\033[0m' # No Color
 
 # Initialize files
 mkdir -p "$PROMPTS_DIR"
-touch "$MESSAGE_BUS" "$ISSUES_FILE"
+touch "$JRUN_MESSAGE_BUS" "$ISSUES_FILE"
 
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$MESSAGE_BUS"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$JRUN_MESSAGE_BUS"
 }
 
 log_error() {
@@ -47,7 +47,7 @@ log_warning() {
 }
 
 # Initialize MESSAGE-BUS.md
-cat > "$MESSAGE_BUS" <<'EOF'
+cat > "$JRUN_MESSAGE_BUS" <<'EOF'
 # Conductor Loop Implementation - Message Bus
 
 **Project**: Conductor Loop
@@ -3334,7 +3334,7 @@ run_agent_task() {
     "${PROJECT_ROOT}/run-agent.sh" "$agent_type" "$cwd" "$prompt_file" &
     local pid=$!
 
-    echo "$pid" > "${RUNS_DIR}/${task_id}.pid"
+    echo "$pid" > "${JRUN_RUNS_DIR}/${task_id}.pid"
 
     log "FACT: Task $task_id started (PID: $pid)"
 }
@@ -3356,7 +3356,7 @@ wait_for_tasks() {
         fi
 
         for task_id in "${task_ids[@]}"; do
-            local pid_file="${RUNS_DIR}/${task_id}.pid"
+            local pid_file="${JRUN_RUNS_DIR}/${task_id}.pid"
             if [ -f "$pid_file" ]; then
                 local pid=$(cat "$pid_file")
                 if ps -p "$pid" > /dev/null 2>&1; then
@@ -3379,7 +3379,7 @@ check_task_success() {
     local task_id="$1"
 
     # Find the run directory for this task by searching prompt.md files for task ID
-    local run_dir=$(find "$RUNS_DIR" -type f -name "prompt.md" -exec grep -l "^\\*\\*Task ID\\*\\*: $task_id" {} \; 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+    local run_dir=$(find "$JRUN_RUNS_DIR" -type f -name "prompt.md" -exec grep -l "^\\*\\*Task ID\\*\\*: $task_id" {} \; 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
 
     if [ -z "$run_dir" ]; then
         log_error "Cannot find run directory for task $task_id"
@@ -3676,7 +3676,7 @@ main() {
     log "CONDUCTOR LOOP - PARALLEL IMPLEMENTATION ORCHESTRATION"
     log "======================================================================"
     log "Project Root: $PROJECT_ROOT"
-    log "Message Bus: $MESSAGE_BUS"
+    log "Message Bus: $JRUN_MESSAGE_BUS"
     log "Max Parallel: $MAX_PARALLEL_AGENTS agents"
     log "======================================================================"
 

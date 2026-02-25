@@ -291,7 +291,7 @@ All runtime implementation lives in `internal/`. The `pkg/` directory contains n
 ## Message Bus Protocol
 
 Agents MUST post progress updates to the message bus using the `run-agent bus post`
-command. The `MESSAGE_BUS` env var is set automatically by the runner.
+command. The `JRUN_MESSAGE_BUS` env var is set automatically by the runner.
 
 ```bash
 run-agent bus post --type PROGRESS --body "Starting X"
@@ -343,10 +343,10 @@ and also available in the prompt preamble:
 | `JRUN_TASK_ID` | Task identifier |
 | `JRUN_ID` | Run identifier for the current execution |
 | `JRUN_PARENT_ID` | Run ID of the parent run (if spawned as sub-agent) |
-| `TASK_FOLDER` | Absolute path to the task directory |
-| `RUN_FOLDER` | Absolute path to the current run directory |
-| `MESSAGE_BUS` | Absolute path to `TASK-MESSAGE-BUS.md` |
-| `CONDUCTOR_URL` | URL of the conductor server (e.g. `http://127.0.0.1:14355`) |
+| `JRUN_TASK_FOLDER` | Absolute path to the task directory |
+| `JRUN_RUN_FOLDER` | Absolute path to the current run directory |
+| `JRUN_MESSAGE_BUS` | Absolute path to `TASK-MESSAGE-BUS.md` |
+| `JRUN_CONDUCTOR_URL` | URL of the conductor server (e.g. `http://127.0.0.1:14355`) |
 
 ---
 

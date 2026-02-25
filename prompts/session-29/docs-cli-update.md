@@ -66,7 +66,7 @@ Add documentation sections in the same style as existing entries:
 - Do NOT add emojis or excessive formatting
 - Do NOT create a new file — edit the existing `docs/user/cli-reference.md`
 - After editing, verify the markdown is well-formed (check for unmatched backticks, etc.)
-- Create the DONE file when complete: `touch /Users/jonnyzzz/Work/conductor-loop/runs/conductor-loop/TASK_DIR/DONE` (the TASK_DIR is your task directory provided in TASK_FOLDER env var)
+- Create the DONE file when complete: `touch /Users/jonnyzzz/Work/conductor-loop/runs/conductor-loop/TASK_DIR/DONE` (the TASK_DIR is your task directory provided in JRUN_TASK_FOLDER env var)
 
 ## Done Criteria
 
@@ -74,4 +74,4 @@ Add documentation sections in the same style as existing entries:
 - [ ] `run-agent output` is documented with flags table and 3 examples (including --follow)
 - [ ] `run-agent validate --check-tokens` is documented in the existing validate section
 - [ ] The file still builds (no syntax errors that would break rendering)
-- [ ] DONE file created in TASK_FOLDER
+- [ ] DONE file created in JRUN_TASK_FOLDER

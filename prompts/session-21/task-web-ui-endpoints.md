@@ -90,4 +90,4 @@ const resp = await fetch(url, {
 
 ## Done File
 
-When complete: `echo "done" > "$TASK_FOLDER/DONE"`
+When complete: `echo "done" > "$JRUN_TASK_FOLDER/DONE"`

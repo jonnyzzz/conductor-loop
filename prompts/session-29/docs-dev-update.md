@@ -13,7 +13,7 @@ Sessions #26-28 (all on 2026-02-21) added significant new features. The develope
   - `--project` flag: shows tasks in a project with TASK_ID/RUNS/LATEST_STATUS/DONE
   - `--task` flag: shows runs with RUN_ID/STATUS/EXIT_CODE/STARTED/DURATION
   - `--json` flag: JSON output for any mode
-  - Reads `RUNS_DIR` env var as default root
+  - Reads `JRUN_RUNS_DIR` env var as default root
 
 - `run-agent output --follow/-f` flag: live tail during job execution
   - Exits immediately for completed runs
@@ -98,7 +98,7 @@ For each developer doc file, update it to reflect reality. Key areas:
 - Only update what actually changed — do not rewrite unchanged sections
 - Verify factual accuracy by reading the actual source code
 - Do NOT create new doc files — update existing ones
-- Create DONE file in TASK_FOLDER when complete
+- Create DONE file in JRUN_TASK_FOLDER when complete
 
 ## Done Criteria
 
@@ -106,4 +106,4 @@ For each developer doc file, update it to reflect reality. Key areas:
 - [ ] `docs/dev/storage-layout.md` updated with agent_version and run_counts
 - [ ] `docs/dev/testing.md` updated with new test files
 - [ ] Changes are factually accurate (verified against source code)
-- [ ] DONE file created in TASK_FOLDER
+- [ ] DONE file created in JRUN_TASK_FOLDER

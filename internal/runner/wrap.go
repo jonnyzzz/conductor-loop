@@ -134,10 +134,10 @@ func runWrap(projectID, taskID, agentType string, forwardedArgs []string, opts W
 		"JRUN_TASK_ID":    taskID,
 		"JRUN_ID":         runID,
 		"JRUN_PARENT_ID":  parentRunID,
-		"RUNS_DIR":        runsDir,
-		"MESSAGE_BUS":     busPath,
-		"TASK_FOLDER":     taskDir,
-		"RUN_FOLDER":      runDir,
+		"JRUN_RUNS_DIR":        runsDir,
+		"JRUN_MESSAGE_BUS":     busPath,
+		"JRUN_TASK_FOLDER":     taskDir,
+		"JRUN_RUN_FOLDER":      runDir,
 	}
 	if err := prependPath(envOverrides); err != nil {
 		return nil, err

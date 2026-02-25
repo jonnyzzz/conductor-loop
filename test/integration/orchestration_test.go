@@ -577,7 +577,7 @@ func buildRunAgentBinary(t *testing.T, dir string) string {
 }
 
 // buildChainClaudeStub compiles a "claude" stub into dir. When run by the
-// runner it inherits JRUN_PROJECT_ID/JRUN_TASK_ID/TASK_FOLDER/JRUN_ID from
+// runner it inherits JRUN_PROJECT_ID/JRUN_TASK_ID/JRUN_TASK_FOLDER/JRUN_ID from
 // env (set by the parent runner) and spawns a codex child job via run-agent
 // without passing explicit --project/--task/--root/--parent-run-id flags.
 func buildChainClaudeStub(t *testing.T, dir string) {
@@ -606,7 +606,7 @@ func main() {
 	_, _ = io.Copy(io.Discard, os.Stdin)
 	runAgentBin := os.Getenv("` + envOrchChainAgentBin + `")
 	// project, task, root, and parent-run-id are inferred from env vars set by
-	// the parent runner (JRUN_PROJECT_ID, JRUN_TASK_ID, TASK_FOLDER, JRUN_ID).
+	// the parent runner (JRUN_PROJECT_ID, JRUN_TASK_ID, JRUN_TASK_FOLDER, JRUN_ID).
 	cmd := exec.Command(runAgentBin, "job",
 		"--agent", "codex",
 		"--prompt", "codex agent step")
@@ -631,7 +631,7 @@ func main() {
 }
 
 // buildChainCodexStub compiles a "codex" stub into dir. When run by the
-// runner it inherits JRUN_PROJECT_ID/JRUN_TASK_ID/TASK_FOLDER/JRUN_ID from
+// runner it inherits JRUN_PROJECT_ID/JRUN_TASK_ID/JRUN_TASK_FOLDER/JRUN_ID from
 // env (set by the parent runner) and spawns a gemini child job via run-agent
 // without passing explicit --project/--task/--root/--parent-run-id flags.
 func buildChainCodexStub(t *testing.T, dir string) {
@@ -660,7 +660,7 @@ func main() {
 	_, _ = io.Copy(io.Discard, os.Stdin)
 	runAgentBin := os.Getenv("` + envOrchChainAgentBin + `")
 	// project, task, root, and parent-run-id are inferred from env vars set by
-	// the parent runner (JRUN_PROJECT_ID, JRUN_TASK_ID, TASK_FOLDER, JRUN_ID).
+	// the parent runner (JRUN_PROJECT_ID, JRUN_TASK_ID, JRUN_TASK_FOLDER, JRUN_ID).
 	cmd := exec.Command(runAgentBin, "job",
 		"--agent", "gemini",
 		"--prompt", "gemini agent step")

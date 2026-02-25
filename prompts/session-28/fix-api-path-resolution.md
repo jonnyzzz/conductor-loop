@@ -82,4 +82,4 @@ After implementation:
 Use format: `fix(api): resolve task directory paths correctly across root structures`
 
 When done, create a DONE file at the task directory to signal completion:
-`touch <TASK_FOLDER>/DONE`
+`touch <JRUN_TASK_FOLDER>/DONE`

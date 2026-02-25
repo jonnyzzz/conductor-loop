@@ -118,5 +118,5 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 
 ## Output
 
-When complete, create a `DONE` file in your task directory (the TASK_FOLDER env var).
-Write a summary to `output.md` in your run directory (the RUN_FOLDER env var).
+When complete, create a `DONE` file in your task directory (the JRUN_TASK_FOLDER env var).
+Write a summary to `output.md` in your run directory (the JRUN_RUN_FOLDER env var).

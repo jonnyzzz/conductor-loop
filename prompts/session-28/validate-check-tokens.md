@@ -79,4 +79,4 @@ After implementation:
 Use format: `feat(cli): add --check-tokens flag to run-agent validate for token file verification`
 
 When done, create a DONE file at the task directory to signal completion:
-`touch <TASK_FOLDER>/DONE`
+`touch <JRUN_TASK_FOLDER>/DONE`

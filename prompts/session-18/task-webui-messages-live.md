@@ -94,4 +94,4 @@ feat(ui): add live SSE streaming and message posting to MESSAGES tab
 
 ## Output
 
-Write your output summary to `$RUN_FOLDER/output.md` and create `$TASK_FOLDER/DONE` when complete.
+Write your output summary to `$JRUN_RUN_FOLDER/output.md` and create `$JRUN_TASK_FOLDER/DONE` when complete.

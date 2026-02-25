@@ -52,7 +52,7 @@ This list captures the current planning topics derived from ideas.md, the subsys
 4. Agent Governance & Delegation
    - Decisions:
      - Max delegation depth = 16 (configurable).
-     - RUN_FOLDER is injected into sub-agent prompts (explicit preamble, not env var); no OWNERSHIP.md file; ownership is implicit.
+     - JRUN_RUN_FOLDER is injected into sub-agent prompts (explicit preamble, not env var); no OWNERSHIP.md file; ownership is implicit.
      - Parents may read child output/TASK_STATE; policy does not restrict it.
      - Message bus tooling only; agents do not emit START/STOP (runner posts these).
      - Root agent polls and processes message bus updates in MVP (no dedicated poller service).
@@ -95,7 +95,7 @@ This list captures the current planning topics derived from ideas.md, the subsys
 7. Environment Variable & Invocation Contract
    - Decisions:
      - Runner sets JRUN_PROJECT_ID, JRUN_TASK_ID, JRUN_ID, JRUN_PARENT_ID internally; agents must not rely on them.
-     - Task/run paths are provided via prompt preamble (RUN_FOLDER in prompt text, not env var).
+     - Task/run paths are provided via prompt preamble (JRUN_RUN_FOLDER in prompt text, not env var).
      - Error messages must not instruct agents to set env vars; agents should not manipulate JRUN_*.
      - run-agent prepends its binary location to PATH for child processes.
      - Path normalization: OS-native using Go filepath.Clean (resolved 2026-02-04).

@@ -155,6 +155,6 @@ feat(cli): add conductor project list and task list commands
 ## DONE File
 
 When all quality gates pass and commit is made, create the file:
-`$TASK_FOLDER/DONE`
+`$JRUN_TASK_FOLDER/DONE`
 
-(The TASK_FOLDER environment variable is set to your task directory automatically.)
+(The JRUN_TASK_FOLDER environment variable is set to your task directory automatically.)

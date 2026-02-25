@@ -39,11 +39,11 @@ These are injected as convenience variables. Agents MAY use them but MUST NOT de
 
 | Variable | Description |
 |----------|-------------|
-| `RUNS_DIR` | Absolute path to the runs directory for the current task |
-| `MESSAGE_BUS` | Absolute path to the task-level message bus file (`TASK-MESSAGE-BUS.md`) |
-| `TASK_FOLDER` | Absolute path to the task directory |
-| `RUN_FOLDER` | Absolute path to the current run directory |
-| `CONDUCTOR_URL` | URL of the conductor API server (injected if configured; may be absent) |
+| `JRUN_RUNS_DIR` | Absolute path to the runs directory for the current task |
+| `JRUN_MESSAGE_BUS` | Absolute path to the task-level message bus file (`TASK-MESSAGE-BUS.md`) |
+| `JRUN_TASK_FOLDER` | Absolute path to the task directory |
+| `JRUN_RUN_FOLDER` | Absolute path to the current run directory |
+| `JRUN_CONDUCTOR_URL` | URL of the conductor API server (injected if configured; may be absent) |
 
 All path variables are normalized using `filepath.Clean` (OS-native separators).
 
@@ -51,7 +51,7 @@ All path variables are normalized using `filepath.Clean` (OS-native separators).
 - `JRUN_*` variables are runner-owned; overwritten on every spawn regardless of parent environment or caller-provided env.
 - `CONDUCTOR_*` prefix is reserved for future runner internals.
 - Callers cannot override reserved variables — the runner enforces correct values before spawning.
-- Informational variables (RUNS_DIR, MESSAGE_BUS, TASK_FOLDER, RUN_FOLDER, CONDUCTOR_URL) are NOT blocked from override — agents may redirect them for sub-tasks.
+- Informational variables (JRUN_RUNS_DIR, JRUN_MESSAGE_BUS, JRUN_TASK_FOLDER, JRUN_RUN_FOLDER, JRUN_CONDUCTOR_URL) are NOT blocked from override — agents may redirect them for sub-tasks.
 
 ## Prompt/Context Injection (Agent-Visible)
 - run-agent prepends the prompt with absolute paths for the task folder and run folder.
@@ -62,8 +62,8 @@ All path variables are normalized using `filepath.Clean` (OS-native separators).
 
 Example preamble:
 ```text
-TASK_FOLDER=/absolute/path/to/task
-RUN_FOLDER=/absolute/path/to/run
+JRUN_TASK_FOLDER=/absolute/path/to/task
+JRUN_RUN_FOLDER=/absolute/path/to/run
 Write output.md to /absolute/path/to/run/output.md
 ```
 

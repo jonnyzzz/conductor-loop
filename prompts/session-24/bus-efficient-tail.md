@@ -93,4 +93,4 @@ Before creating the DONE file:
 Create the file `/Users/jonnyzzz/Work/conductor-loop/runs/conductor-loop/$JRUN_TASK_ID/DONE`
 to signal completion of this task.
 
-Also write a brief summary to output.md in $RUN_FOLDER describing what was implemented.
+Also write a brief summary to output.md in $JRUN_RUN_FOLDER describing what was implemented.

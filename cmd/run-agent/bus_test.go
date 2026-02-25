@@ -101,8 +101,8 @@ func TestBusReadWithProjectAndTask(t *testing.T) {
 // TestBusPostWithProject verifies that bus post auto-resolves the project-level bus
 // (PROJECT-MESSAGE-BUS.md) when --project is given without --bus.
 func TestBusPostWithProject(t *testing.T) {
-	// Clear MESSAGE_BUS to ensure project/task hierarchy is used for path resolution.
-	t.Setenv("MESSAGE_BUS", "")
+	// Clear JRUN_MESSAGE_BUS to ensure project/task hierarchy is used for path resolution.
+	t.Setenv("JRUN_MESSAGE_BUS", "")
 	root := t.TempDir()
 
 	projDir := filepath.Join(root, "my-project")
@@ -150,8 +150,8 @@ func TestBusPostWithProject(t *testing.T) {
 // TestBusPostWithProjectAndTask verifies that bus post auto-resolves the task-level bus
 // (TASK-MESSAGE-BUS.md) when both --project and --task are given without --bus.
 func TestBusPostWithProjectAndTask(t *testing.T) {
-	// Clear MESSAGE_BUS to ensure project/task hierarchy is used for path resolution.
-	t.Setenv("MESSAGE_BUS", "")
+	// Clear JRUN_MESSAGE_BUS to ensure project/task hierarchy is used for path resolution.
+	t.Setenv("JRUN_MESSAGE_BUS", "")
 	root := t.TempDir()
 
 	taskDir := filepath.Join(root, "my-project", "task-20260101-000001-aa")
@@ -205,12 +205,12 @@ func TestBusPostExplicitFlagsTakePrecedenceOverContext(t *testing.T) {
 	}
 	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
 
-	t.Setenv("MESSAGE_BUS", busPath)
+	t.Setenv("JRUN_MESSAGE_BUS", busPath)
 	t.Setenv("JRUN_PROJECT_ID", "env-project")
 	t.Setenv("JRUN_TASK_ID", "task-20260101-000001-env")
 	t.Setenv("JRUN_ID", "run-env")
-	t.Setenv("TASK_FOLDER", filepath.Join(root, "context-project", "task-20260101-000001-context"))
-	t.Setenv("RUN_FOLDER", filepath.Join(root, "runs", "run-project", "task-20260101-000001-run", "runs", "run-context"))
+	t.Setenv("JRUN_TASK_FOLDER", filepath.Join(root, "context-project", "task-20260101-000001-context"))
+	t.Setenv("JRUN_RUN_FOLDER", filepath.Join(root, "runs", "run-project", "task-20260101-000001-run", "runs", "run-context"))
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
@@ -257,18 +257,18 @@ func TestBusPostInfersFromRunFolderContext(t *testing.T) {
 	root := t.TempDir()
 	busPath := filepath.Join(root, "custom-bus.md")
 
-	t.Setenv("MESSAGE_BUS", busPath)
+	t.Setenv("JRUN_MESSAGE_BUS", busPath)
 	t.Setenv("JRUN_PROJECT_ID", "")
 	t.Setenv("JRUN_TASK_ID", "")
 	t.Setenv("JRUN_ID", "")
-	t.Setenv("TASK_FOLDER", "")
+	t.Setenv("JRUN_TASK_FOLDER", "")
 
 	runID := "20260101-0000010000-12345-1"
 	runFolder := filepath.Join(root, "context-project", "task-20260101-000001-context", "runs", runID)
 	if err := os.MkdirAll(runFolder, 0o755); err != nil {
 		t.Fatalf("mkdir run folder: %v", err)
 	}
-	t.Setenv("RUN_FOLDER", runFolder)
+	t.Setenv("JRUN_RUN_FOLDER", runFolder)
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
@@ -310,12 +310,12 @@ func TestBusPostInfersFromRunFolderContext(t *testing.T) {
 
 func TestBusPostMissingContextReturnsActionableError(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("MESSAGE_BUS", filepath.Join(root, "custom-bus.md"))
+	t.Setenv("JRUN_MESSAGE_BUS", filepath.Join(root, "custom-bus.md"))
 	t.Setenv("JRUN_PROJECT_ID", "")
 	t.Setenv("JRUN_TASK_ID", "")
 	t.Setenv("JRUN_ID", "")
-	t.Setenv("TASK_FOLDER", "")
-	t.Setenv("RUN_FOLDER", "")
+	t.Setenv("JRUN_TASK_FOLDER", "")
+	t.Setenv("JRUN_RUN_FOLDER", "")
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
@@ -345,12 +345,12 @@ func TestBusPostPrefersBusPathContextOverJRunEnv(t *testing.T) {
 	}
 	busPath := filepath.Join(taskDir, "TASK-MESSAGE-BUS.md")
 
-	t.Setenv("MESSAGE_BUS", busPath)
+	t.Setenv("JRUN_MESSAGE_BUS", busPath)
 	t.Setenv("JRUN_PROJECT_ID", "env-project")
 	t.Setenv("JRUN_TASK_ID", "task-20260101-000001-env")
 	t.Setenv("JRUN_ID", "run-env")
-	t.Setenv("TASK_FOLDER", "")
-	t.Setenv("RUN_FOLDER", "")
+	t.Setenv("JRUN_TASK_FOLDER", "")
+	t.Setenv("JRUN_RUN_FOLDER", "")
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
@@ -548,7 +548,7 @@ func TestBusDiscoverCmdFindsNearestBus(t *testing.T) {
 }
 
 func TestBusReadAutoDiscoversLegacyBusFromCWD(t *testing.T) {
-	t.Setenv("MESSAGE_BUS", "")
+	t.Setenv("JRUN_MESSAGE_BUS", "")
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "MESSAGE-BUS.md"), []byte(`# legacy bus
 [2026-02-01 10:00:00] FACT: first
@@ -583,7 +583,7 @@ func TestBusReadAutoDiscoversLegacyBusFromCWD(t *testing.T) {
 }
 
 func TestBusPostAutoDiscoversLegacyBusAndInfersProject(t *testing.T) {
-	t.Setenv("MESSAGE_BUS", "")
+	t.Setenv("JRUN_MESSAGE_BUS", "")
 	t.Setenv("JRUN_PROJECT_ID", "")
 	t.Setenv("JRUN_TASK_ID", "")
 	t.Setenv("JRUN_ID", "")
@@ -761,9 +761,9 @@ func TestInferProjectFromCWD_NoTaskSubdirs(t *testing.T) {
 // TestBusPostInfersFromRunInfoCWD verifies that bus post resolves project/task/bus
 // from run-info.yaml when the command is executed inside a run directory.
 func TestBusPostInfersFromRunInfoCWD(t *testing.T) {
-	t.Setenv("MESSAGE_BUS", "")
-	t.Setenv("RUN_FOLDER", "")
-	t.Setenv("TASK_FOLDER", "")
+	t.Setenv("JRUN_MESSAGE_BUS", "")
+	t.Setenv("JRUN_RUN_FOLDER", "")
+	t.Setenv("JRUN_TASK_FOLDER", "")
 	t.Setenv("JRUN_PROJECT_ID", "")
 	t.Setenv("JRUN_TASK_ID", "")
 	t.Setenv("JRUN_ID", "")
@@ -830,7 +830,7 @@ func TestBusPostInfersFromRunInfoCWD(t *testing.T) {
 // TestBusReadInfersFromRunInfoCWD verifies that bus read resolves the task bus
 // from run-info.yaml when executed inside a run directory (no --project/--task flags).
 func TestBusReadInfersFromRunInfoCWD(t *testing.T) {
-	t.Setenv("MESSAGE_BUS", "")
+	t.Setenv("JRUN_MESSAGE_BUS", "")
 
 	root := t.TempDir()
 	taskDir := filepath.Join(root, "read-project", "task-20260101-120000-readtest")
@@ -879,9 +879,9 @@ func TestBusReadInfersFromRunInfoCWD(t *testing.T) {
 // TestBusPostInfersFromProjectHomeCWD verifies that bus post resolves the project
 // bus when executed from a project home directory (contains task-ID subdirs).
 func TestBusPostInfersFromProjectHomeCWD(t *testing.T) {
-	t.Setenv("MESSAGE_BUS", "")
-	t.Setenv("RUN_FOLDER", "")
-	t.Setenv("TASK_FOLDER", "")
+	t.Setenv("JRUN_MESSAGE_BUS", "")
+	t.Setenv("JRUN_RUN_FOLDER", "")
+	t.Setenv("JRUN_TASK_FOLDER", "")
 	t.Setenv("JRUN_PROJECT_ID", "")
 	t.Setenv("JRUN_TASK_ID", "")
 	t.Setenv("JRUN_ID", "")

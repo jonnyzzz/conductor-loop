@@ -149,8 +149,8 @@ func buildPrompt(params PromptParams, prompt string) string {
 	var b strings.Builder
 
 	// --- Environment variables ---
-	fmt.Fprintf(&b, "TASK_FOLDER=%s\n", params.TaskDir)
-	fmt.Fprintf(&b, "RUN_FOLDER=%s\n", params.RunDir)
+	fmt.Fprintf(&b, "JRUN_TASK_FOLDER=%s\n", params.TaskDir)
+	fmt.Fprintf(&b, "JRUN_RUN_FOLDER=%s\n", params.RunDir)
 	fmt.Fprintf(&b, "JRUN_PROJECT_ID=%s\n", params.ProjectID)
 	fmt.Fprintf(&b, "JRUN_TASK_ID=%s\n", params.TaskID)
 	fmt.Fprintf(&b, "JRUN_ID=%s\n", params.RunID)
@@ -158,10 +158,10 @@ func buildPrompt(params PromptParams, prompt string) string {
 		fmt.Fprintf(&b, "JRUN_PARENT_ID=%s\n", params.ParentRunID)
 	}
 	if params.MessageBusPath != "" {
-		fmt.Fprintf(&b, "MESSAGE_BUS=%s\n", params.MessageBusPath)
+		fmt.Fprintf(&b, "JRUN_MESSAGE_BUS=%s\n", params.MessageBusPath)
 	}
 	if params.ConductorURL != "" {
-		fmt.Fprintf(&b, "CONDUCTOR_URL=%s\n", params.ConductorURL)
+		fmt.Fprintf(&b, "JRUN_CONDUCTOR_URL=%s\n", params.ConductorURL)
 	}
 	fmt.Fprintf(&b, "Write output.md to %s\n", filepath.Join(params.RunDir, "output.md"))
 
@@ -173,7 +173,7 @@ func buildPrompt(params PromptParams, prompt string) string {
 	b.WriteString("  run-agent bus post --type ERROR --body \"what failed\"\n")
 	b.WriteString("  run-agent bus post --type DECISION --body \"what was decided\"\n")
 	b.WriteString("Types: FACT, PROGRESS, DECISION, ERROR, QUESTION, INFO\n")
-	b.WriteString("The MESSAGE_BUS env var is set; run-agent bus post uses it automatically.\n")
+	b.WriteString("The JRUN_MESSAGE_BUS env var is set; run-agent bus post uses it automatically.\n")
 
 	// --- Sub-agent spawning ---
 	b.WriteString("\n## Sub-Agent Spawning (RLM Pattern)\n")

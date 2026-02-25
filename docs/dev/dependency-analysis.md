@@ -782,7 +782,7 @@ Communication:
 
 Environment:
   JRUN_PROJECT_ID, JRUN_TASK_ID, JRUN_ID, JRUN_PARENT_ID (internal)
-  RUN_FOLDER: provided in prompt preamble (not env var)
+  JRUN_RUN_FOLDER: provided in prompt preamble (not env var)
 ```
 
 **Stability**: STABLE - Clear contracts with fallback mechanisms

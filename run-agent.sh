@@ -4,10 +4,10 @@
 set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
-RUNS_DIR="${RUNS_DIR:-$BASE_DIR/runs}"
-MESSAGE_BUS="${MESSAGE_BUS:-$BASE_DIR/MESSAGE-BUS.md}"
-export RUNS_DIR
-export MESSAGE_BUS
+JRUN_RUNS_DIR="${JRUN_RUNS_DIR:-$BASE_DIR/runs}"
+JRUN_MESSAGE_BUS="${JRUN_MESSAGE_BUS:-$BASE_DIR/MESSAGE-BUS.md}"
+export JRUN_RUNS_DIR
+export JRUN_MESSAGE_BUS
 
 # Allow nested agent invocation from within Claude Code sessions
 unset CLAUDECODE
@@ -24,7 +24,7 @@ if [ ! -f "$PROMPT_FILE" ]; then
 fi
 
 RUN_ID="run_$(date -u +%Y%m%d-%H%M%S)-$$"
-RUN_DIR="$RUNS_DIR/$RUN_ID"
+RUN_DIR="$JRUN_RUNS_DIR/$RUN_ID"
 mkdir -p "$RUN_DIR"
 cp "$BASE_DIR/run-agent.sh" "$RUN_DIR/run-agent.sh"
 

@@ -1,14 +1,14 @@
-# Task: Fix TASK_FOLDER Environment Variable Missing from Agent Processes
+# Task: Fix JRUN_TASK_FOLDER Environment Variable Missing from Agent Processes
 
 ## Context
 
 The conductor-loop project is at /Users/jonnyzzz/Work/conductor-loop.
 
-**Dog-food bug discovered:** When `run-agent job` launches a Claude/Codex/Gemini agent, the prompt preamble includes `TASK_FOLDER=<path>` as TEXT, but `TASK_FOLDER` is NOT set as an actual shell environment variable for the agent process.
+**Dog-food bug discovered:** When `run-agent job` launches a Claude/Codex/Gemini agent, the prompt preamble includes `JRUN_TASK_FOLDER=<path>` as TEXT, but `JRUN_TASK_FOLDER` is NOT set as an actual shell environment variable for the agent process.
 
-This means when agents try to run `touch "$TASK_FOLDER/DONE"`, the `$TASK_FOLDER` shell variable is unset, so the DONE file is created in the current working directory (cwd) instead of the correct task directory. During session #15, this created a stray DONE file at `/Users/jonnyzzz/Work/conductor-loop/DONE`.
+This means when agents try to run `touch "$JRUN_TASK_FOLDER/DONE"`, the `$JRUN_TASK_FOLDER` shell variable is unset, so the DONE file is created in the current working directory (cwd) instead of the correct task directory. During session #15, this created a stray DONE file at `/Users/jonnyzzz/Work/conductor-loop/DONE`.
 
-**Note:** For `run-agent job` specifically, DONE files are not required for job completion (the job completes when the agent process exits). But having TASK_FOLDER set as an env var is still valuable for agents that use it in shell operations.
+**Note:** For `run-agent job` specifically, DONE files are not required for job completion (the job completes when the agent process exits). But having JRUN_TASK_FOLDER set as an env var is still valuable for agents that use it in shell operations.
 
 ## Root Cause
 
@@ -19,23 +19,23 @@ envOverrides := map[string]string{
     "JRUN_TASK_ID":    taskID,
     "JRUN_ID":         runID,
     "JRUN_PARENT_ID":  parentRunID,
-    "RUNS_DIR":        runsDir,
-    "MESSAGE_BUS":     busPath,
+    "JRUN_RUNS_DIR":        runsDir,
+    "JRUN_MESSAGE_BUS":     busPath,
 }
 ```
 
-`TASK_FOLDER` and `RUN_FOLDER` are NOT in this map, even though they're mentioned in the prompt preamble.
+`JRUN_TASK_FOLDER` and `JRUN_RUN_FOLDER` are NOT in this map, even though they're mentioned in the prompt preamble.
 
 Looking at the prompt preamble in `/Users/jonnyzzz/Work/conductor-loop/internal/runner/orchestrator.go`:
 ```go
-fmt.Fprintf(&b, "TASK_FOLDER=%s\n", params.TaskDir)
-fmt.Fprintf(&b, "RUN_FOLDER=%s\n", params.RunDir)
+fmt.Fprintf(&b, "JRUN_TASK_FOLDER=%s\n", params.TaskDir)
+fmt.Fprintf(&b, "JRUN_RUN_FOLDER=%s\n", params.RunDir)
 ```
 These are written as text in the prompt but not set as env vars.
 
 ## What to Implement
 
-In `internal/runner/job.go`, add `TASK_FOLDER` and `RUN_FOLDER` to the `envOverrides` map:
+In `internal/runner/job.go`, add `JRUN_TASK_FOLDER` and `JRUN_RUN_FOLDER` to the `envOverrides` map:
 
 ```go
 envOverrides := map[string]string{
@@ -43,10 +43,10 @@ envOverrides := map[string]string{
     "JRUN_TASK_ID":    taskID,
     "JRUN_ID":         runID,
     "JRUN_PARENT_ID":  parentRunID,
-    "RUNS_DIR":        runsDir,
-    "MESSAGE_BUS":     busPath,
-    "TASK_FOLDER":     taskDir,   // ADD THIS
-    "RUN_FOLDER":      runDir,    // ADD THIS
+    "JRUN_RUNS_DIR":        runsDir,
+    "JRUN_MESSAGE_BUS":     busPath,
+    "JRUN_TASK_FOLDER":     taskDir,   // ADD THIS
+    "JRUN_RUN_FOLDER":      runDir,    // ADD THIS
 }
 ```
 
@@ -57,8 +57,8 @@ Check the code flow carefully in `runJob()` to understand which variables are av
 ## Also Add Tests
 
 Add a test in `internal/runner/env_contract_test.go` to verify:
-- `TASK_FOLDER` env var is set to the task directory in the spawned agent process
-- `RUN_FOLDER` env var is set to the run directory
+- `JRUN_TASK_FOLDER` env var is set to the task directory in the spawned agent process
+- `JRUN_RUN_FOLDER` env var is set to the run directory
 
 The existing tests in `env_contract_test.go` show the pattern for testing env var injection.
 
@@ -86,24 +86,24 @@ go test -race ./internal/runner/
 
 ## Files to Change
 
-- `/Users/jonnyzzz/Work/conductor-loop/internal/runner/job.go` — add TASK_FOLDER and RUN_FOLDER to envOverrides
+- `/Users/jonnyzzz/Work/conductor-loop/internal/runner/job.go` — add JRUN_TASK_FOLDER and JRUN_RUN_FOLDER to envOverrides
 - `/Users/jonnyzzz/Work/conductor-loop/internal/runner/env_contract_test.go` — add tests
 
 ## Commit Format
 
 ```
-fix(runner): inject TASK_FOLDER and RUN_FOLDER as environment variables
+fix(runner): inject JRUN_TASK_FOLDER and JRUN_RUN_FOLDER as environment variables
 
 Previously these were only in the prompt preamble text but not
 set as env vars for agent subprocesses. This caused agents using
-`touch "$TASK_FOLDER/DONE"` to create DONE files in the cwd instead
+`touch "$JRUN_TASK_FOLDER/DONE"` to create DONE files in the cwd instead
 of the correct task directory.
 ```
 
 ## Signal Completion
 
-When done, create the DONE file at the TASK_FOLDER env var location:
+When done, create the DONE file at the JRUN_TASK_FOLDER env var location:
 ```bash
-# $TASK_FOLDER should now be set correctly after this fix!
-touch "$TASK_FOLDER/DONE"
+# $JRUN_TASK_FOLDER should now be set correctly after this fix!
+touch "$JRUN_TASK_FOLDER/DONE"
 ```

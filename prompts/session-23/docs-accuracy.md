@@ -62,6 +62,6 @@ After making changes:
 
 ## When Done
 
-Create a `DONE` file in your task directory (`$TASK_FOLDER/DONE`) to signal completion.
+Create a `DONE` file in your task directory (`$JRUN_TASK_FOLDER/DONE`) to signal completion.
 
-Write a summary of all changes made to `$RUN_FOLDER/output.md`.
+Write a summary of all changes made to `$JRUN_RUN_FOLDER/output.md`.

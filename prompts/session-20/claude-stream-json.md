@@ -182,7 +182,7 @@ Resolves TODO from docs/specifications/subsystem-agent-backend-claude-QUESTIONS.
 
 ## Done Signal
 
-Create a `DONE` file in the task directory (path is in TASK_FOLDER env var):
+Create a `DONE` file in the task directory (path is in JRUN_TASK_FOLDER env var):
 ```bash
-touch "$TASK_FOLDER/DONE"
+touch "$JRUN_TASK_FOLDER/DONE"
 ```

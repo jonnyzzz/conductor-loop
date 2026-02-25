@@ -54,7 +54,7 @@ run-agent task delete --project <p> --task <t> [--root <dir>] [--force]
 ```
 
 - `--project` and `--task` are required
-- `--root` defaults to `./runs` or `$RUNS_DIR`
+- `--root` defaults to `./runs` or `$JRUN_RUNS_DIR`
 - Default behavior: refuse to delete if any run is currently running (show error)
 - `--force` flag: skip the running check and delete anyway
 
@@ -118,4 +118,4 @@ Follow AGENTS.md commit format.
 - Run status is in: `<runDir>/run-info.yaml` (field: `status`)
 - Never delete a running task without --force
 - Use `os.RemoveAll` for directory deletion
-- The root dir can be found from `--root` flag or `RUNS_DIR` env var
+- The root dir can be found from `--root` flag or `JRUN_RUNS_DIR` env var

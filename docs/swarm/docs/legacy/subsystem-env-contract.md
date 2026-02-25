@@ -29,7 +29,7 @@ These are set by run-agent for internal bookkeeping. Agents must not reference t
 
 ## Prompt/Context Injection (Agent-Visible)
 - run-agent prepends the prompt with absolute paths for the task folder and run folder.
-- The run folder is provided as a prompt label (e.g., `RUN_FOLDER=/path/to/run`), not as an environment variable.
+- The run folder is provided as a prompt label (e.g., `JRUN_RUN_FOLDER=/path/to/run`), not as an environment variable.
 - Paths are normalized using OS-native conventions (Go filepath.Clean).
 - Root agents rely on CWD (task folder) and prompt preamble; sub-agents rely on the prompt preamble.
 - The prompt preamble includes explicit instructions to write final output to `output.md` in the run folder.

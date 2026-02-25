@@ -172,7 +172,7 @@ Runner treats `perplexity` and `xai` as REST agents and `claude`/`codex`/`gemini
 xAI backend is implemented and integrated in execution flow (`internal/agent/xai` + `executeREST`), so it is no longer only a deferred idea.
 
 [2026-02-23 18:23:00] [tags: architecture, env, agent]
-Runner injects `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `RUNS_DIR`, `MESSAGE_BUS`, `TASK_FOLDER`, `RUN_FOLDER`, and optional `CONDUCTOR_URL` into job environments.
+Runner injects `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `JRUN_RUNS_DIR`, `JRUN_MESSAGE_BUS`, `JRUN_TASK_FOLDER`, `JRUN_RUN_FOLDER`, and optional `JRUN_CONDUCTOR_URL` into job environments.
 
 [2026-02-23 18:23:00] [tags: architecture, runner, dependencies]
 Task dependency orchestration exists (`depends_on`), with blocking wait loop and progress/fact messages posted while dependencies remain incomplete.

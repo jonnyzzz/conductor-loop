@@ -183,13 +183,13 @@ func TestEnvContractRunsDirAndMessageBus(t *testing.T) {
 	envVars := parseEnvOutput(string(stdout))
 
 	expectedRunsDir := filepath.Join(root, "project", "task", "runs")
-	if got := envVars["RUNS_DIR"]; got != expectedRunsDir {
-		t.Errorf("expected RUNS_DIR=%q, got %q", expectedRunsDir, got)
+	if got := envVars["JRUN_RUNS_DIR"]; got != expectedRunsDir {
+		t.Errorf("expected JRUN_RUNS_DIR=%q, got %q", expectedRunsDir, got)
 	}
 
 	expectedBusPath := filepath.Join(root, "project", "task", "TASK-MESSAGE-BUS.md")
-	if got := envVars["MESSAGE_BUS"]; got != expectedBusPath {
-		t.Errorf("expected MESSAGE_BUS=%q, got %q", expectedBusPath, got)
+	if got := envVars["JRUN_MESSAGE_BUS"]; got != expectedBusPath {
+		t.Errorf("expected JRUN_MESSAGE_BUS=%q, got %q", expectedBusPath, got)
 	}
 }
 
@@ -257,13 +257,13 @@ func TestEnvContractTaskFolderAndRunFolder(t *testing.T) {
 	envVars := parseEnvOutput(string(stdout))
 
 	expectedTaskFolder := filepath.Join(root, "my-project", "my-task")
-	if got := envVars["TASK_FOLDER"]; got != expectedTaskFolder {
-		t.Errorf("expected TASK_FOLDER=%q, got %q", expectedTaskFolder, got)
+	if got := envVars["JRUN_TASK_FOLDER"]; got != expectedTaskFolder {
+		t.Errorf("expected JRUN_TASK_FOLDER=%q, got %q", expectedTaskFolder, got)
 	}
 
 	expectedRunFolder := filepath.Join(root, "my-project", "my-task", "runs", info.RunID)
-	if got := envVars["RUN_FOLDER"]; got != expectedRunFolder {
-		t.Errorf("expected RUN_FOLDER=%q, got %q", expectedRunFolder, got)
+	if got := envVars["JRUN_RUN_FOLDER"]; got != expectedRunFolder {
+		t.Errorf("expected JRUN_RUN_FOLDER=%q, got %q", expectedRunFolder, got)
 	}
 }
 

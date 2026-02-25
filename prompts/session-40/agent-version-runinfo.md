@@ -51,11 +51,11 @@ internal/storage/runinfo.go needs an `AgentVersion` field.
 
 ## Output
 
-Write your findings and implementation summary to output.md in your RUN_FOLDER.
-Create DONE file in your TASK_FOLDER when complete.
+Write your findings and implementation summary to output.md in your JRUN_RUN_FOLDER.
+Create DONE file in your JRUN_TASK_FOLDER when complete.
 
 ## CRITICAL: Task Folder Environment Variables
 
-Your TASK_FOLDER and RUN_FOLDER are provided as environment variables. Use them:
-- Write output to: $RUN_FOLDER/output.md
-- Create DONE file at: $TASK_FOLDER/DONE
+Your JRUN_TASK_FOLDER and JRUN_RUN_FOLDER are provided as environment variables. Use them:
+- Write output to: $JRUN_RUN_FOLDER/output.md
+- Create DONE file at: $JRUN_TASK_FOLDER/DONE

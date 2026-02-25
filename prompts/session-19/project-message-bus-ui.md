@@ -64,5 +64,5 @@ Add CSS for `.proj-messages`: max-height: 200px; overflow-y: auto; font-size: 0.
 
 ## Completion
 
-When done, write a DONE file to the TASK_FOLDER directory.
+When done, write a DONE file to the JRUN_TASK_FOLDER directory.
 Commit all changes with message: `feat(ui): add project-level message bus panel`

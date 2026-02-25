@@ -48,7 +48,7 @@ grep -rn "xai\|XAI\|grok" docs/ | grep -v "facts\|swarm" | head -15
 
 # Check 8: JRUN_ env vars
 echo "=== JRUN env vars ==="
-grep -rn "JRUN_\|MESSAGE_BUS\|RUNS_DIR" docs/ | grep -v "facts\|swarm" | head -20
+grep -rn "JRUN_\|JRUN_MESSAGE_BUS\|JRUN_RUNS_DIR" docs/ | grep -v "facts\|swarm" | head -20
 
 # Check 9: Security fixes
 echo "=== Security review ab5ea6e ==="

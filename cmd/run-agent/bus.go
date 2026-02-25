@@ -225,8 +225,8 @@ func firstNonEmpty(values ...string) string {
 }
 
 func resolveBusPostPath(root, projectID, taskID string) (string, error) {
-	// 1. MESSAGE_BUS env var (set by runners for child agents — takes priority).
-	path := strings.TrimSpace(os.Getenv("MESSAGE_BUS"))
+	// 1. JRUN_MESSAGE_BUS env var (set by runners for child agents — takes priority).
+	path := strings.TrimSpace(os.Getenv("JRUN_MESSAGE_BUS"))
 	if path == "" && strings.TrimSpace(projectID) != "" {
 		// 2. --project (+ optional --task) hierarchy resolution.
 		resolved, err := resolveBusFilePath(root, projectID, taskID)
@@ -271,8 +271,8 @@ func resolveBusPostMessageContext(projectID, taskID, runID, busPath string) (res
 	resolvedRunID = strings.TrimSpace(runID)
 
 	busProjectID, busTaskID := inferMessageScopeFromBusPath(busPath)
-	runProjectID, runTaskID, runRunID := inferMessageScopeFromRunFolder(os.Getenv("RUN_FOLDER"))
-	taskProjectID, taskTaskID := inferMessageScopeFromTaskFolder(os.Getenv("TASK_FOLDER"))
+	runProjectID, runTaskID, runRunID := inferMessageScopeFromRunFolder(os.Getenv("JRUN_RUN_FOLDER"))
+	taskProjectID, taskTaskID := inferMessageScopeFromTaskFolder(os.Getenv("JRUN_TASK_FOLDER"))
 	cwdProjectID, cwdTaskID, cwdRunID, _ := inferScopeFromCWDRunInfo()
 
 	if resolvedProjectID == "" {
@@ -320,7 +320,7 @@ func newBusPostCmd() *cobra.Command {
 		Long: `Post a message to the message bus.
 
 The bus file path is resolved in this order:
-  1. MESSAGE_BUS environment variable (set by runners for child agents)
+  1. JRUN_MESSAGE_BUS environment variable (set by runners for child agents)
   2. --project (+ optional --task) auto-resolve from project/task hierarchy
   3. CWD run-info.yaml: infer project/task when inside an agent run directory
   4. CWD project home: infer project when CWD contains task-ID-formatted subdirs
@@ -333,7 +333,7 @@ When --project is specified, the path is auto-resolved:
 
 Message project/task/run values are resolved in this order:
   1. Explicit flags (--project/--task/--run)
-  2. Context inference (resolved bus path, RUN_FOLDER, TASK_FOLDER, CWD run-info.yaml)
+  2. Context inference (resolved bus path, JRUN_RUN_FOLDER, JRUN_TASK_FOLDER, CWD run-info.yaml)
   3. JRUN_PROJECT_ID/JRUN_TASK_ID/JRUN_ID environment variables
   4. Error (project_id required)
 
@@ -405,7 +405,7 @@ func newBusReadCmd() *cobra.Command {
 
 The bus file path is resolved in this order:
   1. --project (+ optional --task) auto-resolve from project/task hierarchy
-  2. MESSAGE_BUS environment variable
+  2. JRUN_MESSAGE_BUS environment variable
   3. CWD run-info.yaml: infer project/task when inside an agent run directory
   4. CWD project home: infer project when CWD contains task-ID-formatted subdirs
   5. Auto-discover nearest bus file by walking upward from current directory
@@ -417,7 +417,7 @@ When --project is specified, the path is auto-resolved:
 
 Use "run-agent bus discover" to preview auto-discovery from your current directory.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Resolve bus path: --project/--task > MESSAGE_BUS env > CWD run-info > CWD project > auto-discover
+			// Resolve bus path: --project/--task > JRUN_MESSAGE_BUS env > CWD run-info > CWD project > auto-discover
 			var busPath string
 			if projectID != "" {
 				resolved, resolveErr := resolveBusFilePath(root, projectID, taskID)
@@ -427,7 +427,7 @@ Use "run-agent bus discover" to preview auto-discovery from your current directo
 				busPath = resolved
 			}
 			if busPath == "" {
-				busPath = os.Getenv("MESSAGE_BUS")
+				busPath = os.Getenv("JRUN_MESSAGE_BUS")
 			}
 			if busPath == "" {
 				// CWD run-info.yaml inference: running inside an agent run directory.

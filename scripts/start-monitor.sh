@@ -28,7 +28,7 @@ Environment overrides:
   RUN_AGENT_BIN
   RUN_AGENT_CONFIG
   RUN_AGENT_ROOT
-  RUNS_DIR
+  JRUN_RUNS_DIR
   RUN_AGENT_HOST
   RUN_AGENT_PORT
   RUN_AGENT_API_KEY
@@ -166,7 +166,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
 config_path="${RUN_AGENT_CONFIG:-${CONDUCTOR_CONFIG:-}}"
-root_dir="${RUN_AGENT_ROOT:-${CONDUCTOR_ROOT:-${RUNS_DIR:-$repo_root/runs}}}"
+root_dir="${RUN_AGENT_ROOT:-${CONDUCTOR_ROOT:-${JRUN_RUNS_DIR:-$repo_root/runs}}}"
 host="${RUN_AGENT_HOST:-${CONDUCTOR_HOST:-0.0.0.0}}"
 port="${RUN_AGENT_PORT:-${CONDUCTOR_PORT:-14355}}"
 api_key="${RUN_AGENT_API_KEY:-${CONDUCTOR_API_KEY:-}}"

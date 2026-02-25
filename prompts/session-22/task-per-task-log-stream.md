@@ -103,7 +103,7 @@ Before finishing:
 
 ## Completion
 
-Create a `DONE` file in `$TASK_FOLDER` when complete. Also write a brief summary to `$RUN_FOLDER/output.md`.
+Create a `DONE` file in `$JRUN_TASK_FOLDER` when complete. Also write a brief summary to `$JRUN_RUN_FOLDER/output.md`.
 
 Commit your changes with:
 ```

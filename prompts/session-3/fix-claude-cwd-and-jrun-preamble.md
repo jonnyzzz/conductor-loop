@@ -32,7 +32,7 @@ Per human answer (Q6/QUESTIONS.md): "the runner should set the JRUN_* variables 
 
 The DECISION says: Add JRUN_* values to the prompt preamble for visibility.
 
-Currently `buildPrompt()` in `/Users/jonnyzzz/Work/conductor-loop/internal/runner/orchestrator.go` (around line 130) only includes `TASK_FOLDER` and `RUN_FOLDER` in the preamble.
+Currently `buildPrompt()` in `/Users/jonnyzzz/Work/conductor-loop/internal/runner/orchestrator.go` (around line 130) only includes `JRUN_TASK_FOLDER` and `JRUN_RUN_FOLDER` in the preamble.
 
 **Fix**:
 1. Update `buildPrompt` to accept additional parameters for JRUN values (projectID, taskID, runID, parentRunID)

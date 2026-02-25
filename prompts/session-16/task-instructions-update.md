@@ -38,7 +38,7 @@ Read these files:
 Update the file to accurately reflect:
 1. All `run-agent` subcommands with their flags (task, job, serve, bus post, bus read, gc, validate)
 2. All `conductor` subcommands with their flags (job submit, job list, task status)
-3. Environment variables used by agents (TASK_FOLDER, RUN_FOLDER, MESSAGE_BUS, JRUN_* variables)
+3. Environment variables used by agents (JRUN_TASK_FOLDER, JRUN_RUN_FOLDER, JRUN_MESSAGE_BUS, JRUN_* variables)
 4. Task ID format: `task-<YYYYMMDD>-<HHMMSS>-<slug>` (not old formats)
 5. Config file formats supported: YAML (.yaml/.yml) and HCL (.hcl)
 6. Default config search paths: ./config.yaml, ./config.yml, ~/.config/conductor/config.yaml

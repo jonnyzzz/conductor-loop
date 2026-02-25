@@ -106,7 +106,7 @@ When in doubt, prioritizing **Code > This File > Other FACTS files**.
       runs_dir = "~/my-custom-runs"
     }
     ```
-*   **No environment variable override:** `RUNS_DIR` env var has been removed from all subcommands. There is no other supported way to change the runs directory outside the config file.
+*   **No environment variable override:** `JRUN_RUNS_DIR` env var has been removed from all subcommands. There is no other supported way to change the runs directory outside the config file.
 *   **`--root` flag:** retained on CLI commands as an explicit override for tests and development only; not intended for production use.
 *   **Shared logic:** All commands (`list`, `status`, `watch`, `gc`, `output`, `bus`, `facts`, `task`, `job`, monitor, etc.) call `config.ResolveRunsDir(explicit)` — the same function — to resolve the path.
 *   **Config error = hard fail:** if the config file exists but is malformed, all commands fail immediately with an error. No silent fallback to a wrong directory.

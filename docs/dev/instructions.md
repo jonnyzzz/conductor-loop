@@ -285,7 +285,7 @@ All flags:
 
 ## Message Bus Commands
 
-The `run-agent` binary exposes `bus post` and `bus read` subcommands. The `--bus` flag is optional when the `MESSAGE_BUS` environment variable is set (which `run-agent job` injects automatically into sub-agent environments).
+The `run-agent` binary exposes `bus post` and `bus read` subcommands. The `--bus` flag is optional when the `JRUN_MESSAGE_BUS` environment variable is set (which `run-agent job` injects automatically into sub-agent environments).
 
 ### Post Message
 ```bash
@@ -295,7 +295,7 @@ bin/run-agent bus post \
   --type INFO \
   --body "Tests passed: 42/42"
 
-# Using $MESSAGE_BUS env var (set automatically by run-agent job)
+# Using $JRUN_MESSAGE_BUS env var (set automatically by run-agent job)
 bin/run-agent bus post --type INFO --body "Tests passed: 42/42"
 
 # From stdin
@@ -307,7 +307,7 @@ echo "Tests passed" | bin/run-agent bus post --type INFO
 # With explicit --bus flag
 bin/run-agent bus read --bus /path/to/TASK-MESSAGE-BUS.md --tail 20
 
-# Using $MESSAGE_BUS env var
+# Using $JRUN_MESSAGE_BUS env var
 bin/run-agent bus read --tail 20
 
 # Follow mode (watch for new messages)
@@ -336,7 +336,7 @@ bin/run-agent bus read --follow
 
 All flags:
 ```
---root string             root directory (default: ./runs or RUNS_DIR env)
+--root string             root directory (default: ./runs or JRUN_RUNS_DIR env)
 --older-than duration     delete runs older than this (default 168h = 7 days)
 --dry-run                 print what would be deleted without deleting
 --project string          limit gc to a specific project (optional)
@@ -365,7 +365,7 @@ All flags:
 
 All flags:
 ```
---root string       root directory (default: ./runs or RUNS_DIR env)
+--root string       root directory (default: ./runs or JRUN_RUNS_DIR env)
 --project string    project ID
 --task string       task ID
 --run string        run ID (uses most recent if omitted)
@@ -523,16 +523,16 @@ These variables are set automatically when `run-agent task` or `run-agent job` l
 
 | Variable          | Description                                      |
 |-------------------|--------------------------------------------------|
-| `TASK_FOLDER`     | Absolute path to the task directory              |
-| `RUN_FOLDER`      | Absolute path to the current run directory       |
+| `JRUN_TASK_FOLDER`     | Absolute path to the task directory              |
+| `JRUN_RUN_FOLDER`      | Absolute path to the current run directory       |
 | `JRUN_PROJECT_ID` | Project ID                                       |
 | `JRUN_TASK_ID`    | Task ID                                          |
 | `JRUN_ID`         | Run ID                                           |
 | `JRUN_PARENT_ID`  | Parent run ID (only set when spawned by another run) |
-| `RUNS_DIR`        | Root runs directory                              |
-| `MESSAGE_BUS`     | Absolute path to the task message bus file       |
+| `JRUN_RUNS_DIR`        | Root runs directory                              |
+| `JRUN_MESSAGE_BUS`     | Absolute path to the task message bus file       |
 
-Agents can use `MESSAGE_BUS` directly with `run-agent bus` without specifying `--bus`:
+Agents can use `JRUN_MESSAGE_BUS` directly with `run-agent bus` without specifying `--bus`:
 ```bash
 run-agent bus post --type FACT --body "Tests passed: 42/42"
 run-agent bus read --tail 20

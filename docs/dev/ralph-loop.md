@@ -239,7 +239,7 @@ Example: `/path/to/run-agent/my-project/task-001/DONE`
 echo "Implementing feature..."
 
 # Signal completion
-echo "Task completed successfully" > $TASK_FOLDER/DONE
+echo "Task completed successfully" > $JRUN_TASK_FOLDER/DONE
 exit 0
 ```
 
@@ -535,7 +535,7 @@ messagebus.AppendMessage(&Message{
 
 **Option 3: File Marker**
 ```bash
-touch $TASK_FOLDER/WAIT_WITHOUT_RESTART
+touch $JRUN_TASK_FOLDER/WAIT_WITHOUT_RESTART
 ```
 
 ### Ralph Loop Behavior
@@ -741,7 +741,7 @@ WithMaxRestarts(1000)  // Too many, wastes resources
 ```bash
 # Inside agent
 if task_complete; then
-    echo "Complete" > $TASK_FOLDER/DONE
+    echo "Complete" > $JRUN_TASK_FOLDER/DONE
     exit 0
 fi
 ```

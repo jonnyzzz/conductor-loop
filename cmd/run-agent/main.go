@@ -198,10 +198,10 @@ func newJobCmd() *cobra.Command {
 			// environment and the current working directory. No CLI flags are
 			// accepted for these — they must come from context.
 			//
-			// Priority: runner env (TASK_FOLDER / RUN_FOLDER / JRUN_*) → CWD
+			// Priority: runner env (JRUN_TASK_FOLDER / JRUN_RUN_FOLDER / JRUN_*) → CWD
 			// run-info.yaml (walk upward) → CWD project dir (contains task subdirs).
-			taskFolderProject, taskFolderTask := inferMessageScopeFromTaskFolder(os.Getenv("TASK_FOLDER"))
-			runFolderProject, runFolderTask, _ := inferMessageScopeFromRunFolder(os.Getenv("RUN_FOLDER"))
+			taskFolderProject, taskFolderTask := inferMessageScopeFromTaskFolder(os.Getenv("JRUN_TASK_FOLDER"))
+			runFolderProject, runFolderTask, _ := inferMessageScopeFromRunFolder(os.Getenv("JRUN_RUN_FOLDER"))
 			cwdProject, cwdTask, cwdRunID, cwdRoot := inferScopeFromCWDRunInfo()
 
 			projectID := firstNonEmpty(
@@ -218,9 +218,9 @@ func newJobCmd() *cobra.Command {
 				cwdTask,
 			)
 
-			// Root: derive from TASK_FOLDER first, then CWD inference, then --root flag.
+			// Root: derive from JRUN_TASK_FOLDER first, then CWD inference, then --root flag.
 			if strings.TrimSpace(opts.RootDir) == "" {
-				if envFolder := strings.TrimSpace(os.Getenv("TASK_FOLDER")); envFolder != "" {
+				if envFolder := strings.TrimSpace(os.Getenv("JRUN_TASK_FOLDER")); envFolder != "" {
 					opts.RootDir = filepath.Dir(filepath.Dir(envFolder))
 				} else if cwdRoot != "" {
 					opts.RootDir = cwdRoot

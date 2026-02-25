@@ -45,7 +45,7 @@ cat internal/storage/run_info.go 2>/dev/null || grep -rn "RunInfo\|run-info" int
 cat internal/config/config.go | head -60
 
 # Verify environment variables injected
-grep -rn "JRUN_\|RUN_FOLDER\|RUNS_DIR\|MESSAGE_BUS" internal/ --include="*.go" | grep -v test | head -30
+grep -rn "JRUN_\|JRUN_RUN_FOLDER\|JRUN_RUNS_DIR\|JRUN_MESSAGE_BUS" internal/ --include="*.go" | grep -v test | head -30
 
 # Check git log for all spec files
 git log --format="%H %ad %s" --date=format:"%Y-%m-%d %H:%M:%S" -- docs/specifications/subsystem-runner-orchestration.md docs/specifications/subsystem-storage-layout.md docs/specifications/subsystem-env-contract.md | head -20

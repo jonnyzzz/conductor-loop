@@ -91,7 +91,7 @@ type RunResponse struct {
 - Don't change anything that's already correct
 - Don't add new features or speculative documentation
 - Keep the same documentation style as existing content
-- Write output.md to $RUN_FOLDER/output.md with a summary of changes made
+- Write output.md to $JRUN_RUN_FOLDER/output.md with a summary of changes made
 
 ## Important Files
 

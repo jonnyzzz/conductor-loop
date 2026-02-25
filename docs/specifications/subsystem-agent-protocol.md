@@ -25,14 +25,14 @@ For each run, the runner allocates a run directory and manages:
 
 ### Prompt Preamble Injection
 Before agent execution, the runner prepends context, including:
-- `TASK_FOLDER=<abs path>`
-- `RUN_FOLDER=<abs path>`
+- `JRUN_TASK_FOLDER=<abs path>`
+- `JRUN_RUN_FOLDER=<abs path>`
 - `JRUN_PROJECT_ID=<project>`
 - `JRUN_TASK_ID=<task>`
 - `JRUN_ID=<run>`
 - `JRUN_PARENT_ID=<parent run>` when present
-- `MESSAGE_BUS=<abs task bus path>`
-- `CONDUCTOR_URL=<url>` when available
+- `JRUN_MESSAGE_BUS=<abs task bus path>`
+- `JRUN_CONDUCTOR_URL=<url>` when available
 - `Write output.md to <run dir>/output.md`
 
 It also injects message-bus usage instructions and DONE-file completion instructions.
@@ -43,11 +43,11 @@ The runner sets process env vars (not prompt-only):
 - `JRUN_TASK_ID`
 - `JRUN_ID`
 - `JRUN_PARENT_ID` (when set)
-- `RUNS_DIR`
-- `MESSAGE_BUS`
-- `TASK_FOLDER`
-- `RUN_FOLDER`
-- `CONDUCTOR_URL` (when known)
+- `JRUN_RUNS_DIR`
+- `JRUN_MESSAGE_BUS`
+- `JRUN_TASK_FOLDER`
+- `JRUN_RUN_FOLDER`
+- `JRUN_CONDUCTOR_URL` (when known)
 
 Agent-token mappings:
 - `codex` -> `OPENAI_API_KEY`

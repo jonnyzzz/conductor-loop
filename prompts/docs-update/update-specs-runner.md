@@ -36,7 +36,7 @@ grep -rn "RunInfo\|runinfo" internal/ --include="*.go" | grep "struct\|yaml:" | 
 cat internal/runner/runinfo.go 2>/dev/null
 
 # Env vars injected into agents
-grep -rn "RUNS_DIR\|MESSAGE_BUS\|JRUN_\|RUN_ID\|os.Setenv\|Setenv" internal/runner/ --include="*.go" | head -30
+grep -rn "JRUN_RUNS_DIR\|JRUN_MESSAGE_BUS\|JRUN_\|RUN_ID\|os.Setenv\|Setenv" internal/runner/ --include="*.go" | head -30
 
 # Storage layout: actual paths
 grep -rn "runs\|\.conductor\|XDG\|home\|config" internal/storage/ --include="*.go" | head -20

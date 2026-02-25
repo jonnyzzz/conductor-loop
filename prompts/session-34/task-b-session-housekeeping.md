@@ -99,6 +99,6 @@ updating a comment or adding a trailing note to MESSAGE-BUS.md to confirm the ra
 ## DONE File
 
 When all quality gates pass, create the file:
-`$TASK_FOLDER/DONE`
+`$JRUN_TASK_FOLDER/DONE`
 
-(The TASK_FOLDER environment variable is set to your task directory automatically.)
+(The JRUN_TASK_FOLDER environment variable is set to your task directory automatically.)

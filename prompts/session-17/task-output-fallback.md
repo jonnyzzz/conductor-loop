@@ -97,4 +97,4 @@ Before creating DONE file:
 
 Write a summary to output.md describing what you implemented, what files you changed, and the test results.
 
-After quality gates pass, create a DONE file in $TASK_FOLDER to signal completion.
+After quality gates pass, create a DONE file in $JRUN_TASK_FOLDER to signal completion.

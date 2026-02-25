@@ -33,7 +33,7 @@ For each attempt, the runner performs run setup and agent execution:
 - Spawns the agent process/backend.
 - Injects run context environment:
   - `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`
-  - `MESSAGE_BUS`, `TASK_FOLDER`, `RUN_FOLDER`, `RUNS_DIR`
+  - `JRUN_MESSAGE_BUS`, `JRUN_TASK_FOLDER`, `JRUN_RUN_FOLDER`, `JRUN_RUNS_DIR`
 
 During and after execution:
 - `run-info.yaml` is updated with final status/outcome (`completed` or `failed`).
@@ -89,7 +89,7 @@ Submitter            Runner (RunTask/Ralph)       Storage                Agent  
 5.  |                         | create run dir ----> | runs/<run_id>/        |                    |                        |
 6.  |                         | write run-info ----> | run-info.yaml(running)|                    |                        |
 7.  |                         | spawn + env --------------------------------> |                    |                        |
-8.  |                         |                     (JRUN_*, TASK_FOLDER, RUN_FOLDER, MESSAGE_BUS)                    |
+8.  |                         |                     (JRUN_*, JRUN_TASK_FOLDER, JRUN_RUN_FOLDER, JRUN_MESSAGE_BUS)                    |
 9.  |                         | post RUN_START -------------------------------------------------> |                        |
 10. |                         | <------------------- execution/output --------|                    |                        |
 11. |                         | update run-info ---> | run-info.yaml(final)  |                    |                        |

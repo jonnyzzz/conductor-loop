@@ -174,4 +174,4 @@ Rotation is atomic within the write lock. Closes ISSUE-016.
 
 ## When Done
 
-Create `DONE` file: `touch $TASK_FOLDER/DONE`
+Create `DONE` file: `touch $JRUN_TASK_FOLDER/DONE`

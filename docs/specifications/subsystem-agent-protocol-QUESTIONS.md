@@ -23,7 +23,7 @@ Evidence: current runner/task execution has no enforced max-depth guard; depth r
 
 5. Are JRUN/TASK/RUN variables real env vars or prompt-only hints?
 Answer: real env vars (and also shown in prompt preamble).
-Evidence: runner sets `JRUN_*`, `MESSAGE_BUS`, `TASK_FOLDER`, `RUN_FOLDER`, `RUNS_DIR`, optional `CONDUCTOR_URL` in process environment.
+Evidence: runner sets `JRUN_*`, `JRUN_MESSAGE_BUS`, `JRUN_TASK_FOLDER`, `JRUN_RUN_FOLDER`, `JRUN_RUNS_DIR`, optional `JRUN_CONDUCTOR_URL` in process environment.
 
 6. Are lifecycle bus events standardized as `RUN_START`/`RUN_STOP`/`RUN_CRASH`?
 Answer: yes.

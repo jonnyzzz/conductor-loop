@@ -120,8 +120,8 @@ func TestBuildPrompt(t *testing.T) {
 			},
 			prompt: "do something",
 			wantContain: []string{
-				"TASK_FOLDER=/task",
-				"RUN_FOLDER=/run",
+				"JRUN_TASK_FOLDER=/task",
+				"JRUN_RUN_FOLDER=/run",
 				"JRUN_PROJECT_ID=proj-1",
 				"JRUN_TASK_ID=task-1",
 				"JRUN_ID=run-1",
@@ -159,7 +159,7 @@ func TestBuildPrompt(t *testing.T) {
 			},
 			prompt: "",
 			wantContain: []string{
-				"TASK_FOLDER=/task",
+				"JRUN_TASK_FOLDER=/task",
 				"JRUN_ID=run-1",
 			},
 		},

@@ -111,7 +111,7 @@ OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=...
 
 # Storage
-RUNS_DIR=/data/runs
+JRUN_RUNS_DIR=/data/runs
 SECRETS_DIR=/secrets
 
 # Networking

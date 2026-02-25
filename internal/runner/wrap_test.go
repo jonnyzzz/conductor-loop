@@ -101,10 +101,10 @@ func TestRunWrapSuccess(t *testing.T) {
 		t.Fatalf("JRUN_ID=%q, want %q", parts[2], info.RunID)
 	}
 	if parts[3] != filepath.Join(root, projectID, taskID) {
-		t.Fatalf("TASK_FOLDER=%q", parts[3])
+		t.Fatalf("JRUN_TASK_FOLDER=%q", parts[3])
 	}
 	if parts[4] != runDir {
-		t.Fatalf("RUN_FOLDER=%q, want %q", parts[4], runDir)
+		t.Fatalf("JRUN_RUN_FOLDER=%q, want %q", parts[4], runDir)
 	}
 
 	busPath := filepath.Join(root, projectID, taskID, "TASK-MESSAGE-BUS.md")
@@ -262,7 +262,7 @@ if [ -n "$WRAP_ARGS_FILE" ]; then
   done
 fi
 if [ -n "$WRAP_ENV_FILE" ]; then
-  printf "%s|%s|%s|%s|%s" "$JRUN_PROJECT_ID" "$JRUN_TASK_ID" "$JRUN_ID" "$TASK_FOLDER" "$RUN_FOLDER" > "$WRAP_ENV_FILE"
+  printf "%s|%s|%s|%s|%s" "$JRUN_PROJECT_ID" "$JRUN_TASK_ID" "$JRUN_ID" "$JRUN_TASK_FOLDER" "$JRUN_RUN_FOLDER" > "$WRAP_ENV_FILE"
 fi
 echo "wrapped stdout"
 echo "wrapped stderr" >&2

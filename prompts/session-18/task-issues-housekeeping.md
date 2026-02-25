@@ -73,4 +73,4 @@ docs(issues): mark ISSUE-015 resolved and update spec question implementations
 
 ## Output
 
-Write your output summary to `$RUN_FOLDER/output.md` and create `$TASK_FOLDER/DONE` when complete.
+Write your output summary to `$JRUN_RUN_FOLDER/output.md` and create `$JRUN_TASK_FOLDER/DONE` when complete.

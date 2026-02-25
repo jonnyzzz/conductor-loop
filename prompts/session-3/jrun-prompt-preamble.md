@@ -11,7 +11,7 @@ Per human answer (Q6/QUESTIONS.md): "the runner should set the JRUN_* variables 
 
 The DECISION says: Add JRUN_* values to the prompt preamble for visibility. Document them in the agent protocol spec.
 
-Currently `job.go` sets `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID` as environment variables. The prompt preamble (built in `buildPrompt()`) only includes `TASK_FOLDER` and `RUN_FOLDER`.
+Currently `job.go` sets `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID` as environment variables. The prompt preamble (built in `buildPrompt()`) only includes `JRUN_TASK_FOLDER` and `JRUN_RUN_FOLDER`.
 
 ## Task
 1. Read the prompt building code in `/Users/jonnyzzz/Work/conductor-loop/internal/runner/job.go` (especially `buildPrompt()`)

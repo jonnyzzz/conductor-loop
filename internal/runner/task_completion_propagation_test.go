@@ -414,7 +414,7 @@ func createDoneWritingCLI(t *testing.T, dir, name string) {
 			"  exit /b 0\r\n" +
 			")\r\n" +
 			"more >nul\r\n" +
-			"type nul > \"%TASK_FOLDER%\\DONE\"\r\n" +
+			"type nul > \"%JRUN_TASK_FOLDER%\\DONE\"\r\n" +
 			"echo stdout\r\n"
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			t.Fatalf("write bat: %v", err)
@@ -425,7 +425,7 @@ func createDoneWritingCLI(t *testing.T, dir, name string) {
 	content := "#!/bin/sh\n" +
 		"if [ \"$1\" = \"--version\" ]; then echo '" + name + " 1.0.0'; exit 0; fi\n" +
 		"cat >/dev/null\n" +
-		": > \"$TASK_FOLDER/DONE\"\n" +
+		": > \"$JRUN_TASK_FOLDER/DONE\"\n" +
 		"echo stdout\n"
 	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
 		t.Fatalf("write script: %v", err)

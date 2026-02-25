@@ -141,16 +141,16 @@ Tests must be REAL. Fake tests (assert true, empty body, unjustified skip) are s
 Conductor-loop specific: Read AGENTS.md before starting implementation. Never hard-code ports (use `:0`). Post PROGRESS at start, FACT on completion.
 
 [2026-02-21 11:03:53] [tags: workflow, completion, done-file]
-The `DONE` file (`touch "$TASK_FOLDER/DONE"`) signals the Ralph Loop to STOP restarting the task. Do NOT create if you want to be restarted (e.g. for context refresh). Never commit `DONE`.
+The `DONE` file (`touch "$JRUN_TASK_FOLDER/DONE"`) signals the Ralph Loop to STOP restarting the task. Do NOT create if you want to be restarted (e.g. for context refresh). Never commit `DONE`.
 
 [2026-02-21 11:03:53] [tags: workflow, messagebus, posting]
-Message bus posting via `run-agent bus post`. Types: PROGRESS, FACT, DECISION, ERROR, QUESTION. `MESSAGE_BUS` env var is pre-configured.
+Message bus posting via `run-agent bus post`. Types: PROGRESS, FACT, DECISION, ERROR, QUESTION. `JRUN_MESSAGE_BUS` env var is pre-configured.
 
 [2026-02-21 11:03:53] [tags: workflow, environment, variables]
-Env vars injected: `TASK_FOLDER`, `RUN_FOLDER`, `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `MESSAGE_BUS`, `CONDUCTOR_URL`.
+Env vars injected: `JRUN_TASK_FOLDER`, `JRUN_RUN_FOLDER`, `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `JRUN_MESSAGE_BUS`, `JRUN_CONDUCTOR_URL`.
 
 [2026-02-21 11:03:53] [tags: workflow, output-md, location]
-Write `output.md` to `$RUN_FOLDER/output.md`. This is required for UI visibility and synthesis.
+Write `output.md` to `$JRUN_RUN_FOLDER/output.md`. This is required for UI visibility and synthesis.
 
 [2026-02-23 07:12:05] [tags: workflow, evolution, core-update]
 Latest core update (2026-02-23) shipped task orchestration, self-update, and web UI reliability improvements, reinforcing the RLM and Conductor-specific workflows.

@@ -118,8 +118,8 @@ monitoring server can be started or stopped at any time without affecting runnin
 └─────────────────────────┘    │                                      │
                                │  Each agent: env vars injected →     │
                                │  JRUN_PROJECT_ID, JRUN_TASK_ID,      │
-                               │  JRUN_ID, MESSAGE_BUS, RUN_FOLDER,   │
-                               │  TASK_FOLDER, CONDUCTOR_URL          │
+                               │  JRUN_ID, JRUN_MESSAGE_BUS, JRUN_RUN_FOLDER,   │
+                               │  JRUN_TASK_FOLDER, JRUN_CONDUCTOR_URL          │
                                └──────────────────────────────────────┘
 ```
 
@@ -147,15 +147,15 @@ run-agent task C  ─┘
 **Rationale:** eliminates operational dependencies; enables inspection with standard
 filesystem tools (`cat`, `ls`, text editors); survives crashes without data loss.
 
-### 2. `CONDUCTOR_URL` Is Informational
+### 2. `JRUN_CONDUCTOR_URL` Is Informational
 
-The environment variable `CONDUCTOR_URL` is injected into spawned agent processes as a
+The environment variable `JRUN_CONDUCTOR_URL` is injected into spawned agent processes as a
 convenience so the agent can construct API URLs for posting messages or querying status.
 The runner itself **never calls back to the server**.
 
 ```
 Runner → spawns → Agent process
-                  env: CONDUCTOR_URL=http://localhost:14355
+                  env: JRUN_CONDUCTOR_URL=http://localhost:14355
                   (agent MAY use this; runner does NOT)
 ```
 
@@ -432,10 +432,10 @@ paths, and the environment map injected into the agent process.
 | `JRUN_TASK_ID` | Task identifier |
 | `JRUN_ID` | Run identifier |
 | `JRUN_PARENT_ID` | Parent run ID (if spawned as sub-agent) |
-| `MESSAGE_BUS` | Absolute path to `TASK-MESSAGE-BUS.md` |
-| `TASK_FOLDER` | Absolute path to the task directory |
-| `RUN_FOLDER` | Absolute path to the current run directory |
-| `CONDUCTOR_URL` | URL of the API server (informational) |
+| `JRUN_MESSAGE_BUS` | Absolute path to `TASK-MESSAGE-BUS.md` |
+| `JRUN_TASK_FOLDER` | Absolute path to the task directory |
+| `JRUN_RUN_FOLDER` | Absolute path to the current run directory |
+| `JRUN_CONDUCTOR_URL` | URL of the API server (informational) |
 
 ### Backend Types
 

@@ -59,4 +59,4 @@ Fix any stale React/TypeScript references you find.
 
 ## Done File
 
-When complete: `echo "done" > "$TASK_FOLDER/DONE"`
+When complete: `echo "done" > "$JRUN_TASK_FOLDER/DONE"`

@@ -12,14 +12,14 @@ process and in the prompt preamble:
 
 | Variable            | Description                                     |
 |---------------------|-------------------------------------------------|
-| `TASK_FOLDER`       | Absolute path to the task directory             |
-| `RUN_FOLDER`        | Absolute path to the current run directory      |
+| `JRUN_TASK_FOLDER`       | Absolute path to the task directory             |
+| `JRUN_RUN_FOLDER`        | Absolute path to the current run directory      |
 | `JRUN_PROJECT_ID`   | Project identifier (e.g. `conductor-loop`)      |
 | `JRUN_TASK_ID`      | Task identifier (e.g. `task-20260221-105003-x`) |
 | `JRUN_ID`           | Current run identifier                          |
 | `JRUN_PARENT_ID`    | Parent run ID (set for sub-agent runs)          |
-| `MESSAGE_BUS`       | Absolute path to `TASK-MESSAGE-BUS.md`          |
-| `CONDUCTOR_URL`     | Conductor REST API base URL                     |
+| `JRUN_MESSAGE_BUS`       | Absolute path to `TASK-MESSAGE-BUS.md`          |
+| `JRUN_CONDUCTOR_URL`     | Conductor REST API base URL                     |
 
 Use `$JRUN_PROJECT_ID`, `$JRUN_TASK_ID`, etc. in shell commands.
 Use absolute paths (not `~`) in all file references.
@@ -28,7 +28,7 @@ Use absolute paths (not `~`) in all file references.
 
 ## Message Bus Protocol
 
-Post structured progress updates using `run-agent bus post`. The `MESSAGE_BUS`
+Post structured progress updates using `run-agent bus post`. The `JRUN_MESSAGE_BUS`
 env var is pre-configured so you do not need `--bus` flags.
 
 ```bash
@@ -82,13 +82,13 @@ or concurrent tool calls. Wait for all to finish before synthesising results.
 
 ## Completion Protocol
 
-1. Write a summary to `$RUN_FOLDER/output.md` (the `Write output.md to …` line
+1. Write a summary to `$JRUN_RUN_FOLDER/output.md` (the `Write output.md to …` line
    in the preamble gives the exact path).
 2. Run all tests: `go build ./...` and `go test ./internal/... ./cmd/...`
 3. Commit changes: follow the commit format in `AGENTS.md`.
 4. Create the DONE file to stop the Ralph loop from restarting this task:
    ```bash
-   touch "$TASK_FOLDER/DONE"
+   touch "$JRUN_TASK_FOLDER/DONE"
    ```
 
 ---
@@ -106,17 +106,17 @@ or concurrent tool calls. Wait for all to finish before synthesising results.
 
 ## Conductor REST API
 
-When `CONDUCTOR_URL` is set, you can query the API directly:
+When `JRUN_CONDUCTOR_URL` is set, you can query the API directly:
 
 ```bash
 # List projects
-curl "$CONDUCTOR_URL/api/projects"
+curl "$JRUN_CONDUCTOR_URL/api/projects"
 
 # Task status
-curl "$CONDUCTOR_URL/api/projects/$JRUN_PROJECT_ID/tasks/$JRUN_TASK_ID"
+curl "$JRUN_CONDUCTOR_URL/api/projects/$JRUN_PROJECT_ID/tasks/$JRUN_TASK_ID"
 
 # Prometheus metrics
-curl "$CONDUCTOR_URL/metrics"
+curl "$JRUN_CONDUCTOR_URL/metrics"
 ```
 
 ---

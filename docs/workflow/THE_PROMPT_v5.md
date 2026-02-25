@@ -8,8 +8,8 @@ This document captures a project-independent orchestration workflow that can be 
 ## Project Variables
 Use these placeholders to avoid hardcoded paths:
 - <PROJECT_ROOT> - absolute path to the repo root
-- <RUNS_DIR> - <PROJECT_ROOT>/runs
-- <MESSAGE_BUS> - <PROJECT_ROOT>/MESSAGE-BUS.md
+- <JRUN_RUNS_DIR> - <PROJECT_ROOT>/runs
+- <JRUN_MESSAGE_BUS> - <PROJECT_ROOT>/MESSAGE-BUS.md
 - <ISSUES_FILE> - <PROJECT_ROOT>/docs/dev/issues.md
 - <QUESTIONS_FILE> - <PROJECT_ROOT>/docs/dev/questions.md
 - <TODOS_FILE> - <PROJECT_ROOT>/docs/dev/todos.md
@@ -18,7 +18,7 @@ Use these placeholders to avoid hardcoded paths:
 - Root agent orchestrates; sub-agents do codebase work in the target repo.
 - This document and the root role prompts are the primary source of truth; project-specific prompts should be minimal overrides that reference these files.
 - If the target codebase is outside <PROJECT_ROOT>, the root agent must not modify it directly; use sub-agents with CWD set to the target repo.
-- Log significant actions to <MESSAGE_BUS> (append-only) and blockers to <ISSUES_FILE>.
+- Log significant actions to <JRUN_MESSAGE_BUS> (append-only) and blockers to <ISSUES_FILE>.
 - IntelliJ MCP Steroid review is required for changes; compilation/build must succeed before completion when builds/tests exist.
 - Prefer IntelliJ MCP Steroid for search, review, run configs, and builds/tests; CLI fallback only via project-provided scripts or wrappers.
 - Avoid committing IDE-generated metadata unless explicitly required; keep such changes isolated.
@@ -40,7 +40,7 @@ Recommended role files (relative to project root):
 - docs/workflow/THE_PROMPT_v5_test.md
 - docs/workflow/THE_PROMPT_v5_debug.md
 - docs/workflow/THE_PROMPT_v5_monitor.md (status-loop prompt; agent may update when improving monitoring)
-When creating a <RUNS_DIR>/run_XXX/prompt.md, copy the relevant role file verbatim and append task-specific instructions. Always use absolute paths for all .md file references inside the prompt so sub-agents do not search for files. If role prompt files do not exist, create them from the base template or map to existing versioned role prompts via a project-specific override, and log the decision to <MESSAGE_BUS>.
+When creating a <JRUN_RUNS_DIR>/run_XXX/prompt.md, copy the relevant role file verbatim and append task-specific instructions. Always use absolute paths for all .md file references inside the prompt so sub-agents do not search for files. If role prompt files do not exist, create them from the base template or map to existing versioned role prompts via a project-specific override, and log the decision to <JRUN_MESSAGE_BUS>.
 
 ## Parallelism
 - Max parallel agents: 16.
@@ -62,35 +62,35 @@ Six-step protocol:
 Post PROGRESS at each phase boundary; post FACT for every commit.
 
 ## Agent Execution and Traceability (Required)
-All agent runs must use a unified runner script when available (for example, ./run-agent.sh in this repo). The runner must create a new run folder and enforce consistent file names. If no runner exists, manually create the run folder and required artifacts, and log the deviation to <MESSAGE_BUS>. If you are operating from a centralized template repo, copy the runner/monitor scripts into the project root or set RUNS_DIR/MESSAGE_BUS explicitly.
+All agent runs must use a unified runner script when available (for example, ./run-agent.sh in this repo). The runner must create a new run folder and enforce consistent file names. If no runner exists, manually create the run folder and required artifacts, and log the deviation to <JRUN_MESSAGE_BUS>. If you are operating from a centralized template repo, copy the runner/monitor scripts into the project root or set JRUN_RUNS_DIR/JRUN_MESSAGE_BUS explicitly.
 
 Required steps for every agent run:
 1. Prepare a prompt file (any path). The orchestrator prepares full prompt text for each sub-agent and uses absolute paths for all .md references.
 2. Run the unified runner: ./run-agent.sh [agent] <cwd> [prompt_file] (or the equivalent in your repo).
-3. The runner creates a new run folder under <RUNS_DIR>/ with id format run_YYYYMMDD-HHMMSS-<pid>.
-4. The runner copies the prompt into <RUNS_DIR>/<run_id>/prompt.md.
-5. The runner writes <RUNS_DIR>/<run_id>/cwd.txt with the workdir and command line.
-6. The runner writes <RUNS_DIR>/<run_id>/agent-stdout.txt and agent-stderr.txt.
-7. The runner copies itself into <RUNS_DIR>/<run_id>/run-agent.sh for traceability (or records the runner command).
-8. The runner writes <RUNS_DIR>/<run_id>/pid.txt and prints PID to stdout.
+3. The runner creates a new run folder under <JRUN_RUNS_DIR>/ with id format run_YYYYMMDD-HHMMSS-<pid>.
+4. The runner copies the prompt into <JRUN_RUNS_DIR>/<run_id>/prompt.md.
+5. The runner writes <JRUN_RUNS_DIR>/<run_id>/cwd.txt with the workdir and command line.
+6. The runner writes <JRUN_RUNS_DIR>/<run_id>/agent-stdout.txt and agent-stderr.txt.
+7. The runner copies itself into <JRUN_RUNS_DIR>/<run_id>/run-agent.sh for traceability (or records the runner command).
+8. The runner writes <JRUN_RUNS_DIR>/<run_id>/pid.txt and prints PID to stdout.
 9. The runner blocks until the agent completes, then removes pid.txt, writes EXIT_CODE=... into cwd.txt, and exits.
 10. If a background start produces no logs within 30s, re-run in the foreground to confirm startup and PID logging.
 
-All inputs/outputs must be persisted under the same <RUNS_DIR>/run_XXX/ folder (prompt, logs, artifacts). If your repo uses a different layout, ensure the equivalent artifacts are captured.
+All inputs/outputs must be persisted under the same <JRUN_RUNS_DIR>/run_XXX/ folder (prompt, logs, artifacts). If your repo uses a different layout, ensure the equivalent artifacts are captured.
 
 ### Status Checks
 - Use pid.txt (while present) to verify running agents (ps -p <pid>). If shell access is restricted, read pid.txt, cwd.txt, and recent log files via IntelliJ MCP Steroid instead.
-- For completed runs, pid.txt is removed; use EXIT_CODE= in <RUNS_DIR>/<run_id>/cwd.txt to confirm finished status.
-- Optional watcher: run ./watch-agents.sh to poll every 60s and log to <RUNS_DIR>/agent-watch.log.
-- Long-interval watcher: run ./monitor-agents.sh to poll every 10 minutes and log to <RUNS_DIR>/agent-watch.log.
+- For completed runs, pid.txt is removed; use EXIT_CODE= in <JRUN_RUNS_DIR>/<run_id>/cwd.txt to confirm finished status.
+- Optional watcher: run ./watch-agents.sh to poll every 60s and log to <JRUN_RUNS_DIR>/agent-watch.log.
+- Long-interval watcher: run ./monitor-agents.sh to poll every 10 minutes and log to <JRUN_RUNS_DIR>/agent-watch.log.
 - If using the long-interval watcher, start it via nohup and record PID:
-  - PID file: <RUNS_DIR>/agent-watch.pid
-  - stdout/stderr: <RUNS_DIR>/agent-watch.out
+  - PID file: <JRUN_RUNS_DIR>/agent-watch.pid
+  - stdout/stderr: <JRUN_RUNS_DIR>/agent-watch.out
 
 ### Monitoring (Console UI)
 Use the monitor script (if present) to see live output with [run_xxx] prefixes and a compact header showing running/finished/unknown counts.
 - Run: uv run python monitor-agents.py
-- The monitor reads <RUNS_DIR> (via RUNS_DIR env or --runs-dir) and streams both agent-stdout.txt and agent-stderr.txt.
+- The monitor reads <JRUN_RUNS_DIR> (via JRUN_RUNS_DIR env or --runs-dir) and streams both agent-stdout.txt and agent-stderr.txt.
 If the monitor has configurable defaults (poll interval, summary interval/lines), record them in project docs to keep monitoring reproducible.
 
 ### Helper Scripts (if present)
@@ -104,7 +104,7 @@ If the monitor has configurable defaults (poll interval, summary interval/lines)
 - monitor-agents.py - live console monitor with [run_xxx] prefixes and a compact header
 
 ## Required Development Flow (Agent Stages)
-Each bullet below is a distinct agent stage. The root agent selects the agent type (Codex/Claude/Gemini) at random unless statistics strongly indicate a better choice. Any failure must be logged to <MESSAGE_BUS> (and <ISSUES_FILE> if blocking), and the flow restarts from the beginning (or from a root-selected stage if appropriate). Parallel execution is allowed where it does not violate dependencies.
+Each bullet below is a distinct agent stage. The root agent selects the agent type (Codex/Claude/Gemini) at random unless statistics strongly indicate a better choice. Any failure must be logged to <JRUN_MESSAGE_BUS> (and <ISSUES_FILE> if blocking), and the flow restarts from the beginning (or from a root-selected stage if appropriate). Parallel execution is allowed where it does not violate dependencies.
 
 1. Stage 0: Cleanup
    Look at related project files like MESSAGE-BUS.md, AGENTS.md, docs/dev/instructions.md, FACTS.md, docs/dev/issues.md, docs/dev/questions.md, and docs/dev/todos.md. Summarize or append new entries; do not edit MESSAGE-BUS history. Ensure the project root can access the required orchestration files (THE_PROMPT_v5.md, role prompts, run-agent.sh, monitoring scripts). If the project is separate, copy them into the project root; if the project shares a centralized orchestration repo, reference the root files directly. Adapt paths and review the final documents.
@@ -119,7 +119,7 @@ Each bullet below is a distinct agent stage. The root agent selects the agent ty
    Choose actionable tasks based on IntelliJ MCP Steroid exploration of the codebase.
 
 5. Stage 4: Select and validate tests/build
-   Pick relevant unit/integration tests and verify they pass in IntelliJ MCP Steroid; also ensure the project builds in IntelliJ MCP Steroid when builds/tests exist. If no tests/builds apply, log N/A to <MESSAGE_BUS>. Long-running CI can run asynchronously.
+   Pick relevant unit/integration tests and verify they pass in IntelliJ MCP Steroid; also ensure the project builds in IntelliJ MCP Steroid when builds/tests exist. If no tests/builds apply, log N/A to <JRUN_MESSAGE_BUS>. Long-running CI can run asynchronously.
 
 6. Stage 5: Implement changes and tests
    Make code changes and add/update tests.
@@ -140,7 +140,7 @@ Each bullet below is a distinct agent stage. The root agent selects the agent ty
     Squash or split into logical commits, rebase on latest main/master once the workspace is clean, verify compilation in IntelliJ MCP Steroid, and re-run related tests.
 
 12. Stage 11: Push, preflight, and code review
-    Push to a feature branch, run the project's preflight gate (for example, safe push) when applicable, create a code review, and log all links to MESSAGE-BUS.md. If preflight/review is not applicable, log N/A to <MESSAGE_BUS>.
+    Push to a feature branch, run the project's preflight gate (for example, safe push) when applicable, create a code review, and log all links to MESSAGE-BUS.md. If preflight/review is not applicable, log N/A to <JRUN_MESSAGE_BUS>.
 
 13. Stage 12: Monitor and apply fixes
     Monitor preflight and review results and apply required fixes; log failures and restart flow as needed.
@@ -148,7 +148,7 @@ Each bullet below is a distinct agent stage. The root agent selects the agent ty
 ## Agent Startup (No-Sandbox and Auto-Approve)
 - Research and document how to start each supported agent without sandbox and with auto-approve in your environment, if permitted by policy.
 - Instruct agents to make decisions autonomously.
-- Each agent run must write inputs/outputs under the active <RUNS_DIR>/run_XXX/ folder.
+- Each agent run must write inputs/outputs under the active <JRUN_RUNS_DIR>/run_XXX/ folder.
 - If you use Claude CLI, use --permission-mode bypassPermissions (per current configuration) and pass the prompt as the final argument when stdin is closed.
 - Claude MCP tool name may appear as mcp__intellij-steroid__steroid_execute_code (hyphenated server); accept that in verification checks.
 
@@ -164,7 +164,7 @@ Each bullet below is a distinct agent stage. The root agent selects the agent ty
 ## Files and Artifacts
 - AGENTS.md (root and subsystem) governs conventions.
 - docs/dev/instructions.md lists repo locations and tool paths.
-- <RUNS_DIR>/run_XXX/ contains prompt/log artifacts (prompt.md, agent-stdout.txt, agent-stderr.txt, cwd.txt; optional run.log).
+- <JRUN_RUNS_DIR>/run_XXX/ contains prompt/log artifacts (prompt.md, agent-stdout.txt, agent-stderr.txt, cwd.txt; optional run.log).
 - MESSAGE-BUS.md is the main trace log; docs/dev/issues.md is the blocker log; docs/dev/questions.md and docs/dev/todos.md track open decisions and actionable backlog.
 - FACTS.md (if used) records verified facts and decisions.
 - docs/workflow/THE_PLAN_v5.md is the execution plan.
@@ -189,7 +189,7 @@ If this template conflicts with the Required Development Flow, the Required Deve
 
 ### Phase 0: Bootstrap
 1. Read AGENTS.md, docs/dev/instructions.md, and the current plan (docs/workflow/THE_PLAN_v5.md).
-2. Create a new <RUNS_DIR>/run_XXX/ folder (via run-agent) and keep any extra orchestration notes there if needed.
+2. Create a new <JRUN_RUNS_DIR>/run_XXX/ folder (via run-agent) and keep any extra orchestration notes there if needed.
 3. Log initial DECISIONs in MESSAGE-BUS.md.
 
 ### Phase 1: Spawn Agents (parallel)

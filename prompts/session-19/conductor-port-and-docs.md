@@ -53,5 +53,5 @@ Also check Instructions.md at project root and ensure it documents the correct p
 
 ## Completion
 
-When done, write a DONE file to the TASK_FOLDER directory.
+When done, write a DONE file to the JRUN_TASK_FOLDER directory.
 Commit all changes with message: `fix(conductor): add --host/--port flags and fix default port config`

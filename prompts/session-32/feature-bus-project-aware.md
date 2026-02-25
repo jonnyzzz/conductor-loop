@@ -30,7 +30,7 @@ The message bus file path structure is:
 - Task-level: `<root>/<project>/<task>/TASK-MESSAGE-BUS.md`
 - Project-level: `<root>/<project>/PROJECT-MESSAGE-BUS.md`
 
-The root defaults to `./runs` or `$RUNS_DIR` env var (similar to other commands).
+The root defaults to `./runs` or `$JRUN_RUNS_DIR` env var (similar to other commands).
 
 ## Implementation
 
@@ -47,17 +47,17 @@ For BOTH `newBusReadCmd()` and `newBusPostCmd()`:
    ```
    --project string   project ID (used with --root to resolve bus path)
    --task string      task ID (used with --project and --root to resolve bus path; if omitted, reads project-level bus)
-   --root string      root directory (default: RUNS_DIR env var, then ./runs)
+   --root string      root directory (default: JRUN_RUNS_DIR env var, then ./runs)
    ```
 
 2. Add path resolution logic:
    - If `--project` is specified (with or without `--task`):
-     - Compute root: use `--root` flag, else `$RUNS_DIR` env var, else `./runs`
+     - Compute root: use `--root` flag, else `$JRUN_RUNS_DIR` env var, else `./runs`
      - If `--task` is specified: bus path = `<root>/<project>/<task>/TASK-MESSAGE-BUS.md`
      - If `--task` is NOT specified: bus path = `<root>/<project>/PROJECT-MESSAGE-BUS.md`
      - If `--bus` is ALSO specified, return an error: "cannot specify both --bus and --project"
    - If `--project` is NOT specified:
-     - Fall back to existing `--bus` / `MESSAGE_BUS` env var behavior
+     - Fall back to existing `--bus` / `JRUN_MESSAGE_BUS` env var behavior
 
 3. Keep backward compatibility: `--bus` flag still works as before when `--project` is not specified.
 
@@ -67,7 +67,7 @@ For BOTH `newBusReadCmd()` and `newBusPostCmd()`:
 Priority:
 1. --project (+ optional --task) → auto-resolve path from project/task hierarchy
 2. --bus flag
-3. MESSAGE_BUS env var
+3. JRUN_MESSAGE_BUS env var
 4. Error: bus path required
 ```
 
@@ -81,7 +81,7 @@ Add at least 6 tests:
 3. TestBusReadBusFlagAndProjectError — error when both --bus and --project specified
 4. TestBusPostWithProject — posts to project-level bus
 5. TestBusPostWithProjectAndTask — posts to task-level bus
-6. TestBusRootDefaultsToRunsDir — root defaults to ./runs when not specified and RUNS_DIR not set
+6. TestBusRootDefaultsToRunsDir — root defaults to ./runs when not specified and JRUN_RUNS_DIR not set
 
 Use table-driven tests where appropriate. Use temp directories for test isolation.
 

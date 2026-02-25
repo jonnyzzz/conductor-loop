@@ -39,7 +39,7 @@ watch --project <project> --task <task1> [--task <task2>] ... --root <root>
 - Exits 0 when ALL specified tasks are completed (status=completed or status=failed)
 - `--timeout` flag (default 30m): exit with code 1 if tasks don't finish within timeout
 - `--project` is required; `--task` can be specified multiple times (or comma-separated)
-- `--root` defaults to RUNS_DIR env var or `./runs`
+- `--root` defaults to JRUN_RUNS_DIR env var or `./runs`
 
 **Output format (one status line per task, refreshed each poll):**
 ```
@@ -136,4 +136,4 @@ feat(cli): add run-agent watch command for monitoring task completion
 - 5 new tests covering single/multi-task and timeout scenarios
 ```
 
-Write "done" to the DONE file in TASK_FOLDER env var when complete.
+Write "done" to the DONE file in JRUN_TASK_FOLDER env var when complete.

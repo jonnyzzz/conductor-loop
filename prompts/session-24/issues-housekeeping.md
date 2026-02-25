@@ -108,4 +108,4 @@ docs(issues): resolve ISSUE-011..014 planning artifacts and run gc
 Create the file `/Users/jonnyzzz/Work/conductor-loop/runs/conductor-loop/$JRUN_TASK_ID/DONE`
 to signal completion.
 
-Write a brief summary to output.md in $RUN_FOLDER.
+Write a brief summary to output.md in $JRUN_RUN_FOLDER.

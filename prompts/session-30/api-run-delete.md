@@ -109,4 +109,4 @@ feat(api,ui): add DELETE endpoint for run deletion
 - 3 new API tests for delete endpoint behavior
 ```
 
-Write "done" to: the DONE file in TASK_FOLDER (env var will be set in your environment)
+Write "done" to: the DONE file in JRUN_TASK_FOLDER (env var will be set in your environment)

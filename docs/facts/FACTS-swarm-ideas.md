@@ -114,7 +114,7 @@ run-agent bus post commands include type, message, task, project. run-agent bus 
 Environment variable contract: Runner sets JRUN_PROJECT_ID, JRUN_TASK_ID, JRUN_ID, JRUN_PARENT_ID internally. Agents must not rely on them being settable from outside. Error messages must not instruct agents to set env vars. Agents should not manipulate JRUN_* vars.
 
 [2026-02-04 17:54:24] [tags: swarm, idea, legacy, env-contract, decisions]
-Task/run paths injected via prompt preamble (RUN_FOLDER in prompt text, not env var). Path normalization uses OS-native Go filepath.Clean.
+Task/run paths injected via prompt preamble (JRUN_RUN_FOLDER in prompt text, not env var). Path normalization uses OS-native Go filepath.Clean.
 
 [2026-02-04 17:54:24] [tags: swarm, idea, legacy, env-contract, decisions]
 Signal handling decided: SIGTERM → 30 second grace period → SIGKILL. Environment inheritance: full inheritance in MVP (no sandbox). Date/time: NOT injected; agents access system time themselves.

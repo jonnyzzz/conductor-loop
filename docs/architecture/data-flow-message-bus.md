@@ -234,7 +234,7 @@ Next poll: ReadMessages("") -> reads from start of current active file
 `run-agent bus post` path resolution (`resolveBusPostPath`):
 
 1. `--bus`
-2. `MESSAGE_BUS` env
+2. `JRUN_MESSAGE_BUS` env
 3. `--project` (+ optional `--task`) -> `resolveBusFilePath(root, project, task)`
 4. auto-discover nearest bus file upward from CWD
 5. error
@@ -242,14 +242,14 @@ Next poll: ReadMessages("") -> reads from start of current active file
 `resolveBusFilePath` root fallback:
 
 1. explicit `--root`
-2. `RUNS_DIR` env
+2. `JRUN_RUNS_DIR` env
 3. `./runs`
 
 `run-agent bus read` path resolution:
 
 1. `--project` (+ optional `--task`) -> auto-resolve
 2. `--bus`
-3. `MESSAGE_BUS` env
+3. `JRUN_MESSAGE_BUS` env
 4. auto-discover nearest bus file upward from CWD
 5. error
 
@@ -266,7 +266,7 @@ Then move one directory up and repeat until filesystem root.
 Message context inference for `bus post` (`resolveBusPostMessageContext`) is separate from path resolution:
 
 1. explicit flags `--project/--task/--run`
-2. inferred from resolved bus path and `RUN_FOLDER`/`TASK_FOLDER`
+2. inferred from resolved bus path and `JRUN_RUN_FOLDER`/`JRUN_TASK_FOLDER`
 3. `JRUN_PROJECT_ID` / `JRUN_TASK_ID` / `JRUN_ID`
 
 This is how run -> task -> project identity is carried even when only a bus path is provided.

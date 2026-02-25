@@ -24,7 +24,7 @@ Add a new command group:
   - `--project`
   - `--runs <run-id[,run-id...]>`
 - Optional flags:
-  - `--root` (default `./runs` or `RUNS_DIR`)
+  - `--root` (default `./runs` or `JRUN_RUNS_DIR`)
   - `--required` (default `2`)
   - `--task` (scope to one task bus when known)
 - Read relevant task/project message bus entries and consider only messages tied to provided run IDs.

@@ -91,7 +91,7 @@ func TestServeCmd_StartsServer(t *testing.T) {
 
 func TestBusPostCmd_PostsMessage(t *testing.T) {
 	busPath := filepath.Join(t.TempDir(), "bus.yaml")
-	t.Setenv("MESSAGE_BUS", busPath)
+	t.Setenv("JRUN_MESSAGE_BUS", busPath)
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
@@ -143,7 +143,7 @@ func TestBusPostCmd_PostsMessage(t *testing.T) {
 
 func TestBusPostCmd_UsesMessageBusEnvVar(t *testing.T) {
 	busPath := filepath.Join(t.TempDir(), "bus.yaml")
-	t.Setenv("MESSAGE_BUS", busPath)
+	t.Setenv("JRUN_MESSAGE_BUS", busPath)
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
@@ -178,7 +178,7 @@ func TestBusPostCmd_UsesMessageBusEnvVar(t *testing.T) {
 }
 
 func TestBusPostCmd_FailsWithoutBusOrEnvVar(t *testing.T) {
-	t.Setenv("MESSAGE_BUS", "")
+	t.Setenv("JRUN_MESSAGE_BUS", "")
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -193,7 +193,7 @@ func TestBusPostCmd_FailsWithoutBusOrEnvVar(t *testing.T) {
 		runErr = cmd.Execute()
 	})
 	if runErr == nil {
-		t.Fatal("expected error when MESSAGE_BUS is not set")
+		t.Fatal("expected error when JRUN_MESSAGE_BUS is not set")
 	}
 	if !strings.Contains(runErr.Error(), "cannot find message bus") {
 		t.Errorf("expected error to mention cannot find message bus, got: %v", runErr)
@@ -201,7 +201,7 @@ func TestBusPostCmd_FailsWithoutBusOrEnvVar(t *testing.T) {
 }
 
 func TestBusReadCmd_FailsWithoutProjectOrEnvVar(t *testing.T) {
-	t.Setenv("MESSAGE_BUS", "")
+	t.Setenv("JRUN_MESSAGE_BUS", "")
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -212,7 +212,7 @@ func TestBusReadCmd_FailsWithoutProjectOrEnvVar(t *testing.T) {
 		runErr = cmd.Execute()
 	})
 	if runErr == nil {
-		t.Fatal("expected error when MESSAGE_BUS is not set and no --project given")
+		t.Fatal("expected error when JRUN_MESSAGE_BUS is not set and no --project given")
 	}
 	if !strings.Contains(runErr.Error(), "cannot find message bus") {
 		t.Errorf("expected error to mention cannot find message bus, got: %v", runErr)
@@ -231,7 +231,7 @@ func TestBusReadCmd_UsesMessageBusEnvVar(t *testing.T) {
 		t.Fatalf("append message: %v", err)
 	}
 
-	t.Setenv("MESSAGE_BUS", busPath)
+	t.Setenv("JRUN_MESSAGE_BUS", busPath)
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"bus", "read"})
@@ -251,7 +251,7 @@ func TestBusReadCmd_UsesMessageBusEnvVar(t *testing.T) {
 
 func TestBusReadCmd_ReadMessages(t *testing.T) {
 	busPath := filepath.Join(t.TempDir(), "bus.yaml")
-	t.Setenv("MESSAGE_BUS", busPath)
+	t.Setenv("JRUN_MESSAGE_BUS", busPath)
 
 	bus, err := messagebus.NewMessageBus(busPath)
 	if err != nil {

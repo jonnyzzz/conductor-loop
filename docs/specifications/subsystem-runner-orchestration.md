@@ -88,8 +88,8 @@ Task completion fact propagation:
 The runner prepends a prompt preamble, for example:
 
 ```text
-TASK_FOLDER=/absolute/path/to/task
-RUN_FOLDER=/absolute/path/to/run
+JRUN_TASK_FOLDER=/absolute/path/to/task
+JRUN_RUN_FOLDER=/absolute/path/to/run
 Write output.md to /absolute/path/to/run/output.md
 ```
 
@@ -194,5 +194,5 @@ The root agent prompt must include:
 ## Security / Permissions
 - Tokens are read from config and injected via environment variables.
 - Runner-owned env vars (JRUN_*) are overwritten on spawn; callers cannot override them.
-- Informational path vars (RUNS_DIR, MESSAGE_BUS, TASK_FOLDER, RUN_FOLDER, CONDUCTOR_URL) are injected as env vars; agents may override them for sub-tasks.
+- Informational path vars (JRUN_RUNS_DIR, JRUN_MESSAGE_BUS, JRUN_TASK_FOLDER, JRUN_RUN_FOLDER, JRUN_CONDUCTOR_URL) are injected as env vars; agents may override them for sub-tasks.
 - No sandboxing or resource limits enforced yet.

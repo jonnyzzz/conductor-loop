@@ -22,7 +22,7 @@ No cleanup mechanism exists. A task with 100 restarts = 100 run directories. Dis
 ### Requirements
 
 1. **New subcommand**: `run-agent gc` with the following flags:
-   - `--root string` — root directory (default: `./runs` if RUNS_DIR env not set)
+   - `--root string` — root directory (default: `./runs` if JRUN_RUNS_DIR env not set)
    - `--older-than duration` — delete runs older than this duration (default: `168h` = 7 days)
    - `--dry-run` — print what would be deleted without deleting (default: false)
    - `--project string` — limit gc to a specific project (optional, default: all projects)

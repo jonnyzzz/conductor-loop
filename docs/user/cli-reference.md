@@ -82,7 +82,7 @@ Flags:
 
 - `--force`
 - `--project string` (required)
-- `--root string` (default: `$RUNS_DIR` or `./runs`)
+- `--root string` (default: `$JRUN_RUNS_DIR` or `./runs`)
 - `--task string` (required)
 
 ### `run-agent task resume`
@@ -222,7 +222,7 @@ run-agent bus post [flags]
 Flags:
 
 - `--body string` (reads from stdin if omitted and stdin is a pipe)
-- `--project string` (optional; inferred from CWD or MESSAGE_BUS if omitted)
+- `--project string` (optional; inferred from CWD or JRUN_MESSAGE_BUS if omitted)
 - `--root string` (default: `storage.runs_dir` from config, then `~/.run-agent/runs`)
 - `--run string` (optional; inferred from context if omitted)
 - `--task string` (optional; inferred from CWD if omitted)
@@ -230,16 +230,16 @@ Flags:
 
 Bus path resolution order:
 
-1. `MESSAGE_BUS` env (set by runners — canonical path for child agents)
+1. `JRUN_MESSAGE_BUS` env (set by runners — canonical path for child agents)
 2. `--project` (+ optional `--task`) path resolution
 3. CWD `run-info.yaml` inference (inside an agent run directory)
 4. CWD project home inference (directory contains task-ID-formatted subdirs)
 5. upward auto-discover from current directory
 6. error
 
-Note: `MESSAGE_BUS` precedes `--project` for path resolution because agents inherit it from the runner. When both are set, `MESSAGE_BUS` wins for the bus file path. The message `project_id`/`task_id` fields follow a separate precedence: explicit flags → bus path inference → env vars (see `--project`/`--task` flags above).
+Note: `JRUN_MESSAGE_BUS` precedes `--project` for path resolution because agents inherit it from the runner. When both are set, `JRUN_MESSAGE_BUS` wins for the bus file path. The message `project_id`/`task_id` fields follow a separate precedence: explicit flags → bus path inference → env vars (see `--project`/`--task` flags above).
 
-CWD inference: when neither `MESSAGE_BUS` nor `--project` is set, `bus post` reads `run-info.yaml` walking upward from CWD. When found inside a canonical `<root>/<project>/<task>/runs/<runID>/` layout, project, task, and run IDs are inferred automatically. If CWD is a project home (contains subdirectories named in `task-<YYYYMMDD>-<HHMMSS>-<slug>` format), the project is inferred from the directory name.
+CWD inference: when neither `JRUN_MESSAGE_BUS` nor `--project` is set, `bus post` reads `run-info.yaml` walking upward from CWD. When found inside a canonical `<root>/<project>/<task>/runs/<runID>/` layout, project, task, and run IDs are inferred automatically. If CWD is a project home (contains subdirectories named in `task-<YYYYMMDD>-<HHMMSS>-<slug>` format), the project is inferred from the directory name.
 
 #### `run-agent bus read`
 
@@ -252,7 +252,7 @@ run-agent bus read [flags]
 Flags:
 
 - `--follow`
-- `--project string` (optional; inferred from CWD or MESSAGE_BUS if omitted)
+- `--project string` (optional; inferred from CWD or JRUN_MESSAGE_BUS if omitted)
 - `--root string` (default: `storage.runs_dir` from config, then `~/.run-agent/runs`)
 - `--tail int` (default `20`)
 - `--task string` (optional; inferred from CWD if omitted)
@@ -260,7 +260,7 @@ Flags:
 Bus path resolution order:
 
 1. `--project` (+ optional `--task`) path resolution
-2. `MESSAGE_BUS` env
+2. `JRUN_MESSAGE_BUS` env
 3. CWD `run-info.yaml` inference (inside an agent run directory)
 4. CWD project home inference (directory contains task-ID-formatted subdirs)
 5. upward auto-discover from current directory
@@ -298,7 +298,7 @@ Flags:
 - `--drift-after duration` (default `20m0s`)
 - `--json`
 - `--project string`
-- `--root string` (default: `./runs` or `RUNS_DIR` env)
+- `--root string` (default: `./runs` or `JRUN_RUNS_DIR` env)
 - `--status string` (`running`, `active`, `done`, `failed`, `blocked`)
 - `--task string`
 
@@ -317,7 +317,7 @@ Flags:
 - `--drift-after duration` (default `20m0s`)
 - `--json`
 - `--project string` (required)
-- `--root string` (default: `./runs` or `RUNS_DIR` env)
+- `--root string` (default: `./runs` or `JRUN_RUNS_DIR` env)
 - `--status string` (`running`, `active`, `completed`, `failed`, `blocked`, `done`, `pending`)
 - `--task string`
 
@@ -333,7 +333,7 @@ Flags:
 
 - `--json`
 - `--project string` (required)
-- `--root string` (default: `./runs` or `RUNS_DIR` env)
+- `--root string` (default: `./runs` or `JRUN_RUNS_DIR` env)
 - `--task stringArray`
 - `--timeout duration` (default `30m0s`)
 
@@ -371,7 +371,7 @@ Flags:
 - `--file string` (`output` default, `stdout`, `stderr`, `prompt`)
 - `-f, --follow`
 - `--project string`
-- `--root string` (default: `./runs` or `RUNS_DIR` env)
+- `--root string` (default: `./runs` or `JRUN_RUNS_DIR` env)
 - `--run string`
 - `--run-dir string`
 - `--tail int`
@@ -393,7 +393,7 @@ Flags:
 - `--keep-failed`
 - `--older-than duration` (default `168h0m0s`)
 - `--project string`
-- `--root string` (default: `./runs` or `RUNS_DIR` env)
+- `--root string` (default: `./runs` or `JRUN_RUNS_DIR` env)
 - `--rotate-bus`
 
 ### `run-agent monitor`
@@ -414,7 +414,7 @@ Flags:
 - `--once`
 - `--project string` (required)
 - `--rate-limit duration` (default `2s`)
-- `--root string` (default: `./runs` or `RUNS_DIR` env)
+- `--root string` (default: `./runs` or `JRUN_RUNS_DIR` env)
 - `--stale-after duration` (default `20m0s`)
 - `--todo string` (default `TODOs.md`)
 

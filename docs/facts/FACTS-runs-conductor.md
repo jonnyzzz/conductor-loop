@@ -197,7 +197,7 @@ task-20260222-111510-startup-scripts: goal "create startup scripts for operator/
 task-20260222-111520-release-v1: goal "deliver first stable release of conductor-loop". status DONE. outcome: Wrote final report to /Users/jonnyzzz/run-agent/conductor-loop/task-20260222-111520-release-v1/runs/20260222-1157270000-47223-1/output.md and created task DONE marker /Users/jonnyzzz/run-agent/conductor-loop/task-20260222-111520-release-...
 
 [2026-02-22 11:15:30] [tags: runs, task, completed, release]
-task-20260222-111530-devrig-latest-release-flow: goal "devrig-style release/update flow with always-latest resolution". status DONE. outcome: output.md written to RUN_FOLDER and DONE sentinel created
+task-20260222-111530-devrig-latest-release-flow: goal "devrig-style release/update flow with always-latest resolution". status DONE. outcome: output.md written to JRUN_RUN_FOLDER and DONE sentinel created
 
 [2026-02-22 11:15:40] [tags: runs, task, completed, docs]
 task-20260222-111540-hugo-docs-docker: goal "Hugo documentation website with Docker-only builds". status DONE. outcome: Created DONE marker: /Users/jonnyzzz/run-agent/conductor-loop/task-20260222-111540-hugo-docs-docker/DONE

@@ -361,13 +361,13 @@ func runJob(projectID, taskID string, opts JobOptions) (*storage.RunInfo, error)
 		"JRUN_TASK_ID":    taskID,
 		"JRUN_ID":         runID,
 		"JRUN_PARENT_ID":  parentRunID,
-		"RUNS_DIR":        runsDir,
-		"MESSAGE_BUS":     busPath,
-		"TASK_FOLDER":     taskDir,
-		"RUN_FOLDER":      runDir,
+		"JRUN_RUNS_DIR":        runsDir,
+		"JRUN_MESSAGE_BUS":     busPath,
+		"JRUN_TASK_FOLDER":     taskDir,
+		"JRUN_RUN_FOLDER":      runDir,
 	}
 	if conductorURL != "" {
-		envOverrides["CONDUCTOR_URL"] = conductorURL
+		envOverrides["JRUN_CONDUCTOR_URL"] = conductorURL
 	}
 	if tokenVar := tokenEnvVar(agentType); tokenVar != "" {
 		if token := strings.TrimSpace(selection.Config.Token); token != "" {

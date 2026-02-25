@@ -27,14 +27,14 @@ When running inside conductor-loop, these env vars are injected into your proces
 
 | Variable | Description |
 |----------|-------------|
-| `TASK_FOLDER` | Absolute path to your task directory (contains `TASK.md`) |
-| `RUN_FOLDER` | Absolute path to your current run directory (write `output.md` here) |
-| `MESSAGE_BUS` | Absolute path to `TASK-MESSAGE-BUS.md` |
+| `JRUN_TASK_FOLDER` | Absolute path to your task directory (contains `TASK.md`) |
+| `JRUN_RUN_FOLDER` | Absolute path to your current run directory (write `output.md` here) |
+| `JRUN_MESSAGE_BUS` | Absolute path to `TASK-MESSAGE-BUS.md` |
 | `JRUN_PROJECT_ID` | Project identifier |
 | `JRUN_TASK_ID` | Task identifier |
 | `JRUN_ID` | Run identifier for this execution |
 | `JRUN_PARENT_ID` | Run ID of the parent (if you were spawned as a sub-agent) |
-| `CONDUCTOR_URL` | URL of the conductor server (e.g. `http://127.0.0.1:14355`) |
+| `JRUN_CONDUCTOR_URL` | URL of the conductor server (e.g. `http://127.0.0.1:14355`) |
 
 ### 2. Report Progress
 
@@ -108,7 +108,7 @@ Additional useful flags:
 
 ### 4. Write output.md
 
-When your work is done, write a summary to `$RUN_FOLDER/output.md`:
+When your work is done, write a summary to `$JRUN_RUN_FOLDER/output.md`:
 
 ```markdown
 ## Summary
@@ -135,7 +135,7 @@ This file is shown in the web UI OUTPUT tab and in the conductor API.
 When the task is **fully done**, create the DONE file:
 
 ```bash
-touch "$TASK_FOLDER/DONE"
+touch "$JRUN_TASK_FOLDER/DONE"
 ```
 
 This tells the Ralph Loop **not to restart** you. Do NOT create `DONE` if you want to be
@@ -244,5 +244,5 @@ go build ./...
 go test ./...
 
 # Signal completion
-touch "$TASK_FOLDER/DONE"
+touch "$JRUN_TASK_FOLDER/DONE"
 ```

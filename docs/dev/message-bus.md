@@ -167,7 +167,7 @@ There is no `bus watch` subcommand.
 ### `bus post` path resolution order
 
 1. `--bus`
-2. `MESSAGE_BUS` env var
+2. `JRUN_MESSAGE_BUS` env var
 3. `--project` / `--task` hierarchy resolution
 4. upward auto-discovery
 5. error
@@ -177,7 +177,7 @@ There is no `bus watch` subcommand.
 For `project_id`, `task_id`, `run_id`:
 
 1. explicit flags (`--project`, `--task`, `--run`)
-2. inferred from resolved bus path, `RUN_FOLDER`, `TASK_FOLDER`
+2. inferred from resolved bus path, `JRUN_RUN_FOLDER`, `JRUN_TASK_FOLDER`
 3. `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`
 4. error if `project_id` still missing
 
