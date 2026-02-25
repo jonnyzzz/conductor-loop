@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -49,6 +50,16 @@ func TestCommandForAgent(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.agentType == "gemini" {
+				binDir := filepath.Join(t.TempDir(), "bin")
+				if err := os.MkdirAll(binDir, 0o755); err != nil {
+					t.Fatalf("mkdir bin: %v", err)
+				}
+				createFakeGeminiCLIForHelp(t, binDir, true)
+				t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+				resetGeminiStreamJSONSupportCache()
+			}
+
 			cmd, args, err := commandForAgent(tc.agentType)
 			if tc.wantErr {
 				if err == nil {
@@ -84,12 +95,51 @@ func TestCommandForAgentJSONFlags(t *testing.T) {
 		t.Fatalf("expected codex args to include --json, got %v", codexArgs)
 	}
 
+	binDir := filepath.Join(t.TempDir(), "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	createFakeGeminiCLIForHelp(t, binDir, true)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	resetGeminiStreamJSONSupportCache()
+
 	_, geminiArgs, err := commandForAgent("gemini")
 	if err != nil {
 		t.Fatalf("commandForAgent(gemini): %v", err)
 	}
 	if !containsArgPair(geminiArgs, "--output-format", "stream-json") {
 		t.Fatalf("expected gemini args to include --output-format stream-json, got %v", geminiArgs)
+	}
+}
+
+func TestCheckGeminiStreamJSONSupport_NotInstalled(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	resetGeminiStreamJSONSupportCache()
+
+	err := checkGeminiStreamJSONSupport()
+	if err == nil {
+		t.Fatalf("expected error when gemini is not installed")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "not found") {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+}
+
+func TestCheckGeminiStreamJSONSupport_OldVersion(t *testing.T) {
+	binDir := filepath.Join(t.TempDir(), "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	createFakeGeminiCLIForHelp(t, binDir, false)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	resetGeminiStreamJSONSupportCache()
+
+	err := checkGeminiStreamJSONSupport()
+	if err == nil {
+		t.Fatalf("expected old-version error")
+	}
+	if !strings.Contains(err.Error(), "does not support --output-format stream-json") {
+		t.Fatalf("expected actionable stream-json error, got %v", err)
 	}
 }
 
@@ -116,6 +166,11 @@ func containsArgPair(args []string, key, value string) bool {
 		}
 	}
 	return false
+}
+
+func resetGeminiStreamJSONSupportCache() {
+	geminiStreamJSONOnce = sync.Once{}
+	geminiStreamJSONErr = nil
 }
 
 func TestIsRestAgent(t *testing.T) {
@@ -366,6 +421,30 @@ func createFakeCLI(t *testing.T, dir, name string) {
 	}
 	path := filepath.Join(dir, name)
 	content := "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo '" + name + " 1.0.0'; exit 0; fi\ncat >/dev/null\necho stdout\n"
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+}
+
+func createFakeGeminiCLIForHelp(t *testing.T, dir string, supportsOutputFormat bool) {
+	t.Helper()
+
+	helpLine := "Usage: gemini [options]"
+	if supportsOutputFormat {
+		helpLine = "Usage: gemini [options] --output-format stream-json"
+	}
+
+	if runtime.GOOS == "windows" {
+		path := filepath.Join(dir, "gemini.bat")
+		content := "@echo off\r\nif \"%1\"==\"--help\" (\r\n  echo " + helpLine + "\r\n  exit /b 0\r\n)\r\nif \"%1\"==\"--version\" (\r\n  echo gemini 1.0.0\r\n  exit /b 0\r\n)\r\nmore >nul\r\necho stdout\r\n"
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("write bat: %v", err)
+		}
+		return
+	}
+
+	path := filepath.Join(dir, "gemini")
+	content := "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  echo '" + helpLine + "'\n  exit 0\nfi\nif [ \"$1\" = \"--version\" ]; then\n  echo 'gemini 1.0.0'\n  exit 0\nfi\ncat >/dev/null\necho stdout\n"
 	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
 		t.Fatalf("write script: %v", err)
 	}

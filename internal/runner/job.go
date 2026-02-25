@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/agent"
@@ -42,6 +44,11 @@ type JobOptions struct {
 	// Used internally by the diversification fallback path.
 	preselectedAgent *agentSelection
 }
+
+var (
+	geminiStreamJSONOnce sync.Once
+	geminiStreamJSONErr  error
+)
 
 // RunJob starts a single agent run and waits for completion.
 // When the loaded config has diversification enabled and FallbackOnFailure is
@@ -606,14 +613,26 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 		_ = codex.WriteOutputMDFromStream(runDir, info.StdoutPath)
 	case "gemini":
 		if parseErr := gemini.WriteOutputMDFromStream(runDir, info.StdoutPath); parseErr != nil {
-			// stream-json parse failed — check if the Gemini CLI rejected the flag.
-			// If so, log a compatibility warning and fall back to plain stdout.
 			if isGeminiStreamJSONFlagError(info.StderrPath) {
-				obslog.Log(log.Default(), "WARN", "runner", "gemini_stream_json_fallback",
+				obslog.Log(log.Default(), "ERROR", "runner", "gemini_stream_json_rejected",
 					obslog.F("run_id", info.RunID),
-					obslog.F("reason", "gemini CLI rejected --output-format stream-json; using plain stdout"),
+					obslog.F("reason", "Gemini CLI rejected --output-format stream-json even after version check passed. Please update your Gemini CLI."),
+					obslog.F("error", parseErr),
 				)
-				_ = gemini.WriteOutputMDFromPlainStdout(runDir, info.StdoutPath)
+				waitErr = parseErr
+				exitCode = 1
+				info.ExitCode = exitCode
+				info.Status = storage.StatusFailed
+				info.ErrorSummary = "gemini CLI rejected --output-format stream-json"
+				if err := storage.UpdateRunInfo(filepath.Join(runDir, "run-info.yaml"), func(update *storage.RunInfo) error {
+					update.ExitCode = info.ExitCode
+					update.EndTime = info.EndTime
+					update.Status = info.Status
+					update.ErrorSummary = info.ErrorSummary
+					return nil
+				}); err != nil {
+					return idleTimedOut, errors.Wrap(err, "update run-info")
+				}
 			}
 		}
 	}
@@ -878,6 +897,23 @@ func isGeminiStreamJSONFlagError(stderrPath string) bool {
 	return false
 }
 
+// checkGeminiStreamJSONSupport verifies the Gemini CLI binary supports
+// --output-format stream-json. Returns a descriptive error if not supported.
+func checkGeminiStreamJSONSupport() error {
+	geminiStreamJSONOnce.Do(func() {
+		helpOut, err := exec.Command("gemini", "--help").CombinedOutput()
+		if err != nil {
+			geminiStreamJSONErr = fmt.Errorf("gemini CLI not found or failed to run (install from https://github.com/google-gemini/gemini-cli): %w", err)
+			return
+		}
+		helpStr := strings.ToLower(string(helpOut))
+		if !strings.Contains(helpStr, "output-format") {
+			geminiStreamJSONErr = fmt.Errorf("installed Gemini CLI does not support --output-format stream-json; please update to the latest version (npm install -g @google/gemini-cli or brew upgrade gemini-cli)")
+		}
+	})
+	return geminiStreamJSONErr
+}
+
 // commandForAgent returns the CLI command and arguments for the given agent type.
 // Working directory is handled by SpawnOptions.Dir, not by CLI flags.
 func commandForAgent(agentType string) (string, []string, error) {
@@ -896,7 +932,9 @@ func commandForAgent(agentType string) (string, []string, error) {
 		}
 		return "claude", args, nil
 	case "gemini":
-		// stream-json is preferred; callers may retry without it for older Gemini CLI versions.
+		if err := checkGeminiStreamJSONSupport(); err != nil {
+			return "", nil, err
+		}
 		args := []string{"--screen-reader", "true", "--approval-mode", "yolo", "--output-format", "stream-json"}
 		return "gemini", args, nil
 	default:
