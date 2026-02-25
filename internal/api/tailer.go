@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -30,6 +31,7 @@ type Tailer struct {
 	events       chan<- LogLine
 	done         chan struct{}
 	ticker       *time.Ticker
+	mu           sync.Mutex
 }
 
 // NewTailer creates a Tailer starting after the provided line number.
@@ -90,7 +92,19 @@ func (t *Tailer) Stop() {
 	}
 }
 
+// TriggerPoll immediately runs a poll cycle outside the ticker cadence.
+// Safe to call from any goroutine while the Tailer is running.
+func (t *Tailer) TriggerPoll() error {
+	if t == nil {
+		return nil
+	}
+	return t.poll()
+}
+
 func (t *Tailer) poll() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	file, err := os.Open(t.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {

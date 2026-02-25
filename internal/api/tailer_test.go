@@ -60,3 +60,36 @@ func TestTailerStartStop(t *testing.T) {
 	tailer.Stop()
 	cancel()
 }
+
+func TestTailer_TriggerPoll(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "log.txt")
+	if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+	events := make(chan LogLine, 1)
+	tailer, err := NewTailer(path, "run-1", "stdout", 10*time.Second, 0, events)
+	if err != nil {
+		t.Fatalf("NewTailer: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tailer.Start(ctx)
+	defer tailer.Stop()
+
+	if err := os.WriteFile(path, []byte("triggered\n"), 0o644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+	if err := tailer.TriggerPoll(); err != nil {
+		t.Fatalf("TriggerPoll: %v", err)
+	}
+
+	select {
+	case ev := <-events:
+		if ev.Line != "triggered" {
+			t.Fatalf("expected line %q, got %q", "triggered", ev.Line)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatalf("expected log line after TriggerPoll")
+	}
+}

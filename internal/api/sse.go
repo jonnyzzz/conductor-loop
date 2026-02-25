@@ -26,6 +26,7 @@ const (
 	defaultDiscoveryInterval = time.Second
 	defaultHeartbeatInterval = 30 * time.Second
 	defaultMaxClientsPerRun  = 10
+	watcherFallbackInterval  = 10 * time.Second
 )
 
 var ErrMaxClientsReached = stderrors.New("max clients reached for run")
@@ -269,10 +270,91 @@ func (s *Server) streamMessageBusPath(w http.ResponseWriter, r *http.Request, bu
 	cfg := s.sseConfig()
 	lastID := strings.TrimSpace(r.Header.Get("Last-Event-ID"))
 
-	pollTicker := time.NewTicker(cfg.PollInterval)
+	busDir := filepath.Dir(busPath)
+	var watcher *runstate.DirWatcher
+	if watch, watchErr := runstate.NewDirWatcher(busDir); watchErr == nil {
+		watcher = watch
+		defer watcher.Close()
+	}
+
+	pollInterval := cfg.PollInterval
+	if watcher != nil {
+		pollInterval = watcherFallbackInterval
+	}
+
+	readAndSend := func() bool {
+		messages, err := bus.ReadMessages(lastID)
+		if err != nil {
+			if stderrors.Is(err, messagebus.ErrSinceIDNotFound) {
+				// sinceID expired (rotation/GC): reset to beginning and re-read
+				// immediately so the panel is repopulated without waiting another tick.
+				lastID = ""
+				if msgs, rerr := bus.ReadMessages(""); rerr == nil {
+					messages = msgs
+				} else {
+					return true
+				}
+			} else {
+				return true
+			}
+		}
+		for _, msg := range messages {
+			if msg == nil {
+				continue
+			}
+			ts := msg.Timestamp
+			if ts.IsZero() {
+				ts = time.Now().UTC()
+			}
+			// Build parent msg_id list for JSON (extract from Parents slice).
+			var parentIDs []string
+			for _, p := range msg.Parents {
+				if p.MsgID != "" {
+					parentIDs = append(parentIDs, p.MsgID)
+				}
+			}
+			payload := messagePayload{
+				MsgID:     msg.MsgID,
+				Timestamp: ts.Format(time.RFC3339Nano),
+				Type:      msg.Type,
+				ProjectID: msg.ProjectID,
+				TaskID:    msg.TaskID,
+				RunID:     msg.RunID,
+				IssueID:   msg.IssueID,
+				Parents:   parentIDs,
+				Meta:      msg.Meta,
+				Body:      msg.Body,
+			}
+			data, err := json.Marshal(payload)
+			if err != nil {
+				continue
+			}
+			ev := SSEEvent{
+				ID:    msg.MsgID, // set SSE id for resumable clients
+				Event: "message",
+				Data:  string(data),
+			}
+			if err := writer.Send(ev); err != nil {
+				return false
+			}
+			lastID = msg.MsgID
+		}
+		return true
+	}
+
+	// Emit backlog immediately instead of waiting for the first poll/watch cycle.
+	if !readAndSend() {
+		return nil
+	}
+
+	pollTicker := time.NewTicker(pollInterval)
 	defer pollTicker.Stop()
 	heartbeat := time.NewTicker(cfg.HeartbeatInterval)
 	defer heartbeat.Stop()
+	var watchCh <-chan struct{}
+	if watcher != nil {
+		watchCh = watcher.Changes()
+	}
 
 	for {
 		select {
@@ -280,62 +362,17 @@ func (s *Server) streamMessageBusPath(w http.ResponseWriter, r *http.Request, bu
 			return nil
 		case <-heartbeat.C:
 			_ = writer.Send(SSEEvent{Event: "heartbeat", Data: "{}"})
-		case <-pollTicker.C:
-			messages, err := bus.ReadMessages(lastID)
-			if err != nil {
-				if stderrors.Is(err, messagebus.ErrSinceIDNotFound) {
-					// sinceID expired (rotation/GC): reset to beginning and re-read
-					// immediately so the panel is repopulated without waiting another tick.
-					lastID = ""
-					if msgs, rerr := bus.ReadMessages(""); rerr == nil {
-						messages = msgs
-					} else {
-						continue
-					}
-				} else {
-					continue
-				}
+		case _, ok := <-watchCh:
+			if !ok {
+				watchCh = nil
+				continue
 			}
-			for _, msg := range messages {
-				if msg == nil {
-					continue
-				}
-				ts := msg.Timestamp
-				if ts.IsZero() {
-					ts = time.Now().UTC()
-				}
-				// Build parent msg_id list for JSON (extract from Parents slice).
-				var parentIDs []string
-				for _, p := range msg.Parents {
-					if p.MsgID != "" {
-						parentIDs = append(parentIDs, p.MsgID)
-					}
-				}
-				payload := messagePayload{
-					MsgID:     msg.MsgID,
-					Timestamp: ts.Format(time.RFC3339Nano),
-					Type:      msg.Type,
-					ProjectID: msg.ProjectID,
-					TaskID:    msg.TaskID,
-					RunID:     msg.RunID,
-					IssueID:   msg.IssueID,
-					Parents:   parentIDs,
-					Meta:      msg.Meta,
-					Body:      msg.Body,
-				}
-				data, err := json.Marshal(payload)
-				if err != nil {
-					continue
-				}
-				ev := SSEEvent{
-					ID:    msg.MsgID, // set SSE id for resumable clients
-					Event: "message",
-					Data:  string(data),
-				}
-				if err := writer.Send(ev); err != nil {
-					return nil
-				}
-				lastID = msg.MsgID
+			if !readAndSend() {
+				return nil
+			}
+		case <-pollTicker.C:
+			if !readAndSend() {
+				return nil
 			}
 		}
 	}
@@ -639,6 +676,8 @@ func (m *StreamManager) ensureRun(runID string) (*runStream, error) {
 	runDir := filepath.Dir(path)
 	projectID := ""
 	taskID := ""
+	// run-info.yaml can be missing for older/incomplete runs; fall back to
+	// directory-based inference so SSE remains readable for those runs.
 	if info, readErr := runstate.ReadRunInfo(path); readErr == nil {
 		projectID = strings.TrimSpace(info.ProjectID)
 		taskID = strings.TrimSpace(info.TaskID)
@@ -713,6 +752,7 @@ type runStream struct {
 	logCh       chan LogLine
 	stopCh      chan struct{}
 	started     bool
+	watcher     *runstate.DirWatcher
 
 	stdoutLines int64
 	stderrLines int64
@@ -787,27 +827,44 @@ func (rs *runStream) startLocked() {
 	if count, err := countLines(stderrPath); err == nil {
 		rs.stderrLines = count
 	}
-	stdoutTailer, _ := NewTailer(stdoutPath, rs.runID, "stdout", rs.pollInterval, -1, rs.logCh)
-	stderrTailer, _ := NewTailer(stderrPath, rs.runID, "stderr", rs.pollInterval, -1, rs.logCh)
+	if watcher, err := runstate.NewDirWatcher(rs.runDir); err == nil {
+		rs.watcher = watcher
+	}
+	tailerInterval := rs.pollInterval
+	if rs.watcher != nil {
+		tailerInterval = watcherFallbackInterval
+	}
+	stdoutTailer, _ := NewTailer(stdoutPath, rs.runID, "stdout", tailerInterval, -1, rs.logCh)
+	stderrTailer, _ := NewTailer(stderrPath, rs.runID, "stderr", tailerInterval, -1, rs.logCh)
 	if stdoutTailer != nil {
 		stdoutTailer.Start(ctx)
 	}
 	if stderrTailer != nil {
 		stderrTailer.Start(ctx)
 	}
-	go rs.loop(ctx, stdoutTailer, stderrTailer)
+	go rs.loop(ctx, stdoutTailer, stderrTailer, rs.watcher)
 }
 
 func (rs *runStream) stopLocked() {
 	if !rs.started {
 		return
 	}
+	if rs.watcher != nil {
+		_ = rs.watcher.Close()
+		rs.watcher = nil
+	}
 	close(rs.stopCh)
 	rs.started = false
 }
 
-func (rs *runStream) loop(ctx context.Context, stdoutTailer, stderrTailer *Tailer) {
-	statusTicker := time.NewTicker(rs.pollInterval)
+func (rs *runStream) loop(ctx context.Context, stdoutTailer, stderrTailer *Tailer, watcher *runstate.DirWatcher) {
+	statusInterval := rs.pollInterval
+	var watchCh <-chan struct{}
+	if watcher != nil {
+		watchCh = watcher.Changes()
+		statusInterval = watcherFallbackInterval
+	}
+	statusTicker := time.NewTicker(statusInterval)
 	defer statusTicker.Stop()
 	for {
 		select {
@@ -821,6 +878,18 @@ func (rs *runStream) loop(ctx context.Context, stdoutTailer, stderrTailer *Taile
 			return
 		case line := <-rs.logCh:
 			rs.handleLogLine(line)
+		case _, ok := <-watchCh:
+			if !ok {
+				watchCh = nil
+				continue
+			}
+			if stdoutTailer != nil {
+				_ = stdoutTailer.TriggerPoll()
+			}
+			if stderrTailer != nil {
+				_ = stderrTailer.TriggerPoll()
+			}
+			rs.checkStatus()
 		case <-statusTicker.C:
 			rs.checkStatus()
 		}

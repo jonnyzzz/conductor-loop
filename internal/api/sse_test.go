@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jonnyzzz/conductor-loop/internal/config"
+	"github.com/jonnyzzz/conductor-loop/internal/messagebus"
 	"github.com/jonnyzzz/conductor-loop/internal/storage"
 )
 
@@ -214,6 +215,132 @@ func TestRunStreamCheckStatus_ReconcilesStaleRunningPID(t *testing.T) {
 	}
 	if reloaded.Status != storage.StatusFailed {
 		t.Fatalf("expected reconciled status=%q, got %q", storage.StatusFailed, reloaded.Status)
+	}
+}
+
+func TestStreamMessageBusPath_ReactsToFileChange(t *testing.T) {
+	root := t.TempDir()
+	server, err := NewServer(Options{
+		RootDir: root,
+		APIConfig: config.APIConfig{SSE: config.SSEConfig{
+			PollIntervalMs:      5000,
+			DiscoveryIntervalMs: 100,
+			HeartbeatIntervalS:  60,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	busPath := filepath.Join(root, "project", "PROJECT-MESSAGE-BUS.md")
+	if err := os.MkdirAll(filepath.Dir(busPath), 0o755); err != nil {
+		t.Fatalf("mkdir bus dir: %v", err)
+	}
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/messages?project_id=project", nil).WithContext(ctx)
+	rec := &recordingWriter{header: make(http.Header)}
+	done := make(chan struct{})
+	go func() {
+		_ = server.streamMessages(rec, req)
+		close(done)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	start := time.Now()
+	if _, err := bus.AppendMessage(&messagebus.Message{Type: "FACT", ProjectID: "project", Body: "watcher-message"}); err != nil {
+		t.Fatalf("AppendMessage: %v", err)
+	}
+
+	deadline := time.After(time.Second)
+	for {
+		if bytes.Contains(rec.Bytes(), []byte(`"body":"watcher-message"`)) {
+			if elapsed := time.Since(start); elapsed > time.Second {
+				t.Fatalf("message event was too slow: %v", elapsed)
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected message event within 1s")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatalf("streamMessages did not exit")
+	}
+}
+
+func TestRunStream_StatusUpdateOnFileChange(t *testing.T) {
+	runDir := t.TempDir()
+	runID := "run-1"
+	infoPath := filepath.Join(runDir, "run-info.yaml")
+	if err := storage.WriteRunInfo(infoPath, &storage.RunInfo{
+		RunID:     runID,
+		ProjectID: "project",
+		TaskID:    "task",
+		Status:    storage.StatusRunning,
+		ExitCode:  -1,
+		StartTime: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("write run-info: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "agent-stdout.txt"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write stdout: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "agent-stderr.txt"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write stderr: %v", err)
+	}
+
+	rs := newRunStream(runID, runDir, "project", "task", 5*time.Second, 10)
+	sub, _, err := rs.subscribe(Cursor{})
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	defer rs.unsubscribe(sub)
+
+	start := time.Now()
+	if err := storage.WriteRunInfo(infoPath, &storage.RunInfo{
+		RunID:     runID,
+		ProjectID: "project",
+		TaskID:    "task",
+		Status:    storage.StatusCompleted,
+		ExitCode:  0,
+		StartTime: time.Now().Add(-time.Minute).UTC(),
+		EndTime:   time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("update run-info: %v", err)
+	}
+
+	deadline := time.After(time.Second)
+	for {
+		select {
+		case ev, ok := <-sub.events:
+			if !ok {
+				t.Fatalf("subscriber channel closed before status update")
+			}
+			if ev.Event != "status" {
+				continue
+			}
+			if !strings.Contains(ev.Data, `"status":"completed"`) {
+				continue
+			}
+			if elapsed := time.Since(start); elapsed > time.Second {
+				t.Fatalf("status event was too slow: %v", elapsed)
+			}
+			return
+		case <-deadline:
+			t.Fatalf("expected status update within 1s")
+		}
 	}
 }
 
