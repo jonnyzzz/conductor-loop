@@ -19,6 +19,10 @@ const (
 	envOrchStubStderr   = "ORCH_STUB_STDERR"
 	envOrchStubSleepMs  = "ORCH_STUB_SLEEP_MS"
 	envOrchStubDoneFile = "ORCH_STUB_DONE_FILE"
+
+	// envOrchChainAgentBin holds the path to the real run-agent binary that
+	// chain stubs use to spawn child jobs.
+	envOrchChainAgentBin = "ORCH_CHAIN_AGENT_BIN"
 )
 
 func TestRunJob(t *testing.T) {
@@ -429,4 +433,302 @@ func readRunInfo(t *testing.T, runDir string) *storage.RunInfo {
 		t.Fatalf("read run-info: %v", err)
 	}
 	return info
+}
+
+// TestChainClaudeCodexGemini verifies a three-level agent chain within a
+// single project/task:
+//
+//	claude run  →  spawns codex run (parent_run_id = claude's run ID)
+//	codex run   →  spawns gemini run (parent_run_id = codex's run ID)
+//	gemini run  →  exits successfully
+//
+// All three runs must complete with the correct parent_run_id linkage.
+func TestChainClaudeCodexGemini(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("exec-based chain stubs not supported on windows")
+	}
+
+	const (
+		chainProjectID = "test"
+		chainTaskID    = "task-20260101-120000-chain-test"
+	)
+
+	root := t.TempDir()
+	taskDir := filepath.Join(root, chainProjectID, chainTaskID)
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("mkdir task dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "TASK.md"), []byte("chain integration test"), 0o644); err != nil {
+		t.Fatalf("write TASK.md: %v", err)
+	}
+
+	// Build the real run-agent binary; chain stubs exec it to spawn child jobs.
+	runAgentDir := t.TempDir()
+	runAgentBin := buildRunAgentBinary(t, runAgentDir)
+	t.Setenv(envOrchChainAgentBin, runAgentBin)
+
+	// Build three chain stubs into the same stub directory.
+	stubDir := t.TempDir()
+	buildChainClaudeStub(t, stubDir) // spawns a codex child job
+	buildChainCodexStub(t, stubDir)  // spawns a gemini child job
+	buildChainGeminiStub(t, stubDir) // terminal: outputs text and exits
+	t.Setenv("PATH", prependPath(stubDir))
+
+	opts := runner.JobOptions{
+		RootDir:    root,
+		Agent:      "claude",
+		Prompt:     "start chain",
+		WorkingDir: taskDir,
+	}
+	if err := runner.RunJob(chainProjectID, chainTaskID, opts); err != nil {
+		t.Fatalf("RunJob (claude): %v", err)
+	}
+
+	// Collect all run directories created by the chain.
+	runsDir := filepath.Join(taskDir, "runs")
+	entries, err := os.ReadDir(runsDir)
+	if err != nil {
+		t.Fatalf("read runs dir: %v", err)
+	}
+	var infos []*storage.RunInfo
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		infos = append(infos, readRunInfo(t, filepath.Join(runsDir, e.Name())))
+	}
+
+	if len(infos) != 3 {
+		t.Fatalf("expected 3 run dirs, got %d", len(infos))
+	}
+
+	// All runs must be completed.
+	for _, info := range infos {
+		if info.Status != storage.StatusCompleted {
+			t.Errorf("run %s (agent=%s): status want %q got %q",
+				info.RunID, info.AgentType, storage.StatusCompleted, info.Status)
+		}
+	}
+
+	// Locate the root run (claude): no parent_run_id.
+	var claudeRun *storage.RunInfo
+	for _, info := range infos {
+		if info.ParentRunID == "" {
+			if claudeRun != nil {
+				t.Fatalf("multiple runs with no parent_run_id")
+			}
+			claudeRun = info
+		}
+	}
+	if claudeRun == nil {
+		t.Fatalf("no root run found (every run has parent_run_id set)")
+	}
+	if claudeRun.AgentType != "claude" {
+		t.Errorf("root run agent_type: want claude, got %q", claudeRun.AgentType)
+	}
+
+	// Locate the child run (codex): parent_run_id = claude's run ID.
+	var codexRun *storage.RunInfo
+	for _, info := range infos {
+		if info.ParentRunID == claudeRun.RunID {
+			codexRun = info
+			break
+		}
+	}
+	if codexRun == nil {
+		t.Fatalf("no codex run with parent_run_id=%q", claudeRun.RunID)
+	}
+	if codexRun.AgentType != "codex" {
+		t.Errorf("child run agent_type: want codex, got %q", codexRun.AgentType)
+	}
+
+	// Locate the grandchild run (gemini): parent_run_id = codex's run ID.
+	var geminiRun *storage.RunInfo
+	for _, info := range infos {
+		if info.ParentRunID == codexRun.RunID {
+			geminiRun = info
+			break
+		}
+	}
+	if geminiRun == nil {
+		t.Fatalf("no gemini run with parent_run_id=%q", codexRun.RunID)
+	}
+	if geminiRun.AgentType != "gemini" {
+		t.Errorf("grandchild run agent_type: want gemini, got %q", geminiRun.AgentType)
+	}
+}
+
+// buildRunAgentBinary compiles the run-agent binary from source and returns
+// its path. Used by chain stubs to spawn child jobs via the real CLI.
+func buildRunAgentBinary(t *testing.T, dir string) string {
+	t.Helper()
+	binPath := filepath.Join(dir, "run-agent")
+	if runtime.GOOS == "windows" {
+		binPath += ".exe"
+	}
+	repoRoot := runAgentCmdRepoRoot(t)
+	mainPkg := filepath.Join(repoRoot, "cmd", "run-agent")
+	cmd := exec.Command("go", "build", "-o", binPath, mainPkg)
+	cmd.Env = os.Environ()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("build run-agent: %v\n%s", err, out)
+	}
+	return binPath
+}
+
+// buildChainClaudeStub compiles a "claude" stub into dir. When run by the
+// runner it reads JRUN_ID/JRUN_PROJECT_ID/JRUN_TASK_ID/RUNS_DIR from env and
+// spawns a codex child job via run-agent, then exits.
+func buildChainClaudeStub(t *testing.T, dir string) {
+	t.Helper()
+	stubPath := filepath.Join(dir, "claude")
+	if runtime.GOOS == "windows" {
+		stubPath += ".exe"
+	}
+	src := `package main
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+)
+
+func main() {
+	// Respond to version-detection probes without spawning child jobs.
+	for _, arg := range os.Args[1:] {
+		if arg == "--version" {
+			fmt.Fprintln(os.Stdout, "claude chain stub v0.0.0")
+			return
+		}
+	}
+	_, _ = io.Copy(io.Discard, os.Stdin)
+	runAgentBin := os.Getenv("` + envOrchChainAgentBin + `")
+	// TASK_FOLDER = <root>/<project>/<task>; go up two levels to get root.
+	rootDir := filepath.Dir(filepath.Dir(os.Getenv("TASK_FOLDER")))
+	cmd := exec.Command(runAgentBin, "job",
+		"--agent", "codex",
+		"--project", os.Getenv("JRUN_PROJECT_ID"),
+		"--task", os.Getenv("JRUN_TASK_ID"),
+		"--root", rootDir,
+		"--parent-run-id", os.Getenv("JRUN_ID"),
+		"--prompt", "codex agent step")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "claude chain stub: spawn codex job: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Fprintln(os.Stdout, "claude chain complete")
+}
+`
+	srcPath := filepath.Join(dir, "chain_claude_stub.go")
+	if err := os.WriteFile(srcPath, []byte(src), 0o644); err != nil {
+		t.Fatalf("write claude chain stub source: %v", err)
+	}
+	cmd := exec.Command("go", "build", "-o", stubPath, srcPath)
+	cmd.Env = os.Environ()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("build claude chain stub: %v\n%s", err, out)
+	}
+}
+
+// buildChainCodexStub compiles a "codex" stub into dir. When run by the
+// runner it reads JRUN_ID/JRUN_PROJECT_ID/JRUN_TASK_ID/RUNS_DIR from env and
+// spawns a gemini child job via run-agent, then exits.
+func buildChainCodexStub(t *testing.T, dir string) {
+	t.Helper()
+	stubPath := filepath.Join(dir, "codex")
+	if runtime.GOOS == "windows" {
+		stubPath += ".exe"
+	}
+	src := `package main
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+)
+
+func main() {
+	// Respond to version-detection probes without spawning child jobs.
+	for _, arg := range os.Args[1:] {
+		if arg == "--version" {
+			fmt.Fprintln(os.Stdout, "codex chain stub v0.0.0")
+			return
+		}
+	}
+	_, _ = io.Copy(io.Discard, os.Stdin)
+	runAgentBin := os.Getenv("` + envOrchChainAgentBin + `")
+	// TASK_FOLDER = <root>/<project>/<task>; go up two levels to get root.
+	rootDir := filepath.Dir(filepath.Dir(os.Getenv("TASK_FOLDER")))
+	cmd := exec.Command(runAgentBin, "job",
+		"--agent", "gemini",
+		"--project", os.Getenv("JRUN_PROJECT_ID"),
+		"--task", os.Getenv("JRUN_TASK_ID"),
+		"--root", rootDir,
+		"--parent-run-id", os.Getenv("JRUN_ID"),
+		"--prompt", "gemini agent step")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "codex chain stub: spawn gemini job: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Fprintln(os.Stdout, "codex chain complete")
+}
+`
+	srcPath := filepath.Join(dir, "chain_codex_stub.go")
+	if err := os.WriteFile(srcPath, []byte(src), 0o644); err != nil {
+		t.Fatalf("write codex chain stub source: %v", err)
+	}
+	cmd := exec.Command("go", "build", "-o", stubPath, srcPath)
+	cmd.Env = os.Environ()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("build codex chain stub: %v\n%s", err, out)
+	}
+}
+
+// buildChainGeminiStub compiles a terminal "gemini" stub into dir. It
+// responds to --help with an "output-format" line (satisfying the
+// checkGeminiStreamJSONSupport version probe), and exits successfully on
+// regular invocations.
+func buildChainGeminiStub(t *testing.T, dir string) {
+	t.Helper()
+	stubPath := filepath.Join(dir, "gemini")
+	if runtime.GOOS == "windows" {
+		stubPath += ".exe"
+	}
+	src := `package main
+
+import (
+	"fmt"
+	"io"
+	"os"
+)
+
+func main() {
+	for _, arg := range os.Args[1:] {
+		if arg == "--help" {
+			// Satisfy the checkGeminiStreamJSONSupport version probe.
+			fmt.Fprintln(os.Stdout, "--output-format stream-json")
+			return
+		}
+	}
+	_, _ = io.Copy(io.Discard, os.Stdin)
+	fmt.Fprintln(os.Stdout, "gemini chain complete")
+}
+`
+	srcPath := filepath.Join(dir, "chain_gemini_stub.go")
+	if err := os.WriteFile(srcPath, []byte(src), 0o644); err != nil {
+		t.Fatalf("write gemini chain stub source: %v", err)
+	}
+	cmd := exec.Command("go", "build", "-o", stubPath, srcPath)
+	cmd.Env = os.Environ()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("build gemini chain stub: %v\n%s", err, out)
+	}
 }
