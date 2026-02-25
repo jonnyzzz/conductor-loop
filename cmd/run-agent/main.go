@@ -196,10 +196,31 @@ func newJobCmd() *cobra.Command {
 		Use:   "job",
 		Short: "Run a single agent job",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Environment variables set by the parent runner take priority over CLI flags.
+			// JRUN_PROJECT_ID / JRUN_TASK_ID identify the current task scope.
+			if envProj := strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID")); envProj != "" {
+				projectID = envProj
+			}
+			if envTask := strings.TrimSpace(os.Getenv("JRUN_TASK_ID")); envTask != "" {
+				taskID = envTask
+			}
+			// TASK_FOLDER = <root>/<project>/<task>; go up two levels to get root.
+			if strings.TrimSpace(opts.RootDir) == "" {
+				if envFolder := strings.TrimSpace(os.Getenv("TASK_FOLDER")); envFolder != "" {
+					opts.RootDir = filepath.Dir(filepath.Dir(envFolder))
+				}
+			}
+			// JRUN_ID is the parent run's ID when called from inside an agent run.
+			if strings.TrimSpace(opts.ParentRunID) == "" {
+				if envRunID := strings.TrimSpace(os.Getenv("JRUN_ID")); envRunID != "" {
+					opts.ParentRunID = envRunID
+				}
+			}
+
 			projectID = strings.TrimSpace(projectID)
 			originalTaskID := strings.TrimSpace(taskID)
 			if projectID == "" {
-				return fmt.Errorf("project is required")
+				return fmt.Errorf("--project is required (or set JRUN_PROJECT_ID env var)")
 			}
 			var err error
 			taskID, err = resolveTaskID(originalTaskID)

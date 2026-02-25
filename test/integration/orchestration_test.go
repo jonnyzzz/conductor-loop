@@ -577,8 +577,9 @@ func buildRunAgentBinary(t *testing.T, dir string) string {
 }
 
 // buildChainClaudeStub compiles a "claude" stub into dir. When run by the
-// runner it reads JRUN_ID/JRUN_PROJECT_ID/JRUN_TASK_ID/RUNS_DIR from env and
-// spawns a codex child job via run-agent, then exits.
+// runner it inherits JRUN_PROJECT_ID/JRUN_TASK_ID/TASK_FOLDER/JRUN_ID from
+// env (set by the parent runner) and spawns a codex child job via run-agent
+// without passing explicit --project/--task/--root/--parent-run-id flags.
 func buildChainClaudeStub(t *testing.T, dir string) {
 	t.Helper()
 	stubPath := filepath.Join(dir, "claude")
@@ -592,7 +593,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 )
 
 func main() {
@@ -605,14 +605,10 @@ func main() {
 	}
 	_, _ = io.Copy(io.Discard, os.Stdin)
 	runAgentBin := os.Getenv("` + envOrchChainAgentBin + `")
-	// TASK_FOLDER = <root>/<project>/<task>; go up two levels to get root.
-	rootDir := filepath.Dir(filepath.Dir(os.Getenv("TASK_FOLDER")))
+	// project, task, root, and parent-run-id are inferred from env vars set by
+	// the parent runner (JRUN_PROJECT_ID, JRUN_TASK_ID, TASK_FOLDER, JRUN_ID).
 	cmd := exec.Command(runAgentBin, "job",
 		"--agent", "codex",
-		"--project", os.Getenv("JRUN_PROJECT_ID"),
-		"--task", os.Getenv("JRUN_TASK_ID"),
-		"--root", rootDir,
-		"--parent-run-id", os.Getenv("JRUN_ID"),
 		"--prompt", "codex agent step")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -635,8 +631,9 @@ func main() {
 }
 
 // buildChainCodexStub compiles a "codex" stub into dir. When run by the
-// runner it reads JRUN_ID/JRUN_PROJECT_ID/JRUN_TASK_ID/RUNS_DIR from env and
-// spawns a gemini child job via run-agent, then exits.
+// runner it inherits JRUN_PROJECT_ID/JRUN_TASK_ID/TASK_FOLDER/JRUN_ID from
+// env (set by the parent runner) and spawns a gemini child job via run-agent
+// without passing explicit --project/--task/--root/--parent-run-id flags.
 func buildChainCodexStub(t *testing.T, dir string) {
 	t.Helper()
 	stubPath := filepath.Join(dir, "codex")
@@ -650,7 +647,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 )
 
 func main() {
@@ -663,14 +659,10 @@ func main() {
 	}
 	_, _ = io.Copy(io.Discard, os.Stdin)
 	runAgentBin := os.Getenv("` + envOrchChainAgentBin + `")
-	// TASK_FOLDER = <root>/<project>/<task>; go up two levels to get root.
-	rootDir := filepath.Dir(filepath.Dir(os.Getenv("TASK_FOLDER")))
+	// project, task, root, and parent-run-id are inferred from env vars set by
+	// the parent runner (JRUN_PROJECT_ID, JRUN_TASK_ID, TASK_FOLDER, JRUN_ID).
 	cmd := exec.Command(runAgentBin, "job",
 		"--agent", "gemini",
-		"--project", os.Getenv("JRUN_PROJECT_ID"),
-		"--task", os.Getenv("JRUN_TASK_ID"),
-		"--root", rootDir,
-		"--parent-run-id", os.Getenv("JRUN_ID"),
 		"--prompt", "gemini agent step")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
