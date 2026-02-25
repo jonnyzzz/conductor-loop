@@ -294,13 +294,15 @@ func latestReadableRunInfo(runsDir string, runNames []string) (string, *storage.
 	for i := len(runNames) - 1; i >= 0; i-- {
 		runID := runNames[i]
 		infoPath := filepath.Join(runsDir, runID, "run-info.yaml")
-		info, err := runstate.ReadRunInfo(infoPath)
-		if err != nil {
+		// Skip orphan directories (no run-info.yaml file). The caller falls back to
+		// the DONE marker or prior runs when all entries are orphaned. We check file
+		// existence rather than StatusUnknown so that real legacy run-info files with
+		// an absent status field are still visible.
+		if _, statErr := os.Stat(infoPath); statErr != nil {
 			continue
 		}
-		// Skip synthesized placeholder entries (no real run-info.yaml was found).
-		// The caller falls back to the DONE marker or prior runs when all are orphaned.
-		if info.Status == storage.StatusUnknown {
+		info, err := runstate.ReadRunInfo(infoPath)
+		if err != nil {
 			continue
 		}
 		return runID, info

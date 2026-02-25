@@ -186,6 +186,13 @@ func hydrateRunInfoDefaults(info *RunInfo, path string) {
 	}
 }
 
+// RunScopeFromRunInfoPath extracts projectID and taskID from a canonical
+// run-info.yaml path (<root>/<project>/<task>/runs/<runID>/run-info.yaml).
+// Returns empty strings if the path does not match the expected layout.
+func RunScopeFromRunInfoPath(path string) (projectID, taskID string) {
+	return runScopeFromRunInfoPath(path)
+}
+
 func runScopeFromRunInfoPath(path string) (projectID, taskID string) {
 	clean := filepath.Clean(strings.TrimSpace(path))
 	if clean == "." || clean == "" {

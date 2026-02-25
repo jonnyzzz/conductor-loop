@@ -163,7 +163,7 @@ func synthesizeRunInfo(path string) *storage.RunInfo {
 	if runID == "." || runID == string(filepath.Separator) {
 		runID = ""
 	}
-	projectID, taskID := inferRunScopeFromRunInfoPath(path)
+	projectID, taskID := storage.RunScopeFromRunInfoPath(path)
 	return &storage.RunInfo{
 		RunID:     runID,
 		ProjectID: projectID,
@@ -171,32 +171,6 @@ func synthesizeRunInfo(path string) *storage.RunInfo {
 		Status:    storage.StatusUnknown,
 		Version:   0,
 	}
-}
-
-func inferRunScopeFromRunInfoPath(path string) (projectID, taskID string) {
-	clean := filepath.Clean(strings.TrimSpace(path))
-	if clean == "." || clean == "" {
-		return "", ""
-	}
-	runDir := filepath.Dir(clean)
-	if runDir == "." || runDir == "" {
-		return "", ""
-	}
-	runsDir := filepath.Dir(runDir)
-	if filepath.Base(runsDir) != "runs" {
-		return "", ""
-	}
-	taskDir := filepath.Dir(runsDir)
-	projectDir := filepath.Dir(taskDir)
-	taskID = strings.TrimSpace(filepath.Base(taskDir))
-	projectID = strings.TrimSpace(filepath.Base(projectDir))
-	if taskID == "." || taskID == string(filepath.Separator) {
-		taskID = ""
-	}
-	if projectID == "." || projectID == string(filepath.Separator) {
-		projectID = ""
-	}
-	return projectID, taskID
 }
 
 func runAlive(info *storage.RunInfo) bool {

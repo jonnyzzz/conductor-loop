@@ -585,17 +585,9 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 			info.ErrorSummary = classifyExitCode(exitCode)
 		}
 	}
-	if err := storage.UpdateRunInfo(filepath.Join(runDir, "run-info.yaml"), func(update *storage.RunInfo) error {
-		update.ExitCode = info.ExitCode
-		update.EndTime = info.EndTime
-		update.Status = info.Status
-		update.ErrorSummary = info.ErrorSummary
-		return nil
-	}); err != nil {
-		return idleTimedOut, errors.Wrap(err, "update run-info")
-	}
 	// For stream-json CLI agents: extract clean text from JSON stream before
-	// falling back to raw copy.
+	// writing the final run-info status. Parsing happens before the UpdateRunInfo
+	// write so that status is set exactly once with the definitive value.
 	switch strings.ToLower(agentType) {
 	case "claude":
 		if parseErr := claude.WriteOutputMDFromStream(runDir, info.StdoutPath); parseErr != nil {
@@ -624,17 +616,17 @@ func executeCLI(ctx context.Context, agentType, promptPath, workingDir string, e
 				info.ExitCode = exitCode
 				info.Status = storage.StatusFailed
 				info.ErrorSummary = "gemini CLI rejected --output-format stream-json"
-				if err := storage.UpdateRunInfo(filepath.Join(runDir, "run-info.yaml"), func(update *storage.RunInfo) error {
-					update.ExitCode = info.ExitCode
-					update.EndTime = info.EndTime
-					update.Status = info.Status
-					update.ErrorSummary = info.ErrorSummary
-					return nil
-				}); err != nil {
-					return idleTimedOut, errors.Wrap(err, "update run-info")
-				}
 			}
 		}
+	}
+	if err := storage.UpdateRunInfo(filepath.Join(runDir, "run-info.yaml"), func(update *storage.RunInfo) error {
+		update.ExitCode = info.ExitCode
+		update.EndTime = info.EndTime
+		update.Status = info.Status
+		update.ErrorSummary = info.ErrorSummary
+		return nil
+	}); err != nil {
+		return idleTimedOut, errors.Wrap(err, "update run-info")
 	}
 	if _, err := agent.CreateOutputMD(runDir, ""); err != nil {
 		return idleTimedOut, errors.Wrap(err, "ensure output.md")

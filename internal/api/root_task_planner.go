@@ -442,24 +442,10 @@ func (p *rootTaskPlanner) reconcileLocked(state *rootTaskPlannerState) (bool, er
 		runInfoPath := filepath.Join(entry.RunDir, "run-info.yaml")
 		runInfo, err := runstate.ReadRunInfo(runInfoPath)
 		if err != nil {
-			cause := errors.Cause(err)
-			if os.IsNotExist(cause) || os.IsNotExist(err) {
-				if entry.State == rootTaskPlannerEntryRunning {
-					if entry.StartedAt.IsZero() || now.Sub(entry.StartedAt) > rootTaskPlannerRunInfoGraceFor {
-						entry.State = rootTaskPlannerEntryQueued
-						entry.StartedAt = time.Time{}
-						changed = true
-						if done {
-							changed = true
-							continue
-						}
-					}
-				}
-				normalized = append(normalized, entry)
-				continue
-			}
 			return changed, errors.Wrapf(err, "read planner run-info for %s/%s", entry.ProjectID, entry.TaskID)
 		}
+		// StatusUnknown means run-info.yaml is missing (synthesized placeholder) or
+		// has no recorded status yet. Treat it the same as a not-yet-started run.
 		if strings.TrimSpace(runInfo.Status) == storage.StatusUnknown {
 			if entry.State == rootTaskPlannerEntryRunning {
 				if entry.StartedAt.IsZero() || now.Sub(entry.StartedAt) > rootTaskPlannerRunInfoGraceFor {
@@ -467,7 +453,6 @@ func (p *rootTaskPlanner) reconcileLocked(state *rootTaskPlannerState) (bool, er
 					entry.StartedAt = time.Time{}
 					changed = true
 					if done {
-						changed = true
 						continue
 					}
 				}
