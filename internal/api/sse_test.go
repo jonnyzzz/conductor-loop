@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -220,18 +222,6 @@ func TestRunStreamCheckStatus_ReconcilesStaleRunningPID(t *testing.T) {
 
 func TestStreamMessageBusPath_ReactsToFileChange(t *testing.T) {
 	root := t.TempDir()
-	server, err := NewServer(Options{
-		RootDir: root,
-		APIConfig: config.APIConfig{SSE: config.SSEConfig{
-			PollIntervalMs:      5000,
-			DiscoveryIntervalMs: 100,
-			HeartbeatIntervalS:  60,
-		}},
-	})
-	if err != nil {
-		t.Fatalf("NewServer: %v", err)
-	}
-
 	busPath := filepath.Join(root, "project", "PROJECT-MESSAGE-BUS.md")
 	if err := os.MkdirAll(filepath.Dir(busPath), 0o755); err != nil {
 		t.Fatalf("mkdir bus dir: %v", err)
@@ -240,15 +230,35 @@ func TestStreamMessageBusPath_ReactsToFileChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewMessageBus: %v", err)
 	}
+	if _, err := bus.AppendMessage(&messagebus.Message{
+		Type:      "FACT",
+		ProjectID: "project",
+		Body:      "bootstrap",
+	}); err != nil {
+		t.Fatalf("AppendMessage bootstrap: %v", err)
+	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/messages?project_id=project", nil).WithContext(ctx)
-	rec := &recordingWriter{header: make(http.Header)}
-	done := make(chan struct{})
-	go func() {
-		_ = server.streamMessages(rec, req)
-		close(done)
-	}()
+	server, err := NewServer(Options{
+		RootDir: root,
+		APIConfig: config.APIConfig{SSE: config.SSEConfig{
+			PollIntervalMs:      int(defaultPollInterval / time.Millisecond),
+			DiscoveryIntervalMs: 100,
+			HeartbeatIntervalS:  60,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	testServer := httptest.NewServer(server.Handler())
+	defer testServer.Close()
+
+	resp, err := http.Get(testServer.URL + "/api/v1/messages/stream?project_id=project")
+	if err != nil {
+		t.Fatalf("stream request: %v", err)
+	}
+	defer resp.Body.Close()
+	events := readSSEEventsFromResponse(resp)
+	_ = waitForSSEEventType(t, events, "message", 2*time.Second)
 
 	time.Sleep(50 * time.Millisecond)
 	start := time.Now()
@@ -256,33 +266,22 @@ func TestStreamMessageBusPath_ReactsToFileChange(t *testing.T) {
 		t.Fatalf("AppendMessage: %v", err)
 	}
 
-	deadline := time.After(time.Second)
-	for {
-		if bytes.Contains(rec.Bytes(), []byte(`"body":"watcher-message"`)) {
-			if elapsed := time.Since(start); elapsed > time.Second {
-				t.Fatalf("message event was too slow: %v", elapsed)
-			}
-			break
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("expected message event within 1s")
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
+	ev := waitForSSEEventType(t, events, "message", time.Second)
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("message event was too slow: %v", elapsed)
 	}
-
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(200 * time.Millisecond):
-		t.Fatalf("streamMessages did not exit")
+	if !strings.Contains(ev.Data, `"body":"watcher-message"`) {
+		t.Fatalf("expected watcher message payload, got %s", ev.Data)
 	}
 }
 
 func TestRunStream_StatusUpdateOnFileChange(t *testing.T) {
-	runDir := t.TempDir()
 	runID := "run-1"
+	root := t.TempDir()
+	runDir := filepath.Join(root, "project", "task", "runs", runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
 	infoPath := filepath.Join(runDir, "run-info.yaml")
 	if err := storage.WriteRunInfo(infoPath, &storage.RunInfo{
 		RunID:     runID,
@@ -301,13 +300,28 @@ func TestRunStream_StatusUpdateOnFileChange(t *testing.T) {
 		t.Fatalf("write stderr: %v", err)
 	}
 
-	rs := newRunStream(runID, runDir, "project", "task", 5*time.Second, 10)
-	sub, _, err := rs.subscribe(Cursor{})
+	server, err := NewServer(Options{
+		RootDir: root,
+		APIConfig: config.APIConfig{SSE: config.SSEConfig{
+			PollIntervalMs:      int(defaultPollInterval / time.Millisecond),
+			DiscoveryIntervalMs: 100,
+			HeartbeatIntervalS:  60,
+		}},
+	})
 	if err != nil {
-		t.Fatalf("subscribe: %v", err)
+		t.Fatalf("NewServer: %v", err)
 	}
-	defer rs.unsubscribe(sub)
+	testServer := httptest.NewServer(server.Handler())
+	defer testServer.Close()
 
+	resp, err := http.Get(testServer.URL + "/api/v1/runs/" + runID + "/stream")
+	if err != nil {
+		t.Fatalf("stream request: %v", err)
+	}
+	defer resp.Body.Close()
+	events := readSSEEventsFromResponse(resp)
+
+	time.Sleep(50 * time.Millisecond)
 	start := time.Now()
 	if err := storage.WriteRunInfo(infoPath, &storage.RunInfo{
 		RunID:     runID,
@@ -321,25 +335,94 @@ func TestRunStream_StatusUpdateOnFileChange(t *testing.T) {
 		t.Fatalf("update run-info: %v", err)
 	}
 
-	deadline := time.After(time.Second)
+	ev := waitForStatusEventValue(t, events, storage.StatusCompleted, time.Second)
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("status event was too slow: %v", elapsed)
+	}
+	if !strings.Contains(ev.Data, `"status":"completed"`) {
+		t.Fatalf("expected completed status payload, got %s", ev.Data)
+	}
+}
+
+type testSSEEvent struct {
+	ID    string
+	Event string
+	Data  string
+}
+
+func readSSEEventsFromResponse(resp *http.Response) <-chan testSSEEvent {
+	events := make(chan testSSEEvent, 32)
+	go func() {
+		defer close(events)
+		scanner := bufio.NewScanner(resp.Body)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		var (
+			event testSSEEvent
+			data  []string
+		)
+		for scanner.Scan() {
+			line := scanner.Text()
+			switch {
+			case line == "":
+				if event.Event != "" || event.ID != "" || len(data) > 0 {
+					event.Data = strings.Join(data, "\n")
+					events <- event
+				}
+				event = testSSEEvent{}
+				data = data[:0]
+			case strings.HasPrefix(line, "event:"):
+				event.Event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+			case strings.HasPrefix(line, "id:"):
+				event.ID = strings.TrimSpace(strings.TrimPrefix(line, "id:"))
+			case strings.HasPrefix(line, "data:"):
+				data = append(data, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+			}
+		}
+	}()
+	return events
+}
+
+func waitForSSEEventType(t *testing.T, events <-chan testSSEEvent, eventType string, timeout time.Duration) testSSEEvent {
+	t.Helper()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 	for {
 		select {
-		case ev, ok := <-sub.events:
+		case event, ok := <-events:
 			if !ok {
-				t.Fatalf("subscriber channel closed before status update")
+				t.Fatalf("stream closed while waiting for event=%s", eventType)
 			}
-			if ev.Event != "status" {
+			if event.Event == eventType {
+				return event
+			}
+		case <-timer.C:
+			t.Fatalf("timeout waiting for event=%s", eventType)
+		}
+	}
+}
+
+func waitForStatusEventValue(t *testing.T, events <-chan testSSEEvent, status string, timeout time.Duration) testSSEEvent {
+	t.Helper()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	for {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				t.Fatalf("stream closed while waiting for status=%s", status)
+			}
+			if event.Event != "status" {
 				continue
 			}
-			if !strings.Contains(ev.Data, `"status":"completed"`) {
+			var payload statusPayload
+			if err := json.Unmarshal([]byte(event.Data), &payload); err != nil {
 				continue
 			}
-			if elapsed := time.Since(start); elapsed > time.Second {
-				t.Fatalf("status event was too slow: %v", elapsed)
+			if payload.Status == status {
+				return event
 			}
-			return
-		case <-deadline:
-			t.Fatalf("expected status update within 1s")
+		case <-timer.C:
+			t.Fatalf("timeout waiting for status=%s", status)
 		}
 	}
 }

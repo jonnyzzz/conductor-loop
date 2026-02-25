@@ -52,12 +52,13 @@ func (dw *DirWatcher) loop() {
 			if !ok {
 				return
 			}
-			// Automatically watch newly-created subdirectories so the watch
-			// set grows with the directory tree without requiring re-creation.
+			// Automatically watch newly-created paths. Watching files improves
+			// append detection on platforms where directory-level write events
+			// are not emitted for file content changes.
 			// fsnotify is concurrency-safe; Add after Close returns an error
 			// that we intentionally discard here.
 			if event.Has(fsnotify.Create) {
-				if fi, statErr := os.Stat(event.Name); statErr == nil && fi.IsDir() {
+				if _, statErr := os.Stat(event.Name); statErr == nil {
 					_ = dw.fsw.Add(event.Name)
 				}
 			}

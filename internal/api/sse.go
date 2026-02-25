@@ -272,7 +272,11 @@ func (s *Server) streamMessageBusPath(w http.ResponseWriter, r *http.Request, bu
 
 	busDir := filepath.Dir(busPath)
 	var watcher *runstate.DirWatcher
-	if watch, watchErr := runstate.NewDirWatcher(busDir); watchErr == nil {
+	watchPaths := []string{busDir}
+	if _, statErr := os.Stat(busPath); statErr == nil {
+		watchPaths = append(watchPaths, busPath)
+	}
+	if watch, watchErr := runstate.NewDirWatcher(watchPaths...); watchErr == nil {
 		watcher = watch
 		defer watcher.Close()
 	}
@@ -827,7 +831,14 @@ func (rs *runStream) startLocked() {
 	if count, err := countLines(stderrPath); err == nil {
 		rs.stderrLines = count
 	}
-	if watcher, err := runstate.NewDirWatcher(rs.runDir); err == nil {
+	runInfoPath := filepath.Join(rs.runDir, "run-info.yaml")
+	watchPaths := []string{rs.runDir}
+	for _, path := range []string{stdoutPath, stderrPath, runInfoPath} {
+		if _, statErr := os.Stat(path); statErr == nil {
+			watchPaths = append(watchPaths, path)
+		}
+	}
+	if watcher, err := runstate.NewDirWatcher(watchPaths...); err == nil {
 		rs.watcher = watcher
 	}
 	tailerInterval := rs.pollInterval
@@ -866,6 +877,7 @@ func (rs *runStream) loop(ctx context.Context, stdoutTailer, stderrTailer *Taile
 	}
 	statusTicker := time.NewTicker(statusInterval)
 	defer statusTicker.Stop()
+	rs.checkStatus()
 	for {
 		select {
 		case <-ctx.Done():
