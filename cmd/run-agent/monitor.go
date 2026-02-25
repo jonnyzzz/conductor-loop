@@ -339,16 +339,23 @@ func runMonitor(out io.Writer, opts monitorOpts) error {
 		defer todoReader.Close()
 	}
 
-	// Watch the project runs directory and the TODOs file's directory for
-	// filesystem changes. New subdirectories (task dirs, run dirs) are
-	// auto-added to the watch set as they are created.
+	// Watch the project runs directory and the TODOs file for filesystem
+	// changes. New subdirectories (task dirs, run dirs) are auto-added to
+	// the watch set as they are created.
 	projectDir := filepath.Join(opts.RootDir, opts.ProjectID)
 	_ = os.MkdirAll(projectDir, 0o755)
 
+	// Build the set of paths to watch. Always watch the project runs dir.
+	// Watch the TODOs file directly (not its parent dir) to avoid spurious
+	// events from unrelated files in the same directory. We resolve to an
+	// absolute path first so that bare filenames like "TODOs.md" don't cause
+	// fsnotify to watch "." (the entire CWD).
 	watchPaths := []string{projectDir}
-	todoDir := filepath.Dir(opts.TODOFile)
-	if todoDir != "" && todoDir != projectDir {
-		watchPaths = append(watchPaths, todoDir)
+	if todoAbs, absErr := filepath.Abs(opts.TODOFile); absErr == nil {
+		// Only watch the TODOs file if it exists; skip silently otherwise.
+		if _, statErr := os.Stat(todoAbs); statErr == nil {
+			watchPaths = append(watchPaths, todoAbs)
+		}
 	}
 
 	var changes <-chan struct{}
@@ -368,7 +375,9 @@ func runMonitor(out io.Writer, opts monitorOpts) error {
 		select {
 		case _, ok := <-changes:
 			if !ok {
-				// Watcher stopped; fall back to ticker-only mode.
+				// Watcher stopped unexpectedly; log and fall back to
+				// ticker-only mode for the remainder of the daemon run.
+				fmt.Fprintf(out, "monitor: fsnotify watcher stopped, switching to ticker-only mode\n")
 				changes = nil
 				continue
 			}

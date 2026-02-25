@@ -19,7 +19,6 @@ import (
 type DirWatcher struct {
 	fsw       *fsnotify.Watcher
 	changes   chan struct{}
-	done      chan struct{}
 	closeOnce sync.Once
 }
 
@@ -40,7 +39,6 @@ func NewDirWatcher(paths ...string) (*DirWatcher, error) {
 	dw := &DirWatcher{
 		fsw:     fsw,
 		changes: make(chan struct{}, 1),
-		done:    make(chan struct{}),
 	}
 	go dw.loop()
 	return dw, nil
@@ -50,14 +48,14 @@ func (dw *DirWatcher) loop() {
 	defer close(dw.changes)
 	for {
 		select {
-		case <-dw.done:
-			return
 		case event, ok := <-dw.fsw.Events:
 			if !ok {
 				return
 			}
 			// Automatically watch newly-created subdirectories so the watch
 			// set grows with the directory tree without requiring re-creation.
+			// fsnotify is concurrency-safe; Add after Close returns an error
+			// that we intentionally discard here.
 			if event.Has(fsnotify.Create) {
 				if fi, statErr := os.Stat(event.Name); statErr == nil && fi.IsDir() {
 					_ = dw.fsw.Add(event.Name)
@@ -72,8 +70,8 @@ func (dw *DirWatcher) loop() {
 			if !ok {
 				return
 			}
-			// Watcher errors are intentionally swallowed; the caller falls
-			// back to ticker-based polling when the changes channel closes.
+			// Watcher errors are swallowed; the caller falls back to
+			// ticker-based polling when the changes channel closes.
 		}
 	}
 }
@@ -90,8 +88,13 @@ func (dw *DirWatcher) Changes() <-chan struct{} {
 // Close stops the watcher and releases all OS resources.
 // It is safe to call Close multiple times.
 func (dw *DirWatcher) Close() error {
-	dw.closeOnce.Do(func() { close(dw.done) })
-	return dw.fsw.Close()
+	var err error
+	dw.closeOnce.Do(func() {
+		// Closing fsw closes both fsw.Events and fsw.Errors, which causes
+		// the loop goroutine to exit via the !ok branch.
+		err = dw.fsw.Close()
+	})
+	return err
 }
 
 // FileReader holds a persistent open file handle and re-reads from the
@@ -130,9 +133,11 @@ func (fr *FileReader) ReadAll() ([]byte, error) {
 			return nil, fmt.Errorf("seek %s: %w", fr.path, err)
 		}
 	} else if replaced, _ := fr.isReplaced(); replaced {
-		// The path now points to a different inode (atomic rename). Reopen so
-		// subsequent reads reflect the new file content.
-		_ = fr.reopen()
+		// The path now points to a different inode (atomic rename). Reopen
+		// so subsequent reads reflect the new file content.
+		if err := fr.reopen(); err != nil {
+			return nil, err
+		}
 	}
 
 	return io.ReadAll(fr.f)
@@ -154,14 +159,16 @@ func (fr *FileReader) isReplaced() (bool, error) {
 	return !os.SameFile(pathInfo, fdInfo), nil
 }
 
-// reopen closes the current handle and opens a fresh one.
+// reopen opens a fresh handle for fr.path, replacing the existing one.
+// The new handle is opened before the old one is closed to ensure fr.f
+// always points to a valid (or newly-opened) file.
 // Caller must hold fr.mu.
 func (fr *FileReader) reopen() error {
-	_ = fr.f.Close()
 	f, err := os.Open(fr.path)
 	if err != nil {
 		return fmt.Errorf("reopen %s: %w", fr.path, err)
 	}
+	_ = fr.f.Close()
 	fr.f = f
 	return nil
 }

@@ -258,3 +258,29 @@ func TestNewFileReader_MissingFileReturnsError(t *testing.T) {
 		t.Fatal("expected error for non-existent file")
 	}
 }
+
+// TestNewDirWatcher_NonExistentPathReturnsError verifies that NewDirWatcher
+// fails gracefully when given a path that does not exist.
+func TestNewDirWatcher_NonExistentPathReturnsError(t *testing.T) {
+	_, err := NewDirWatcher("/nonexistent/path/that/does/not/exist")
+	if err == nil {
+		t.Fatal("expected error for non-existent path")
+	}
+}
+
+// TestDirWatcher_CloseIsIdempotent verifies that Close can be called multiple
+// times without error (distinct from panic-safety tested elsewhere).
+func TestDirWatcher_CloseIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	dw, err := NewDirWatcher(dir)
+	if err != nil {
+		t.Fatalf("NewDirWatcher: %v", err)
+	}
+	if err := dw.Close(); err != nil {
+		t.Errorf("first Close: %v", err)
+	}
+	// Second Close must not return an error (it is a no-op via sync.Once).
+	if err := dw.Close(); err != nil {
+		t.Errorf("second Close returned error: %v", err)
+	}
+}
