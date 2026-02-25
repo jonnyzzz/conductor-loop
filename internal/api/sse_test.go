@@ -602,6 +602,67 @@ func appendLine(path, line string) error {
 	return nil
 }
 
+// TestSSEBusHydrationExpiredLastID verifies that when the SSE stream reconnects
+// with a Last-Event-ID that no longer exists in the bus file (expired / rotated),
+// the server falls back to sending the last N messages rather than returning an
+// empty event stream.  This is the regression test for the empty-state bug.
+func TestSSEBusHydrationExpiredLastID(t *testing.T) {
+	root := t.TempDir()
+	busPath := filepath.Join(root, "project", "PROJECT-MESSAGE-BUS.md")
+	if err := os.MkdirAll(filepath.Dir(busPath), 0o755); err != nil {
+		t.Fatalf("mkdir bus dir: %v", err)
+	}
+	bus, err := messagebus.NewMessageBus(busPath)
+	if err != nil {
+		t.Fatalf("NewMessageBus: %v", err)
+	}
+
+	// Write a few messages so the bus file is non-empty.
+	for _, body := range []string{"msg-a", "msg-b", "msg-c"} {
+		if _, err := bus.AppendMessage(&messagebus.Message{
+			Type:      "FACT",
+			ProjectID: "project",
+			Body:      body,
+		}); err != nil {
+			t.Fatalf("AppendMessage %s: %v", body, err)
+		}
+	}
+
+	server, err := NewServer(Options{
+		RootDir: root,
+		APIConfig: config.APIConfig{SSE: config.SSEConfig{
+			PollIntervalMs:      int(defaultPollInterval / time.Millisecond),
+			DiscoveryIntervalMs: 100,
+			HeartbeatIntervalS:  60,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	testServer := httptest.NewServer(server.Handler())
+	defer testServer.Close()
+
+	// Reconnect using a Last-Event-ID that does NOT exist in the bus.
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/api/v1/messages/stream?project_id=project", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Last-Event-ID", "does-not-exist-id")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("stream request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	events := readSSEEventsFromResponse(resp)
+	// Must receive at least one "message" event — panel must never be spuriously empty.
+	ev := waitForSSEEventType(t, events, "message", 2*time.Second)
+	if ev.Data == "" {
+		t.Fatalf("expected non-empty message event data after expired Last-Event-ID reconnect")
+	}
+}
+
 type recordingWriter struct {
 	header http.Header
 	mu     sync.Mutex

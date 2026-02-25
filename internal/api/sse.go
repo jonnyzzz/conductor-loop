@@ -27,6 +27,11 @@ const (
 	defaultHeartbeatInterval = 30 * time.Second
 	defaultMaxClientsPerRun  = 10
 	watcherFallbackInterval  = 10 * time.Second
+
+	// sseInitialHydrationCount is the number of recent messages sent on initial
+	// connect or after an ErrSinceIDNotFound reset. Keeps the payload bounded
+	// while guaranteeing the panel is never spuriously empty.
+	sseInitialHydrationCount = 20
 )
 
 var ErrMaxClientsReached = stderrors.New("max clients reached for run")
@@ -287,15 +292,23 @@ func (s *Server) streamMessageBusPath(w http.ResponseWriter, r *http.Request, bu
 	}
 
 	readAndSend := func() bool {
-		messages, err := bus.ReadMessages(lastID)
+		var messages []*messagebus.Message
+		var err error
+		if strings.TrimSpace(lastID) == "" {
+			// Initial connect or post-reset: send only the last N messages so the
+			// payload is bounded and the panel is never spuriously empty.
+			messages, err = bus.ReadLastN(sseInitialHydrationCount)
+		} else {
+			messages, err = bus.ReadMessages(lastID)
+		}
 		if err != nil {
 			if stderrors.Is(err, messagebus.ErrSinceIDNotFound) {
-				// sinceID expired (rotation/GC): reset to beginning and re-read
-				// immediately so the panel is repopulated without waiting another tick.
+				// sinceID expired (rotation/GC): reset and re-hydrate with last N
+				// messages so the panel is repopulated without waiting another tick.
 				lastID = ""
-				if msgs, rerr := bus.ReadMessages(""); rerr == nil {
-					messages = msgs
-				} else {
+				var rerr error
+				messages, rerr = bus.ReadLastN(sseInitialHydrationCount)
+				if rerr != nil {
 					return true
 				}
 			} else {
