@@ -143,11 +143,23 @@ describe('TreePanel', () => {
         id: 'task-20260222-180100-child-audit',
         status: 'running',
         last_activity: '2026-02-22T18:06:00Z',
+        thread_parent: {
+          project_id: 'conductor-loop',
+          task_id: 'task-20260222-180000-root-review',
+          run_id: 'run-root',
+          message_id: 'MSG-root',
+        },
       },
       {
         id: 'task-20260222-180200-grandchild-check',
         status: 'running',
         last_activity: '2026-02-22T18:07:00Z',
+        thread_parent: {
+          project_id: 'conductor-loop',
+          task_id: 'task-20260222-180100-child-audit',
+          run_id: 'run-child',
+          message_id: 'MSG-child',
+        },
       },
     ]
     mockRuns = [
@@ -191,12 +203,11 @@ describe('TreePanel', () => {
       />
     )
 
+    // Tasks are nested via thread_parent; each has a single run inlined into
+    // the task row (no separate run nodes since there is no restart chain).
     expect(screen.getByText('root-review')).toBeInTheDocument()
     expect(screen.getByText('child-audit')).toBeInTheDocument()
     expect(screen.getByText('grandchild-check')).toBeInTheDocument()
-    expect(screen.getByText('run-root')).toBeInTheDocument()
-    expect(screen.getByText('run-child')).toBeInTheDocument()
-    expect(screen.getByText('run-grandchild')).toBeInTheDocument()
   })
 
   it('keeps ancestor bridge run rows when selected deep task uses restarted parent run', async () => {
@@ -217,11 +228,23 @@ describe('TreePanel', () => {
         id: 'task-child',
         status: 'completed',
         last_activity: '2026-02-22T21:07:00Z',
+        thread_parent: {
+          project_id: 'conductor-loop',
+          task_id: 'task-root',
+          run_id: 'run-root',
+          message_id: 'MSG-root',
+        },
       },
       {
         id: 'task-grandchild',
         status: 'failed',
         last_activity: '2026-02-22T21:09:00Z',
+        thread_parent: {
+          project_id: 'conductor-loop',
+          task_id: 'task-child',
+          run_id: 'run-child-linked',
+          message_id: 'MSG-child',
+        },
       },
     ]
     mockRuns = [
@@ -310,11 +333,23 @@ describe('TreePanel', () => {
         id: 'task-child',
         status: 'completed',
         last_activity: '2026-02-22T21:07:00Z',
+        thread_parent: {
+          project_id: 'conductor-loop',
+          task_id: 'task-root',
+          run_id: 'run-root',
+          message_id: 'MSG-root',
+        },
       },
       {
         id: 'task-grandchild',
         status: 'failed',
         last_activity: '2026-02-22T21:09:00Z',
+        thread_parent: {
+          project_id: 'conductor-loop',
+          task_id: 'task-child',
+          run_id: 'run-child-linked',
+          message_id: 'MSG-child',
+        },
       },
     ]
     // Simulates active_only + selected_task filter payload where backend keeps
@@ -373,7 +408,9 @@ describe('TreePanel', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('run-root')).toBeInTheDocument()
+      // task-root has a single run (run-root) inlined into its task row.
+      // Verify the ancestor task itself is visible, not its individual run node.
+      expect(screen.getByText('task-root')).toBeInTheDocument()
       expect(screen.getByText(/run-child-det/)).toBeInTheDocument()
       expect(screen.getByText('task-grandchild')).toBeInTheDocument()
     })
@@ -402,11 +439,23 @@ describe('TreePanel', () => {
         id: 'task-selected',
         status: 'completed',
         last_activity: '2026-02-22T19:33:30Z',
+        thread_parent: {
+          project_id: 'conductor-loop',
+          task_id: 'task-root',
+          run_id: 'run-root',
+          message_id: 'MSG-root',
+        },
       },
       {
         id: 'task-grandchild',
         status: 'completed',
         last_activity: '2026-02-22T19:32:30Z',
+        thread_parent: {
+          project_id: 'conductor-loop',
+          task_id: 'task-selected',
+          run_id: 'run-selected-old',
+          message_id: 'MSG-selected',
+        },
       },
     ]
     mockRuns = [
@@ -494,6 +543,12 @@ describe('TreePanel', () => {
         id: 'task-child-active',
         status: 'running',
         last_activity: '2026-02-22T21:02:00Z',
+        thread_parent: {
+          project_id: 'conductor-loop',
+          task_id: 'task-root-terminal',
+          run_id: 'run-root-terminal',
+          message_id: 'MSG-root-terminal',
+        },
       },
     ]
     mockRuns = [

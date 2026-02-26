@@ -47,6 +47,7 @@ export function selectTreeRuns(
   }
 
   const includedTaskIDs = new Set<string>()
+  let hasActiveSeed = false
   for (const task of tasks) {
     if (selectedTaskId && task.id === selectedTaskId) {
       includedTaskIDs.add(task.id)
@@ -54,11 +55,13 @@ export function selectTreeRuns(
     }
     if (isActiveTaskStatus(task.status)) {
       includedTaskIDs.add(task.id)
+      hasActiveSeed = true
     }
   }
   for (const run of flatRuns) {
     if (isActiveRunStatus(run.status)) {
       includedTaskIDs.add(run.task_id)
+      hasActiveSeed = true
     }
   }
   if (includedTaskIDs.size > 0) {
@@ -97,7 +100,12 @@ export function selectTreeRuns(
 
   if (includedTaskIDs.size === 0) {
     // Keep full history when no active/selected task seeds exist.
-    // This preserves parent_run_id chains used for task nesting.
+    return flatRuns
+  }
+  if (!hasActiveSeed) {
+    // Only the selected task seeded the include set; there are no active tasks
+    // or runs.  Return all runs so the tree structure stays stable while a
+    // terminal task is selected (avoids layout shifts from subset changes).
     return flatRuns
   }
 
@@ -370,19 +378,9 @@ export function buildTree(
 
   const childRunsByParent = new Map<string, FlatRunItem[]>()
   const parentTaskByTask = new Map<string, string>()
-  const parentTaskLinkTime = new Map<string, string>()
   for (const run of flatRuns) {
     if (!run.parent_run_id || !runMap.has(run.parent_run_id)) {
       continue
-    }
-    const parentRun = runMap.get(run.parent_run_id)
-    if (parentRun && parentRun.task_id !== run.task_id) {
-      const runTime = run.end_time ?? run.start_time
-      const existingLinkTime = parentTaskLinkTime.get(run.task_id)
-      if (!existingLinkTime || runTime > existingLinkTime) {
-        parentTaskByTask.set(run.task_id, parentRun.task_id)
-        parentTaskLinkTime.set(run.task_id, runTime)
-      }
     }
     const children = childRunsByParent.get(run.parent_run_id)
     if (children) {
@@ -411,9 +409,6 @@ export function buildTree(
       latestActivityByTask.set(parentTaskID, task.last_activity)
     }
     parentTaskByTask.set(task.id, parentTaskID)
-    if (task.last_activity) {
-      parentTaskLinkTime.set(task.id, task.last_activity)
-    }
   }
 
   const placedRunIds = new Set<string>()
@@ -422,8 +417,10 @@ export function buildTree(
     placedRunIds.add(run.id)
 
     const children: TreeNode[] = []
-    // parent_run_id children: runs spawned by this run (cross- or same-task)
+    // parent_run_id children: runs spawned by this run within the same task only.
+    // Cross-task children are owned by their own task node, not nested here.
     for (const child of childRunsByParent.get(run.id) ?? []) {
+      if (child.task_id !== run.task_id) continue
       if (!placedRunIds.has(child.id)) {
         children.push(buildRunNode(child))
       }
@@ -489,9 +486,11 @@ export function buildTree(
       if (placedRunIds.has(run.id)) {
         continue
       }
-      // Skip runs whose parent is within the same run map (they'll be nested).
-      if (run.parent_run_id && runMap.has(run.parent_run_id)) {
-        continue
+      // Skip runs whose parent run belongs to the same task (they'll be nested
+      // under that parent run node).  Cross-task parent runs do not own this run.
+      if (run.parent_run_id) {
+        const parentRun = runMap.get(run.parent_run_id)
+        if (parentRun && parentRun.task_id === run.task_id) continue
       }
       // Skip superseded runs — they're shown as children of the run that
       // restarted them, giving the full restart tree on the left panel.

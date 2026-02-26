@@ -42,7 +42,7 @@ describe('buildTree task nesting guardrails', () => {
     expect(tree.children.map((c) => c.id)).toContain('task-20260101-130000-beta')
   })
 
-  it('nests child task under parent task when parent_run_id crosses tasks', () => {
+  it('child task appears at root when parent_run_id crosses tasks (use thread_parent for nesting)', () => {
     const tasks: TaskSummary[] = [
       { id: 'task-20260101-120000-parent', status: 'running', last_activity: '2026-01-01T12:10:00Z' },
       { id: 'task-20260101-120100-child', status: 'running', last_activity: '2026-01-01T12:05:00Z' },
@@ -68,27 +68,15 @@ describe('buildTree task nesting guardrails', () => {
     ]
 
     const tree = buildTree('my-project', tasks, runs)
+
+    // parent task is visible at project root
     const parentTask = tree.children.find((c) => c.id === 'task-20260101-120000-parent')
     expect(parentTask).toBeDefined()
 
-    // child task should be nested inside parent task
-    const childTask = parentTask?.children.find(
-      (c) => c.type === 'task' && c.id === 'task-20260101-120100-child'
-    )
-    // The child run is placed inside the parent run, and the child task should
-    // either be a sibling of the run or nested under the parent task.
-    // Verify the child task does NOT appear at the project root alongside the parent.
+    // Without thread_parent, cross-task parent_run_id no longer drives task nesting.
+    // The child task appears at the project root alongside the parent.
     const childAtRoot = tree.children.find((c) => c.id === 'task-20260101-120100-child')
-    // Either child is nested under parent, or child run appears inside parent run node.
-    // Both are correct nesting behaviors.
-    if (childAtRoot !== undefined && childTask === undefined) {
-      // child run should be under parent run node in the parent task
-      const parentRun = parentTask?.children.find((c) => c.id === 'run-parent')
-      const nestedChildRun = parentRun?.children.find((c) => c.id === 'run-child')
-      expect(nestedChildRun ?? childTask).toBeDefined()
-    } else {
-      expect(childTask ?? childAtRoot).toBeDefined()
-    }
+    expect(childAtRoot).toBeDefined()
   })
 
   it('thread_parent metadata drives task nesting regardless of run data', () => {
