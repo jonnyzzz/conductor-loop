@@ -610,7 +610,14 @@ export function buildTree(
 function deriveTaskStatus(runs: FlatRunItem[], summaryStatus?: string): string {
   if (runs.some((run) => run.status === 'running')) return 'running'
   if (runs.some((run) => run.status === 'queued')) return 'queued'
-  if (runs.length === 0) return summaryStatus ?? 'unknown'
+  if (runs.length === 0) {
+    // Normalize backend task-summary terminal statuses to canonical run-based
+    // statuses so that downstream consumers (e.g. isTerminalTaskStatus in the
+    // tree component) work correctly even when runs are absent from a scoped
+    // API response.
+    if (summaryStatus === 'all_finished') return 'completed'
+    return summaryStatus ?? 'unknown'
+  }
 
   let latestRun = runs[0]
   let latestTime = latestRun.end_time ?? latestRun.start_time
