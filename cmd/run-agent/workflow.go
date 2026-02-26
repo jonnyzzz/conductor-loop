@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -36,7 +37,17 @@ func newWorkflowRunCmd() *cobra.Command {
 			projectID = strings.TrimSpace(projectID)
 			taskID = strings.TrimSpace(taskID)
 			if projectID == "" {
-				return fmt.Errorf("project is required")
+				projectID = firstNonEmpty(
+					strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID")),
+					inferProjectFromCWD(),
+				)
+			}
+			if projectID == "" {
+				resolved, err := resolveOrInitProject(opts.RootDir)
+				if err != nil {
+					return err
+				}
+				projectID = resolved
 			}
 			if taskID == "" {
 				return fmt.Errorf("task is required")
@@ -74,7 +85,6 @@ func newWorkflowRunCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&projectID, "project", "", "project id")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id")
 	cmd.Flags().StringVar(&opts.RootDir, "root", "", "run-agent root directory")
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "config file path")
@@ -88,7 +98,6 @@ func newWorkflowRunCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&opts.Timeout, "timeout", 0, "idle output timeout per stage (e.g. 30m, 2h); 0 means no limit")
 	cmd.Flags().StringVar(&opts.StatePath, "state-file", "", "override stage state file path")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output workflow result as JSON")
-	_ = cmd.MarkFlagRequired("project")
 	_ = cmd.MarkFlagRequired("task")
 
 	return cmd

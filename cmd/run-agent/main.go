@@ -69,7 +69,19 @@ func newTaskCmd() *cobra.Command {
 			projectID = strings.TrimSpace(projectID)
 			originalTaskID := strings.TrimSpace(taskID)
 			if projectID == "" {
-				return fmt.Errorf("project is required")
+				// Try env-var inference first (for nested invocations).
+				projectID = firstNonEmpty(
+					strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID")),
+					inferProjectFromCWD(),
+				)
+			}
+			if projectID == "" {
+				// Last resort: scan home-folders.md files and interactively prompt.
+				resolved, err := resolveOrInitProject(opts.RootDir)
+				if err != nil {
+					return err
+				}
+				projectID = resolved
 			}
 			var err error
 			taskID, err = resolveTaskID(originalTaskID)
@@ -91,7 +103,6 @@ func newTaskCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&projectID, "project", "", "project id")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id")
 	cmd.Flags().StringVar(&opts.RootDir, "root", "", "run-agent root directory")
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "config file path")
@@ -129,7 +140,17 @@ func newTaskResumeCmd() *cobra.Command {
 			projectID = strings.TrimSpace(projectID)
 			taskID = strings.TrimSpace(taskID)
 			if projectID == "" {
-				return fmt.Errorf("project is required")
+				projectID = firstNonEmpty(
+					strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID")),
+					inferProjectFromCWD(),
+				)
+			}
+			if projectID == "" {
+				resolved, err := resolveOrInitProject(opts.RootDir)
+				if err != nil {
+					return err
+				}
+				projectID = resolved
 			}
 			if taskID == "" {
 				return fmt.Errorf("task is required")
@@ -170,7 +191,6 @@ func newTaskResumeCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&projectID, "project", "", "project id")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id")
 	cmd.Flags().StringVar(&opts.RootDir, "root", "", "run-agent root directory")
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "config file path")
@@ -236,7 +256,12 @@ func newJobCmd() *cobra.Command {
 			}
 
 			if projectID == "" {
-				return fmt.Errorf("cannot infer project: run from inside a task or project directory")
+				// Last resort: scan home-folders.md files and interactively prompt.
+				resolved, err := resolveOrInitProject(opts.RootDir)
+				if err != nil {
+					return err
+				}
+				projectID = resolved
 			}
 			originalTaskID := taskID
 			var err error
@@ -292,7 +317,21 @@ func newJobBatchCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectID = strings.TrimSpace(projectID)
 			if projectID == "" {
-				return fmt.Errorf("project is required")
+				taskFolderProject, _ := inferMessageScopeFromTaskFolder(os.Getenv("JRUN_TASK_FOLDER"))
+				runFolderProject, _, _ := inferMessageScopeFromRunFolder(os.Getenv("JRUN_RUN_FOLDER"))
+				projectID = firstNonEmpty(
+					runFolderProject,
+					taskFolderProject,
+					strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID")),
+					inferProjectFromCWD(),
+				)
+			}
+			if projectID == "" {
+				resolved, err := resolveOrInitProject(opts.RootDir)
+				if err != nil {
+					return err
+				}
+				projectID = resolved
 			}
 
 			batchPrompts, err := loadBatchPrompts(prompts, promptFiles)
@@ -355,7 +394,6 @@ func newJobBatchCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&projectID, "project", "", "project id")
 	cmd.Flags().StringArrayVar(&taskIDs, "task", nil, "task id per prompt (repeat; must match prompt count)")
 	cmd.Flags().StringVar(&opts.RootDir, "root", "", "run-agent root directory")
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "config file path")

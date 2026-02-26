@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/jonnyzzz/conductor-loop/internal/runner"
@@ -12,7 +11,6 @@ import (
 
 func newWrapCmd() *cobra.Command {
 	var (
-		projectID string
 		taskID    string
 		agentType string
 		opts      runner.WrapOptions
@@ -27,7 +25,7 @@ func newWrapCmd() *cobra.Command {
 				return fmt.Errorf("agent is required")
 			}
 
-			resolvedProjectID, err := resolveWrapProjectID(projectID, opts.WorkingDir)
+			resolvedProjectID, err := resolveWrapProjectID(opts.RootDir)
 			if err != nil {
 				return err
 			}
@@ -48,7 +46,6 @@ func newWrapCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&projectID, "project", "", "project id (default: JRUN_PROJECT_ID or current directory name)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id (auto-generated if omitted)")
 	cmd.Flags().StringVar(&agentType, "agent", "", "agent command to execute (e.g. claude, codex, gemini)")
 	cmd.Flags().StringVar(&opts.RootDir, "root", "", "run-agent root directory")
@@ -61,30 +58,22 @@ func newWrapCmd() *cobra.Command {
 	return cmd
 }
 
-func resolveWrapProjectID(projectID, workingDir string) (string, error) {
-	clean := strings.TrimSpace(projectID)
-	if clean != "" {
-		return clean, nil
-	}
-	if fromEnv := strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID")); fromEnv != "" {
-		return fromEnv, nil
-	}
+func resolveWrapProjectID(rootDir string) (string, error) {
+	taskFolderProject, _ := inferMessageScopeFromTaskFolder(os.Getenv("JRUN_TASK_FOLDER"))
+	runFolderProject, _, _ := inferMessageScopeFromRunFolder(os.Getenv("JRUN_RUN_FOLDER"))
+	cwdProject, _, _, _ := inferScopeFromCWDRunInfo()
 
-	baseDir := strings.TrimSpace(workingDir)
-	if baseDir == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("resolve project id from working directory: %w", err)
-		}
-		baseDir = cwd
+	projectID := firstNonEmpty(
+		runFolderProject,
+		taskFolderProject,
+		strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID")),
+		cwdProject,
+		inferProjectFromCWD(),
+	)
+	if projectID != "" {
+		return projectID, nil
 	}
-
-	name := filepath.Base(baseDir)
-	slug := sanitizeProjectID(name)
-	if slug == "" {
-		slug = "shell"
-	}
-	return slug, nil
+	return resolveOrInitProject(rootDir)
 }
 
 func sanitizeProjectID(value string) string {

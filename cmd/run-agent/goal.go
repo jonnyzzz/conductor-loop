@@ -10,6 +10,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// resolveGoalProjectID infers the project ID for goal commands using the same
+// priority chain as other execution commands.
+func resolveGoalProjectID(rootDir string) (string, error) {
+	projectID := firstNonEmpty(
+		strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID")),
+		inferProjectFromCWD(),
+	)
+	if projectID != "" {
+		return projectID, nil
+	}
+	return resolveOrInitProject(rootDir)
+}
+
 func newGoalCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "goal",
@@ -42,8 +55,16 @@ func newGoalDecomposeCmd() *cobra.Command {
 				return err
 			}
 
+			resolvedProjectID := strings.TrimSpace(projectID)
+			if resolvedProjectID == "" {
+				resolvedProjectID, err = resolveGoalProjectID(strings.TrimSpace(rootDir))
+				if err != nil {
+					return err
+				}
+			}
+
 			spec, err := goaldecompose.BuildSpec(goaldecompose.BuildOptions{
-				ProjectID:   strings.TrimSpace(projectID),
+				ProjectID:   resolvedProjectID,
 				GoalText:    goal,
 				GoalMode:    mode,
 				GoalSource:  source,
@@ -90,7 +111,6 @@ func newGoalDecomposeCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&projectID, "project", "", "project id")
 	cmd.Flags().StringVar(&goalText, "goal", "", "inline goal text (mutually exclusive with --goal-file)")
 	cmd.Flags().StringVar(&goalFile, "goal-file", "", "path to a goal file (mutually exclusive with --goal)")
 	cmd.Flags().StringVar(&rootDir, "root", "", "run-agent root directory hint stored in spec metadata")
@@ -99,8 +119,6 @@ func newGoalDecomposeCmd() *cobra.Command {
 	cmd.Flags().IntVar(&maxParallel, "max-parallel", goaldecompose.DefaultMaxParallel, "maximum parallel tasks in generated workflow")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON (default is YAML)")
 	cmd.Flags().StringVar(&outPath, "out", "", "write workflow spec to file (format inferred from extension: .json or .yaml/.yml)")
-	_ = cmd.MarkFlagRequired("project")
-
 	return cmd
 }
 

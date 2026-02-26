@@ -31,7 +31,17 @@ func newResumeCmd() *cobra.Command {
 			projectID = strings.TrimSpace(projectID)
 			taskID = strings.TrimSpace(taskID)
 			if projectID == "" {
-				return fmt.Errorf("--project is required")
+				projectID = firstNonEmpty(
+					strings.TrimSpace(os.Getenv("JRUN_PROJECT_ID")),
+					inferProjectFromCWD(),
+				)
+			}
+			if projectID == "" {
+				var inferErr error
+				projectID, inferErr = resolveOrInitProject(root)
+				if inferErr != nil {
+					return inferErr
+				}
 			}
 			if taskID == "" {
 				return fmt.Errorf("--task is required")
@@ -94,7 +104,6 @@ func newResumeCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&projectID, "project", "", "project id (required)")
 	cmd.Flags().StringVar(&taskID, "task", "", "task id (required)")
 	cmd.Flags().StringVar(&root, "root", "./runs", "run-agent root directory")
 	cmd.Flags().StringVar(&agent, "agent", "", "agent type; if set, launches a new run after reset")

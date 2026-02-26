@@ -14,10 +14,11 @@ import (
 )
 
 func TestGoalDecomposeRequiresGoalInput(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	cmd := newRootCmd()
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
-	cmd.SetArgs([]string{"goal", "decompose", "--project", "my-project"})
+	cmd.SetArgs([]string{"goal", "decompose"})
 
 	err := cmd.Execute()
 	if err == nil {
@@ -29,6 +30,7 @@ func TestGoalDecomposeRequiresGoalInput(t *testing.T) {
 }
 
 func TestGoalDecomposeRejectsMixedGoalInputs(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	goalFile := filepath.Join(t.TempDir(), "goal.md")
 	if err := os.WriteFile(goalFile, []byte("goal from file"), 0o644); err != nil {
 		t.Fatalf("write goal file: %v", err)
@@ -39,7 +41,6 @@ func TestGoalDecomposeRejectsMixedGoalInputs(t *testing.T) {
 	cmd.SetErr(io.Discard)
 	cmd.SetArgs([]string{
 		"goal", "decompose",
-		"--project", "my-project",
 		"--goal", "inline goal",
 		"--goal-file", goalFile,
 	})
@@ -54,6 +55,7 @@ func TestGoalDecomposeRejectsMixedGoalInputs(t *testing.T) {
 }
 
 func TestGoalDecomposeJSONAndOutYAML(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	goalFile := filepath.Join(t.TempDir(), "GOAL.md")
 	if err := os.WriteFile(goalFile, []byte("Ship deterministic goal decomposition"), 0o644); err != nil {
 		t.Fatalf("write goal file: %v", err)
@@ -66,7 +68,6 @@ func TestGoalDecomposeJSONAndOutYAML(t *testing.T) {
 	cmd.SetErr(io.Discard)
 	cmd.SetArgs([]string{
 		"goal", "decompose",
-		"--project", "my-project",
 		"--goal-file", goalFile,
 		"--json",
 		"--out", outPath,
@@ -101,6 +102,7 @@ func TestGoalDecomposeJSONAndOutYAML(t *testing.T) {
 }
 
 func TestGoalDecomposeOutFormatInferenceJSON(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	outPath := filepath.Join(t.TempDir(), "workflow.json")
 
 	var stdout bytes.Buffer
@@ -109,7 +111,6 @@ func TestGoalDecomposeOutFormatInferenceJSON(t *testing.T) {
 	cmd.SetErr(io.Discard)
 	cmd.SetArgs([]string{
 		"goal", "decompose",
-		"--project", "my-project",
 		"--goal", "Deliver deterministic CLI output",
 		"--out", outPath,
 	})

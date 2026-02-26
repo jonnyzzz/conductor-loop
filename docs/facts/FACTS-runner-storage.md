@@ -598,3 +598,39 @@ Task ID Precision: Practical usage in `run-agent` (CLI and logs) uses second-lev
 
 [2026-02-24 09:00:00] [tags: reconciliation, config, format]
 Configuration: YAML is the primary configuration format (`config.yaml`, `config.yml`). HCL remains supported but is secondary. Runtime code prefers YAML search order. Config search path is `~/.config/conductor/`.
+
+---
+
+## Project Discovery and Initialization (2026-02-26)
+
+[2026-02-26 00:00:00] [tags: runner, cli, project]
+FACT: All internal environment variables set by `run-agent` must start with `JRUN_`. Prefixes: `JRUN_PROJECT_ID`, `JRUN_TASK_ID`, `JRUN_ID`, `JRUN_PARENT_ID`, `JRUN_RUNS_DIR`, `JRUN_MESSAGE_BUS`, `JRUN_TASK_FOLDER`, `JRUN_RUN_FOLDER`, `JRUN_CONDUCTOR_URL`.
+
+[2026-02-26 00:00:00] [tags: runner, cli, project]
+FACT: There is no `--project` parameter on execution commands (`task`, `job`, `task resume`, `job batch`, `wrap`, `workflow run`, `goal decompose`, `resume`). Project is always inferred from context or fails with an actionable error. Management/query commands (`list`, `status`, `watch`, `gc`, `output`, `bus`, `monitor`, `review`, `stop`, `server`, etc.) still accept `--project` as an explicit filter.
+
+[2026-02-26 00:00:00] [tags: runner, cli, project]
+FACT: Project inference priority for execution commands:
+1. `JRUN_RUN_FOLDER` env var (canonical run path → derive project/task from path)
+2. `JRUN_TASK_FOLDER` env var (canonical task path → derive project/task from path)
+3. `JRUN_PROJECT_ID` env var (set by runner for child agents)
+4. Walk CWD upward for `run-info.yaml` (inside a run directory)
+5. Scan CWD subdirectories for task-ID-formatted names (inside a project directory)
+6. Scan `home-folders.md` files under runs root for `project_root` matching CWD's project root
+7. Interactive TTY prompt (if stdin is a terminal) — suggests project ID from dir name
+8. Error: "cannot infer project: run from inside a task or project directory"
+
+[2026-02-26 00:00:00] [tags: runner, cli, project]
+FACT: Projects cannot be nested. `ValidateProjectID` enforces: lowercase letters/digits/hyphens only, no path separators (`/`, `\`), no `.` or `..`, no leading/trailing hyphens. Enforced at both `storage.CreateRun` and `runner.resolveTaskDir`. Pattern: `^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$`.
+
+[2026-02-26 00:00:00] [tags: runner, storage, project]
+FACT: `home-folders.md` at `<runs_root>/<project>/home-folders.md` links a project in the runs folder to a source directory on disk. Format: YAML with fields `project_root` (absolute path), `source_folders[]`, `additional_folders[]`. Each folder entry has `path` and optional `description`. Implemented in `internal/storage/project.go`.
+
+[2026-02-26 00:00:00] [tags: runner, cli, project]
+FACT: Project initialization (`run-agent task` / `run-agent job` with no known project and a TTY stdin): scans CWD upward for project root markers (`.git`, `go.mod`, `package.json`, `README.md`, etc.), then scans all `home-folders.md` files under the runs root for a match. If no match and TTY, prompts: "No project found for: <dir>\nProject ID [<suggested>]: ". On confirmation, creates `home-folders.md` + empty `PROJECT-MESSAGE-BUS.md`.
+
+[2026-02-26 00:00:00] [tags: runner, storage, project]
+FACT: `FindProjectRoot` walks upward from CWD checking for: `.git`, `go.mod`, `package.json`, `pyproject.toml`, `Cargo.toml`, `build.gradle`, `pom.xml`, `Makefile`, `README.md`, `README.rst`, `README`. Returns the first ancestor directory containing any of these markers. Implemented in `internal/runner/project_discovery.go`.
+
+[2026-02-26 00:00:00] [tags: runner, storage, project]
+FACT: `SuggestProjectID` converts any string to a valid project ID: lowercase, alphanumeric+hyphens only, consecutive non-alphanumeric chars collapsed to single hyphen, no leading/trailing hyphens. Implemented in `internal/runner/project_discovery.go`.

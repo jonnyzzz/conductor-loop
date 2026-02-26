@@ -18,18 +18,19 @@ func TestTaskResume_MissingProject(t *testing.T) {
 }
 
 func TestTaskResume_MissingTask(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"task", "resume", "--project", "my-project"})
+	cmd.SetArgs([]string{"task", "resume"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("expected error for missing --task")
 	}
 }
 
 func TestTaskResume_InvalidTaskID(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
 		"task", "resume",
-		"--project", "my-project",
 		"--task", "invalid-task-id",
 		"--root", t.TempDir(),
 	})
@@ -43,11 +44,11 @@ func TestTaskResume_InvalidTaskID(t *testing.T) {
 }
 
 func TestTaskResume_TaskDirNotExist(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	root := t.TempDir()
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
 		"task", "resume",
-		"--project", "my-project",
 		"--task", "task-20260220-153045-my-feature",
 		"--root", root,
 		"--agent", "codex",
@@ -62,6 +63,7 @@ func TestTaskResume_TaskDirNotExist(t *testing.T) {
 }
 
 func TestTaskResume_TaskMDNotExist(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	root := t.TempDir()
 	taskID := "task-20260220-153045-my-feature"
 	taskDir := filepath.Join(root, "my-project", taskID)
@@ -73,7 +75,6 @@ func TestTaskResume_TaskMDNotExist(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
 		"task", "resume",
-		"--project", "my-project",
 		"--task", taskID,
 		"--root", root,
 		"--agent", "codex",
@@ -88,6 +89,7 @@ func TestTaskResume_TaskMDNotExist(t *testing.T) {
 }
 
 func TestTaskResume_PrintsResumingMessage(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	root := t.TempDir()
 	taskID := "task-20260220-153045-my-feature"
 	taskDir := filepath.Join(root, "my-project", taskID)
@@ -112,7 +114,6 @@ func TestTaskResume_PrintsResumingMessage(t *testing.T) {
 	cmd.SetErr(&stderr)
 	cmd.SetArgs([]string{
 		"task", "resume",
-		"--project", "my-project",
 		"--task", taskID,
 		"--root", root,
 		"--agent", "codex",
@@ -151,18 +152,19 @@ func TestResume_MissingProject(t *testing.T) {
 }
 
 func TestResume_MissingTask(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"resume", "--project", "my-project"})
+	cmd.SetArgs([]string{"resume"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("expected error for missing --task")
 	}
 }
 
 func TestResume_InvalidTaskID(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
 		"resume",
-		"--project", "my-project",
 		"--task", "invalid-task-id",
 		"--root", t.TempDir(),
 	})
@@ -176,11 +178,11 @@ func TestResume_InvalidTaskID(t *testing.T) {
 }
 
 func TestResume_TaskDirNotExist(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	root := t.TempDir()
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
 		"resume",
-		"--project", "my-project",
 		"--task", "task-20260220-153045-my-feature",
 		"--root", root,
 	})
@@ -194,6 +196,7 @@ func TestResume_TaskDirNotExist(t *testing.T) {
 }
 
 func TestResume_DeletesDoneAndPrintsMessage(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	root := t.TempDir()
 	taskID := "task-20260220-153045-my-feature"
 	taskDir := filepath.Join(root, "my-project", taskID)
@@ -211,7 +214,6 @@ func TestResume_DeletesDoneAndPrintsMessage(t *testing.T) {
 	cmd.SetOut(&stdout)
 	cmd.SetArgs([]string{
 		"resume",
-		"--project", "my-project",
 		"--task", taskID,
 		"--root", root,
 	})
@@ -233,6 +235,7 @@ func TestResume_DeletesDoneAndPrintsMessage(t *testing.T) {
 }
 
 func TestResume_NoDoneFile_StillSucceeds(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	root := t.TempDir()
 	taskID := "task-20260220-153045-my-feature"
 	taskDir := filepath.Join(root, "my-project", taskID)
@@ -244,7 +247,6 @@ func TestResume_NoDoneFile_StillSucceeds(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
 		"resume",
-		"--project", "my-project",
 		"--task", taskID,
 		"--root", root,
 	})
@@ -254,6 +256,7 @@ func TestResume_NoDoneFile_StillSucceeds(t *testing.T) {
 }
 
 func TestResume_NoAgent_DoesNotRunTask(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	root := t.TempDir()
 	taskID := "task-20260220-153045-my-feature"
 	taskDir := filepath.Join(root, "my-project", taskID)
@@ -266,7 +269,6 @@ func TestResume_NoAgent_DoesNotRunTask(t *testing.T) {
 	cmd.SetOut(&stdout)
 	cmd.SetArgs([]string{
 		"resume",
-		"--project", "my-project",
 		"--task", taskID,
 		"--root", root,
 		// deliberately no --agent flag

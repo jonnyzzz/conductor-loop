@@ -25,10 +25,11 @@ func TestWorkflowCommandRegistered(t *testing.T) {
 }
 
 func TestWorkflowRunRequiresTask(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	cmd := newRootCmd()
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
-	cmd.SetArgs([]string{"workflow", "run", "--project", "my-project"})
+	cmd.SetArgs([]string{"workflow", "run"})
 
 	err := cmd.Execute()
 	if err == nil {
@@ -40,6 +41,7 @@ func TestWorkflowRunRequiresTask(t *testing.T) {
 }
 
 func TestWorkflowRunDryRun(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	root := t.TempDir()
 	taskID := "task-20260222-120000-workflow"
 
@@ -49,7 +51,6 @@ func TestWorkflowRunDryRun(t *testing.T) {
 	cmd.SetErr(io.Discard)
 	cmd.SetArgs([]string{
 		"workflow", "run",
-		"--project", "my-project",
 		"--task", taskID,
 		"--root", root,
 		"--dry-run",
@@ -71,6 +72,7 @@ func TestWorkflowRunDryRun(t *testing.T) {
 }
 
 func TestWorkflowRunDryRunJSON(t *testing.T) {
+	t.Setenv("JRUN_PROJECT_ID", "my-project")
 	root := t.TempDir()
 	taskID := "task-20260222-130000-workflow"
 
@@ -80,7 +82,6 @@ func TestWorkflowRunDryRunJSON(t *testing.T) {
 	cmd.SetErr(io.Discard)
 	cmd.SetArgs([]string{
 		"workflow", "run",
-		"--project", "my-project",
 		"--task", taskID,
 		"--root", root,
 		"--dry-run",
