@@ -332,6 +332,13 @@ export function buildTree(
   for (const task of tasks) {
     taskSummaryMap.set(task.id, task)
     taskIdSet.add(task.id)
+    // Seed from the stable server-computed last_activity so the sort key is
+    // independent of which run subset is currently visible.  Without this,
+    // clicking a task changes the filtered run slice → latestActivityByTask
+    // jumps from '' to a real timestamp → the whole list reorders.
+    if (task.last_activity) {
+      latestActivityByTask.set(task.id, task.last_activity)
+    }
   }
 
   for (const run of flatRuns) {
