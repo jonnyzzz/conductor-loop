@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   BusMessage,
   FileContent,
@@ -682,6 +682,10 @@ export function useProjectRunsFlat(
     },
     enabled: Boolean(projectId),
     staleTime: 1000,
+    // Keep the previous scoped data as a placeholder while the new query (different
+    // selectedTaskId) is fetching.  Without this, the query key change causes a brief
+    // empty-data window that makes the tree lose all run-based nesting and jump.
+    placeholderData: keepPreviousData,
     refetchInterval: (query) => {
       const runs = query.state.data as FlatRunItem[] | undefined
       return runsFlatRefetchIntervalFor(runs, liveState)
