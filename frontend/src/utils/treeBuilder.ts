@@ -407,17 +407,24 @@ export function buildTree(
     }
   }
 
-  const runIDsWithChildren = new Set(childRunsByParent.keys())
-
   const placedRunIds = new Set<string>()
 
   function buildRunNode(run: FlatRunItem): TreeNode {
     placedRunIds.add(run.id)
 
     const children: TreeNode[] = []
+    // parent_run_id children: runs spawned by this run (cross- or same-task)
     for (const child of childRunsByParent.get(run.id) ?? []) {
       if (!placedRunIds.has(child.id)) {
         children.push(buildRunNode(child))
+      }
+    }
+    // previous_run_id chain: the run this one restarted becomes a child node,
+    // forming a visible restart tree rather than a collapsed badge.
+    if (run.previous_run_id) {
+      const prevRun = runMap.get(run.previous_run_id)
+      if (prevRun && !placedRunIds.has(prevRun.id)) {
+        children.push(buildRunNode(prevRun))
       }
     }
 
@@ -458,12 +465,13 @@ export function buildTree(
       }
     }
 
+    // Superseded runs are those pointed to by another run's previous_run_id.
+    // They appear as children of the restarting run in buildRunNode, so they
+    // must NOT also appear as top-level root nodes.
     const supersededRunIDs = new Set<string>()
-    let restartCount = 0
     for (const run of runs) {
       if (run.previous_run_id && runIds.has(run.previous_run_id)) {
         supersededRunIDs.add(run.previous_run_id)
-        restartCount += 1
       }
     }
 
@@ -472,23 +480,25 @@ export function buildTree(
       if (placedRunIds.has(run.id)) {
         continue
       }
+      // Skip runs whose parent is within the same run map (they'll be nested).
       if (run.parent_run_id && runMap.has(run.parent_run_id)) {
         continue
       }
-      if (supersededRunIDs.has(run.id) && !runIDsWithChildren.has(run.id)) {
+      // Skip superseded runs — they're shown as children of the run that
+      // restarted them, giving the full restart tree on the left panel.
+      if (supersededRunIDs.has(run.id)) {
         continue
       }
       rootRuns.push(run)
     }
 
     const children = rootRuns.map(buildRunNode)
+    // Inline the latest run into the task row only when there is exactly one
+    // run with no history (no restarts, no spawned children).
     const shouldInlineLatestRun =
       children.length === 1 &&
       children[0].children.length === 0 &&
-      (
-        runs.length === 1 ||
-        (latestRun !== undefined && children[0].id === latestRun.id)
-      )
+      runs.length === 1
     const visibleChildren = shouldInlineLatestRun ? [] : children
 
     const shortId = taskId.replace(/^task-\d{8}-\d{6}-/, '')
@@ -507,7 +517,6 @@ export function buildTree(
       latestRunStartTime: latestRun?.start_time,
       latestRunEndTime: latestRun?.end_time,
       children: visibleChildren,
-      restartCount: restartCount > 0 ? restartCount : undefined,
       inlineLatestRun: shouldInlineLatestRun ? true : undefined,
       dependsOn: summary?.depends_on,
       blockedBy: summary?.blocked_by,

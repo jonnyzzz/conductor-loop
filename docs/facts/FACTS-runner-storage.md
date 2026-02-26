@@ -634,3 +634,21 @@ FACT: `FindProjectRoot` walks upward from CWD checking for: `.git`, `go.mod`, `p
 
 [2026-02-26 00:00:00] [tags: runner, storage, project]
 FACT: `SuggestProjectID` converts any string to a valid project ID: lowercase, alphanumeric+hyphens only, consecutive non-alphanumeric chars collapsed to single hyphen, no leading/trailing hyphens. Implemented in `internal/runner/project_discovery.go`.
+
+---
+
+## Run Tree (2026-02-26)
+
+[2026-02-26 00:00:00] [tags: runner, storage, runs, tree, ui]
+FACT: Runs form a tree, always. The run tree is always shown on the left panel in the web UI. Runs are never collapsed into a badge or count.
+
+[2026-02-26 00:00:00] [tags: runner, storage, runs, tree]
+FACT: Two lineage fields in `run-info.yaml` define the run tree:
+- `parent_run_id`: this run was spawned (delegated) by the parent run. Shows as a child node under the parent.
+- `previous_run_id`: this run restarted from the previous run (Ralph loop chain). The older run shows as a child node under the restarting run, forming a visible restart history tree.
+
+[2026-02-26 00:00:00] [tags: runner, storage, runs, tree, ui]
+FACT: A run whose `previous_run_id` is set is the "current" run; the run it points to is shown nested below it. This means newest-on-top restart chains — the latest run is always the root, older restarts are children.
+
+[2026-02-26 00:00:00] [tags: runner, storage, runs, tree, ui]
+FACT: A run is a root-level node in the tree when: it has no `parent_run_id` pointing to a known run AND no other run's `previous_run_id` points to it. Superseded runs (pointed to by `previous_run_id`) are always nested children, never root nodes.
