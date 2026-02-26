@@ -182,7 +182,10 @@ func runServe(configPath, rootDir string, disableTaskStart bool, cliHost string,
 		)
 		return err
 	}
+	fmt.Printf("run-agent %s\n", version)
+	fmt.Println("By @jonnyzzz · https://linkedin.com/in/jonnyzzz · Support / Donate / Follow")
 	obslog.Log(logger, "INFO", "startup", "server_starting",
+		obslog.F("version", version),
 		obslog.F("root_dir", rootDir),
 		obslog.F("config_path", configPath),
 		obslog.F("host", apiCfg.Host),

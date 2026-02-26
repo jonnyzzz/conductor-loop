@@ -28,7 +28,7 @@ func newRootCmd() *cobra.Command {
 		Version:      version,
 		SilenceUsage: true,
 	}
-	cmd.SetVersionTemplate("{{.Version}}\n")
+	cmd.SetVersionTemplate("run-agent {{.Version}}\nBy @jonnyzzz · https://linkedin.com/in/jonnyzzz\n")
 
 	cmd.AddCommand(newTaskCmd())
 	cmd.AddCommand(newGoalCmd())

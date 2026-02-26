@@ -59,6 +59,10 @@ async function refreshStatusBar() {
     document.getElementById('health-dot').className   = 'dot ok';
     document.getElementById('health-label').textContent = `Health OK  ·  Active runs: ${status.active_runs_count}`;
     document.getElementById('status-uptime').textContent = `Uptime: ${fmtUptime(status.uptime_seconds)}`;
+    if (status.version) {
+      document.getElementById('header-version').textContent = status.version;
+      document.getElementById('footer-version').textContent  = status.version;
+    }
   } catch {
     document.getElementById('health-dot').className   = 'dot err';
     document.getElementById('health-label').textContent = 'Server unreachable';

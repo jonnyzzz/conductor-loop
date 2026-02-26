@@ -3,9 +3,9 @@ BIN_DIR := bin
 GO ?= go
 DOCKER_IMAGE ?= conductor-loop:dev
 
+BASE_VERSION := $(shell cat VERSION 2>/dev/null | tr -d '[:space:]')
 GIT_HASH := $(shell git rev-parse --short HEAD)
-BUILD_TIMESTAMP := $(shell date -u +%Y%m%d%H%M%S)
-VERSION := v0.76.0-$(GIT_HASH)-$(BUILD_TIMESTAMP)
+VERSION := $(BASE_VERSION)-SNAPSHOT-$(GIT_HASH)
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
 COVERAGE_THRESHOLD ?= 60

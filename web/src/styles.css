@@ -61,9 +61,57 @@ body {
 }
 
 #status-uptime {
-  margin-left: auto;
   color: var(--text-dim);
 }
+
+.header-version {
+  font-size: 10px;
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
+.header-spacer { flex: 1; }
+
+.header-promo { flex-shrink: 0; }
+
+.promo-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 11px;
+  opacity: 0.8;
+}
+.promo-link:hover { opacity: 1; text-decoration: underline; }
+
+/* ── Footer ──────────────────────────────────────── */
+
+#footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  height: 24px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.footer-left, .footer-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-sep { color: var(--border); }
+
+.footer-link {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.footer-link:hover { color: var(--accent); text-decoration: underline; }
+
+.footer-ver { color: var(--text-dim); opacity: 0.6; }
 
 /* ── Status dots ─────────────────────────────────── */
 
