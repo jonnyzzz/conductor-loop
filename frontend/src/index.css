@@ -1470,3 +1470,18 @@ body {
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+.app-author-link {
+  font-size: 11px;
+  color: var(--app-subtle);
+  text-decoration: none;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.app-author-link:hover {
+  color: var(--app-accent);
+  border-color: var(--app-accent);
+  text-decoration: none;
+}

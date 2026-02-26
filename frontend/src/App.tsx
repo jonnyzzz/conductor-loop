@@ -117,6 +117,15 @@ export function App() {
           {versionQuery.data?.version && (
             <span className="app-version" data-testid="app-version">v{versionQuery.data.version}</span>
           )}
+          <a
+            href="https://linkedin.com/in/jonnyzzz"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="app-author-link"
+            title="Support · Donate · Follow @jonnyzzz"
+          >
+            @jonnyzzz
+          </a>
           <Button inline onClick={() => projectsQuery.refetch()}>Refresh all</Button>
         </div>
       </header>
