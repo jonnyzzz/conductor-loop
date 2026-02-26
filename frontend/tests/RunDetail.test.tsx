@@ -1,8 +1,12 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { vi } from 'vitest'
+import { vi, describe, it, expect } from 'vitest'
 import { RunDetail } from '../src/components/RunDetail'
 import type { FileContent, RunInfo, TaskDetail } from '../src/types'
+
+async function clickTab(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(screen.getByRole('tab', { name }))
+}
 
 describe('RunDetail', () => {
   const task: TaskDetail = {
@@ -48,7 +52,8 @@ describe('RunDetail', () => {
     modified: '2026-02-04T17:31:55Z',
   }
 
-  it('renders metadata and file content', () => {
+  it('renders metadata and file content', async () => {
+    const user = userEvent.setup()
     render(
       <RunDetail
         task={task}
@@ -62,9 +67,15 @@ describe('RunDetail', () => {
       />
     )
 
+    // Header and overview are always visible
     expect(screen.getByText('Run detail')).toBeInTheDocument()
     expect(screen.getAllByText('run-1').length).toBeGreaterThan(0)
+
+    // Files tab is the default: file content visible
     expect(screen.getByText('Hello output')).toBeInTheDocument()
+
+    // Task state and full metadata are in the "Run metadata" tab
+    await clickTab(user, 'Run metadata')
     expect(screen.getByText('Task state')).toBeInTheDocument()
   })
 
@@ -104,6 +115,8 @@ describe('RunDetail', () => {
       />
     )
 
+    // Stop agent button is in the Run metadata tab
+    await clickTab(user, 'Run metadata')
     await user.click(screen.getByRole('button', { name: 'Stop agent' }))
     expect(onStopRun).toHaveBeenCalledWith('run-1')
     confirmSpy.mockRestore()
@@ -146,7 +159,8 @@ describe('RunDetail', () => {
     expect(screen.queryByText('Delete task')).not.toBeInTheDocument()
   })
 
-  it('handles tasks with null runs without crashing', () => {
+  it('handles tasks with null runs without crashing', async () => {
+    const user = userEvent.setup()
     const taskWithNullRuns: TaskDetail = {
       ...task,
       status: 'unknown',
@@ -165,7 +179,11 @@ describe('RunDetail', () => {
       />
     )
 
+    // "No runs yet" is in the task overview (always visible)
     expect(screen.getByText('No runs yet')).toBeInTheDocument()
+
+    // "No running or failed runs..." message is in the Run tree tab
+    await clickTab(user, 'Run tree')
     expect(screen.getByText(/No running or failed runs\. Expand completed runs to inspect history\./)).toBeInTheDocument()
   })
 
@@ -209,6 +227,8 @@ describe('RunDetail', () => {
       />
     )
 
+    // Run tree controls are in the Run tree tab
+    await clickTab(user, 'Run tree')
     await user.click(screen.getByRole('button', { name: '... 260 completed' }))
 
     expect(screen.getByText('Showing latest 200 of 260 completed runs.')).toBeInTheDocument()
@@ -239,6 +259,7 @@ describe('RunDetail', () => {
       runs: completedRuns,
     }
 
+    const user = userEvent.setup()
     render(
       <RunDetail
         task={archiveTask}
@@ -251,6 +272,8 @@ describe('RunDetail', () => {
       />
     )
 
+    // Run tree content is in the Run tree tab
+    await clickTab(user, 'Run tree')
     expect(screen.getByText('run-archive-000')).toBeInTheDocument()
     expect(screen.getByText('Showing latest 201 of 230 completed runs.')).toBeInTheDocument()
   })

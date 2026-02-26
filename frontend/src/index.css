@@ -310,6 +310,36 @@ body {
   border: 1px solid rgba(66, 145, 103, 0.34);
 }
 
+.detail-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 14px 10px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.detail-tab-button {
+  text-transform: none;
+}
+
+.detail-tab-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.detail-tab-files-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.panel-section-files .file-viewer {
+  max-height: min(65vh, 900px);
+}
+
 .list {
   display: flex;
   flex-direction: column;

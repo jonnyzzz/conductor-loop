@@ -193,7 +193,7 @@ describe('buildTree task nesting guardrails', () => {
     expect(tree.status).toBe('idle')
   })
 
-  it('restart chain collapses into restartCount on task node', () => {
+  it('restart chain forms a nested tree: newest run at top, older run as child', () => {
     const tasks: TaskSummary[] = [
       { id: 'task-20260101-120000-ralph', status: 'running', last_activity: '2026-01-01T12:05:00Z' },
     ]
@@ -221,8 +221,16 @@ describe('buildTree task nesting guardrails', () => {
     const tree = buildTree('my-project', tasks, runs)
     const taskNode = tree.children.find((c) => c.id === 'task-20260101-120000-ralph')
     expect(taskNode).toBeDefined()
-    // restart chain of 2 runs yields restartCount = 1
-    expect(taskNode?.restartCount).toBe(1)
+
+    // run-2 (newest) should be the root run node; run-1 (superseded) is its child.
+    expect(taskNode?.children).toHaveLength(1)
+    const rootRun = taskNode?.children[0]
+    expect(rootRun?.id).toBe('run-2')
+    expect(rootRun?.children).toHaveLength(1)
+    expect(rootRun?.children[0].id).toBe('run-1')
+
+    // restartCount is no longer used — restart history is in the tree
+    expect(taskNode?.restartCount).toBeUndefined()
   })
 
   it('cycle guard prevents infinite nesting when tasks reference each other', () => {

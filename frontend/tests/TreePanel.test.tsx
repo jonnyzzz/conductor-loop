@@ -68,7 +68,7 @@ describe('TreePanel', () => {
     mockCreateProjectMutateAsync.mockResolvedValue({ id: 'conductor-loop' })
   })
 
-  it('shows explicit restart and duration badges on merged single-run task rows', () => {
+  it('shows restart chain as visible tree and duration badge on task row', () => {
     mockProjects = [
       {
         id: 'conductor-loop',
@@ -117,9 +117,12 @@ describe('TreePanel', () => {
       />
     )
 
-    expect(screen.getByText('restart:1')).toBeInTheDocument()
-    expect(screen.getByText('dur:2m15s')).toBeInTheDocument()
-    expect(screen.queryByText(/run-002/)).not.toBeInTheDocument()
+    // Restart chain forms a visible tree: run-002 is a root node, run-001 is its child.
+    // No restart:N badge (restartCount is no longer set for chains shown as a tree).
+    expect(screen.queryByText('restart:1')).not.toBeInTheDocument()
+    // dur:2m15s appears on both the task row (latestRun) and the run-002 node row.
+    expect(screen.getAllByText('dur:2m15s').length).toBeGreaterThan(0)
+    expect(screen.getByText(/run-002/)).toBeInTheDocument()
   })
 
   it('keeps level-3 subtask hierarchy visible alongside nested runs', () => {
@@ -276,7 +279,9 @@ describe('TreePanel', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('run-root')).toBeInTheDocument()
+      // task-root has a single run (run-root) inlined into its task row — run-root is not a
+      // separate tree node. Verify that task-root itself (ancestor) remains visible.
+      expect(screen.getByText('task-root')).toBeInTheDocument()
       expect(screen.getByText(/run-child-rest/)).toBeInTheDocument()
       expect(screen.getByText('task-grandchild')).toBeInTheDocument()
     })

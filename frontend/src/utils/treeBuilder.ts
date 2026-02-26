@@ -327,17 +327,21 @@ export function buildTree(
   const taskRunMap = new Map<string, FlatRunItem[]>()
   const taskSummaryMap = new Map<string, TaskSummary>()
   const taskIdSet = new Set<string>()
+  // Sort key for each task: seeded from the stable server-computed last_activity.
+  // We never override this with run times for tasks that have a summary — doing so
+  // would cause the list to reorder whenever a different run subset is loaded
+  // (e.g., when clicking a task or run node changes which runs selectTreeRuns returns).
   const latestActivityByTask = new Map<string, string>()
+  // Tracks task IDs whose sort key came from task.last_activity (authoritative).
+  // Run times must NOT override these entries.
+  const sortKeySeededFromSummary = new Set<string>()
 
   for (const task of tasks) {
     taskSummaryMap.set(task.id, task)
     taskIdSet.add(task.id)
-    // Seed from the stable server-computed last_activity so the sort key is
-    // independent of which run subset is currently visible.  Without this,
-    // clicking a task changes the filtered run slice → latestActivityByTask
-    // jumps from '' to a real timestamp → the whole list reorders.
     if (task.last_activity) {
       latestActivityByTask.set(task.id, task.last_activity)
+      sortKeySeededFromSummary.add(task.id)
     }
   }
 
@@ -352,10 +356,15 @@ export function buildTree(
       taskRunMap.set(run.task_id, [run])
     }
 
-    const runTime = run.end_time ?? run.start_time
-    const latest = latestActivityByTask.get(run.task_id)
-    if (!latest || runTime > latest) {
-      latestActivityByTask.set(run.task_id, runTime)
+    // Only update sort key from run times for tasks that have no stable seed
+    // from task.last_activity.  For seeded tasks the server-provided value is
+    // authoritative and must remain constant regardless of the run subset loaded.
+    if (!sortKeySeededFromSummary.has(run.task_id)) {
+      const runTime = run.end_time ?? run.start_time
+      const latest = latestActivityByTask.get(run.task_id)
+      if (!latest || runTime > latest) {
+        latestActivityByTask.set(run.task_id, runTime)
+      }
     }
   }
 
@@ -526,7 +535,11 @@ export function buildTree(
   const sortedTaskIds = Array.from(taskIdSet).sort((a, b) => {
     const latestA = latestActivityByTask.get(a) ?? ''
     const latestB = latestActivityByTask.get(b) ?? ''
-    return latestB.localeCompare(latestA)
+    const cmp = latestB.localeCompare(latestA)
+    if (cmp !== 0) return cmp
+    // Stable tiebreaker: task IDs embed timestamps, so lexicographic descending
+    // puts newer tasks first and makes equal-timestamp cases deterministic.
+    return b.localeCompare(a)
   })
 
   const taskNodes = sortedTaskIds

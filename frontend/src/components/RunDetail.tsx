@@ -8,6 +8,8 @@ import { RunTree } from './RunTree'
 const COMPLETED_RUNS_INITIAL_LIMIT = 200
 const COMPLETED_RUNS_LOAD_STEP = 200
 
+type DetailTab = 'metadata' | 'files' | 'tree'
+
 function formatDateTime(value?: string): string {
   const raw = (value ?? '').trim()
   if (!raw || raw === '0001-01-01T00:00:00Z') {
@@ -54,6 +56,7 @@ export function RunDetail({
 }) {
   const [showCompletedRuns, setShowCompletedRuns] = useState(false)
   const [completedRunsLimit, setCompletedRunsLimit] = useState(COMPLETED_RUNS_INITIAL_LIMIT)
+  const [detailTab, setDetailTab] = useState<DetailTab>('files')
   const taskRuns = useMemo(() => (
     Array.isArray(task?.runs) ? task.runs : []
   ), [task?.runs])
@@ -132,6 +135,7 @@ export function RunDetail({
   useEffect(() => {
     setShowCompletedRuns(false)
     setCompletedRunsLimit(COMPLETED_RUNS_INITIAL_LIMIT)
+    setDetailTab('files')
   }, [task?.id])
 
   useEffect(() => {
@@ -201,6 +205,11 @@ export function RunDetail({
     }
     return task?.status ?? 'unknown'
   }, [runInfo, task?.status])
+
+  const selectedRunFiles = useMemo(
+    () => taskRuns.find((r) => r.id === selectedRunId)?.files ?? [],
+    [taskRuns, selectedRunId]
+  )
 
   if (!task) {
     return (
@@ -289,118 +298,172 @@ export function RunDetail({
           </div>
         )}
       </div>
-      <div className="panel-section panel-split">
-        <div className="panel-column">
-          <div className="section-title">Selected run metadata</div>
-          {taskState && <div className="task-state">{taskState}</div>}
-          {runInfo && task?.status === 'running' && onStopRun && (
-            <div className="panel-actions" style={{ marginBottom: '8px' }}>
-              <Button
-                inline
-                danger
-                onClick={() => {
-                  if (window.confirm(`Stop agent for run ${runInfo.run_id}?`)) {
-                    onStopRun(runInfo.run_id)
-                  }
-                }}
-              >
-                Stop agent
-              </Button>
-            </div>
-          )}
-          {runInfo ? (
-            <div className="metadata-grid">
-              <div>
-                <div className="metadata-label">Run ID</div>
-                <div className="metadata-value">{runInfo.run_id}</div>
+
+      <div className="detail-tabs" role="tablist" aria-label="Detail sections">
+        <Button
+          inline
+          className={clsx('filter-button detail-tab-button', detailTab === 'metadata' && 'filter-button-active')}
+          onClick={() => setDetailTab('metadata')}
+          role="tab"
+          aria-selected={detailTab === 'metadata'}
+        >
+          Run metadata
+        </Button>
+        <Button
+          inline
+          className={clsx('filter-button detail-tab-button', detailTab === 'files' && 'filter-button-active')}
+          onClick={() => setDetailTab('files')}
+          role="tab"
+          aria-selected={detailTab === 'files'}
+        >
+          Files
+        </Button>
+        <Button
+          inline
+          className={clsx('filter-button detail-tab-button', detailTab === 'tree' && 'filter-button-active')}
+          onClick={() => setDetailTab('tree')}
+          role="tab"
+          aria-selected={detailTab === 'tree'}
+        >
+          Run tree
+        </Button>
+      </div>
+
+      <div className="detail-tab-content">
+        {detailTab === 'metadata' && (
+          <div className="panel-section panel-section-tight">
+            {taskState && <div className="task-state">{taskState}</div>}
+            {runInfo && task?.status === 'running' && onStopRun && (
+              <div className="panel-actions" style={{ marginBottom: '8px' }}>
+                <Button
+                  inline
+                  danger
+                  onClick={() => {
+                    if (window.confirm(`Stop agent for run ${runInfo.run_id}?`)) {
+                      onStopRun(runInfo.run_id)
+                    }
+                  }}
+                >
+                  Stop agent
+                </Button>
               </div>
-              <div>
-                <div className="metadata-label">Agent</div>
-                <div className="metadata-value">{runInfo.agent}</div>
-              </div>
-              {runInfo.agent_version && (
+            )}
+            {runInfo ? (
+              <div className="metadata-grid">
                 <div>
-                  <div className="metadata-label">Agent version</div>
-                  <div className="metadata-value">{runInfo.agent_version}</div>
+                  <div className="metadata-label">Run ID</div>
+                  <div className="metadata-value">{runInfo.run_id}</div>
                 </div>
-              )}
-              <div>
-                <div className="metadata-label">Status</div>
-                <div className="metadata-value">
-                  <span className={clsx('status-pill', `status-${runStatus}`)}>
-                    {runStatus}
-                  </span>
+                <div>
+                  <div className="metadata-label">Agent</div>
+                  <div className="metadata-value">{runInfo.agent}</div>
                 </div>
-              </div>
-              <div>
-                <div className="metadata-label">Exit code</div>
-                <div className="metadata-value">{runInfo.exit_code}</div>
-              </div>
-              <div>
-                <div className="metadata-label">Start</div>
-                <div className="metadata-value">{formatDateTime(runInfo.start_time)}</div>
-              </div>
-              <div>
-                <div className="metadata-label">End</div>
-                <div className="metadata-value">{formatDateTime(runInfo.end_time)}</div>
-              </div>
-              <div>
-                <div className="metadata-label">Parent</div>
-                <div className="metadata-value">{runInfo.parent_run_id || '—'}</div>
-              </div>
-              <div>
-                <div className="metadata-label">Previous</div>
-                <div className="metadata-value">{runInfo.previous_run_id || '—'}</div>
-              </div>
-              <div className="metadata-span">
-                <div className="metadata-label">Working dir</div>
-                <div className="metadata-value">{runInfo.cwd}</div>
-              </div>
-              {runInfo.error_summary && (
+                {runInfo.agent_version && (
+                  <div>
+                    <div className="metadata-label">Agent version</div>
+                    <div className="metadata-value">{runInfo.agent_version}</div>
+                  </div>
+                )}
+                <div>
+                  <div className="metadata-label">Status</div>
+                  <div className="metadata-value">
+                    <span className={clsx('status-pill', `status-${runStatus}`)}>
+                      {runStatus}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="metadata-label">Exit code</div>
+                  <div className="metadata-value">{runInfo.exit_code}</div>
+                </div>
+                <div>
+                  <div className="metadata-label">Start</div>
+                  <div className="metadata-value">{formatDateTime(runInfo.start_time)}</div>
+                </div>
+                <div>
+                  <div className="metadata-label">End</div>
+                  <div className="metadata-value">{formatDateTime(runInfo.end_time)}</div>
+                </div>
+                <div>
+                  <div className="metadata-label">Parent</div>
+                  <div className="metadata-value">{runInfo.parent_run_id || '—'}</div>
+                </div>
+                <div>
+                  <div className="metadata-label">Previous</div>
+                  <div className="metadata-value">{runInfo.previous_run_id || '—'}</div>
+                </div>
                 <div className="metadata-span">
-                  <div className="metadata-label">Error summary</div>
-                  <div className="metadata-value metadata-error">{runInfo.error_summary}</div>
+                  <div className="metadata-label">Working dir</div>
+                  <div className="metadata-value">{runInfo.cwd}</div>
                 </div>
-              )}
+                {runInfo.error_summary && (
+                  <div className="metadata-span">
+                    <div className="metadata-label">Error summary</div>
+                    <div className="metadata-value metadata-error">{runInfo.error_summary}</div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="empty-state">Select a run to see details.</div>
+            )}
+          </div>
+        )}
+
+        {detailTab === 'files' && (
+          <>
+            {selectedRunFiles.length > 0 && (
+              <div className="detail-tab-files-header">
+                {selectedRunFiles.map((option) => (
+                  <Button
+                    key={option.name}
+                    inline
+                    className={clsx('filter-button', fileName === option.name && 'filter-button-active')}
+                    onClick={() => onSelectFile(option.name)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            )}
+            <div className="panel-section panel-section-tight panel-section-files">
+              <FileViewer fileName={fileName} content={fileContent?.content ?? ''} />
             </div>
-          ) : (
-            <div className="empty-state">Select a run to see details.</div>
-          )}
-        </div>
-        <div className="panel-column">
-          <div className="section-title">Run tree</div>
-          {completedRuns.length > 0 && (
-            <div className="runs-completed-controls">
-              <button
-                type="button"
-                className="runs-completed-toggle"
-                onClick={() => setShowCompletedRuns((value) => !value)}
-              >
-                {showCompletedRuns ? `Hide ${completedRuns.length} completed` : `... ${completedRuns.length} completed`}
-              </button>
-              {!showCompletedRuns && (
-                <div className="runs-completed-hint">Archived history is hidden. Click to include completed runs.</div>
-              )}
-              {showCompletedRuns && (
-                <div className="runs-completed-hint">
-                  {hiddenCompletedRuns > 0
-                    ? `Showing latest ${visibleCompletedCount} of ${completedRuns.length} completed runs.`
-                    : `Showing ${completedRuns.length} completed runs.`}
-                </div>
-              )}
-              {showCompletedRuns && hiddenCompletedRuns > 0 && (
+          </>
+        )}
+
+        {detailTab === 'tree' && (
+          <div className="panel-section panel-section-tight">
+            {completedRuns.length > 0 && (
+              <div className="runs-completed-controls">
                 <button
                   type="button"
                   className="runs-completed-toggle"
-                  onClick={() => setCompletedRunsLimit((value) => value + COMPLETED_RUNS_LOAD_STEP)}
+                  onClick={() => setShowCompletedRuns((value) => !value)}
                 >
-                  {`Load older completed (+${Math.min(COMPLETED_RUNS_LOAD_STEP, hiddenCompletedRuns)})`}
+                  {showCompletedRuns ? `Hide ${completedRuns.length} completed` : `... ${completedRuns.length} completed`}
                 </button>
-              )}
-            </div>
-          )}
-          {task ? (
-            visibleRuns.length > 0 ? (
+                {!showCompletedRuns && (
+                  <div className="runs-completed-hint">Archived history is hidden. Click to include completed runs.</div>
+                )}
+                {showCompletedRuns && (
+                  <div className="runs-completed-hint">
+                    {hiddenCompletedRuns > 0
+                      ? `Showing latest ${visibleCompletedCount} of ${completedRuns.length} completed runs.`
+                      : `Showing ${completedRuns.length} completed runs.`}
+                  </div>
+                )}
+                {showCompletedRuns && hiddenCompletedRuns > 0 && (
+                  <button
+                    type="button"
+                    className="runs-completed-toggle"
+                    onClick={() => setCompletedRunsLimit((value) => value + COMPLETED_RUNS_LOAD_STEP)}
+                  >
+                    {`Load older completed (+${Math.min(COMPLETED_RUNS_LOAD_STEP, hiddenCompletedRuns)})`}
+                  </button>
+                )}
+              </div>
+            )}
+            {visibleRuns.length > 0 ? (
               <RunTree
                 runs={visibleRuns}
                 selectedRunId={selectedRunId}
@@ -412,33 +475,9 @@ export function RunDetail({
                 No running or failed runs. Expand completed runs to inspect history.
                 {restartHint ? ` Restart policy: ${restartHint.title}.` : ''}
               </div>
-            )
-          ) : (
-            <div className="empty-state">No task loaded.</div>
-          )}
-        </div>
-      </div>
-      <div className="panel-divider" />
-      <div className="panel-header">
-        <div>
-          <div className="panel-title">Run files</div>
-          <div className="panel-subtitle">Default view: output.md</div>
-        </div>
-        <div className="panel-actions">
-          {(taskRuns.find((r) => r.id === selectedRunId)?.files ?? []).map((option) => (
-            <Button
-              key={option.name}
-              inline
-              className={clsx('filter-button', fileName === option.name && 'filter-button-active')}
-              onClick={() => onSelectFile(option.name)}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-      </div>
-      <div className="panel-section panel-section-tight">
-        <FileViewer fileName={fileName} content={fileContent?.content ?? ''} />
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
